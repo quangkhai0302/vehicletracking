@@ -1,0 +1,290 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import confetti from 'canvas-confetti';
+import { api } from './services/api';
+import { wsService } from './services/websocket';
+import MapComponent from './components/MapComponent';
+import SimulatorPanel from './components/SimulatorPanel';
+import TimelinePanel from './components/TimelinePanel';
+import ToastNotification from './components/ToastNotification';
+import IncidentModal from './components/IncidentModal';
+import StationModal from './components/StationModal';
+import { Station, Route, Trip, TrafficIncident, VehicleTelemetry, ToastItem } from './types';
+
+export default function App() {
+  const [stations, setStations] = useState<Station[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+  const [currentTrip, setCurrentTrip] = useState<Trip | null>(null);
+  const [incidents, setIncidents] = useState<TrafficIncident[]>([]);
+  const [telemetry, setTelemetry] = useState<VehicleTelemetry | null>(null);
+  const [simStatus, setSimStatus] = useState<'IDLE' | 'RUNNING' | 'PAUSED' | 'COMPLETED'>('IDLE');
+  const [multiplier, setMultiplier] = useState<number>(1);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const [clickMode, setClickMode] = useState<'ADD_STATION' | 'ADD_INCIDENT' | null>(null);
+  const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isIncidentsModalOpen, setIsIncidentsModalOpen] = useState(false);
+  const [isStationsModalOpen, setIsStationsModalOpen] = useState(false);
+
+  // Thêm Toast thông báo
+  const addToast = useCallback((toast: Omit<ToastItem, 'id' | 'time'>) => {
+    const id = Date.now().toString() + Math.random();
+    const time = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setToasts((prev) => [ { ...toast, id, time }, ...prev.slice(0, 4) ]);
+
+    // Tự động ẩn sau 5 giây
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5500);
+  }, []);
+
+  const dismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // Tải dữ liệu ban đầu
+  const loadInitialData = async () => {
+    try {
+      const [sts, rts, trps, incs] = await Promise.all([
+        api.getStations(),
+        api.getRoutes(),
+        api.getTrips(),
+        api.getIncidents(),
+      ]);
+
+      setStations(sts);
+      setRoutes(rts);
+      setIncidents(incs);
+
+      if (rts.length > 0) {
+        setSelectedRoute(rts[0]);
+      }
+
+      if (trps.length > 0) {
+        const trip = trps[0];
+        setCurrentTrip(trip);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải dữ liệu ban đầu:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadInitialData();
+
+    // Kết nối WebSocket STOMP
+    wsService.connect(() => {
+      console.log('STOMP connected ready');
+    });
+
+    // Lắng nghe dữ liệu Telemetry (Vị trí, Tốc độ, ETA)
+    const unsubTelemetry = wsService.onTelemetry((data) => {
+      setTelemetry(data);
+
+      if (data.status === 'IDLE' && simStatus === 'RUNNING') {
+        setSimStatus('COMPLETED');
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.6 }
+        });
+      }
+    });
+
+    // Lắng nghe sự kiện Auto Check-in tại các trạm
+    const unsubCheckIn = wsService.onCheckIn((event) => {
+      addToast({
+        type: 'CHECK_IN',
+        level: 'INFO',
+        title: `Auto Check-in Trạm #${event.stopOrder}`,
+        message: event.message,
+      });
+    });
+
+    // Lắng nghe cảnh báo sự cố kẹt xe và thay đổi lịch trình
+    const unsubAlert = wsService.onAlert((alert) => {
+      addToast({
+        type: 'DELAY_ALERT',
+        level: alert.level,
+        title: alert.title,
+        message: alert.message,
+      });
+    });
+
+    return () => {
+      unsubTelemetry();
+      unsubCheckIn();
+      unsubAlert();
+      wsService.disconnect();
+    };
+  }, [addToast, simStatus]);
+
+  // Điều khiển Simulator
+  const handleStart = async () => {
+    if (!currentTrip) return;
+    try {
+      await api.startSimulator(currentTrip.id);
+      setSimStatus('RUNNING');
+      addToast({
+        type: 'INFO',
+        level: 'INFO',
+        title: 'Bắt đầu chuyến đi',
+        message: `Xe ${currentTrip.vehiclePlateNumber} đã khởi hành từ trạm đầu tiên!`,
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePause = async () => {
+    if (!currentTrip) return;
+    await api.pauseSimulator(currentTrip.id);
+    setSimStatus('PAUSED');
+  };
+
+  const handleResume = async () => {
+    if (!currentTrip) return;
+    await api.resumeSimulator(currentTrip.id);
+    setSimStatus('RUNNING');
+  };
+
+  const handleReset = async () => {
+    if (!currentTrip) return;
+    await api.resetSimulator(currentTrip.id);
+    setSimStatus('IDLE');
+    setTelemetry(null);
+    loadInitialData();
+  };
+
+  const handleSetMultiplier = async (m: number) => {
+    if (!currentTrip) return;
+    await api.setMultiplier(currentTrip.id, m);
+    setMultiplier(m);
+  };
+
+  // Xử lý click trên bản đồ
+  const handleToggleClickMode = (mode: 'ADD_STATION' | 'ADD_INCIDENT') => {
+    if (clickMode === mode) {
+      setClickMode(null);
+    } else {
+      setClickMode(mode);
+      addToast({
+        type: 'INFO',
+        level: 'INFO',
+        title: 'Chế độ bản đồ',
+        message: `Nhấp chuột vào một vị trí trên bản đồ để đặt ${mode === 'ADD_STATION' ? 'trạm dừng' : 'sự cố giao thông'}.`,
+      });
+    }
+  };
+
+  const handleMapClick = (latlng: { lat: number; lng: number }) => {
+    setPendingCoords(latlng);
+    if (clickMode === 'ADD_INCIDENT') {
+      setIsIncidentsModalOpen(true);
+      setClickMode(null);
+    } else if (clickMode === 'ADD_STATION') {
+      setIsStationsModalOpen(true);
+      setClickMode(null);
+    }
+  };
+
+  // Quản lý Sự cố
+  const handleToggleIncident = async (id: number) => {
+    await api.toggleIncident(id);
+    const incs = await api.getIncidents();
+    setIncidents(incs);
+  };
+
+  const handleDeleteIncident = async (id: number) => {
+    await api.deleteIncident(id);
+    const incs = await api.getIncidents();
+    setIncidents(incs);
+  };
+
+  const handleCreateIncident = async (data: Partial<TrafficIncident>) => {
+    await api.createIncident(data);
+    const incs = await api.getIncidents();
+    setIncidents(incs);
+  };
+
+  // Quản lý Trạm
+  const handleCreateStation = async (data: Partial<Station>) => {
+    await api.createStation(data);
+    const sts = await api.getStations();
+    setStations(sts);
+  };
+
+  const handleDeleteStation = async (id: number) => {
+    await api.deleteStation(id);
+    const sts = await api.getStations();
+    setStations(sts);
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* Bản đồ nền tương tác */}
+      <MapComponent
+        stations={stations}
+        route={selectedRoute}
+        vehicleTelemetry={telemetry}
+        incidents={incidents}
+        onMapClick={handleMapClick}
+        clickMode={clickMode}
+      />
+
+      {/* Thanh điều khiển Simulator ở trên cùng */}
+      <SimulatorPanel
+        trip={currentTrip}
+        route={selectedRoute}
+        simStatus={simStatus}
+        multiplier={multiplier}
+        clickMode={clickMode}
+        onStart={handleStart}
+        onPause={handlePause}
+        onResume={handleResume}
+        onReset={handleReset}
+        onSetMultiplier={handleSetMultiplier}
+        onToggleClickMode={handleToggleClickMode}
+        onOpenIncidentsModal={() => setIsIncidentsModalOpen(true)}
+        onOpenStationsModal={() => setIsStationsModalOpen(true)}
+      />
+
+      {/* Bảng tiến trình chuyến đi & ETA thời gian thực bên trái */}
+      <TimelinePanel
+        telemetry={telemetry}
+        route={selectedRoute}
+        trip={currentTrip}
+      />
+
+      {/* Toasts thông báo thời gian thực góc trên bên phải */}
+      <ToastNotification toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Modal Quản lý Sự cố giao thông */}
+      <IncidentModal
+        isOpen={isIncidentsModalOpen}
+        onClose={() => {
+          setIsIncidentsModalOpen(false);
+          setPendingCoords(null);
+        }}
+        incidents={incidents}
+        onToggleIncident={handleToggleIncident}
+        onDeleteIncident={handleDeleteIncident}
+        onCreateIncident={handleCreateIncident}
+        pendingCoords={pendingCoords}
+      />
+
+      {/* Modal Quản lý Trạm dừng */}
+      <StationModal
+        isOpen={isStationsModalOpen}
+        onClose={() => {
+          setIsStationsModalOpen(false);
+          setPendingCoords(null);
+        }}
+        stations={stations}
+        onCreateStation={handleCreateStation}
+        onDeleteStation={handleDeleteStation}
+        pendingCoords={pendingCoords}
+      />
+    </div>
+  );
+}
