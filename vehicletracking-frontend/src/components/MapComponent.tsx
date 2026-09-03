@@ -2,6 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { Station, Route, VehicleTelemetry, TrafficIncident } from '../types';
 
+const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
+
 interface MapComponentProps {
   stations: Station[];
   route: Route | null;
@@ -38,8 +40,11 @@ export default function MapComponent({
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a> | &copy; OpenStreetMap',
+    const cartoTileUrl = `https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png${CARTO_API_KEY ? `?key=${encodeURIComponent(CARTO_API_KEY)}` : ''
+      }`;
+
+    L.tileLayer(cartoTileUrl, {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       maxZoom: 19,
       subdomains: 'abcd',
     }).addTo(map);

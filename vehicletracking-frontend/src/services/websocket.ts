@@ -1,5 +1,4 @@
 import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
 import { VehicleTelemetry, CheckInEvent, AlertMessage } from '../types';
 
 export class WebSocketService {
@@ -19,7 +18,10 @@ export class WebSocketService {
     if (this.client && this.connected) return;
 
     this.client = new Client({
-      webSocketFactory: () => new SockJS('http://localhost:8080/ws') as any,
+      // Backend cung cấp endpoint WebSocket thuần tại /ws-raw.
+      // Dùng WebSocket native để tránh sockjs-client (CommonJS) truy cập
+      // biến Node `global` trong môi trường trình duyệt.
+      brokerURL: 'ws://localhost:8080/ws-raw',
       reconnectDelay: 3000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
