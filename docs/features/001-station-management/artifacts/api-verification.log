@@ -1,0 +1,140 @@
+========================================================
+1. GET /api/stations (List stations - 200 OK)
+========================================================
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Thu, 03 Sep 2026 08:47:50 GMT
+
+[{"id":1,"code":"ST-MD","name":"Bến xe Miền Đông (Đinh Bộ Lĩnh)","latitude":10.814387,"longitude":106.711822,"address":"292 Đinh Bộ Lĩnh, Phường 26, Bình Thạnh, TP.HCM","radiusMeters":60.0,"stationType":"START","createdAt":"2026-09-03T15:29:40.136607"},{"id":2,"code":"ST-HX","name":"Ngã tư Hàng Xanh","latitude":10.801642,"longitude":106.711449,"address":"Ngã tư Hàng Xanh, Phường 21, Bình Thạnh, TP.HCM","radiusMeters":60.0,"stationType":"STOP","createdAt":"2026-09-03T15:29:40.162036"},{"id":3,"code":"ST-TCV","name":"Thảo Cầm Viên Sài Gòn","latitude":10.787612,"longitude":106.705298,"address":"2 Nguyễn Bỉnh Khiêm, Bến Nghé, Quận 1, TP.HCM","radiusMeters":60.0,"stationType":"STOP","createdAt":"2026-09-03T15:29:40.163492"},{"id":4,"code":"ST-NHL","name":"Nhà hát Thành Phố (Công Trường Lam Sơn)","latitude":10.776735,"longitude":106.703212,"address":"07 Công Trường Lam Sơn, Bến Nghé, Quận 1, TP.HCM","radiusMeters":60.0,"stationType":"STOP","createdAt":"2026-09-03T15:29:40.164996"},{"id":5,"code":"ST-BT","name":"Bến xe Buýt Sài Gòn (Chợ Bến Thành)","latitude":10.771216,"longitude":106.697426,"address":"Công viên 23/9, Phạm Ngũ Lão, Quận 1, TP.HCM","radiusMeters":70.0,"stationType":"END","createdAt":"2026-09-03T15:29:40.166262"}]
+
+
+========================================================
+2. GET /api/stations/1 (Get station by ID - 200 OK)
+========================================================
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Thu, 03 Sep 2026 08:47:50 GMT
+
+{"id":1,"code":"ST-MD","name":"Bến xe Miền Đông (Đinh Bộ Lĩnh)","latitude":10.814387,"longitude":106.711822,"address":"292 Đinh Bộ Lĩnh, Phường 26, Bình Thạnh, TP.HCM","radiusMeters":60.0,"stationType":"START","createdAt":"2026-09-03T15:29:40.136607"}
+
+
+========================================================
+3. POST /api/stations (Create station - 201 Created)
+========================================================
+HTTP/1.1 201 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Thu, 03 Sep 2026 08:47:50 GMT
+
+{"id":7,"code":"ST-ARTIFACT","name":"Trạm Artifact Test","latitude":10.79,"longitude":106.68,"address":null,"radiusMeters":65.0,"stationType":"STOP","createdAt":"2026-09-03T15:47:50.117825936"}
+
+
+
+========================================================
+4. PUT /api/stations/7 (Update station - 200 OK)
+========================================================
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Thu, 03 Sep 2026 08:47:50 GMT
+
+{"id":7,"code":"ST-ARTIFACT-UPD","name":"Trạm Artifact Đã Sửa","latitude":10.795,"longitude":106.685,"address":null,"radiusMeters":70.0,"stationType":"END","createdAt":"2026-09-03T15:47:50.117826"}
+
+
+========================================================
+5. POST /api/stations (Duplicate Code - 409 Conflict Problem Details)
+========================================================
+HTTP/1.1 409 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Thu, 03 Sep 2026 08:47:50 GMT
+
+{"detail":"Mã trạm đã tồn tại: ST-ARTIFACT-UPD","instance":"/api/stations","status":409,"title":"Conflict","type":"about:blank"}
+
+
+========================================================
+6. POST /api/stations (Invalid Latitude > 90 - 400 Bad Request Problem Details)
+========================================================
+HTTP/1.1 400 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Thu, 03 Sep 2026 08:47:50 GMT
+Connection: close
+
+{"detail":"Dữ liệu yêu cầu không hợp lệ","instance":"/api/stations","status":400,"title":"Bad Request","type":"about:blank","errors":[{"field":"latitude","message":"Vĩ độ phải từ -90 đến 90"}]}
+
+
+========================================================
+7. GET /api/stations/9999 (Non-existent ID - 404 Not Found Problem Details)
+========================================================
+HTTP/1.1 404 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Thu, 03 Sep 2026 08:47:50 GMT
+
+{"detail":"Không tìm thấy trạm dừng với ID: 9999","instance":"/api/stations/9999","status":404,"title":"Not Found","type":"about:blank"}
+
+
+========================================================
+8. DELETE /api/stations/1 (Referenced by Route - 409 Conflict Problem Details)
+========================================================
+HTTP/1.1 409 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Thu, 03 Sep 2026 08:47:50 GMT
+
+{"detail":"Không thể xóa trạm vì đang được sử dụng trong tuyến đường","instance":"/api/stations/1","status":409,"title":"Conflict","type":"about:blank"}
+
+
+========================================================
+9. DELETE /api/stations/7 (Unreferenced Station - 204 No Content)
+========================================================
+HTTP/1.1 204 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Date: Thu, 03 Sep 2026 08:47:50 GMT
+
+
+
+
+========================================================
+10. DELETE /api/stations/7 (Already Deleted - 404 Not Found Problem Details)
+========================================================
+HTTP/1.1 404 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Thu, 03 Sep 2026 08:47:50 GMT
+
+{"detail":"Không tìm thấy trạm dừng với ID: 7","instance":"/api/stations/7","status":404,"title":"Not Found","type":"about:blank"}
+
+

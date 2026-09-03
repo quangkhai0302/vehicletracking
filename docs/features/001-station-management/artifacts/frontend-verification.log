@@ -1,0 +1,122 @@
+=== Node & NPM Version ===
+v24.16.0
+11.13.0
+
+=== npm run lint ===
+
+> vehicletracking-frontend@0.0.0 lint
+> oxlint
+
+
+  ! eslint(no-unused-vars): Identifier 'Zap' is imported but never used.
+   ,-[src/components/SimulatorPanel.tsx:2:34]
+ 1 | import React from 'react';
+ 2 | import { Play, Pause, RotateCcw, Zap, AlertOctagon, PlusCircle, Layers, Radio } from 'lucide-react';
+   :                                  ^|^
+   :                                   `-- 'Zap' is imported here
+ 3 | import { Trip, Route } from '../types';
+   `----
+  help: Consider removing this import.
+
+  ! eslint(no-unused-vars): Parameter 'trip' is declared but never used. Unused parameters should start with a '_'.
+    ,-[src/components/SimulatorPanel.tsx:22:3]
+ 21 | export default function SimulatorPanel({
+ 22 |   trip,
+    :   ^^|^
+    :     `-- 'trip' is declared here
+ 23 |   route,
+    `----
+  help: Consider removing this parameter.
+
+  ! eslint(no-unused-vars): Parameter 'onOpenStationsModal' is declared but never used. Unused parameters should start with a '_'.
+    ,-[src/components/SimulatorPanel.tsx:34:3]
+ 33 |   onOpenIncidentsModal,
+ 34 |   onOpenStationsModal,
+    :   ^^^^^^^^^|^^^^^^^^^
+    :            `-- 'onOpenStationsModal' is declared here
+ 35 | }: SimulatorPanelProps) {
+    `----
+  help: Consider removing this parameter.
+
+  ! eslint(no-unused-vars): Variable 'setRadius' is declared but never used. Unused variables should start with a '_'.
+    ,-[src/components/IncidentModal.tsx:26:18]
+ 25 |   const [type, setType] = useState<IncidentType>('CONGESTION');
+ 26 |   const [radius, setRadius] = useState(250);
+    :                  ^^^^|^^^^
+    :                      `-- 'setRadius' is declared here
+ 27 |   const [speedReduction, setSpeedReduction] = useState(70);
+    `----
+  help: Consider removing this declaration.
+
+  ! eslint(no-unused-vars): Parameter 'route' is declared but never used. Unused parameters should start with a '_'.
+    ,-[src/components/MapComponent.tsx:18:3]
+ 17 |   stations = [],
+ 18 |   route = null,
+    :   ^^|^^
+    :     `-- 'route' is declared here
+ 19 |   vehicleTelemetry = null,
+    `----
+  help: Consider removing this parameter.
+
+  ! react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'vehicleTelemetry'
+     ,-[src/components/MapComponent.tsx:202:6]
+ 197 | 
+ 198 |       if (!vehicleTelemetry) {
+     :            ^^^^^^^^|^^^^^^^
+     :                    `-- useEffect uses `vehicleTelemetry` here
+ 199 |         map.fitBounds(polyline.getBounds(), { padding: [60, 60] });
+ 200 |       }
+ 201 |     }
+ 202 |   }, [stations]);
+     :      ^^^^^^^^^^
+ 203 | 
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-unused-vars): Variable 'routes' is declared but never used. Unused variables should start with a '_'.
+    ,-[src/App.tsx:15:10]
+ 14 |   const [stations, setStations] = useState<Station[]>([]);
+ 15 |   const [routes, setRoutes] = useState<Route[]>([]);
+    :          ^^^|^^
+    :             `-- 'routes' is declared here
+ 16 |   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+    `----
+  help: Consider removing this declaration.
+
+  ! react(set-state-in-effect): Calling setState synchronously within an effect can trigger cascading renders
+    ,-[src/App.tsx:73:5]
+ 71 | 
+ 72 |   useEffect(() => {
+    :   ^^^^|^^^^
+    :       `-- This is the containing effect
+ 73 |     loadInitialData();
+    :     ^^^^^^^|^^^^^^^
+    :            `-- Avoid calling setState() directly within an effect
+ 74 | 
+    `----
+  help: Effects should synchronize React with external systems. Calling setState synchronously inside an effect starts another render and is usually unnecessary. Derive the value during render, initialize state directly, or update it from the event that caused the change. Use an effect only when synchronizing with an external system.
+  note: React Compiler skipped optimizing this component or hook. Additional guidance: https://react.dev/reference/eslint-plugin-react-hooks/lints/set-state-in-effect
+
+Found 8 warnings and 0 errors.
+Finished in 87ms on 13 files with 104 rules using 12 threads.
+Lint exit code: 0
+
+=== npx tsc --noEmit ===
+TypeCheck exit code: 0
+
+=== npm run build ===
+
+> vehicletracking-frontend@0.0.0 build
+> vite build
+
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 1830 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.75 kB │ gzip:   1.02 kB
+dist/assets/index-SMs9X8sI.css    5.08 kB │ gzip:   1.69 kB
+dist/assets/index-LyRm9-5j.js   422.06 kB │ gzip: 126.82 kB
+
+✓ built in 455ms
+Build exit code: 0
