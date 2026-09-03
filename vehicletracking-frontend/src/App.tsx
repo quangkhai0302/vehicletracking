@@ -207,17 +207,86 @@ export default function App() {
     setIncidents(incs);
   };
 
+  const refreshStations = async () => {
+    try {
+      const sts = await api.getStations();
+      setStations(sts);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi không xác định';
+      addToast({
+        type: 'INFO',
+        level: 'WARNING',
+        title: 'Cảnh báo đồng bộ',
+        message: 'Không thể làm mới danh sách trạm: ' + msg,
+      });
+    }
+  };
+
   // Quản lý Trạm
   const handleCreateStation = async (data: Partial<Station>) => {
-    await api.createStation(data);
-    const sts = await api.getStations();
-    setStations(sts);
+    try {
+      const created = await api.createStation(data);
+      addToast({
+        type: 'INFO',
+        level: 'INFO',
+        title: 'Tạo trạm thành công',
+        message: `Đã tạo trạm ${created.name} (${created.code})`,
+      });
+      await refreshStations();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi tạo trạm';
+      addToast({
+        type: 'INFO',
+        level: 'WARNING',
+        title: 'Lỗi tạo trạm',
+        message: msg,
+      });
+      throw err;
+    }
+  };
+
+  const handleUpdateStation = async (id: number, data: Partial<Station>) => {
+    try {
+      const updated = await api.updateStation(id, data);
+      addToast({
+        type: 'INFO',
+        level: 'INFO',
+        title: 'Cập nhật thành công',
+        message: `Đã cập nhật trạm ${updated.name} (${updated.code})`,
+      });
+      await refreshStations();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi cập nhật trạm';
+      addToast({
+        type: 'INFO',
+        level: 'WARNING',
+        title: 'Lỗi cập nhật trạm',
+        message: msg,
+      });
+      throw err;
+    }
   };
 
   const handleDeleteStation = async (id: number) => {
-    await api.deleteStation(id);
-    const sts = await api.getStations();
-    setStations(sts);
+    try {
+      await api.deleteStation(id);
+      addToast({
+        type: 'INFO',
+        level: 'INFO',
+        title: 'Xóa trạm thành công',
+        message: 'Đã xóa trạm dừng khỏi hệ thống',
+      });
+      await refreshStations();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi xóa trạm';
+      addToast({
+        type: 'INFO',
+        level: 'WARNING',
+        title: 'Lỗi xóa trạm',
+        message: msg,
+      });
+      throw err;
+    }
   };
 
   return (
@@ -282,6 +351,7 @@ export default function App() {
         }}
         stations={stations}
         onCreateStation={handleCreateStation}
+        onUpdateStation={handleUpdateStation}
         onDeleteStation={handleDeleteStation}
         pendingCoords={pendingCoords}
       />

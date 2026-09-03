@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface StationRepository extends JpaRepository<Station, Long> {
     Optional<Station> findByCode(String code);
     boolean existsByCode(String code);
+    boolean existsByCodeAndIdNot(String code, Long id);
 }

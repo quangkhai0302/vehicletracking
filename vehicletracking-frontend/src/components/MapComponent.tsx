@@ -84,21 +84,32 @@ export default function MapComponent({
 
     const stationsToCheck = vehicleTelemetry?.stationsEta || [];
 
+    const escapeHtml = (str: string | null | undefined): string => {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
+
     stations.forEach((station, index) => {
       const etaInfo = stationsToCheck.find(s => s.stationId === station.id);
       const isChecked = etaInfo?.status === 'CHECKED_IN';
       const isTarget = vehicleTelemetry?.targetStationId === station.id;
-      const isStart = index === 0;
-      const isEnd = index === stations.length - 1;
-      const stopNumber = index + 1;
+      const isStart = station.stationType === 'START';
+      const isEnd = station.stationType === 'END';
+      const typeClass = isStart ? 'start' : isEnd ? 'end' : '';
+      const badgeLabel = isChecked ? '✓' : (isStart ? 'S' : isEnd ? 'E' : (index + 1));
 
       const iconHtml = `
-        <div class="station-pin ${isStart ? 'start' : isEnd ? 'end' : ''} ${isChecked ? 'checked' : ''}">
+        <div class="station-pin ${typeClass} ${isChecked ? 'checked' : ''}">
           <div class="station-pin-badge" style="${isTarget ? 'border-color: #00f0ff; box-shadow: 0 0 12px #00f0ff; transform: scale(1.15);' : ''}">
-            ${isChecked ? '✓' : stopNumber}
+            ${badgeLabel}
           </div>
           <div style="background: rgba(15,23,42,0.85); backdrop-filter: blur(8px); padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 600; color: #f8fafc; white-space: nowrap; margin-top: 3px; border: 1px solid rgba(255,255,255,0.1);">
-            ${station.name}
+            ${escapeHtml(station.name)}
           </div>
         </div>
       `;
@@ -110,16 +121,51 @@ export default function MapComponent({
         iconAnchor: [60, 15],
       });
 
+      // Sử dụng DOM textContent cho popup để ngăn chặn hoàn toàn XSS injection (BR-006)
+      const popupContainer = document.createElement('div');
+      popupContainer.style.fontFamily = 'var(--font-body)';
+      popupContainer.style.color = '#0f172a';
+      popupContainer.style.minWidth = '180px';
+
+      const titleElem = document.createElement('strong');
+      titleElem.style.fontSize = '13px';
+      titleElem.style.color = '#1e293b';
+      titleElem.textContent = station.name;
+      popupContainer.appendChild(titleElem);
+      popupContainer.appendChild(document.createElement('br'));
+
+      const codeElem = document.createElement('span');
+      codeElem.style.fontSize = '11px';
+      codeElem.style.color = '#64748b';
+      codeElem.textContent = `Mã trạm: ${station.code}`;
+      popupContainer.appendChild(codeElem);
+      popupContainer.appendChild(document.createElement('br'));
+
+      const typeElem = document.createElement('span');
+      typeElem.style.fontSize = '11px';
+      typeElem.style.color = '#64748b';
+      typeElem.textContent = `Loại: ${station.stationType}`;
+      popupContainer.appendChild(typeElem);
+      popupContainer.appendChild(document.createElement('br'));
+
+      if (station.address) {
+        const addrElem = document.createElement('span');
+        addrElem.style.fontSize = '11px';
+        addrElem.style.color = '#64748b';
+        addrElem.textContent = `Địa chỉ: ${station.address}`;
+        popupContainer.appendChild(addrElem);
+        popupContainer.appendChild(document.createElement('br'));
+      }
+
+      const radiusElem = document.createElement('span');
+      radiusElem.style.fontSize = '11px';
+      radiusElem.style.color = '#64748b';
+      radiusElem.textContent = `Bán kính checkin: ${station.radiusMeters}m`;
+      popupContainer.appendChild(radiusElem);
+
       const marker = L.marker([station.latitude, station.longitude], { icon: customIcon })
         .addTo(map)
-        .bindPopup(`
-          <div style="font-family: var(--font-body); color: #0f172a; min-width: 180px;">
-            <strong style="font-size: 13px; color: #1e293b;">${station.name}</strong><br/>
-            <span style="font-size: 11px; color: #64748b;">Mã trạm: ${station.code}</span><br/>
-            <span style="font-size: 11px; color: #64748b;">Loại: ${station.stationType}</span><br/>
-            <span style="font-size: 11px; color: #64748b;">Bán kính checkin: ${station.radiusMeters}m</span>
-          </div>
-        `);
+        .bindPopup(popupContainer);
 
       stationMarkersRef.current.push(marker);
     });

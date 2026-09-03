@@ -10,4 +10,5 @@ import java.util.List;
 public interface RouteStationRepository extends JpaRepository<RouteStation, Long> {
     List<RouteStation> findByRouteIdOrderByStopOrderAsc(Long routeId);
     void deleteByRouteId(Long routeId);
+    boolean existsByStationId(Long stationId);
 }

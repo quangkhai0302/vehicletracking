@@ -2,10 +2,45 @@ import { Station, Route, Vehicle, Trip, TrafficIncident } from '../types';
 
 const API_BASE = 'http://localhost:8080/api';
 
+async function parseErrorMessage(res: Response, defaultMessage: string): Promise<string> {
+  try {
+    const data = await res.json();
+    if (data.detail) {
+      if (Array.isArray(data.errors) && data.errors.length > 0) {
+        const fieldDetails = data.errors
+          .map((e: { field?: string; message?: string }) => e.message || e.field)
+          .join(', ');
+        return `${data.detail}: ${fieldDetails}`;
+      }
+      return data.detail;
+    }
+    if (data.message) {
+      return data.message;
+    }
+  } catch {
+    // Non-JSON response
+  }
+  if (res.status === 400) return 'Dữ liệu không hợp lệ (400)';
+  if (res.status === 404) return 'Không tìm thấy trạm dừng (404)';
+  if (res.status === 409) return 'Mã trạm hoặc quan hệ bị xung đột (409)';
+  if (res.status >= 500) return 'Lỗi máy chủ nội bộ (500)';
+  return defaultMessage;
+}
+
 export const api = {
   // Trạm dừng
   getStations: async (): Promise<Station[]> => {
     const res = await fetch(`${API_BASE}/stations`);
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi lấy danh sách trạm'));
+    }
+    return res.json();
+  },
+  getStationById: async (id: number): Promise<Station> => {
+    const res = await fetch(`${API_BASE}/stations/${id}`);
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Không tìm thấy trạm dừng'));
+    }
     return res.json();
   },
   createStation: async (data: Partial<Station>): Promise<Station> => {
@@ -14,12 +49,27 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error((await res.json()).message || 'Lỗi tạo trạm');
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi tạo trạm'));
+    }
+    return res.json();
+  },
+  updateStation: async (id: number, data: Partial<Station>): Promise<Station> => {
+    const res = await fetch(`${API_BASE}/stations/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi cập nhật trạm'));
+    }
     return res.json();
   },
   deleteStation: async (id: number): Promise<void> => {
     const res = await fetch(`${API_BASE}/stations/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Lỗi xóa trạm');
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi xóa trạm'));
+    }
   },
 
   // Tuyến đường
