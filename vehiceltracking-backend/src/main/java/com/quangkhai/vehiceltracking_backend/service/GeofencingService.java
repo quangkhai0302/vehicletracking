@@ -28,7 +28,9 @@ public class GeofencingService {
 
     private final TripCheckInRepository tripCheckInRepository;
     private final TripRepository tripRepository;
+    private final TripService tripService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final java.time.Clock clock;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
 
@@ -55,7 +57,7 @@ public class GeofencingService {
         );
 
         if (distanceMeters <= radiusMeters) {
-            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime now = LocalDateTime.now(clock);
             checkIn.setStatus(CheckInStatus.CHECKED_IN);
             checkIn.setActualArrivalTime(now);
             TripCheckIn savedCheckIn = tripCheckInRepository.save(checkIn);
@@ -99,9 +101,7 @@ public class GeofencingService {
                     .isPresent();
 
             if (!hasMore) {
-                trip.setStatus(TripStatus.COMPLETED);
-                trip.setEndTime(now);
-                tripRepository.save(trip);
+                tripService.completeTrip(tripId, now);
 
                 AlertMessageDto completedAlert = AlertMessageDto.builder()
                         .id(UUID.randomUUID().toString())

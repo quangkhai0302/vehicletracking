@@ -5,6 +5,7 @@ import com.quangkhai.vehiceltracking_backend.dto.StationEtaDto;
 import com.quangkhai.vehiceltracking_backend.dto.VehicleTelemetryDto;
 import com.quangkhai.vehiceltracking_backend.entity.*;
 import com.quangkhai.vehiceltracking_backend.enums.CheckInStatus;
+import com.quangkhai.vehiceltracking_backend.enums.TripStatus;
 import com.quangkhai.vehiceltracking_backend.enums.VehicleStatus;
 import com.quangkhai.vehiceltracking_backend.repository.*;
 import com.quangkhai.vehiceltracking_backend.util.GeoUtil;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
@@ -35,6 +37,7 @@ public class SimulatorService {
     private final TrafficIncidentRepository incidentRepository;
     private final GeofencingService geofencingService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final Clock clock;
 
     private final Map<Long, SimulationSession> activeSessions = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
@@ -171,24 +174,27 @@ public class SimulatorService {
         }
     }
 
-    private void tickSingleSimulation(SimulationSession session) {
-        List<Waypoint> waypoints = session.getWaypoints();
-        int currentIndex = session.getCurrentWaypointIndex();
-
-        if (currentIndex >= waypoints.size() - 1) {
-            session.setCompleted(true);
-            log.info("Chuyến đi {} đã hoàn thành mô phỏng", session.getTripId());
+    void tickSingleSimulation(SimulationSession session) {
+        if (session.isCompleted()) {
             return;
         }
 
+        List<Waypoint> waypoints = session.getWaypoints();
+        if (waypoints == null || waypoints.isEmpty()) {
+            return;
+        }
+
+        int currentIndex = Math.min(session.getCurrentWaypointIndex(), waypoints.size() - 1);
         Waypoint currentWp = waypoints.get(currentIndex);
-        Waypoint nextWp = waypoints.get(currentIndex + 1);
+        Waypoint nextWp = (currentIndex < waypoints.size() - 1) ? waypoints.get(currentIndex + 1) : currentWp;
 
         // 1. Tính góc xoay (heading)
-        double heading = GeoUtil.calculateBearing(
-                currentWp.getLatitude(), currentWp.getLongitude(),
-                nextWp.getLatitude(), nextWp.getLongitude()
-        );
+        double heading = (currentIndex < waypoints.size() - 1)
+                ? GeoUtil.calculateBearing(
+                        currentWp.getLatitude(), currentWp.getLongitude(),
+                        nextWp.getLatitude(), nextWp.getLongitude()
+                )
+                : 0.0;
 
         // 2. Kiểm tra sự cố giao thông (kẹt xe, tai nạn, công trường)
         List<TrafficIncident> activeIncidents = incidentRepository.findByActiveTrue();
@@ -222,7 +228,7 @@ public class SimulatorService {
                             .tripId(session.getTripId())
                             .vehicleId(session.getVehicleId())
                             .incidentId(incident.getId())
-                            .timestamp(LocalDateTime.now())
+                            .timestamp(LocalDateTime.now(clock))
                             .build();
 
                     messagingTemplate.convertAndSend("/topic/alerts", alert);
@@ -240,68 +246,141 @@ public class SimulatorService {
         int nextIndex = Math.min(currentIndex + stepAdvance, waypoints.size() - 1);
         session.setCurrentWaypointIndex(nextIndex);
 
+        // 4. Kiểm tra Geofencing tự động check-in cho tất cả các waypoint trong bước nhảy
+        if (currentIndex < nextIndex) {
+            for (int i = currentIndex + 1; i <= nextIndex; i++) {
+                Waypoint wp = waypoints.get(i);
+                geofencingService.checkAndProcessAutoCheckIn(
+                        session.getTripId(),
+                        wp.getLatitude(),
+                        wp.getLongitude()
+                );
+            }
+        } else {
+            Waypoint wp = waypoints.get(nextIndex);
+            geofencingService.checkAndProcessAutoCheckIn(
+                    session.getTripId(),
+                    wp.getLatitude(),
+                    wp.getLongitude()
+            );
+        }
+
         Waypoint newPos = waypoints.get(nextIndex);
 
-        // 4. Kiểm tra Geofencing tự động check-in
-        geofencingService.checkAndProcessAutoCheckIn(
-                session.getTripId(),
-                newPos.getLatitude(),
-                newPos.getLongitude()
-        );
-
-        // 5. Cập nhật vị trí xe
-        try {
-            vehicleRepository.findById(session.getVehicleId()).ifPresent(v -> {
-                v.setCurrentLatitude(newPos.getLatitude());
-                v.setCurrentLongitude(newPos.getLongitude());
-                v.setCurrentSpeed(round(effectiveSpeedKmh, 1));
-                v.setCurrentHeading(round(heading, 1));
-                v.setLastUpdatedAt(LocalDateTime.now());
-                vehicleRepository.save(v);
-            });
-        } catch (Exception ignored) {}
-
-        // 6. Tính ETA đến các trạm còn lại trong lịch trình
+        // 5. Tính ETA đến các trạm còn lại trong lịch trình
         List<StationEtaDto> stationEtas = calculateEtas(session, newPos, effectiveSpeedKmh);
 
-        // Tìm trạm mục tiêu kế tiếp
-        StationEtaDto nextTarget = stationEtas.stream()
-                .filter(eta -> eta.getStatus() == CheckInStatus.PENDING)
-                .findFirst()
-                .orElse(null);
+        // BR-004 / REV-001: Chỉ kết thúc mô phỏng khi TẤT CẢ check-in đã CHECKED_IN
+        boolean allCheckedIn = !stationEtas.isEmpty() && stationEtas.stream().allMatch(eta -> eta.getStatus() == CheckInStatus.CHECKED_IN);
+        boolean isTerminal = allCheckedIn;
 
-        // 7. Bắn dữ liệu Telemetry Realtime qua WebSocket
-        VehicleTelemetryDto telemetry = VehicleTelemetryDto.builder()
-                .vehicleId(session.getVehicleId())
-                .plateNumber(session.getPlateNumber())
-                .tripId(session.getTripId())
-                .tripCode("TRIP-" + session.getTripId())
-                .routeId(session.getRouteId())
-                .routeName(session.getRouteName())
-                .latitude(newPos.getLatitude())
-                .longitude(newPos.getLongitude())
-                .speed(round(effectiveSpeedKmh, 1))
-                .heading(round(heading, 1))
-                .status(session.isCompleted() ? VehicleStatus.IDLE : VehicleStatus.IN_TRANSIT)
-                .currentStopIndex(nextIndex)
-                .targetStationId(nextTarget != null ? nextTarget.getStationId() : null)
-                .targetStationName(nextTarget != null ? nextTarget.getStationName() : "Đã hoàn thành")
-                .distanceToTargetMeters(nextTarget != null ? nextTarget.getDistanceRemainingMeters() : 0.0)
-                .etaSecondsToTarget(nextTarget != null ? nextTarget.getEtaSeconds() : 0L)
-                .stationsEta(stationEtas)
-                .inIncidentZone(inIncidentZone)
-                .currentIncidentNotice(incidentNotice)
-                .timestamp(LocalDateTime.now())
-                .build();
+        StationEtaDto finalEta = stationEtas.isEmpty() ? null : stationEtas.get(stationEtas.size() - 1);
 
-        messagingTemplate.convertAndSend("/topic/telemetry", telemetry);
-        messagingTemplate.convertAndSend("/topic/vehicle/" + session.getVehicleId(), telemetry);
+        if (isTerminal) {
+            session.setCompleted(true);
+
+            LocalDateTime completionTime = (finalEta != null && finalEta.getEstimatedArrivalTime() != null)
+                    ? finalEta.getEstimatedArrivalTime()
+                    : LocalDateTime.now(clock);
+
+            // Cập nhật vị trí xe
+            try {
+                vehicleRepository.findById(session.getVehicleId()).ifPresent(v -> {
+                    v.setCurrentLatitude(newPos.getLatitude());
+                    v.setCurrentLongitude(newPos.getLongitude());
+                    v.setCurrentSpeed(0.0);
+                    v.setCurrentHeading(round(heading, 1));
+                    v.setStatus(VehicleStatus.IDLE);
+                    v.setLastUpdatedAt(LocalDateTime.now(clock));
+                    vehicleRepository.save(v);
+                });
+            } catch (Exception ignored) {}
+
+            VehicleTelemetryDto telemetry = VehicleTelemetryDto.builder()
+                    .vehicleId(session.getVehicleId())
+                    .plateNumber(session.getPlateNumber())
+                    .tripId(session.getTripId())
+                    .tripCode("TRIP-" + session.getTripId())
+                    .tripStatus(TripStatus.COMPLETED)
+                    .routeId(session.getRouteId())
+                    .routeName(session.getRouteName())
+                    .latitude(newPos.getLatitude())
+                    .longitude(newPos.getLongitude())
+                    .speed(0.0)
+                    .heading(round(heading, 1))
+                    .status(VehicleStatus.IDLE)
+                    .currentStopIndex(nextIndex)
+                    .targetStationId(null)
+                    .targetStationName("Đã hoàn thành")
+                    .distanceToTargetMeters(0.0)
+                    .etaSecondsToTarget(0L)
+                    .etaSecondsToCompletion(0L)
+                    .estimatedCompletionTime(completionTime)
+                    .stationsEta(stationEtas)
+                    .inIncidentZone(inIncidentZone)
+                    .currentIncidentNotice(incidentNotice)
+                    .timestamp(LocalDateTime.now(clock))
+                    .build();
+
+            messagingTemplate.convertAndSend("/topic/telemetry", telemetry);
+            messagingTemplate.convertAndSend("/topic/vehicle/" + session.getVehicleId(), telemetry);
+            log.info("Chuyến đi {} đã hoàn thành mô phỏng", session.getTripId());
+        } else {
+            // Cập nhật vị trí xe
+            try {
+                vehicleRepository.findById(session.getVehicleId()).ifPresent(v -> {
+                    v.setCurrentLatitude(newPos.getLatitude());
+                    v.setCurrentLongitude(newPos.getLongitude());
+                    v.setCurrentSpeed(round(effectiveSpeedKmh, 1));
+                    v.setCurrentHeading(round(heading, 1));
+                    v.setLastUpdatedAt(LocalDateTime.now(clock));
+                    vehicleRepository.save(v);
+                });
+            } catch (Exception ignored) {}
+
+            StationEtaDto nextTarget = stationEtas.stream()
+                    .filter(eta -> eta.getStatus() == CheckInStatus.PENDING)
+                    .findFirst()
+                    .orElse(null);
+
+            Long etaSecondsToCompletion = (finalEta != null) ? finalEta.getEtaSeconds() : 0L;
+            LocalDateTime estimatedCompletionTime = (finalEta != null) ? finalEta.getEstimatedArrivalTime() : LocalDateTime.now(clock);
+
+            VehicleTelemetryDto telemetry = VehicleTelemetryDto.builder()
+                    .vehicleId(session.getVehicleId())
+                    .plateNumber(session.getPlateNumber())
+                    .tripId(session.getTripId())
+                    .tripCode("TRIP-" + session.getTripId())
+                    .tripStatus(TripStatus.RUNNING)
+                    .routeId(session.getRouteId())
+                    .routeName(session.getRouteName())
+                    .latitude(newPos.getLatitude())
+                    .longitude(newPos.getLongitude())
+                    .speed(round(effectiveSpeedKmh, 1))
+                    .heading(round(heading, 1))
+                    .status(VehicleStatus.IN_TRANSIT)
+                    .currentStopIndex(nextIndex)
+                    .targetStationId(nextTarget != null ? nextTarget.getStationId() : null)
+                    .targetStationName(nextTarget != null ? nextTarget.getStationName() : "Đã hoàn thành")
+                    .distanceToTargetMeters(nextTarget != null ? nextTarget.getDistanceRemainingMeters() : 0.0)
+                    .etaSecondsToTarget(nextTarget != null ? nextTarget.getEtaSeconds() : 0L)
+                    .etaSecondsToCompletion(etaSecondsToCompletion)
+                    .estimatedCompletionTime(estimatedCompletionTime)
+                    .stationsEta(stationEtas)
+                    .inIncidentZone(inIncidentZone)
+                    .currentIncidentNotice(incidentNotice)
+                    .timestamp(LocalDateTime.now(clock))
+                    .build();
+
+            messagingTemplate.convertAndSend("/topic/telemetry", telemetry);
+            messagingTemplate.convertAndSend("/topic/vehicle/" + session.getVehicleId(), telemetry);
+        }
     }
 
     /**
      * Tính toán ETA động cho tất cả các trạm trong chuyến dựa trên vận tốc hiện thời
      */
-    private List<StationEtaDto> calculateEtas(SimulationSession session, Waypoint currentPos, double effectiveSpeedKmh) {
+    List<StationEtaDto> calculateEtas(SimulationSession session, Waypoint currentPos, double effectiveSpeedKmh) {
         List<TripCheckIn> checkIns = tripCheckInRepository.findByTripIdOrderByStopOrderAsc(session.getTripId());
         List<StationEtaDto> result = new ArrayList<>();
 
@@ -334,8 +413,8 @@ public class SimulatorService {
             );
             accumulatedDistanceMeters += distToStation;
 
-            long etaSeconds = Math.round(accumulatedDistanceMeters / speedMps);
-            LocalDateTime estimatedTime = LocalDateTime.now().plusSeconds(etaSeconds);
+            long etaSeconds = Math.max(0L, Math.round(accumulatedDistanceMeters / speedMps));
+            LocalDateTime estimatedTime = LocalDateTime.now(clock).plusSeconds(etaSeconds);
 
             result.add(StationEtaDto.builder()
                     .stationId(station.getId())

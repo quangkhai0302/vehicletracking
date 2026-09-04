@@ -1,5 +1,6 @@
 package com.quangkhai.vehiceltracking_backend.dto;
 
+import com.quangkhai.vehiceltracking_backend.enums.TripStatus;
 import com.quangkhai.vehiceltracking_backend.enums.VehicleStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,11 +26,14 @@ public class VehicleTelemetryDto {
     private Double speed; // km/h
     private Double heading; // degrees (0-360)
     private VehicleStatus status;
+    private TripStatus tripStatus;
     private Integer currentStopIndex;
     private Long targetStationId;
     private String targetStationName;
     private Double distanceToTargetMeters;
     private Long etaSecondsToTarget;
+    private Long etaSecondsToCompletion;
+    private LocalDateTime estimatedCompletionTime;
     private List<StationEtaDto> stationsEta;
     private Boolean inIncidentZone;
     private String currentIncidentNotice;

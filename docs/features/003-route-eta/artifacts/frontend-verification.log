@@ -1,0 +1,70 @@
+
+> vehicletracking-frontend@0.0.0 lint
+> oxlint
+
+
+  ! eslint(no-unused-vars): Parameter 'route' is declared but never used. Unused parameters should start with a '_'.
+    ,-[src/components/MapComponent.tsx:18:3]
+ 17 |   stations = [],
+ 18 |   route = null,
+    :   ^^|^^
+    :     `-- 'route' is declared here
+ 19 |   vehicleTelemetry = null,
+    `----
+  help: Consider removing this parameter.
+
+  ! react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'vehicleTelemetry'
+     ,-[src/components/MapComponent.tsx:202:6]
+ 197 | 
+ 198 |       if (!vehicleTelemetry) {
+     :            ^^^^^^^^|^^^^^^^
+     :                    `-- useEffect uses `vehicleTelemetry` here
+ 199 |         map.fitBounds(polyline.getBounds(), { padding: [60, 60] });
+ 200 |       }
+ 201 |     }
+ 202 |   }, [stations]);
+     :      ^^^^^^^^^^
+ 203 | 
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-unused-vars): Variable 'setRadius' is declared but never used. Unused variables should start with a '_'.
+    ,-[src/components/IncidentModal.tsx:26:18]
+ 25 |   const [type, setType] = useState<IncidentType>('CONGESTION');
+ 26 |   const [radius, setRadius] = useState(250);
+    :                  ^^^^|^^^^
+    :                      `-- 'setRadius' is declared here
+ 27 |   const [speedReduction, setSpeedReduction] = useState(70);
+    `----
+  help: Consider removing this declaration.
+
+  ! react(set-state-in-effect): Calling setState synchronously within an effect can trigger cascading renders
+    ,-[src/App.tsx:83:5]
+ 81 | 
+ 82 |   useEffect(() => {
+    :   ^^^^|^^^^
+    :       `-- This is the containing effect
+ 83 |     loadInitialData();
+    :     ^^^^^^^|^^^^^^^
+    :            `-- Avoid calling setState() directly within an effect
+ 84 | 
+    `----
+  help: Effects should synchronize React with external systems. Calling setState synchronously inside an effect starts another render and is usually unnecessary. Derive the value during render, initialize state directly, or update it from the event that caused the change. Use an effect only when synchronizing with an external system.
+  note: React Compiler skipped optimizing this component or hook. Additional guidance: https://react.dev/reference/eslint-plugin-react-hooks/lints/set-state-in-effect
+
+Found 4 warnings and 0 errors.
+Finished in 87ms on 14 files with 104 rules using 12 threads.
+
+> vehicletracking-frontend@0.0.0 build
+> vite build
+
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 1831 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.75 kB │ gzip:   1.03 kB
+dist/assets/index-SMs9X8sI.css    5.08 kB │ gzip:   1.69 kB
+dist/assets/index-C7u-9n_z.js   442.21 kB │ gzip: 130.96 kB
+
+✓ built in 397ms

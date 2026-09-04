@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { api } from './services/api';
 import { wsService } from './services/websocket';
@@ -21,6 +21,14 @@ export default function App() {
   const [simStatus, setSimStatus] = useState<'IDLE' | 'RUNNING' | 'PAUSED' | 'COMPLETED'>('IDLE');
   const [multiplier, setMultiplier] = useState<number>(1);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const currentTripRef = useRef<Trip | null>(currentTrip);
+  useEffect(() => {
+    currentTripRef.current = currentTrip;
+  }, [currentTrip]);
+
+  // BR-006 / REV-002: Chỉ sử dụng telemetry khi khớp chính xác với tripId của currentTrip
+  const matchingTelemetry = (telemetry && currentTrip && telemetry.tripId === currentTrip.id) ? telemetry : null;
 
   const [clickMode, setClickMode] = useState<'ADD_STATION' | 'ADD_INCIDENT' | null>(null);
   const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -81,20 +89,46 @@ export default function App() {
 
     // Lắng nghe dữ liệu Telemetry (Vị trí, Tốc độ, ETA)
     const unsubTelemetry = wsService.onTelemetry((data) => {
+      const activeTrip = currentTripRef.current;
+      // BR-006 / REV-002: Chỉ chấp nhận telemetry khi ĐÃ CÓ currentTrip và tripId khớp với currentTrip.id
+      if (!activeTrip || data.tripId !== activeTrip.id) {
+        console.log(`[REALTIME ISOLATION] Bỏ qua telemetry của Trip khác: payload.tripId=${data.tripId}, activeTrip.id=${activeTrip?.id}`);
+        return;
+      }
+
       setTelemetry(data);
 
-      if (data.status === 'IDLE' && simStatus === 'RUNNING') {
-        setSimStatus('COMPLETED');
-        confetti({
-          particleCount: 120,
-          spread: 80,
-          origin: { y: 0.6 }
+      const isTerminal = data.tripStatus === 'COMPLETED' || (data.status === 'IDLE' && (data.targetStationId == null || data.etaSecondsToCompletion === 0));
+      if (isTerminal) {
+        setSimStatus((prev) => {
+          if (prev !== 'COMPLETED') {
+            confetti({
+              particleCount: 120,
+              spread: 80,
+              origin: { y: 0.6 }
+            });
+          }
+          return 'COMPLETED';
         });
+
+        if (activeTrip) {
+          api.getTripById(activeTrip.id)
+            .then((updatedTrip) => {
+              setCurrentTrip(updatedTrip);
+            })
+            .catch((err) => {
+              console.error('Không thể làm mới thông tin chuyến đi:', err);
+            });
+        }
       }
     });
 
     // Lắng nghe sự kiện Auto Check-in tại các trạm
     const unsubCheckIn = wsService.onCheckIn((event) => {
+      const activeTrip = currentTripRef.current;
+      if (!activeTrip || event.tripId !== activeTrip.id) {
+        return;
+      }
       addToast({
         type: 'CHECK_IN',
         level: 'INFO',
@@ -105,6 +139,10 @@ export default function App() {
 
     // Lắng nghe cảnh báo sự cố kẹt xe và thay đổi lịch trình
     const unsubAlert = wsService.onAlert((alert) => {
+      const activeTrip = currentTripRef.current;
+      if (activeTrip && alert.tripId && alert.tripId !== activeTrip.id) {
+        return;
+      }
       addToast({
         type: 'DELAY_ALERT',
         level: alert.level,
@@ -391,7 +429,7 @@ export default function App() {
       <MapComponent
         stations={stations}
         route={selectedRoute}
-        vehicleTelemetry={telemetry}
+        vehicleTelemetry={matchingTelemetry}
         incidents={incidents}
         onMapClick={handleMapClick}
         clickMode={clickMode}
@@ -417,7 +455,7 @@ export default function App() {
 
       {/* Bảng tiến trình chuyến đi & ETA thời gian thực bên trái */}
       <TimelinePanel
-        telemetry={telemetry}
+        telemetry={matchingTelemetry}
         route={selectedRoute}
         trip={currentTrip}
       />

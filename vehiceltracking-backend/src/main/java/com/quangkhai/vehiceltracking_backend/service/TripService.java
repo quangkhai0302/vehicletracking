@@ -25,6 +25,7 @@ public class TripService {
     private final RouteRepository routeRepository;
     private final RouteStationRepository routeStationRepository;
     private final VehicleRepository vehicleRepository;
+    private final java.time.Clock clock;
 
     public List<TripDto> getAllTrips() {
         return tripRepository.findAll().stream()
@@ -52,7 +53,7 @@ public class TripService {
         }
 
         String tripCode = "TRIP-" + System.currentTimeMillis() % 1000000;
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
 
         Trip trip = Trip.builder()
                 .tripCode(tripCode)
@@ -103,17 +104,25 @@ public class TripService {
 
     @Transactional
     public void completeTrip(Long tripId) {
+        completeTrip(tripId, LocalDateTime.now(clock));
+    }
+
+    @Transactional
+    public void completeTrip(Long tripId, LocalDateTime completionTime) {
         Trip trip = tripRepository.findById(tripId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi"));
-        trip.setStatus(TripStatus.COMPLETED);
-        trip.setEndTime(LocalDateTime.now());
-        tripRepository.save(trip);
 
-        Vehicle vehicle = trip.getVehicle();
-        if (vehicle != null) {
-            vehicle.setStatus(VehicleStatus.IDLE);
-            vehicle.setCurrentSpeed(0.0);
-            vehicleRepository.save(vehicle);
+        if (trip.getStatus() != TripStatus.COMPLETED) {
+            trip.setStatus(TripStatus.COMPLETED);
+            trip.setEndTime(completionTime != null ? completionTime : LocalDateTime.now(clock));
+            tripRepository.save(trip);
+
+            Vehicle vehicle = trip.getVehicle();
+            if (vehicle != null) {
+                vehicle.setStatus(VehicleStatus.IDLE);
+                vehicle.setCurrentSpeed(0.0);
+                vehicleRepository.save(vehicle);
+            }
         }
     }
 

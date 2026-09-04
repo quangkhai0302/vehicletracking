@@ -97,6 +97,7 @@ export interface VehicleTelemetry {
   plateNumber: string;
   tripId: number;
   tripCode: string;
+  tripStatus?: TripStatus;
   routeId: number;
   routeName: string;
   latitude: number;
@@ -109,6 +110,8 @@ export interface VehicleTelemetry {
   targetStationName?: string;
   distanceToTargetMeters: number;
   etaSecondsToTarget: number;
+  etaSecondsToCompletion?: number;
+  estimatedCompletionTime?: string;
   stationsEta: StationEta[];
   inIncidentZone: boolean;
   currentIncidentNotice?: string;

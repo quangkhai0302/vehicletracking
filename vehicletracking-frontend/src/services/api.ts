@@ -125,6 +125,13 @@ export const api = {
     const res = await fetch(`${API_BASE}/trips`);
     return res.json();
   },
+  getTripById: async (id: number): Promise<Trip> => {
+    const res = await fetch(`${API_BASE}/trips/${id}`);
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Không tìm thấy chuyến đi'));
+    }
+    return res.json();
+  },
   createTrip: async (routeId: number, vehicleId: number): Promise<Trip> => {
     const res = await fetch(`${API_BASE}/trips?routeId=${routeId}&vehicleId=${vehicleId}`, {
       method: 'POST',

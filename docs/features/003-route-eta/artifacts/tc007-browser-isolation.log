@@ -1,0 +1,4 @@
+[info] Download the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] STOMP Connected successfully: FrameImpl {command: 'CONNECTED', headers: {version: '1.2', heart-beat: '0,0'}, body: ''}
+[log] STOMP connected ready
+[log] [REALTIME ISOLATION] Bỏ qua telemetry của Trip khác: payload.tripId=99999, activeTrip.id=1
