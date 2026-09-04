@@ -1,12 +1,15 @@
 package com.quangkhai.vehiceltracking_backend.service;
 
 import com.quangkhai.vehiceltracking_backend.dto.AlertMessageDto;
+import com.quangkhai.vehiceltracking_backend.dto.SimulatorResponseDto;
 import com.quangkhai.vehiceltracking_backend.dto.StationEtaDto;
 import com.quangkhai.vehiceltracking_backend.dto.VehicleTelemetryDto;
 import com.quangkhai.vehiceltracking_backend.entity.*;
 import com.quangkhai.vehiceltracking_backend.enums.CheckInStatus;
 import com.quangkhai.vehiceltracking_backend.enums.TripStatus;
 import com.quangkhai.vehiceltracking_backend.enums.VehicleStatus;
+import com.quangkhai.vehiceltracking_backend.exception.SimulatorConflictException;
+import com.quangkhai.vehiceltracking_backend.exception.SimulatorNotFoundException;
 import com.quangkhai.vehiceltracking_backend.repository.*;
 import com.quangkhai.vehiceltracking_backend.util.GeoUtil;
 import jakarta.annotation.PreDestroy;
@@ -17,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -29,6 +33,8 @@ import java.util.concurrent.*;
 @RequiredArgsConstructor
 @Slf4j
 public class SimulatorService {
+
+    private static final Set<Double> ALLOWED_MULTIPLIERS = Set.of(1.0, 2.0, 5.0, 10.0);
 
     private final TripRepository tripRepository;
     private final TripCheckInRepository tripCheckInRepository;
@@ -68,12 +74,31 @@ public class SimulatorService {
         private double speedMultiplier; // Hệ số tua nhanh (1x, 2x, 5x...)
         private boolean isPaused;
         private boolean isCompleted;
+        @Builder.Default
+        private volatile boolean active = true;
         private Set<Long> alertedIncidentIds; // Tránh bắn trùng lặp alert cho cùng 1 sự cố
+        private String simulationRunId; // UUID của phiên chạy
+        private int lastPublishedSequence; // Sequence tăng dần strictly monotonic trong 1 run
+
+        public String getPublicStatus() {
+            if (isCompleted) {
+                return "COMPLETED";
+            } else if (isPaused) {
+                return "PAUSED";
+            } else {
+                return "RUNNING";
+            }
+        }
     }
 
-    public synchronized void startSimulation(Long tripId) {
+    public SimulatorResponseDto startSimulation(Long tripId) {
         Trip trip = tripRepository.findById(tripId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi ID: " + tripId));
+                .orElseThrow(() -> new SimulatorNotFoundException("Không tìm thấy chuyến đi ID: " + tripId));
+
+        SimulationSession existing = activeSessions.get(tripId);
+        if (existing != null) {
+            throw new SimulatorConflictException("Chuyến đi " + tripId + " đã có phiên mô phỏng (trạng thái: " + existing.getPublicStatus() + ")");
+        }
 
         List<RouteStation> routeStations = routeStationRepository
                 .findByRouteIdOrderByStopOrderAsc(trip.getRoute().getId());
@@ -84,6 +109,7 @@ public class SimulatorService {
 
         // Tạo chuỗi điểm chi tiết (waypoints) nối giữa các trạm
         List<Waypoint> waypoints = generateDetailedWaypoints(routeStations);
+        String simulationRunId = UUID.randomUUID().toString();
 
         SimulationSession session = SimulationSession.builder()
                 .tripId(tripId)
@@ -98,79 +124,229 @@ public class SimulatorService {
                 .isPaused(false)
                 .isCompleted(false)
                 .alertedIncidentIds(new HashSet<>())
+                .simulationRunId(simulationRunId)
+                .lastPublishedSequence(0)
                 .build();
 
-        activeSessions.put(tripId, session);
+        SimulationSession prev = activeSessions.putIfAbsent(tripId, session);
+        if (prev != null) {
+            throw new SimulatorConflictException("Chuyến đi " + tripId + " đã có phiên mô phỏng (trạng thái: " + prev.getPublicStatus() + ")");
+        }
 
         // Đảm bảo task tick đang chạy
         ensureSchedulerRunning();
 
-        log.info("Khởi động Simulator cho chuyến đi {} (xe {}) với {} waypoints",
-                trip.getTripCode(), trip.getVehicle().getPlateNumber(), waypoints.size());
+        log.info("Khởi động Simulator cho chuyến đi {} (xe {}, runId: {}) với {} waypoints",
+                trip.getTripCode(), trip.getVehicle().getPlateNumber(), simulationRunId, waypoints.size());
+
+        return buildResponseDto(session, "Simulator đã bắt đầu cho chuyến đi: " + tripId);
     }
 
-    public void pauseSimulation(Long tripId) {
+    public SimulatorResponseDto pauseSimulation(Long tripId) {
+        tripRepository.findById(tripId)
+                .orElseThrow(() -> new SimulatorNotFoundException("Không tìm thấy chuyến đi ID: " + tripId));
+
         SimulationSession session = activeSessions.get(tripId);
-        if (session != null) {
+        if (session == null) {
+            throw new SimulatorConflictException("Không tìm thấy phiên mô phỏng đang hoạt động cho chuyến đi: " + tripId);
+        }
+
+        synchronized (session) {
+            if (session.isCompleted()) {
+                throw new SimulatorConflictException("Không thể tạm dừng phiên mô phỏng đã hoàn thành");
+            }
+            if (session.isPaused()) {
+                throw new SimulatorConflictException("Phiên mô phỏng đã ở trạng thái tạm dừng");
+            }
             session.setPaused(true);
+            log.info("Đã tạm dừng mô phỏng chuyến đi {} (runId: {})", tripId, session.getSimulationRunId());
+            return buildResponseDto(session, "Đã tạm dừng mô phỏng");
         }
     }
 
-    public void resumeSimulation(Long tripId) {
+    public SimulatorResponseDto resumeSimulation(Long tripId) {
+        tripRepository.findById(tripId)
+                .orElseThrow(() -> new SimulatorNotFoundException("Không tìm thấy chuyến đi ID: " + tripId));
+
         SimulationSession session = activeSessions.get(tripId);
-        if (session != null) {
+        if (session == null) {
+            throw new SimulatorConflictException("Không tìm thấy phiên mô phỏng đang hoạt động cho chuyến đi: " + tripId);
+        }
+
+        synchronized (session) {
+            if (session.isCompleted()) {
+                throw new SimulatorConflictException("Không thể tiếp tục phiên mô phỏng đã hoàn thành");
+            }
+            if (!session.isPaused()) {
+                throw new SimulatorConflictException("Phiên mô phỏng đang chạy, không thể tiếp tục");
+            }
             session.setPaused(false);
+            log.info("Đã tiếp tục mô phỏng chuyến đi {} (runId: {})", tripId, session.getSimulationRunId());
+            return buildResponseDto(session, "Đã tiếp tục mô phỏng");
         }
     }
 
-    public void resetSimulation(Long tripId) {
-        SimulationSession session = activeSessions.get(tripId);
-        if (session != null) {
-            session.setCurrentWaypointIndex(0);
-            session.setCompleted(false);
-            session.setPaused(false);
-            session.getAlertedIncidentIds().clear();
+    @Transactional
+    public SimulatorResponseDto resetSimulation(Long tripId) {
+        Trip trip = tripRepository.findById(tripId)
+                .orElseThrow(() -> new SimulatorNotFoundException("Không tìm thấy chuyến đi ID: " + tripId));
 
-            // Đặt lại trạng thái PENDING cho các checkin
+        SimulationSession session = activeSessions.get(tripId);
+        if (session == null) {
+            throw new SimulatorConflictException("Không có phiên mô phỏng nào đang chạy hoặc cần đặt lại cho chuyến đi: " + tripId);
+        }
+
+        // 1. Xác định first RouteStation ordered; không có start station là 400
+        List<RouteStation> routeStations = routeStationRepository.findByRouteIdOrderByStopOrderAsc(trip.getRoute().getId());
+        if (routeStations.isEmpty() || routeStations.get(0).getStation() == null) {
+            throw new IllegalArgumentException("Không tìm thấy trạm xuất phát hợp lệ để đặt lại mô phỏng");
+        }
+        Station startStation = routeStations.get(0).getStation();
+
+        synchronized (session) {
+            // REV-001: Vô hiệu hóa ngay lập tức để ngăn scheduler tick run cũ sau Reset
+            session.setActive(false);
+
+            // 2. Reset toàn bộ check-in Trip: status=PENDING, actualArrivalTime=null
             List<TripCheckIn> checkIns = tripCheckInRepository.findByTripIdOrderByStopOrderAsc(tripId);
             for (TripCheckIn ci : checkIns) {
                 ci.setStatus(CheckInStatus.PENDING);
                 ci.setActualArrivalTime(null);
             }
             tripCheckInRepository.saveAll(checkIns);
+
+            // 3. Set Trip status=RUNNING, endTime=null
+            trip.setStatus(TripStatus.RUNNING);
+            trip.setEndTime(null);
+            tripRepository.save(trip);
+
+            // 4. Set Vehicle location = START coordinates, speed 0.0, heading 0.0, status IDLE
+            Vehicle vehicle = trip.getVehicle();
+            if (vehicle != null) {
+                vehicle.setCurrentLatitude(startStation.getLatitude());
+                vehicle.setCurrentLongitude(startStation.getLongitude());
+                vehicle.setCurrentSpeed(0.0);
+                vehicle.setCurrentHeading(0.0);
+                vehicle.setStatus(VehicleStatus.IDLE);
+                vehicle.setLastUpdatedAt(LocalDateTime.now(clock));
+                vehicleRepository.save(vehicle);
+            }
+
+            // 5. Remove session from activeSessions sau khi persist DB thành công
+            activeSessions.remove(tripId, session);
+        }
+
+        log.info("Đã đặt lại trạng thái mô phỏng cho chuyến đi {}", tripId);
+        return SimulatorResponseDto.builder()
+                .tripId(tripId)
+                .status("IDLE")
+                .message("Đã đặt lại trạng thái ban đầu")
+                .multiplier(1.0)
+                .build();
+    }
+
+    public SimulatorResponseDto setSpeedMultiplier(Long tripId, double multiplier) {
+        validateMultiplier(multiplier);
+
+        tripRepository.findById(tripId)
+                .orElseThrow(() -> new SimulatorNotFoundException("Không tìm thấy chuyến đi ID: " + tripId));
+
+        SimulationSession session = activeSessions.get(tripId);
+        if (session == null) {
+            throw new SimulatorConflictException("Không tìm thấy phiên mô phỏng cho chuyến đi: " + tripId);
+        }
+
+        synchronized (session) {
+            if (session.isCompleted()) {
+                throw new SimulatorConflictException("Không thể thay đổi tốc độ của phiên mô phỏng đã hoàn thành");
+            }
+            session.setSpeedMultiplier(multiplier);
+            log.info("Đã cập nhật hệ số tốc độ cho chuyến đi {} (runId: {}) thành {}x",
+                    tripId, session.getSimulationRunId(), multiplier);
+            return buildResponseDto(session, "Đã cập nhật hệ số tốc độ");
         }
     }
 
-    public void setSpeedMultiplier(Long tripId, double multiplier) {
+    public SimulatorResponseDto getStatus(Long tripId) {
+        tripRepository.findById(tripId)
+                .orElseThrow(() -> new SimulatorNotFoundException("Không tìm thấy chuyến đi ID: " + tripId));
+
         SimulationSession session = activeSessions.get(tripId);
-        if (session != null && multiplier > 0) {
-            session.setSpeedMultiplier(multiplier);
+        if (session == null) {
+            return SimulatorResponseDto.builder()
+                    .tripId(tripId)
+                    .status("IDLE")
+                    .multiplier(1.0)
+                    .build();
         }
+        return buildResponseDto(session, null);
     }
 
     public SimulationSession getSession(Long tripId) {
         return activeSessions.get(tripId);
     }
 
+    public SimulatorResponseDto buildResponseDto(SimulationSession session, String message) {
+        if (session == null) {
+            return SimulatorResponseDto.builder()
+                    .status("IDLE")
+                    .multiplier(1.0)
+                    .message(message)
+                    .build();
+        }
+        return SimulatorResponseDto.builder()
+                .tripId(session.getTripId())
+                .status(session.getPublicStatus())
+                .simulationRunId(session.getSimulationRunId())
+                .multiplier(session.getSpeedMultiplier())
+                .currentWaypointIndex(session.getCurrentWaypointIndex())
+                .lastPublishedSequence(session.getLastPublishedSequence())
+                .message(message)
+                .build();
+    }
+
+    private void validateMultiplier(double multiplier) {
+        if (!Double.isFinite(multiplier)) {
+            throw new IllegalArgumentException("Hệ số tốc độ không hợp lệ. Chỉ chấp nhận các giá trị: 1, 2, 5, 10");
+        }
+        // REV-005: Kiểm tra membership exact, không dùng epsilon tolerance
+        if (!ALLOWED_MULTIPLIERS.contains(multiplier)) {
+            throw new IllegalArgumentException("Hệ số tốc độ không hợp lệ. Chỉ chấp nhận các giá trị: 1, 2, 5, 10");
+        }
+    }
+
     private synchronized void ensureSchedulerRunning() {
         if (simulationTask == null || simulationTask.isCancelled() || simulationTask.isDone()) {
-            simulationTask = scheduler.scheduleAtFixedRate(this::tickAllSimulations, 0, 1000, TimeUnit.MILLISECONDS);
+            simulationTask = scheduler.scheduleAtFixedRate(this::tickAllSimulations, 1000, 1000, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public synchronized void stopScheduler() {
+        if (simulationTask != null) {
+            simulationTask.cancel(true);
+            simulationTask = null;
         }
     }
 
     /**
      * Vòng lặp mô phỏng mỗi 1 giây (1000ms)
+     * BR-007: try/catch quanh từng session để lỗi session A không chặn session B
      */
-    private void tickAllSimulations() {
-        try {
-            for (SimulationSession session : activeSessions.values()) {
-                if (session.isPaused() || session.isCompleted()) {
-                    continue;
+    void tickAllSimulations() {
+        for (SimulationSession session : activeSessions.values()) {
+            try {
+                synchronized (session) {
+                    // REV-001: Kiểm tra session còn active và map entry vẫn chính là session instance này
+                    if (!session.isActive() || session.isPaused() || session.isCompleted()
+                            || activeSessions.get(session.getTripId()) != session) {
+                        continue;
+                    }
+                    tickSingleSimulation(session);
                 }
-                tickSingleSimulation(session);
+            } catch (Exception e) {
+                log.error("Lỗi trong vòng lặp giả lập cho chuyến đi {} (runId: {}): ",
+                        session.getTripId(), session.getSimulationRunId(), e);
             }
-        } catch (Exception e) {
-            log.error("Lỗi trong vòng lặp giả lập: ", e);
         }
     }
 
@@ -240,7 +416,6 @@ public class SimulatorService {
         double effectiveSpeedKmh = session.getBaseSpeedKmh() * speedFactor;
 
         // 3. Tiến hành bước tiếp theo theo tốc độ và multiplier
-        // Khoảng cách mỗi bước waypoint khoảng 20m, tính số bước tiến lên
         double metersPerSecond = (effectiveSpeedKmh * 1000.0 / 3600.0) * session.getSpeedMultiplier();
         int stepAdvance = Math.max(1, (int) Math.round(metersPerSecond / 15.0));
         int nextIndex = Math.min(currentIndex + stepAdvance, waypoints.size() - 1);
@@ -282,73 +457,60 @@ public class SimulatorService {
         // 5. Tính ETA đến các trạm còn lại trong lịch trình
         List<StationEtaDto> stationEtas = calculateEtas(session, newPos, effectiveSpeedKmh);
 
-        // BR-004 / REV-001: Chỉ kết thúc mô phỏng khi TẤT CẢ check-in đã CHECKED_IN
         boolean allCheckedIn = !stationEtas.isEmpty() && stationEtas.stream().allMatch(eta -> eta.getStatus() == CheckInStatus.CHECKED_IN);
         boolean isTerminal = allCheckedIn;
 
         StationEtaDto finalEta = stationEtas.isEmpty() ? null : stationEtas.get(stationEtas.size() - 1);
 
         if (isTerminal) {
-            session.setCompleted(true);
-
             LocalDateTime completionTime = (finalEta != null && finalEta.getEstimatedArrivalTime() != null)
                     ? finalEta.getEstimatedArrivalTime()
                     : LocalDateTime.now(clock);
 
             // Cập nhật vị trí xe
-            try {
-                vehicleRepository.findById(session.getVehicleId()).ifPresent(v -> {
-                    v.setCurrentLatitude(newPos.getLatitude());
-                    v.setCurrentLongitude(newPos.getLongitude());
-                    v.setCurrentSpeed(0.0);
-                    v.setCurrentHeading(round(heading, 1));
-                    v.setStatus(VehicleStatus.IDLE);
-                    v.setLastUpdatedAt(LocalDateTime.now(clock));
-                    vehicleRepository.save(v);
-                });
-            } catch (Exception ignored) {}
+            vehicleRepository.findById(session.getVehicleId()).ifPresent(v -> {
+                v.setCurrentLatitude(newPos.getLatitude());
+                v.setCurrentLongitude(newPos.getLongitude());
+                v.setCurrentSpeed(0.0);
+                v.setCurrentHeading(round(heading, 1));
+                v.setStatus(VehicleStatus.IDLE);
+                v.setLastUpdatedAt(LocalDateTime.now(clock));
+                vehicleRepository.save(v);
+            });
 
-            VehicleTelemetryDto telemetry = VehicleTelemetryDto.builder()
-                    .vehicleId(session.getVehicleId())
-                    .plateNumber(session.getPlateNumber())
-                    .tripId(session.getTripId())
-                    .tripCode("TRIP-" + session.getTripId())
-                    .tripStatus(TripStatus.COMPLETED)
-                    .routeId(session.getRouteId())
-                    .routeName(session.getRouteName())
-                    .latitude(newPos.getLatitude())
-                    .longitude(newPos.getLongitude())
-                    .speed(0.0)
-                    .heading(round(heading, 1))
-                    .status(VehicleStatus.IDLE)
-                    .currentStopIndex(nextIndex)
-                    .targetStationId(null)
-                    .targetStationName("Đã hoàn thành")
-                    .distanceToTargetMeters(0.0)
-                    .etaSecondsToTarget(0L)
-                    .etaSecondsToCompletion(0L)
-                    .estimatedCompletionTime(completionTime)
-                    .stationsEta(stationEtas)
-                    .inIncidentZone(inIncidentZone)
-                    .currentIncidentNotice(incidentNotice)
-                    .timestamp(LocalDateTime.now(clock))
-                    .build();
+            publishTelemetry(
+                    session,
+                    newPos,
+                    0.0,
+                    heading,
+                    VehicleStatus.IDLE,
+                    TripStatus.COMPLETED,
+                    nextIndex,
+                    null,
+                    "Đã hoàn thành",
+                    0.0,
+                    0L,
+                    0L,
+                    completionTime,
+                    stationEtas,
+                    inIncidentZone,
+                    incidentNotice
+            );
 
-            messagingTemplate.convertAndSend("/topic/telemetry", telemetry);
-            messagingTemplate.convertAndSend("/topic/vehicle/" + session.getVehicleId(), telemetry);
-            log.info("Chuyến đi {} đã hoàn thành mô phỏng", session.getTripId());
+            // REV-002: Đặt completed CHỈ SAU KHI lưu xe và phát telemetry thành công
+            session.setCompleted(true);
+            log.info("Chuyến đi {} (runId: {}) đã hoàn thành mô phỏng", session.getTripId(), session.getSimulationRunId());
         } else {
             // Cập nhật vị trí xe
-            try {
-                vehicleRepository.findById(session.getVehicleId()).ifPresent(v -> {
-                    v.setCurrentLatitude(newPos.getLatitude());
-                    v.setCurrentLongitude(newPos.getLongitude());
-                    v.setCurrentSpeed(round(effectiveSpeedKmh, 1));
-                    v.setCurrentHeading(round(heading, 1));
-                    v.setLastUpdatedAt(LocalDateTime.now(clock));
-                    vehicleRepository.save(v);
-                });
-            } catch (Exception ignored) {}
+            vehicleRepository.findById(session.getVehicleId()).ifPresent(v -> {
+                v.setCurrentLatitude(newPos.getLatitude());
+                v.setCurrentLongitude(newPos.getLongitude());
+                v.setCurrentSpeed(round(effectiveSpeedKmh, 1));
+                v.setCurrentHeading(round(heading, 1));
+                v.setStatus(VehicleStatus.IN_TRANSIT);
+                v.setLastUpdatedAt(LocalDateTime.now(clock));
+                vehicleRepository.save(v);
+            });
 
             StationEtaDto nextTarget = stationEtas.stream()
                     .filter(eta -> eta.getStatus() == CheckInStatus.PENDING)
@@ -358,35 +520,81 @@ public class SimulatorService {
             Long etaSecondsToCompletion = (finalEta != null) ? finalEta.getEtaSeconds() : 0L;
             LocalDateTime estimatedCompletionTime = (finalEta != null) ? finalEta.getEstimatedArrivalTime() : LocalDateTime.now(clock);
 
-            VehicleTelemetryDto telemetry = VehicleTelemetryDto.builder()
-                    .vehicleId(session.getVehicleId())
-                    .plateNumber(session.getPlateNumber())
-                    .tripId(session.getTripId())
-                    .tripCode("TRIP-" + session.getTripId())
-                    .tripStatus(TripStatus.RUNNING)
-                    .routeId(session.getRouteId())
-                    .routeName(session.getRouteName())
-                    .latitude(newPos.getLatitude())
-                    .longitude(newPos.getLongitude())
-                    .speed(round(effectiveSpeedKmh, 1))
-                    .heading(round(heading, 1))
-                    .status(VehicleStatus.IN_TRANSIT)
-                    .currentStopIndex(nextIndex)
-                    .targetStationId(nextTarget != null ? nextTarget.getStationId() : null)
-                    .targetStationName(nextTarget != null ? nextTarget.getStationName() : "Đã hoàn thành")
-                    .distanceToTargetMeters(nextTarget != null ? nextTarget.getDistanceRemainingMeters() : 0.0)
-                    .etaSecondsToTarget(nextTarget != null ? nextTarget.getEtaSeconds() : 0L)
-                    .etaSecondsToCompletion(etaSecondsToCompletion)
-                    .estimatedCompletionTime(estimatedCompletionTime)
-                    .stationsEta(stationEtas)
-                    .inIncidentZone(inIncidentZone)
-                    .currentIncidentNotice(incidentNotice)
-                    .timestamp(LocalDateTime.now(clock))
-                    .build();
-
-            messagingTemplate.convertAndSend("/topic/telemetry", telemetry);
-            messagingTemplate.convertAndSend("/topic/vehicle/" + session.getVehicleId(), telemetry);
+            publishTelemetry(
+                    session,
+                    newPos,
+                    effectiveSpeedKmh,
+                    heading,
+                    VehicleStatus.IN_TRANSIT,
+                    TripStatus.RUNNING,
+                    nextIndex,
+                    nextTarget != null ? nextTarget.getStationId() : null,
+                    nextTarget != null ? nextTarget.getStationName() : "Đã hoàn thành",
+                    nextTarget != null ? nextTarget.getDistanceRemainingMeters() : 0.0,
+                    nextTarget != null ? nextTarget.getEtaSeconds() : 0L,
+                    etaSecondsToCompletion,
+                    estimatedCompletionTime,
+                    stationEtas,
+                    inIncidentZone,
+                    incidentNotice
+            );
         }
+    }
+
+    /**
+     * Helper duy nhất để publish telemetry snapshot tới cả 2 topic
+     * BR-005: Tăng sequence 1 lần và gửi cùng snapshot tới /topic/telemetry và /topic/vehicle/{vehicleId}
+     */
+    private VehicleTelemetryDto publishTelemetry(SimulationSession session,
+                                                Waypoint newPos,
+                                                double speedKmh,
+                                                double heading,
+                                                VehicleStatus vehicleStatus,
+                                                TripStatus tripStatus,
+                                                int currentStopIndex,
+                                                Long targetStationId,
+                                                String targetStationName,
+                                                Double distanceToTargetMeters,
+                                                Long etaSecondsToTarget,
+                                                Long etaSecondsToCompletion,
+                                                LocalDateTime estimatedCompletionTime,
+                                                List<StationEtaDto> stationEtas,
+                                                boolean inIncidentZone,
+                                                String currentIncidentNotice) {
+        session.setLastPublishedSequence(session.getLastPublishedSequence() + 1);
+        LocalDateTime now = LocalDateTime.now(clock);
+
+        VehicleTelemetryDto telemetry = VehicleTelemetryDto.builder()
+                .simulationRunId(session.getSimulationRunId())
+                .sequence(session.getLastPublishedSequence())
+                .vehicleId(session.getVehicleId())
+                .plateNumber(session.getPlateNumber())
+                .tripId(session.getTripId())
+                .tripCode("TRIP-" + session.getTripId())
+                .tripStatus(tripStatus)
+                .routeId(session.getRouteId())
+                .routeName(session.getRouteName())
+                .latitude(newPos.getLatitude())
+                .longitude(newPos.getLongitude())
+                .speed(round(speedKmh, 1))
+                .heading(round(heading, 1))
+                .status(vehicleStatus)
+                .currentStopIndex(currentStopIndex)
+                .targetStationId(targetStationId)
+                .targetStationName(targetStationName)
+                .distanceToTargetMeters(distanceToTargetMeters)
+                .etaSecondsToTarget(etaSecondsToTarget)
+                .etaSecondsToCompletion(etaSecondsToCompletion)
+                .estimatedCompletionTime(estimatedCompletionTime)
+                .stationsEta(stationEtas)
+                .inIncidentZone(inIncidentZone)
+                .currentIncidentNotice(currentIncidentNotice)
+                .timestamp(now)
+                .build();
+
+        messagingTemplate.convertAndSend("/topic/telemetry", telemetry);
+        messagingTemplate.convertAndSend("/topic/vehicle/" + session.getVehicleId(), telemetry);
+        return telemetry;
     }
 
     /**

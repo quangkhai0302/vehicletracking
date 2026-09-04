@@ -34,24 +34,49 @@ export class WebSocketService {
       // Subscribe kênh vị trí xe Realtime
       this.client?.subscribe('/topic/telemetry', (message) => {
         if (message.body) {
-          const data: VehicleTelemetry = JSON.parse(message.body);
-          this.subscribers.telemetry.forEach(cb => cb(data));
+          try {
+            const parsed: unknown = JSON.parse(message.body);
+            // REV-003: Xác thực runtime shape, loại bỏ null, primitive, array, object thiếu field
+            if (
+              parsed &&
+              typeof parsed === 'object' &&
+              !Array.isArray(parsed) &&
+              typeof (parsed as Record<string, unknown>).tripId === 'number' &&
+              typeof (parsed as Record<string, unknown>).latitude === 'number' &&
+              typeof (parsed as Record<string, unknown>).longitude === 'number'
+            ) {
+              const data = parsed as VehicleTelemetry;
+              this.subscribers.telemetry.forEach(cb => cb(data));
+            } else {
+              console.warn('Bỏ qua bản tin telemetry có cấu trúc không hợp lệ (sai shape):', typeof parsed);
+            }
+          } catch (e) {
+            console.warn('Bỏ qua bản tin telemetry không đúng định dạng JSON:', e instanceof Error ? e.message : e);
+          }
         }
       });
 
       // Subscribe kênh Auto Check-in tại các trạm
       this.client?.subscribe('/topic/checkins', (message) => {
         if (message.body) {
-          const data: CheckInEvent = JSON.parse(message.body);
-          this.subscribers.checkins.forEach(cb => cb(data));
+          try {
+            const data: CheckInEvent = JSON.parse(message.body);
+            this.subscribers.checkins.forEach(cb => cb(data));
+          } catch (e) {
+            console.warn('Bỏ qua bản tin checkin không đúng định dạng JSON:', e instanceof Error ? e.message : e);
+          }
         }
       });
 
       // Subscribe kênh Cảnh báo kẹt xe & thay đổi lịch trình
       this.client?.subscribe('/topic/alerts', (message) => {
         if (message.body) {
-          const data: AlertMessage = JSON.parse(message.body);
-          this.subscribers.alerts.forEach(cb => cb(data));
+          try {
+            const data: AlertMessage = JSON.parse(message.body);
+            this.subscribers.alerts.forEach(cb => cb(data));
+          } catch (e) {
+            console.warn('Bỏ qua bản tin alert không đúng định dạng JSON:', e instanceof Error ? e.message : e);
+          }
         }
       });
 

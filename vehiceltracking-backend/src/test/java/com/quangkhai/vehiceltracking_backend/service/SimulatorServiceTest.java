@@ -1,5 +1,6 @@
 package com.quangkhai.vehiceltracking_backend.service;
 
+import com.quangkhai.vehiceltracking_backend.dto.SimulatorResponseDto;
 import com.quangkhai.vehiceltracking_backend.dto.StationEtaDto;
 import com.quangkhai.vehiceltracking_backend.dto.VehicleTelemetryDto;
 import com.quangkhai.vehiceltracking_backend.entity.*;
@@ -7,6 +8,8 @@ import com.quangkhai.vehiceltracking_backend.enums.CheckInStatus;
 import com.quangkhai.vehiceltracking_backend.enums.StationType;
 import com.quangkhai.vehiceltracking_backend.enums.TripStatus;
 import com.quangkhai.vehiceltracking_backend.enums.VehicleStatus;
+import com.quangkhai.vehiceltracking_backend.exception.SimulatorConflictException;
+import com.quangkhai.vehiceltracking_backend.exception.SimulatorNotFoundException;
 import com.quangkhai.vehiceltracking_backend.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +29,10 @@ import java.time.ZoneId;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -69,6 +76,12 @@ class SimulatorServiceTest {
     private TripCheckIn checkInA;
     private TripCheckIn checkInB;
     private TripCheckIn checkInC;
+    private Route route;
+    private Vehicle vehicle;
+    private Trip trip;
+    private RouteStation routeStationA;
+    private RouteStation routeStationB;
+    private RouteStation routeStationC;
     private SimulatorService.SimulationSession session;
 
     @BeforeEach
@@ -132,6 +145,34 @@ class SimulatorServiceTest {
                 .scheduledArrivalTime(fixedNow.plusMinutes(15))
                 .build();
 
+        route = Route.builder()
+                .id(1L)
+                .code("R01")
+                .name("Tuyến Mẫu")
+                .build();
+
+        vehicle = Vehicle.builder()
+                .id(50L)
+                .plateNumber("51B-99999")
+                .status(VehicleStatus.IDLE)
+                .currentLatitude(10.7719)
+                .currentLongitude(106.6983)
+                .currentSpeed(0.0)
+                .currentHeading(0.0)
+                .build();
+
+        trip = Trip.builder()
+                .id(500L)
+                .tripCode("TRIP-500")
+                .route(route)
+                .vehicle(vehicle)
+                .status(TripStatus.RUNNING)
+                .build();
+
+        routeStationA = RouteStation.builder().id(11L).route(route).station(stationA).stopOrder(1).build();
+        routeStationB = RouteStation.builder().id(12L).route(route).station(stationB).stopOrder(2).build();
+        routeStationC = RouteStation.builder().id(13L).route(route).station(stationC).stopOrder(3).build();
+
         session = SimulatorService.SimulationSession.builder()
                 .tripId(500L)
                 .vehicleId(50L)
@@ -145,7 +186,14 @@ class SimulatorServiceTest {
                 .isPaused(false)
                 .isCompleted(false)
                 .alertedIncidentIds(new HashSet<>())
+                .simulationRunId(UUID.randomUUID().toString())
+                .lastPublishedSequence(0)
                 .build();
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        simulatorService.stopScheduler();
     }
 
     @Test
@@ -593,5 +641,426 @@ class SimulatorServiceTest {
         inOrder.verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp1.getLatitude()), eq(wp1.getLongitude()));
         inOrder.verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp2.getLatitude()), eq(wp2.getLongitude()));
         inOrder.verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp3.getLatitude()), eq(wp3.getLongitude()));
+    }
+
+    // ==========================================
+    // Feature 005 - Realtime Vehicle Simulator Tests
+    // ==========================================
+
+    @Test
+    @DisplayName("TC-001: Start tạo session có simulationRunId UUID hợp lệ, trạng thái RUNNING và trùng lặp ném SimulatorConflictException")
+    void startSimulation_CreatesValidSession_AndDuplicateStartThrowsConflict() {
+        when(tripRepository.findById(500L)).thenReturn(Optional.of(trip));
+        when(routeStationRepository.findByRouteIdOrderByStopOrderAsc(1L))
+                .thenReturn(Arrays.asList(routeStationA, routeStationB, routeStationC));
+
+        SimulatorResponseDto res = simulatorService.startSimulation(500L);
+
+        assertNotNull(res);
+        assertEquals(500L, res.getTripId());
+        assertEquals("RUNNING", res.getStatus());
+        assertEquals(1.0, res.getMultiplier());
+        assertEquals(0, res.getCurrentWaypointIndex());
+        assertEquals(0, res.getLastPublishedSequence());
+        assertNotNull(res.getSimulationRunId());
+        assertDoesNotThrow(() -> UUID.fromString(res.getSimulationRunId()));
+
+        // Duplicate start ném conflict
+        SimulatorConflictException ex = assertThrows(SimulatorConflictException.class,
+                () -> simulatorService.startSimulation(500L));
+        assertTrue(ex.getMessage().contains("đã có phiên mô phỏng"));
+
+        // Session ban đầu không bị thay đổi
+        SimulatorResponseDto status = simulatorService.getStatus(500L);
+        assertEquals("RUNNING", status.getStatus());
+        assertEquals(res.getSimulationRunId(), status.getSimulationRunId());
+    }
+
+    @Test
+    @DisplayName("TC-003: Pause/Resume giữ nguyên state, UUID, sequence và chuyển trạng thái sai ném conflict")
+    void pauseAndResumeSimulation_RetainsStateUUIDAndSequence_AndInvalidTransitionsThrowConflict() {
+        when(tripRepository.findById(500L)).thenReturn(Optional.of(trip));
+        when(routeStationRepository.findByRouteIdOrderByStopOrderAsc(1L))
+                .thenReturn(Arrays.asList(routeStationA, routeStationB, routeStationC));
+
+        SimulatorResponseDto startRes = simulatorService.startSimulation(500L);
+        simulatorService.stopScheduler();
+        String runId = startRes.getSimulationRunId();
+
+        SimulatorService.SimulationSession activeSession = simulatorService.getSession(500L);
+        activeSession.setCurrentWaypointIndex(4);
+        activeSession.setLastPublishedSequence(3);
+        activeSession.setSpeedMultiplier(2.0);
+
+        // Pause
+        SimulatorResponseDto pauseRes = simulatorService.pauseSimulation(500L);
+        assertEquals("PAUSED", pauseRes.getStatus());
+        assertEquals(runId, pauseRes.getSimulationRunId());
+        assertEquals(4, pauseRes.getCurrentWaypointIndex());
+        assertEquals(3, pauseRes.getLastPublishedSequence());
+        assertEquals(2.0, pauseRes.getMultiplier());
+
+        // Gọi Pause lần nữa khi đã PAUSED ném conflict
+        assertThrows(SimulatorConflictException.class, () -> simulatorService.pauseSimulation(500L));
+
+        // Resume
+        SimulatorResponseDto resumeRes = simulatorService.resumeSimulation(500L);
+        assertEquals("RUNNING", resumeRes.getStatus());
+        assertEquals(runId, resumeRes.getSimulationRunId());
+        assertEquals(4, resumeRes.getCurrentWaypointIndex());
+        assertEquals(3, resumeRes.getLastPublishedSequence());
+        assertEquals(2.0, resumeRes.getMultiplier());
+
+        // Gọi Resume lần nữa khi đang RUNNING ném conflict
+        assertThrows(SimulatorConflictException.class, () -> simulatorService.resumeSimulation(500L));
+    }
+
+    @Test
+    @DisplayName("TC-004: Normal tick persist Vehicle IN_TRANSIT và phát telemetry có sequence tăng đơn điệu")
+    void tickSingleSimulation_NormalTick_PersistsVehicleAndPublishesMonotonicSequence() {
+        when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(500L))
+                .thenReturn(Arrays.asList(checkInA, checkInB, checkInC));
+        when(incidentRepository.findByActiveTrue()).thenReturn(Collections.emptyList());
+        when(vehicleRepository.findById(50L)).thenReturn(Optional.of(vehicle));
+
+        SimulatorService.Waypoint wp0 = SimulatorService.Waypoint.builder().latitude(10.7850).longitude(106.7050).build();
+        SimulatorService.Waypoint wp1 = SimulatorService.Waypoint.builder().latitude(10.7860).longitude(106.7060).build();
+        SimulatorService.Waypoint wp2 = SimulatorService.Waypoint.builder().latitude(10.7870).longitude(106.7070).build();
+
+        session.setWaypoints(Arrays.asList(wp0, wp1, wp2));
+        session.setCurrentWaypointIndex(0);
+        session.setLastPublishedSequence(0);
+        String runId = session.getSimulationRunId();
+
+        // Tick 1
+        simulatorService.tickSingleSimulation(session);
+
+        verify(vehicleRepository).save(argThat(v ->
+                v.getStatus() == VehicleStatus.IN_TRANSIT &&
+                v.getCurrentLatitude() == wp1.getLatitude() &&
+                v.getCurrentLongitude() == wp1.getLongitude()
+        ));
+
+        ArgumentCaptor<VehicleTelemetryDto> captor1 = ArgumentCaptor.forClass(VehicleTelemetryDto.class);
+        verify(messagingTemplate, atLeastOnce()).convertAndSend(eq("/topic/telemetry"), captor1.capture());
+        VehicleTelemetryDto t1 = captor1.getValue();
+        assertEquals(1, t1.getSequence());
+        assertEquals(runId, t1.getSimulationRunId());
+        assertEquals(VehicleStatus.IN_TRANSIT, t1.getStatus());
+        assertEquals(TripStatus.RUNNING, t1.getTripStatus());
+
+        // Tick 2
+        simulatorService.tickSingleSimulation(session);
+        ArgumentCaptor<VehicleTelemetryDto> captor2 = ArgumentCaptor.forClass(VehicleTelemetryDto.class);
+        verify(messagingTemplate, atLeast(2)).convertAndSend(eq("/topic/telemetry"), captor2.capture());
+        VehicleTelemetryDto t2 = captor2.getValue();
+        assertEquals(2, t2.getSequence());
+        assertEquals(runId, t2.getSimulationRunId());
+    }
+
+    @Test
+    @DisplayName("TC-005: Phiên đang PAUSED trong tickAllSimulations không làm thay đổi vị trí xe và không phát telemetry")
+    void tickAllSimulations_PausedSession_DoesNotMutateOrPublish() {
+        when(tripRepository.findById(500L)).thenReturn(Optional.of(trip));
+        when(routeStationRepository.findByRouteIdOrderByStopOrderAsc(1L))
+                .thenReturn(Arrays.asList(routeStationA, routeStationB, routeStationC));
+
+        simulatorService.startSimulation(500L);
+        simulatorService.pauseSimulation(500L);
+
+        SimulatorService.SimulationSession activeSession = simulatorService.getSession(500L);
+        int initialIndex = activeSession.getCurrentWaypointIndex();
+        int initialSeq = activeSession.getLastPublishedSequence();
+
+        clearInvocations(vehicleRepository, messagingTemplate, geofencingService);
+
+        simulatorService.tickAllSimulations();
+
+        assertEquals(initialIndex, activeSession.getCurrentWaypointIndex());
+        assertEquals(initialSeq, activeSession.getLastPublishedSequence());
+        verifyNoInteractions(vehicleRepository);
+        verifyNoInteractions(messagingTemplate);
+        verifyNoInteractions(geofencingService);
+    }
+
+    @Test
+    @DisplayName("TC-006: Multiplier chỉ nhận 1, 2, 5, 10; giá trị ngoài whitelist ném 400 và không làm đổi multiplier hiện tại")
+    void setSpeedMultiplier_WhitelistAccepted_InvalidThrowsAndRetainsMultiplier() {
+        when(tripRepository.findById(500L)).thenReturn(Optional.of(trip));
+        when(routeStationRepository.findByRouteIdOrderByStopOrderAsc(1L))
+                .thenReturn(Arrays.asList(routeStationA, routeStationB, routeStationC));
+
+        simulatorService.startSimulation(500L);
+
+        // Hợp lệ: 1.0, 2.0, 5.0, 10.0
+        SimulatorResponseDto r2 = simulatorService.setSpeedMultiplier(500L, 2.0);
+        assertEquals(2.0, r2.getMultiplier());
+
+        SimulatorResponseDto r5 = simulatorService.setSpeedMultiplier(500L, 5.0);
+        assertEquals(5.0, r5.getMultiplier());
+
+        SimulatorResponseDto r10 = simulatorService.setSpeedMultiplier(500L, 10.0);
+        assertEquals(10.0, r10.getMultiplier());
+
+        SimulatorResponseDto r1 = simulatorService.setSpeedMultiplier(500L, 1.0);
+        assertEquals(1.0, r1.getMultiplier());
+
+        // Không hợp lệ: 0, -1, 10.1, NaN, Infinity, và near-whitelist (REV-005)
+        assertThrows(IllegalArgumentException.class, () -> simulatorService.setSpeedMultiplier(500L, 0.0));
+        assertThrows(IllegalArgumentException.class, () -> simulatorService.setSpeedMultiplier(500L, -1.0));
+        assertThrows(IllegalArgumentException.class, () -> simulatorService.setSpeedMultiplier(500L, 10.1));
+        assertThrows(IllegalArgumentException.class, () -> simulatorService.setSpeedMultiplier(500L, Double.NaN));
+        assertThrows(IllegalArgumentException.class, () -> simulatorService.setSpeedMultiplier(500L, Double.POSITIVE_INFINITY));
+        assertThrows(IllegalArgumentException.class, () -> simulatorService.setSpeedMultiplier(500L, 1.0000005));
+        assertThrows(IllegalArgumentException.class, () -> simulatorService.setSpeedMultiplier(500L, 9.9999995));
+
+        // Giá trị hiện tại vẫn giữ nguyên 1.0
+        assertEquals(1.0, simulatorService.getStatus(500L).getMultiplier());
+
+        // Đã hoàn thành (COMPLETED) ném conflict
+        simulatorService.getSession(500L).setCompleted(true);
+        assertThrows(SimulatorConflictException.class, () -> simulatorService.setSpeedMultiplier(500L, 2.0));
+    }
+
+    @Test
+    @DisplayName("TC-007: Reset đặt lại toàn bộ check-in, Trip, Vehicle về START, xóa session khỏi map và cho phép Start run mới")
+    void resetSimulation_ResetsTripAndCheckInsAndVehicle_RemovesSessionAndAllowsNewStartWithNewUUID() {
+        when(tripRepository.findById(500L)).thenReturn(Optional.of(trip));
+        when(routeStationRepository.findByRouteIdOrderByStopOrderAsc(1L))
+                .thenReturn(Arrays.asList(routeStationA, routeStationB, routeStationC));
+
+        SimulatorResponseDto startRes = simulatorService.startSimulation(500L);
+        String oldRunId = startRes.getSimulationRunId();
+        SimulatorService.SimulationSession oldSession = simulatorService.getSession(500L);
+        assertNotNull(oldSession);
+        assertTrue(oldSession.isActive());
+
+        // Giả lập trạng thái trip/check-in/vehicle bị thay đổi sau khi chạy
+        trip.setStatus(TripStatus.COMPLETED);
+        trip.setEndTime(fixedNow);
+        checkInA.setStatus(CheckInStatus.CHECKED_IN);
+        checkInA.setActualArrivalTime(fixedNow.minusMinutes(5));
+        vehicle.setStatus(VehicleStatus.IN_TRANSIT);
+        vehicle.setCurrentLatitude(10.8500);
+        vehicle.setCurrentLongitude(106.7800);
+        vehicle.setCurrentSpeed(40.0);
+
+        when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(500L))
+                .thenReturn(Arrays.asList(checkInA, checkInB, checkInC));
+
+        SimulatorResponseDto resetRes = simulatorService.resetSimulation(500L);
+
+        assertNotNull(resetRes);
+        assertEquals(500L, resetRes.getTripId());
+        assertEquals("IDLE", resetRes.getStatus());
+        assertEquals(1.0, resetRes.getMultiplier());
+
+        // Kiểm tra Trip được reset về RUNNING, endTime null
+        assertEquals(TripStatus.RUNNING, trip.getStatus());
+        assertNull(trip.getEndTime());
+        verify(tripRepository).save(trip);
+
+        // Kiểm tra Check-in được reset về PENDING, actualArrivalTime null
+        assertEquals(CheckInStatus.PENDING, checkInA.getStatus());
+        assertNull(checkInA.getActualArrivalTime());
+        verify(tripCheckInRepository).saveAll(anyList());
+
+        // Kiểm tra Vehicle được reset về vị trí START, IDLE, speed 0
+        assertEquals(stationA.getLatitude(), vehicle.getCurrentLatitude());
+        assertEquals(stationA.getLongitude(), vehicle.getCurrentLongitude());
+        assertEquals(0.0, vehicle.getCurrentSpeed());
+        assertEquals(VehicleStatus.IDLE, vehicle.getStatus());
+        verify(vehicleRepository).save(vehicle);
+
+        // REV-001: Session cũ bị vô hiệu hóa và xóa khỏi map
+        assertFalse(oldSession.isActive());
+        assertNull(simulatorService.getSession(500L));
+        assertEquals("IDLE", simulatorService.getStatus(500L).getStatus());
+
+        // REV-001: Nếu scheduler tick chạy sau Reset với session reference cũ, tick bị skip hoàn toàn
+        reset(vehicleRepository, messagingTemplate);
+        simulatorService.tickAllSimulations();
+        verifyNoInteractions(messagingTemplate);
+        verify(vehicleRepository, never()).save(any());
+
+        // Gọi Start lại sau reset tạo session mới với simulationRunId khác
+        SimulatorResponseDto newStartRes = simulatorService.startSimulation(500L);
+        assertNotEquals(oldRunId, newStartRes.getSimulationRunId());
+        assertEquals("RUNNING", newStartRes.getStatus());
+
+        // Reset khi không có session ném conflict
+        Trip trip999 = Trip.builder().id(999L).build();
+        when(tripRepository.findById(999L)).thenReturn(Optional.of(trip999));
+        assertThrows(SimulatorConflictException.class, () -> simulatorService.resetSimulation(999L));
+    }
+
+    @Test
+    @DisplayName("REV-001: Race giữa scheduler tick và Reset không làm phát ghost telemetry hay ghi đè DB")
+    void resetSimulation_PreventsGhostTickAfterResetResponse() {
+        when(tripRepository.findById(500L)).thenReturn(Optional.of(trip));
+        when(routeStationRepository.findByRouteIdOrderByStopOrderAsc(1L))
+                .thenReturn(Arrays.asList(routeStationA, routeStationB, routeStationC));
+        when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(500L))
+                .thenReturn(Arrays.asList(checkInA, checkInB, checkInC));
+
+        simulatorService.startSimulation(500L);
+        simulatorService.stopScheduler();
+        SimulatorService.SimulationSession capturedSession = simulatorService.getSession(500L);
+        assertNotNull(capturedSession);
+        assertTrue(capturedSession.isActive());
+
+        // Reset chạy thành công
+        simulatorService.resetSimulation(500L);
+        assertFalse(capturedSession.isActive());
+        assertNull(simulatorService.getSession(500L));
+
+        // Giả lập scheduler trước đó đã giữ capturedSession và bây giờ vào tickAllSimulations
+        reset(vehicleRepository, messagingTemplate);
+        simulatorService.tickAllSimulations();
+
+        // Không phát telemetry, không ghi đè DB
+        verifyNoInteractions(messagingTemplate);
+        verify(vehicleRepository, never()).save(any());
+        assertEquals(stationA.getLatitude(), vehicle.getCurrentLatitude());
+        assertEquals(stationA.getLongitude(), vehicle.getCurrentLongitude());
+        assertEquals(VehicleStatus.IDLE, vehicle.getStatus());
+    }
+
+    @Test
+    @DisplayName("TC-008: Phát cùng một payload telemetry với runId và sequence giống nhau tới cả 2 topic")
+    void publishTelemetry_SendsIdenticalPayloadToBothTopics_WithMatchingRunIdAndSequence() {
+        when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(500L))
+                .thenReturn(Arrays.asList(checkInA, checkInB, checkInC));
+        when(incidentRepository.findByActiveTrue()).thenReturn(Collections.emptyList());
+        when(vehicleRepository.findById(50L)).thenReturn(Optional.of(vehicle));
+
+        SimulatorService.Waypoint wp0 = SimulatorService.Waypoint.builder().latitude(10.7850).longitude(106.7050).build();
+        SimulatorService.Waypoint wp1 = SimulatorService.Waypoint.builder().latitude(10.7860).longitude(106.7060).build();
+
+        session.setWaypoints(Arrays.asList(wp0, wp1));
+        session.setCurrentWaypointIndex(0);
+        session.setLastPublishedSequence(0);
+
+        simulatorService.tickSingleSimulation(session);
+
+        ArgumentCaptor<String> destinationCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<VehicleTelemetryDto> payloadCaptor = ArgumentCaptor.forClass(VehicleTelemetryDto.class);
+
+        verify(messagingTemplate, times(2)).convertAndSend(destinationCaptor.capture(), payloadCaptor.capture());
+
+        List<String> destinations = destinationCaptor.getAllValues();
+        List<VehicleTelemetryDto> payloads = payloadCaptor.getAllValues();
+
+        assertEquals(2, destinations.size());
+        assertTrue(destinations.contains("/topic/telemetry"));
+        assertTrue(destinations.contains("/topic/vehicle/50"));
+
+        VehicleTelemetryDto p1 = payloads.get(0);
+        VehicleTelemetryDto p2 = payloads.get(1);
+
+        assertEquals(p1.getSimulationRunId(), p2.getSimulationRunId());
+        assertEquals(p1.getSequence(), p2.getSequence());
+        assertEquals(1, p1.getSequence());
+        assertEquals(p1.getTripId(), p2.getTripId());
+        assertEquals(p1.getVehicleId(), p2.getVehicleId());
+        assertEquals(p1.getLatitude(), p2.getLatitude());
+        assertEquals(p1.getLongitude(), p2.getLongitude());
+        assertEquals(p1.getStatus(), p2.getStatus());
+        assertEquals(p1.getTripStatus(), p2.getTripStatus());
+    }
+
+    @Test
+    @DisplayName("TC-010: Terminal snapshot phát 1 lần và lỗi của session A không làm gián đoạn session B trong tickAllSimulations")
+    void tickAllSimulations_TerminalEmitsOnce_AndErrorInSessionADoesNotBlockSessionB() {
+        // Session A: hoàn thành terminal
+        checkInA.setStatus(CheckInStatus.CHECKED_IN);
+        checkInB.setStatus(CheckInStatus.CHECKED_IN);
+        checkInC.setStatus(CheckInStatus.CHECKED_IN);
+
+        when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(500L))
+                .thenReturn(Arrays.asList(checkInA, checkInB, checkInC));
+        when(incidentRepository.findByActiveTrue()).thenReturn(Collections.emptyList());
+        when(vehicleRepository.findById(50L)).thenReturn(Optional.of(vehicle));
+
+        SimulatorService.Waypoint wp0 = SimulatorService.Waypoint.builder().latitude(10.8650).longitude(106.8020).build();
+        SimulatorService.Waypoint wp1 = SimulatorService.Waypoint.builder().latitude(10.8659).longitude(106.8028).build();
+
+        session.setWaypoints(Arrays.asList(wp0, wp1));
+        session.setCurrentWaypointIndex(0);
+        session.setSpeedMultiplier(5.0);
+
+        // Terminal tick
+        simulatorService.tickSingleSimulation(session);
+        assertTrue(session.isCompleted());
+        int terminalSeq = session.getLastPublishedSequence();
+
+        // Tick lại khi đã completed -> early return, không tăng sequence hay phát telemetry
+        reset(messagingTemplate);
+        simulatorService.tickSingleSimulation(session);
+        assertEquals(terminalSeq, session.getLastPublishedSequence());
+        verifyNoInteractions(messagingTemplate);
+
+        // Độc lập scheduler loop: Session A ném ngoại lệ, Session B vẫn chạy thành công
+        when(tripRepository.findById(500L)).thenReturn(Optional.of(trip));
+        when(routeStationRepository.findByRouteIdOrderByStopOrderAsc(1L))
+                .thenReturn(Arrays.asList(routeStationA, routeStationB, routeStationC));
+
+        // Start session 500
+        simulatorService.startSimulation(500L);
+        simulatorService.stopScheduler();
+
+        // Setup session 600
+        Vehicle vehicle2 = Vehicle.builder().id(60L).plateNumber("51B-88888").status(VehicleStatus.IDLE).build();
+        Trip trip2 = Trip.builder().id(600L).tripCode("TRIP-600").route(route).vehicle(vehicle2).status(TripStatus.RUNNING).build();
+        when(tripRepository.findById(600L)).thenReturn(Optional.of(trip2));
+
+        simulatorService.startSimulation(600L);
+        simulatorService.stopScheduler();
+
+        // Khi tick session 500, vehicleRepository ném RuntimeException
+        when(vehicleRepository.findById(50L)).thenThrow(new RuntimeException("DB Connection failed for Vehicle 50"));
+        when(vehicleRepository.findById(60L)).thenReturn(Optional.of(vehicle2));
+        when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(600L)).thenReturn(Collections.emptyList());
+
+        reset(messagingTemplate);
+
+        // tickAllSimulations không ném ngoại lệ dù session 500 bị lỗi
+        assertDoesNotThrow(() -> simulatorService.tickAllSimulations());
+
+        // Session 600 vẫn được phát telemetry
+        verify(messagingTemplate, atLeastOnce()).convertAndSend(eq("/topic/vehicle/60"), any(VehicleTelemetryDto.class));
+
+        // REV-002: Session 500 gặp lỗi DB không được đánh dấu COMPLETED giả mạo
+        assertFalse(simulatorService.getSession(500L).isCompleted());
+        assertEquals("RUNNING", simulatorService.getStatus(500L).getStatus());
+    }
+
+    @Test
+    @DisplayName("REV-002 / TC-010: Lỗi persistence tại terminal waypoint không được đánh dấu COMPLETED và không phát terminal telemetry")
+    void tickSingleSimulation_TerminalPersistenceFailure_DoesNotMarkCompletedAndDoesNotPublishTerminalTelemetry() {
+        checkInA.setStatus(CheckInStatus.CHECKED_IN);
+        checkInB.setStatus(CheckInStatus.CHECKED_IN);
+        checkInC.setStatus(CheckInStatus.CHECKED_IN);
+
+        when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(500L))
+                .thenReturn(Arrays.asList(checkInA, checkInB, checkInC));
+        when(incidentRepository.findByActiveTrue()).thenReturn(Collections.emptyList());
+
+        SimulatorService.Waypoint wp0 = SimulatorService.Waypoint.builder().latitude(10.8650).longitude(106.8020).build();
+        SimulatorService.Waypoint wp1 = SimulatorService.Waypoint.builder().latitude(10.8659).longitude(106.8028).build();
+
+        session.setWaypoints(Arrays.asList(wp0, wp1));
+        session.setCurrentWaypointIndex(0);
+        session.setSpeedMultiplier(5.0);
+
+        // Giả lập lỗi DB khi lưu Vehicle tại terminal waypoint
+        when(vehicleRepository.findById(50L)).thenThrow(new RuntimeException("DB Connection failed for Vehicle 50"));
+
+        assertThrows(RuntimeException.class, () -> simulatorService.tickSingleSimulation(session));
+
+        // REV-002: Không được đánh dấu isCompleted = true
+        assertFalse(session.isCompleted());
+        // Không được phát terminal telemetry
+        verifyNoInteractions(messagingTemplate);
     }
 }

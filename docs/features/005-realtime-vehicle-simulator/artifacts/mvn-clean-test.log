@@ -1,0 +1,351 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ---------------< com.quangkhai:vehiceltracking-backend >----------------
+[INFO] Building  0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.5.0:clean (default-clean) @ vehiceltracking-backend ---
+[INFO] Deleting /home/khainq/Code/vehicletracking/vehiceltracking-backend/target
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ vehiceltracking-backend ---
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] Copying 0 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ vehiceltracking-backend ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 60 source files with javac [debug parameters release 26] to target/classes
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by lombok.permit.Permit
+WARNING: Please consider reporting this to the maintainers of class lombok.permit.Permit
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+[INFO] 
+[INFO] --- resources:3.5.0:testResources (default-testResources) @ vehiceltracking-backend ---
+[INFO] skip non existing resourceDirectory /home/khainq/Code/vehicletracking/vehiceltracking-backend/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.15.0:testCompile (default-testCompile) @ vehiceltracking-backend ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 11 source files with javac [debug parameters release 26] to target/test-classes
+[INFO] /home/khainq/Code/vehicletracking/vehiceltracking-backend/src/test/java/com/quangkhai/vehiceltracking_backend/controller/RouteControllerTest.java: /home/khainq/Code/vehicletracking/vehiceltracking-backend/src/test/java/com/quangkhai/vehiceltracking_backend/controller/RouteControllerTest.java uses or overrides a deprecated API.
+[INFO] /home/khainq/Code/vehicletracking/vehiceltracking-backend/src/test/java/com/quangkhai/vehiceltracking_backend/controller/RouteControllerTest.java: Recompile with -Xlint:deprecation for details.
+[INFO] /home/khainq/Code/vehicletracking/vehiceltracking-backend/src/test/java/com/quangkhai/vehiceltracking_backend/service/TripServiceTest.java: /home/khainq/Code/vehicletracking/vehiceltracking-backend/src/test/java/com/quangkhai/vehiceltracking_backend/service/TripServiceTest.java uses unchecked or unsafe operations.
+[INFO] /home/khainq/Code/vehicletracking/vehiceltracking-backend/src/test/java/com/quangkhai/vehiceltracking_backend/service/TripServiceTest.java: Recompile with -Xlint:unchecked for details.
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-test) @ vehiceltracking-backend ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.quangkhai.vehiceltracking_backend.GeoUtilTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.089 s -- in com.quangkhai.vehiceltracking_backend.GeoUtilTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests
+16:57:21.202 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests]: VehiceltrackingBackendApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+16:57:21.313 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests
+16:57:21.402 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests]: VehiceltrackingBackendApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+16:57:21.404 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.1)
+
+2026-09-04T16:57:21.831+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] v.VehiceltrackingBackendApplicationTests : Starting VehiceltrackingBackendApplicationTests using Java 26.0.1 with PID 1491623 (started by khainq in /home/khainq/Code/vehicletracking/vehiceltracking-backend)
+2026-09-04T16:57:21.833+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] v.VehiceltrackingBackendApplicationTests : The following 1 profile is active: "dev"
+2026-09-04T16:57:22.598+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-09-04T16:57:22.600+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-09-04T16:57:22.743+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 136 ms. Found 7 JPA repository interfaces.
+2026-09-04T16:57:23.250+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-09-04T16:57:23.288+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.4.5.Final
+2026-09-04T16:57:23.608+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-09-04T16:57:23.634+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-09-04T16:57:23.774+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:vehicletracking user=SA
+2026-09-04T16:57:23.776+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-09-04T16:57:23.792+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] org.hibernate.orm.deprecation            : HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-09-04T16:57:23.817+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:h2:mem:vehicletracking]
+	Database driver: H2 JDBC Driver
+	Database dialect: H2Dialect
+	Database version: 2.4.240
+	Default catalog/schema: VEHICLETRACKING/PUBLIC
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: 100
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-09-04T16:57:24.714+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-09-04T16:57:24.786+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-09-04T16:57:24.874+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-09-04T16:57:25.393+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-09-04T16:57:26.185+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-09-04T16:57:26.186+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@66b16770]]
+2026-09-04T16:57:26.187+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-09-04T16:57:26.193+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] v.VehiceltrackingBackendApplicationTests : Started VehiceltrackingBackendApplicationTests in 4.72 seconds (process running for 6.164)
+2026-09-04T16:57:26.437+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Bắt đầu khởi tạo dữ liệu mẫu thực tế cho TP. Hồ Chí Minh...
+2026-09-04T16:57:26.540+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Đã tạo 5 trạm dừng thành công.
+2026-09-04T16:57:26.581+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Đã tạo Tuyến đường: Tuyến số 01: BX Miền Đông - Chợ Bến Thành (Quãng đường: 5.23 km, Thời gian dự kiến: 15.0 phút)
+2026-09-04T16:57:26.587+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Đã tạo phương tiện xe: 51B-299.88 (Thaco City Bus 40 chỗ)
+2026-09-04T16:57:26.639+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Đã khởi tạo chuyến đi mẫu mã: TRIP-846616 cho xe 51B-299.88
+2026-09-04T16:57:26.643+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Đã tạo sự cố giao thông giả lập: Ùn tắc nghiêm trọng tại Cầu Điện Biên Phủ
+2026-09-04T16:57:26.643+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Khởi tạo dữ liệu mẫu hoàn tất!
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+WARNING: A Java agent has been loaded dynamically (/home/khainq/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.11/byte-buddy-agent-1.18.11.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.968 s -- in com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests
+[INFO] Running com.quangkhai.vehiceltracking_backend.controller.SimulatorControllerTest
+2026-09-04T16:57:26.977+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.SimulatorControllerTest]: SimulatorControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T16:57:26.991+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.SimulatorControllerTest
+2026-09-04T16:57:26.993+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.SimulatorControllerTest]: SimulatorControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T16:57:26.996+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.SimulatorControllerTest
+2026-09-04T16:57:27.001+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Stopping...
+2026-09-04T16:57:27.001+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=false, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@66b16770]]
+2026-09-04T16:57:27.001+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Stopped.
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.1)
+
+2026-09-04T16:57:27.029+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.c.SimulatorControllerTest          : Starting SimulatorControllerTest using Java 26.0.1 with PID 1491623 (started by khainq in /home/khainq/Code/vehicletracking/vehiceltracking-backend)
+2026-09-04T16:57:27.029+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.c.SimulatorControllerTest          : The following 1 profile is active: "dev"
+2026-09-04T16:57:27.178+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-09-04T16:57:27.178+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-09-04T16:57:27.191+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 10 ms. Found 7 JPA repository interfaces.
+2026-09-04T16:57:27.273+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-09-04T16:57:27.289+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-09-04T16:57:27.290+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Starting...
+2026-09-04T16:57:27.290+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-2 - Added connection conn10: url=jdbc:h2:mem:vehicletracking user=SA
+2026-09-04T16:57:27.291+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Start completed.
+2026-09-04T16:57:27.291+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] org.hibernate.orm.deprecation            : HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-09-04T16:57:27.291+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:h2:mem:vehicletracking]
+	Database driver: H2 JDBC Driver
+	Database dialect: H2Dialect
+	Database version: 2.4.240
+	Default catalog/schema: VEHICLETRACKING/PUBLIC
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: 100
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-09-04T16:57:27.372+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-09-04T16:57:27.385+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-09-04T16:57:27.506+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-09-04T16:57:27.633+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-09-04T16:57:27.634+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-09-04T16:57:27.635+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 1 ms
+2026-09-04T16:57:27.645+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-09-04T16:57:27.645+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@62b9757d]]
+2026-09-04T16:57:27.646+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-09-04T16:57:27.649+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.c.SimulatorControllerTest          : Started SimulatorControllerTest in 0.644 seconds (process running for 7.62)
+2026-09-04T16:57:27.652+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Dữ liệu đã tồn tại, bỏ qua DataSeeder.
+2026-09-04T16:57:27.717+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-TEST-001 (xe 51B-12345, runId: 8f4e875c-b5a2-4491-9f28-bbb3a35ec928) với 795 waypoints
+2026-09-04T16:57:27.771+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã đặt lại trạng thái mô phỏng cho chuyến đi 2
+2026-09-04T16:57:27.860+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-TEST-001 (xe 51B-12345, runId: 60309ba9-bce2-459a-ba09-feee98c70ab2) với 795 waypoints
+2026-09-04T16:57:27.900+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-TEST-001 (xe 51B-12345, runId: 4f1d211b-bb09-472c-a30c-9d6395f9b3e4) với 795 waypoints
+2026-09-04T16:57:27.950+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-TEST-001 (xe 51B-12345, runId: 82f7cf58-5403-4bc1-8f3e-3edca9bb3845) với 795 waypoints
+2026-09-04T16:57:27.953+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã cập nhật hệ số tốc độ cho chuyến đi 12 (runId: 82f7cf58-5403-4bc1-8f3e-3edca9bb3845) thành 2.0x
+2026-09-04T16:57:27.955+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã cập nhật hệ số tốc độ cho chuyến đi 12 (runId: 82f7cf58-5403-4bc1-8f3e-3edca9bb3845) thành 5.0x
+2026-09-04T16:57:27.957+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã cập nhật hệ số tốc độ cho chuyến đi 12 (runId: 82f7cf58-5403-4bc1-8f3e-3edca9bb3845) thành 10.0x
+2026-09-04T16:57:27.959+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã cập nhật hệ số tốc độ cho chuyến đi 12 (runId: 82f7cf58-5403-4bc1-8f3e-3edca9bb3845) thành 1.0x
+2026-09-04T16:57:27.987+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-TEST-001 (xe 51B-12345, runId: f9ae1508-ff7d-482b-b123-77182aff052b) với 795 waypoints
+2026-09-04T16:57:27.989+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã tạm dừng mô phỏng chuyến đi 14 (runId: f9ae1508-ff7d-482b-b123-77182aff052b)
+2026-09-04T16:57:27.993+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã tiếp tục mô phỏng chuyến đi 14 (runId: f9ae1508-ff7d-482b-b123-77182aff052b)
+2026-09-04T16:57:28.036+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-TEST-001 (xe 51B-12345, runId: 8a8b100a-f8f9-4ea0-9146-7af23f6dcd89) với 795 waypoints
+2026-09-04T16:57:28.054+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-TEST-001 (xe 51B-12345, runId: 12bc43b8-866d-4e43-8f25-82b2149eba8d) với 795 waypoints
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.084 s -- in com.quangkhai.vehiceltracking_backend.controller.SimulatorControllerTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest
+2026-09-04T16:57:28.063+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest]: RouteControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T16:57:28.065+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest
+2026-09-04T16:57:28.066+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest]: RouteControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T16:57:28.068+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.422 s -- in com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.controller.StationControllerTest
+2026-09-04T16:57:28.485+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.StationControllerTest]: StationControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T16:57:28.487+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.StationControllerTest
+2026-09-04T16:57:28.488+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.StationControllerTest]: StationControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T16:57:28.489+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.StationControllerTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.183 s -- in com.quangkhai.vehiceltracking_backend.controller.StationControllerTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.controller.TripControllerTest
+2026-09-04T16:57:28.669+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.TripControllerTest]: TripControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T16:57:28.670+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.TripControllerTest
+2026-09-04T16:57:28.671+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.TripControllerTest]: TripControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T16:57:28.673+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.TripControllerTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.027 s -- in com.quangkhai.vehiceltracking_backend.controller.TripControllerTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.service.TripServiceTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.570 s -- in com.quangkhai.vehiceltracking_backend.service.TripServiceTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.service.SimulatorServiceTest
+2026-09-04T16:57:29.487+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-500 (xe 51B-99999, runId: 46b738ed-d7a3-4802-aaca-e7c6a6de7d9f) với 795 waypoints
+2026-09-04T16:57:29.487+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã cập nhật hệ số tốc độ cho chuyến đi 500 (runId: 46b738ed-d7a3-4802-aaca-e7c6a6de7d9f) thành 2.0x
+2026-09-04T16:57:29.487+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã cập nhật hệ số tốc độ cho chuyến đi 500 (runId: 46b738ed-d7a3-4802-aaca-e7c6a6de7d9f) thành 5.0x
+2026-09-04T16:57:29.488+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã cập nhật hệ số tốc độ cho chuyến đi 500 (runId: 46b738ed-d7a3-4802-aaca-e7c6a6de7d9f) thành 10.0x
+2026-09-04T16:57:29.488+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã cập nhật hệ số tốc độ cho chuyến đi 500 (runId: 46b738ed-d7a3-4802-aaca-e7c6a6de7d9f) thành 1.0x
+2026-09-04T16:57:29.530+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-500 (xe 51B-99999, runId: 1037c206-dc52-486d-8a54-33f38adf5988) với 795 waypoints
+2026-09-04T16:57:29.530+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã đặt lại trạng thái mô phỏng cho chuyến đi 500
+2026-09-04T16:57:29.538+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-500 (xe 51B-99999, runId: 55be218a-5b91-48f3-9739-fb536180b6bd) với 795 waypoints
+2026-09-04T16:57:29.538+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã tạm dừng mô phỏng chuyến đi 500 (runId: 55be218a-5b91-48f3-9739-fb536180b6bd)
+2026-09-04T16:57:29.538+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã tiếp tục mô phỏng chuyến đi 500 (runId: 55be218a-5b91-48f3-9739-fb536180b6bd)
+2026-09-04T16:57:29.545+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Chuyến đi 500 (runId: cbf7d2cd-37a2-4f90-a207-58a6eb11102f) đã hoàn thành mô phỏng
+2026-09-04T16:57:29.571+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-500 (xe 51B-99999, runId: 82f08589-4fec-4387-a27b-02ba898c2b8c) với 795 waypoints
+2026-09-04T16:57:29.572+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã đặt lại trạng thái mô phỏng cho chuyến đi 500
+2026-09-04T16:57:29.573+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-500 (xe 51B-99999, runId: 8e3e32ff-8cbc-49a7-afcc-3a13c13045d1) với 795 waypoints
+2026-09-04T16:57:29.580+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-500 (xe 51B-99999, runId: 4e53b3be-5f1b-471b-8bdf-86527f2fa0de) với 795 waypoints
+2026-09-04T16:57:29.605+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Chuyến đi 500 (runId: f34bccaa-8a6e-4819-8f04-354bbd764bd0) đã hoàn thành mô phỏng
+2026-09-04T16:57:29.606+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-500 (xe 51B-99999, runId: 815fbdb8-bc34-4be4-8259-a22ca46f87b7) với 795 waypoints
+2026-09-04T16:57:29.607+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-600 (xe 51B-88888, runId: 1bc48c11-73d0-41b4-8fe2-cfe4db7239b7) với 795 waypoints
+2026-09-04T16:57:29.609+07:00 ERROR 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Lỗi trong vòng lặp giả lập cho chuyến đi 500 (runId: 815fbdb8-bc34-4be4-8259-a22ca46f87b7): 
+
+java.lang.RuntimeException: DB Connection failed for Vehicle 50
+	at com.quangkhai.vehiceltracking_backend.service.SimulatorService.tickSingleSimulation(SimulatorService.java:471) ~[classes/:na]
+	at com.quangkhai.vehiceltracking_backend.service.SimulatorService.tickAllSimulations(SimulatorService.java:344) ~[classes/:na]
+	at com.quangkhai.vehiceltracking_backend.service.SimulatorServiceTest.lambda$tickAllSimulations_TerminalEmitsOnce_AndErrorInSessionADoesNotBlockSessionB$0(SimulatorServiceTest.java:1028) ~[test-classes/:na]
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:52) ~[junit-jupiter-api-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:39) ~[junit-jupiter-api-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.api.Assertions.assertDoesNotThrow(Assertions.java:3295) ~[junit-jupiter-api-6.0.3.jar:6.0.3]
+	at com.quangkhai.vehiceltracking_backend.service.SimulatorServiceTest.tickAllSimulations_TerminalEmitsOnce_AndErrorInSessionADoesNotBlockSessionB(SimulatorServiceTest.java:1028) ~[test-classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565) ~[na:na]
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:701) ~[junit-platform-commons-6.0.3.jar:6.0.3]
+	at org.junit.platform.commons.support.ReflectionSupport.invokeMethod(ReflectionSupport.java:502) ~[junit-platform-commons-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.support.MethodReflectionUtils.invoke(MethodReflectionUtils.java:45) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:61) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:124) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:163) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:148) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:86) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:123) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:105) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:99) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:66) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:47) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:39) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:104) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:98) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invokeVoid(InterceptingExecutableInvoker.java:71) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$0(TestMethodTestDescriptor.java:219) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:74) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:215) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:157) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:70) ~[junit-jupiter-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$2(NodeTestTask.java:176) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:74) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$1(NodeTestTask.java:166) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:138) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$0(NodeTestTask.java:164) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:74) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:163) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:116) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1612) ~[na:na]
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:42) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$2(NodeTestTask.java:180) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:74) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$1(NodeTestTask.java:166) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:138) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$0(NodeTestTask.java:164) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:74) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:163) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:116) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1612) ~[na:na]
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:42) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$2(NodeTestTask.java:180) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:74) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$1(NodeTestTask.java:166) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:138) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$0(NodeTestTask.java:164) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:74) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:163) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:116) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:36) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:52) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:58) ~[junit-platform-engine-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.executeEngine(EngineExecutionOrchestrator.java:246) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.failOrExecuteEngine(EngineExecutionOrchestrator.java:218) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:179) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:108) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:66) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:157) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:65) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:125) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:114) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:58) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.InterceptingLauncher.lambda$execute$2(InterceptingLauncher.java:57) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.ClasspathAlignmentCheckingLauncherInterceptor.intercept(ClasspathAlignmentCheckingLauncherInterceptor.java:25) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.InterceptingLauncher.execute(InterceptingLauncher.java:56) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:58) ~[junit-platform-launcher-6.0.3.jar:6.0.3]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565) ~[na:na]
+	at org.apache.maven.surefire.api.util.ReflectionUtils.invokeMethodWithArray(ReflectionUtils.java:125) ~[surefire-api-3.5.6.jar:3.5.6]
+	at org.apache.maven.surefire.junitplatform.LauncherAdapter.executeWithCancellationToken(LauncherAdapter.java:68) ~[surefire-junit-platform-3.5.6.jar:3.5.6]
+	at org.apache.maven.surefire.junitplatform.LauncherAdapter.execute(LauncherAdapter.java:54) ~[surefire-junit-platform-3.5.6.jar:3.5.6]
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:203) ~[surefire-junit-platform-3.5.6.jar:3.5.6]
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:168) ~[surefire-junit-platform-3.5.6.jar:3.5.6]
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:136) ~[surefire-junit-platform-3.5.6.jar:3.5.6]
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385) ~[surefire-booter-3.5.6.jar:3.5.6]
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162) ~[surefire-booter-3.5.6.jar:3.5.6]
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507) ~[surefire-booter-3.5.6.jar:3.5.6]
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495) ~[surefire-booter-3.5.6.jar:3.5.6]
+
+2026-09-04T16:57:29.620+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Khởi động Simulator cho chuyến đi TRIP-500 (xe 51B-99999, runId: 3ad21c4b-8a71-4c0f-9fe9-2471460b3ed4) với 795 waypoints
+2026-09-04T16:57:29.620+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Đã tạm dừng mô phỏng chuyến đi 500 (runId: 3ad21c4b-8a71-4c0f-9fe9-2471460b3ed4)
+[INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.352 s -- in com.quangkhai.vehiceltracking_backend.service.SimulatorServiceTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.service.GeofencingServiceTest
+2026-09-04T16:57:29.687+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : AUTO CHECK-IN: Xe 51B-11111 đã vào trạm Trạm Bến Thành (cự ly: 0m, bán kính trạm: 100.0m)
+2026-09-04T16:57:29.697+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: tripId không hợp lệ (null)
+2026-09-04T16:57:29.697+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: tripId không hợp lệ (0)
+2026-09-04T16:57:29.697+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: tripId không hợp lệ (-5)
+2026-09-04T16:57:29.698+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: NaN, lng: 106.6983) cho tripId: 100
+2026-09-04T16:57:29.698+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: Infinity, lng: 106.6983) cho tripId: 100
+2026-09-04T16:57:29.698+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: 91.0, lng: 106.6983) cho tripId: 100
+2026-09-04T16:57:29.698+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: -90.1, lng: 106.6983) cho tripId: 100
+2026-09-04T16:57:29.698+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: 10.7719, lng: NaN) cho tripId: 100
+2026-09-04T16:57:29.698+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: 10.7719, lng: -Infinity) cho tripId: 100
+2026-09-04T16:57:29.698+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: 10.7719, lng: 180.1) cho tripId: 100
+2026-09-04T16:57:29.698+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: 10.7719, lng: -180.1) cho tripId: 100
+2026-09-04T16:57:29.699+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Station của checkIn #999 là null cho tripId: 100
+2026-09-04T16:57:29.699+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: null, lng: 106.6983)
+2026-09-04T16:57:29.699+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: NaN, lng: 106.6983)
+2026-09-04T16:57:29.699+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: Infinity, lng: 106.6983)
+2026-09-04T16:57:29.699+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 90.1, lng: 106.6983)
+2026-09-04T16:57:29.699+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: -90.1, lng: 106.6983)
+2026-09-04T16:57:29.699+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 10.7719, lng: null)
+2026-09-04T16:57:29.700+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 10.7719, lng: NaN)
+2026-09-04T16:57:29.700+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 10.7719, lng: -Infinity)
+2026-09-04T16:57:29.700+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 10.7719, lng: 180.1)
+2026-09-04T16:57:29.700+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 10.7719, lng: -180.1)
+2026-09-04T16:57:29.700+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Bán kính station #888 không hợp lệ (nullm)
+2026-09-04T16:57:29.701+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Bán kính station #888 không hợp lệ (20.0m)
+2026-09-04T16:57:29.701+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Bán kính station #888 không hợp lệ (200.0m)
+2026-09-04T16:57:29.701+07:00  WARN 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Bán kính station #888 không hợp lệ (NaNm)
+2026-09-04T16:57:29.705+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : AUTO CHECK-IN: Xe 51B-11111 đã vào trạm Trạm Bến Thành (cự ly: 89m, bán kính trạm: 88.95594131563719m)
+2026-09-04T16:57:29.710+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : AUTO CHECK-IN: Xe 51B-11111 đã vào trạm Trạm Suối Tiên (cự ly: 0m, bán kính trạm: 100.0m)
+2026-09-04T16:57:29.716+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : AUTO CHECK-IN: Xe 51B-11111 đã vào trạm Trạm Bến Thành (cự ly: 0m, bán kính trạm: 100.0m)
+2026-09-04T16:57:29.721+07:00  INFO 1491623 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : AUTO CHECK-IN: Xe 51B-11111 đã vào trạm Trạm Bến Thành (cự ly: 0m, bán kính trạm: 100.0m)
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.095 s -- in com.quangkhai.vehiceltracking_backend.service.GeofencingServiceTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.service.StationServiceTest
+[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.143 s -- in com.quangkhai.vehiceltracking_backend.service.StationServiceTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.service.RouteServiceTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.113 s -- in com.quangkhai.vehiceltracking_backend.service.RouteServiceTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 102, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  17.552 s
+[INFO] Finished at: 2026-09-04T16:57:30+07:00
+[INFO] ------------------------------------------------------------------------

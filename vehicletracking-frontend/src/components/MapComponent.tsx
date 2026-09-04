@@ -252,7 +252,16 @@ export default function MapComponent({
   // Cập nhật Xe và góc xoay realtime
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !vehicleTelemetry || !vehicleTelemetry.latitude) return;
+    if (!map) return;
+
+    // REV-004: Khi telemetry null (sau Reset), xóa sạch marker xe cũ khỏi bản đồ
+    if (!vehicleTelemetry || !vehicleTelemetry.latitude) {
+      if (vehicleMarkerRef.current) {
+        vehicleMarkerRef.current.remove();
+        vehicleMarkerRef.current = null;
+      }
+      return;
+    }
 
     const { latitude, longitude, heading = 0, plateNumber, speed = 0 } = vehicleTelemetry;
 

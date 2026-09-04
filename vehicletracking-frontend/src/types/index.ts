@@ -92,7 +92,19 @@ export interface StationEta {
   status: CheckInStatus;
 }
 
+export interface SimulatorResponse {
+  message?: string;
+  status: 'IDLE' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | string;
+  tripId?: number;
+  simulationRunId?: string;
+  multiplier?: number;
+  currentWaypointIndex?: number;
+  lastPublishedSequence?: number;
+}
+
 export interface VehicleTelemetry {
+  simulationRunId?: string;
+  sequence?: number;
   vehicleId: number;
   plateNumber: string;
   tripId: number;

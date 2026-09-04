@@ -27,6 +27,12 @@ export default function App() {
     currentTripRef.current = currentTrip;
   }, [currentTrip]);
 
+  const activeSimulationRef = useRef<{
+    tripId: number;
+    simulationRunId: string;
+    lastSequence: number;
+  } | null>(null);
+
   // BR-006 / REV-002: Chỉ sử dụng telemetry khi khớp chính xác với tripId của currentTrip
   const matchingTelemetry = (telemetry && currentTrip && telemetry.tripId === currentTrip.id) ? telemetry : null;
 
@@ -73,6 +79,25 @@ export default function App() {
       if (trps.length > 0) {
         const trip = trps[0];
         setCurrentTrip(trip);
+        try {
+          const statusRes = await api.getSimulatorStatus(trip.id);
+          if (statusRes.simulationRunId && statusRes.status !== 'IDLE') {
+            activeSimulationRef.current = {
+              tripId: statusRes.tripId || trip.id,
+              simulationRunId: statusRes.simulationRunId,
+              lastSequence: statusRes.lastPublishedSequence ?? 0,
+            };
+            setSimStatus(statusRes.status as any);
+            if (statusRes.multiplier) {
+              setMultiplier(statusRes.multiplier);
+            }
+          } else {
+            activeSimulationRef.current = null;
+            setSimStatus('IDLE');
+          }
+        } catch {
+          // ignore error on initial status fetch
+        }
       }
     } catch (err) {
       console.error('Lỗi khi tải dữ liệu ban đầu:', err);
@@ -89,13 +114,37 @@ export default function App() {
 
     // Lắng nghe dữ liệu Telemetry (Vị trí, Tốc độ, ETA)
     const unsubTelemetry = wsService.onTelemetry((data) => {
-      const activeTrip = currentTripRef.current;
-      // BR-006 / REV-002: Chỉ chấp nhận telemetry khi ĐÃ CÓ currentTrip và tripId khớp với currentTrip.id
-      if (!activeTrip || data.tripId !== activeTrip.id) {
-        console.log(`[REALTIME ISOLATION] Bỏ qua telemetry của Trip khác: payload.tripId=${data.tripId}, activeTrip.id=${activeTrip?.id}`);
+      // REV-003: Defensive guard chống payload null hoặc sai kiểu
+      if (!data || typeof data !== 'object' || typeof data.tripId !== 'number') {
         return;
       }
 
+      const activeTrip = currentTripRef.current;
+      const activeSim = activeSimulationRef.current;
+
+      // BR-006: Kiểm tra tính hợp lệ của snapshot telemetry
+      if (!activeSim || !activeTrip) {
+        console.log(`[REALTIME GUARD] Bỏ qua telemetry: chưa có active simulation hoặc trip`);
+        return;
+      }
+
+      if (data.tripId !== activeSim.tripId || data.tripId !== activeTrip.id) {
+        console.log(`[REALTIME GUARD] Bỏ qua telemetry của Trip khác: payload.tripId=${data.tripId}, expected=${activeTrip.id}`);
+        return;
+      }
+
+      if (data.simulationRunId !== activeSim.simulationRunId) {
+        console.log(`[REALTIME GUARD] Bỏ qua telemetry của run cũ/khác: payload.runId=${data.simulationRunId}, expected=${activeSim.simulationRunId}`);
+        return;
+      }
+
+      if (!Number.isSafeInteger(data.sequence) || (data.sequence as number) <= activeSim.lastSequence) {
+        console.log(`[REALTIME GUARD] Bỏ qua telemetry có sequence không hợp lệ hoặc cũ: sequence=${data.sequence}, lastSequence=${activeSim.lastSequence}`);
+        return;
+      }
+
+      // Cập nhật lastSequence trước khi setTelemetry
+      activeSim.lastSequence = data.sequence as number;
       setTelemetry(data);
 
       const isTerminal = data.tripStatus === 'COMPLETED' || (data.status === 'IDLE' && (data.targetStationId == null || data.etaSecondsToCompletion === 0));
@@ -157,13 +206,20 @@ export default function App() {
       unsubAlert();
       wsService.disconnect();
     };
-  }, [addToast, simStatus]);
+  }, [addToast]);
 
   // Điều khiển Simulator
   const handleStart = async () => {
     if (!currentTrip) return;
     try {
-      await api.startSimulator(currentTrip.id);
+      const res = await api.startSimulator(currentTrip.id);
+      if (res.simulationRunId) {
+        activeSimulationRef.current = {
+          tripId: res.tripId || currentTrip.id,
+          simulationRunId: res.simulationRunId,
+          lastSequence: res.lastPublishedSequence ?? 0,
+        };
+      }
       setSimStatus('RUNNING');
       addToast({
         type: 'INFO',
@@ -172,34 +228,89 @@ export default function App() {
         message: `Xe ${currentTrip.vehiclePlateNumber} đã khởi hành từ trạm đầu tiên!`,
       });
     } catch (err) {
-      console.error(err);
+      console.error('Lỗi start simulation:', err);
+      addToast({
+        type: 'DELAY_ALERT',
+        level: 'WARNING',
+        title: 'Lỗi khởi động mô phỏng',
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
   const handlePause = async () => {
     if (!currentTrip) return;
-    await api.pauseSimulator(currentTrip.id);
-    setSimStatus('PAUSED');
+    try {
+      await api.pauseSimulator(currentTrip.id);
+      setSimStatus('PAUSED');
+    } catch (err) {
+      console.error('Lỗi pause simulation:', err);
+      addToast({
+        type: 'DELAY_ALERT',
+        level: 'WARNING',
+        title: 'Lỗi tạm dừng mô phỏng',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   };
 
   const handleResume = async () => {
     if (!currentTrip) return;
-    await api.resumeSimulator(currentTrip.id);
-    setSimStatus('RUNNING');
+    try {
+      await api.resumeSimulator(currentTrip.id);
+      setSimStatus('RUNNING');
+    } catch (err) {
+      console.error('Lỗi resume simulation:', err);
+      addToast({
+        type: 'DELAY_ALERT',
+        level: 'WARNING',
+        title: 'Lỗi tiếp tục mô phỏng',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   };
 
   const handleReset = async () => {
     if (!currentTrip) return;
-    await api.resetSimulator(currentTrip.id);
-    setSimStatus('IDLE');
-    setTelemetry(null);
-    loadInitialData();
+    try {
+      await api.resetSimulator(currentTrip.id);
+      activeSimulationRef.current = null;
+      setSimStatus('IDLE');
+      setTelemetry(null);
+      setMultiplier(1);
+      const updatedTrip = await api.getTripById(currentTrip.id);
+      setCurrentTrip(updatedTrip);
+      addToast({
+        type: 'INFO',
+        level: 'INFO',
+        title: 'Đặt lại chuyến đi',
+        message: 'Đã đặt lại trạng thái ban đầu cho chuyến đi.',
+      });
+    } catch (err) {
+      console.error('Lỗi reset simulation:', err);
+      addToast({
+        type: 'DELAY_ALERT',
+        level: 'WARNING',
+        title: 'Lỗi đặt lại mô phỏng',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   };
 
   const handleSetMultiplier = async (m: number) => {
     if (!currentTrip) return;
-    await api.setMultiplier(currentTrip.id, m);
-    setMultiplier(m);
+    try {
+      await api.setMultiplier(currentTrip.id, m);
+      setMultiplier(m);
+    } catch (err) {
+      console.error('Lỗi set multiplier:', err);
+      addToast({
+        type: 'DELAY_ALERT',
+        level: 'WARNING',
+        title: 'Lỗi cập nhật tốc độ',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   };
 
   // Xử lý click trên bản đồ

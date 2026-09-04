@@ -1,0 +1,29 @@
+[STOMP-CONNECTED] Connected to ws://localhost:8080/ws-raw
+
+--- BẮT ĐẦU TC-012: KIỂM THỬ BẢN TIN MALFORMED VÀ VALID-JSON WRONG-SHAPE (REV-003) ---
+[TC-012 Step 1] Gửi payload text thuần không phải JSON: "INVALID_STOMP_PAYLOAD_NOT_JSON"...
+[STOMP-SUBSCRIBER] Message #1 received on /topic/telemetry:
+  [NON-JSON BODY]: INVALID_STOMP_PAYLOAD_NOT_JSON
+[TC-012 Step 2] Gửi payload JSON bị cụt/cắt: "{"tripId": 1, "speed": "...
+[STOMP-SUBSCRIBER] Message #2 received on /topic/telemetry:
+  [NON-JSON BODY]: {"tripId": 1, "speed": 
+[TC-012 Step 3] Gửi payload valid JSON null: "null"...
+[STOMP-SUBSCRIBER] Message #3 received on /topic/telemetry:
+  [NON-JSON BODY]: null
+[TC-012 Step 4] Gửi payload valid JSON array: "[1, 2, 3]"...
+[STOMP-SUBSCRIBER] Message #4 received on /topic/telemetry:
+  tripId=undefined, runId=undefined, seq=undefined, speed=undefined
+[TC-012 Step 5] Gửi payload valid JSON primitive string: "\"just a string\""...
+[STOMP-SUBSCRIBER] Message #5 received on /topic/telemetry:
+  tripId=undefined, runId=undefined, seq=undefined, speed=undefined
+[TC-012 Step 6] Gửi payload valid JSON empty object: "{}"...
+[STOMP-SUBSCRIBER] Message #6 received on /topic/telemetry:
+  tripId=undefined, runId=undefined, seq=undefined, speed=undefined
+[TC-012 Step 7] Gửi payload valid JSON thiếu tọa độ: "{"tripId": 1, "speed": 25.0}"...
+[STOMP-SUBSCRIBER] Message #7 received on /topic/telemetry:
+  tripId=1, runId=undefined, seq=undefined, speed=25
+[TC-012 Step 8] Gửi payload hợp lệ tiếp theo (sequence: 8)...
+[STOMP-SUBSCRIBER] Message #8 received on /topic/telemetry:
+  tripId=1, runId=11111111-2222-3333-4444-555555555555, seq=8, speed=42
+
+[TC-012 HOÀN THÀNH] Đã phát 7 bản tin malformed/wrong-shape và 1 bản tin hợp lệ. Subscriber nhận được: 8 bản tin.

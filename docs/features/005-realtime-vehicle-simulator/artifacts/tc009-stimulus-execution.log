@@ -1,0 +1,21 @@
+[STOMP-CONNECTED] Connected to ws://localhost:8080/ws-raw
+
+--- BẮT ĐẦU TC-009: KIỂM THỬ BỘ LỌC TELEMETRY (FOREIGN, WRONG RUN, STALE SEQ, VALID SEQ) ---
+
+[TC-009 Step 1] Phát telemetry của foreign Trip (tripId: 999999)...
+[STOMP-SUBSCRIBER] Message #1 received on /topic/telemetry:
+  tripId=999999, runId=11111111-2222-3333-4444-555555555555, seq=8, speed=99
+
+[TC-009 Step 2] Phát telemetry với simulationRunId ngoại lai (00000000-0000-0000-0000-000000000000)...
+[STOMP-SUBSCRIBER] Message #2 received on /topic/telemetry:
+  tripId=1, runId=00000000-0000-0000-0000-000000000000, seq=8, speed=99
+
+[TC-009 Step 3] Phát telemetry với sequence cũ/trùng lặp (sequence: 7)...
+[STOMP-SUBSCRIBER] Message #3 received on /topic/telemetry:
+  tripId=1, runId=11111111-2222-3333-4444-555555555555, seq=7, speed=99
+
+[TC-009 Step 4] Phát telemetry hợp lệ tiếp theo (sequence: 8, speed: 38.5 km/h)...
+[STOMP-SUBSCRIBER] Message #4 received on /topic/telemetry:
+  tripId=1, runId=11111111-2222-3333-4444-555555555555, seq=8, speed=38.5
+
+[TC-009 HOÀN THÀNH] Đã phát 4 bản tin kích thích. Subscriber nhận được: 4 bản tin.

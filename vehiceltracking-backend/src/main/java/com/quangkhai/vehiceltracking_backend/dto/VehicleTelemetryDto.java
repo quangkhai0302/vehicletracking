@@ -15,6 +15,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class VehicleTelemetryDto {
+    private String simulationRunId;
+    private Integer sequence;
     private Long vehicleId;
     private String plateNumber;
     private Long tripId;

@@ -1,4 +1,4 @@
-import { Station, Route, RouteRequest, Vehicle, Trip, TrafficIncident } from '../types';
+import { Station, Route, RouteRequest, Vehicle, Trip, TrafficIncident, SimulatorResponse } from '../types';
 
 const API_BASE = 'http://localhost:8080/api';
 
@@ -164,28 +164,46 @@ export const api = {
   },
 
   // Simulator
-  startSimulator: async (tripId: number): Promise<any> => {
+  startSimulator: async (tripId: number): Promise<SimulatorResponse> => {
     const res = await fetch(`${API_BASE}/simulator/start/${tripId}`, { method: 'POST' });
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi khởi động mô phỏng'));
+    }
     return res.json();
   },
-  pauseSimulator: async (tripId: number): Promise<any> => {
+  pauseSimulator: async (tripId: number): Promise<SimulatorResponse> => {
     const res = await fetch(`${API_BASE}/simulator/pause/${tripId}`, { method: 'POST' });
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi tạm dừng mô phỏng'));
+    }
     return res.json();
   },
-  resumeSimulator: async (tripId: number): Promise<any> => {
+  resumeSimulator: async (tripId: number): Promise<SimulatorResponse> => {
     const res = await fetch(`${API_BASE}/simulator/resume/${tripId}`, { method: 'POST' });
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi tiếp tục mô phỏng'));
+    }
     return res.json();
   },
-  resetSimulator: async (tripId: number): Promise<any> => {
+  resetSimulator: async (tripId: number): Promise<SimulatorResponse> => {
     const res = await fetch(`${API_BASE}/simulator/reset/${tripId}`, { method: 'POST' });
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi đặt lại mô phỏng'));
+    }
     return res.json();
   },
-  setMultiplier: async (tripId: number, multiplier: number): Promise<any> => {
+  setMultiplier: async (tripId: number, multiplier: number): Promise<SimulatorResponse> => {
     const res = await fetch(`${API_BASE}/simulator/multiplier/${tripId}?multiplier=${multiplier}`, { method: 'POST' });
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi cập nhật hệ số tốc độ'));
+    }
     return res.json();
   },
-  getSimulatorStatus: async (tripId: number): Promise<any> => {
+  getSimulatorStatus: async (tripId: number): Promise<SimulatorResponse> => {
     const res = await fetch(`${API_BASE}/simulator/status/${tripId}`);
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi tải trạng thái mô phỏng'));
+    }
     return res.json();
   }
 };
