@@ -1,0 +1,207 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ---------------< com.quangkhai:vehiceltracking-backend >----------------
+[INFO] Building  0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ vehiceltracking-backend ---
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] Copying 0 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ vehiceltracking-backend ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.5.0:testResources (default-testResources) @ vehiceltracking-backend ---
+[INFO] skip non existing resourceDirectory /home/khainq/Code/vehicletracking/vehiceltracking-backend/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.15.0:testCompile (default-testCompile) @ vehiceltracking-backend ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-test) @ vehiceltracking-backend ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.quangkhai.vehiceltracking_backend.GeoUtilTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.077 s -- in com.quangkhai.vehiceltracking_backend.GeoUtilTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests
+13:56:31.353 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests]: VehiceltrackingBackendApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+13:56:31.461 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests
+13:56:31.555 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests]: VehiceltrackingBackendApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+13:56:31.558 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.1)
+
+2026-09-04T13:56:31.903+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] v.VehiceltrackingBackendApplicationTests : Starting VehiceltrackingBackendApplicationTests using Java 26.0.1 with PID 1472935 (started by khainq in /home/khainq/Code/vehicletracking/vehiceltracking-backend)
+2026-09-04T13:56:31.906+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] v.VehiceltrackingBackendApplicationTests : The following 1 profile is active: "dev"
+2026-09-04T13:56:32.628+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-09-04T13:56:32.630+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-09-04T13:56:32.763+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 125 ms. Found 7 JPA repository interfaces.
+2026-09-04T13:56:33.312+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-09-04T13:56:33.356+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.4.5.Final
+2026-09-04T13:56:33.694+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-09-04T13:56:33.717+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-09-04T13:56:33.865+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:vehicletracking user=SA
+2026-09-04T13:56:33.866+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-09-04T13:56:33.884+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] org.hibernate.orm.deprecation            : HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-09-04T13:56:33.904+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:h2:mem:vehicletracking]
+	Database driver: H2 JDBC Driver
+	Database dialect: H2Dialect
+	Database version: 2.4.240
+	Default catalog/schema: VEHICLETRACKING/PUBLIC
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: 100
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-09-04T13:56:34.833+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-09-04T13:56:34.908+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-09-04T13:56:34.980+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-09-04T13:56:35.532+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-09-04T13:56:36.306+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-09-04T13:56:36.307+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@52d1bb9c]]
+2026-09-04T13:56:36.309+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-09-04T13:56:36.314+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] v.VehiceltrackingBackendApplicationTests : Started VehiceltrackingBackendApplicationTests in 4.7 seconds (process running for 5.983)
+2026-09-04T13:56:36.579+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Bắt đầu khởi tạo dữ liệu mẫu thực tế cho TP. Hồ Chí Minh...
+2026-09-04T13:56:36.690+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Đã tạo 5 trạm dừng thành công.
+2026-09-04T13:56:36.732+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Đã tạo Tuyến đường: Tuyến số 01: BX Miền Đông - Chợ Bến Thành (Quãng đường: 5.23 km, Thời gian dự kiến: 15.0 phút)
+2026-09-04T13:56:36.742+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Đã tạo phương tiện xe: 51B-299.88 (Thaco City Bus 40 chỗ)
+2026-09-04T13:56:36.796+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Đã khởi tạo chuyến đi mẫu mã: TRIP-996768 cho xe 51B-299.88
+2026-09-04T13:56:36.799+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Đã tạo sự cố giao thông giả lập: Ùn tắc nghiêm trọng tại Cầu Điện Biên Phủ
+2026-09-04T13:56:36.799+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Khởi tạo dữ liệu mẫu hoàn tất!
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+WARNING: A Java agent has been loaded dynamically (/home/khainq/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.11/byte-buddy-agent-1.18.11.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.947 s -- in com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplicationTests
+[INFO] Running com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest
+2026-09-04T13:56:37.147+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest]: RouteControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T13:56:37.168+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest
+2026-09-04T13:56:37.170+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest]: RouteControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T13:56:37.176+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest
+2026-09-04T13:56:37.179+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Stopping...
+2026-09-04T13:56:37.179+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=false, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@52d1bb9c]]
+2026-09-04T13:56:37.179+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Stopped.
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.1)
+
+2026-09-04T13:56:37.210+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.controller.RouteControllerTest     : Starting RouteControllerTest using Java 26.0.1 with PID 1472935 (started by khainq in /home/khainq/Code/vehicletracking/vehiceltracking-backend)
+2026-09-04T13:56:37.210+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.controller.RouteControllerTest     : The following 1 profile is active: "dev"
+2026-09-04T13:56:37.430+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-09-04T13:56:37.430+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-09-04T13:56:37.451+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 19 ms. Found 7 JPA repository interfaces.
+2026-09-04T13:56:37.615+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-09-04T13:56:37.639+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-09-04T13:56:37.640+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Starting...
+2026-09-04T13:56:37.642+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-2 - Added connection conn10: url=jdbc:h2:mem:vehicletracking user=SA
+2026-09-04T13:56:37.643+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Start completed.
+2026-09-04T13:56:37.644+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] org.hibernate.orm.deprecation            : HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-09-04T13:56:37.645+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:h2:mem:vehicletracking]
+	Database driver: H2 JDBC Driver
+	Database dialect: H2Dialect
+	Database version: 2.4.240
+	Default catalog/schema: VEHICLETRACKING/PUBLIC
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: 100
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-09-04T13:56:37.781+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-09-04T13:56:37.798+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-09-04T13:56:37.949+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-09-04T13:56:38.113+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-09-04T13:56:38.113+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-09-04T13:56:38.114+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 1 ms
+2026-09-04T13:56:38.130+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-09-04T13:56:38.130+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@6ed000ba]]
+2026-09-04T13:56:38.130+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-09-04T13:56:38.133+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.controller.RouteControllerTest     : Started RouteControllerTest in 0.95 seconds (process running for 7.801)
+2026-09-04T13:56:38.139+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.config.DataSeeder                  : Dữ liệu đã tồn tại, bỏ qua DataSeeder.
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.629 s -- in com.quangkhai.vehiceltracking_backend.controller.RouteControllerTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.controller.StationControllerTest
+2026-09-04T13:56:38.777+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.StationControllerTest]: StationControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T13:56:38.780+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.StationControllerTest
+2026-09-04T13:56:38.781+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.StationControllerTest]: StationControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T13:56:38.782+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.StationControllerTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.289 s -- in com.quangkhai.vehiceltracking_backend.controller.StationControllerTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.controller.TripControllerTest
+2026-09-04T13:56:39.065+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.TripControllerTest]: TripControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T13:56:39.067+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.TripControllerTest
+2026-09-04T13:56:39.068+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.quangkhai.vehiceltracking_backend.controller.TripControllerTest]: TripControllerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-04T13:56:39.072+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.quangkhai.vehiceltracking_backend.VehiceltrackingBackendApplication for test class com.quangkhai.vehiceltracking_backend.controller.TripControllerTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.036 s -- in com.quangkhai.vehiceltracking_backend.controller.TripControllerTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.service.TripServiceTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.609 s -- in com.quangkhai.vehiceltracking_backend.service.TripServiceTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.service.SimulatorServiceTest
+2026-09-04T13:56:39.972+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.SimulatorService           : Chuyến đi 500 đã hoàn thành mô phỏng
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.296 s -- in com.quangkhai.vehiceltracking_backend.service.SimulatorServiceTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.service.GeofencingServiceTest
+2026-09-04T13:56:40.084+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : AUTO CHECK-IN: Xe 51B-11111 đã vào trạm Trạm Bến Thành (cự ly: 0m, bán kính trạm: 100.0m)
+2026-09-04T13:56:40.097+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: tripId không hợp lệ (null)
+2026-09-04T13:56:40.097+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: tripId không hợp lệ (0)
+2026-09-04T13:56:40.098+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: tripId không hợp lệ (-5)
+2026-09-04T13:56:40.098+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: NaN, lng: 106.6983) cho tripId: 100
+2026-09-04T13:56:40.098+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: Infinity, lng: 106.6983) cho tripId: 100
+2026-09-04T13:56:40.098+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: 91.0, lng: 106.6983) cho tripId: 100
+2026-09-04T13:56:40.098+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: -90.1, lng: 106.6983) cho tripId: 100
+2026-09-04T13:56:40.098+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: 10.7719, lng: NaN) cho tripId: 100
+2026-09-04T13:56:40.098+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: 10.7719, lng: -Infinity) cho tripId: 100
+2026-09-04T13:56:40.098+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: 10.7719, lng: 180.1) cho tripId: 100
+2026-09-04T13:56:40.098+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: 10.7719, lng: -180.1) cho tripId: 100
+2026-09-04T13:56:40.098+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Station của checkIn #999 là null cho tripId: 100
+2026-09-04T13:56:40.099+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: null, lng: 106.6983)
+2026-09-04T13:56:40.099+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: NaN, lng: 106.6983)
+2026-09-04T13:56:40.099+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: Infinity, lng: 106.6983)
+2026-09-04T13:56:40.099+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 90.1, lng: 106.6983)
+2026-09-04T13:56:40.099+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: -90.1, lng: 106.6983)
+2026-09-04T13:56:40.099+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 10.7719, lng: null)
+2026-09-04T13:56:40.099+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 10.7719, lng: NaN)
+2026-09-04T13:56:40.099+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 10.7719, lng: -Infinity)
+2026-09-04T13:56:40.100+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 10.7719, lng: 180.1)
+2026-09-04T13:56:40.100+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Tọa độ station #881 không hợp lệ (lat: 10.7719, lng: -180.1)
+2026-09-04T13:56:40.100+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Bán kính station #888 không hợp lệ (nullm)
+2026-09-04T13:56:40.100+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Bán kính station #888 không hợp lệ (20.0m)
+2026-09-04T13:56:40.100+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Bán kính station #888 không hợp lệ (200.0m)
+2026-09-04T13:56:40.100+07:00  WARN 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : Auto check-in bị từ chối: Bán kính station #888 không hợp lệ (NaNm)
+2026-09-04T13:56:40.107+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : AUTO CHECK-IN: Xe 51B-11111 đã vào trạm Trạm Bến Thành (cự ly: 89m, bán kính trạm: 88.95594131563719m)
+2026-09-04T13:56:40.112+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : AUTO CHECK-IN: Xe 51B-11111 đã vào trạm Trạm Suối Tiên (cự ly: 0m, bán kính trạm: 100.0m)
+2026-09-04T13:56:40.116+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : AUTO CHECK-IN: Xe 51B-11111 đã vào trạm Trạm Bến Thành (cự ly: 0m, bán kính trạm: 100.0m)
+2026-09-04T13:56:40.123+07:00  INFO 1472935 --- [vehiceltracking-backend] [           main] c.q.v.service.GeofencingService          : AUTO CHECK-IN: Xe 51B-11111 đã vào trạm Trạm Bến Thành (cự ly: 0m, bán kính trạm: 100.0m)
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.108 s -- in com.quangkhai.vehiceltracking_backend.service.GeofencingServiceTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.service.StationServiceTest
+[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.146 s -- in com.quangkhai.vehiceltracking_backend.service.StationServiceTest
+[INFO] Running com.quangkhai.vehiceltracking_backend.service.RouteServiceTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.124 s -- in com.quangkhai.vehiceltracking_backend.service.RouteServiceTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 82, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  11.595 s
+[INFO] Finished at: 2026-09-04T13:56:40+07:00
+[INFO] ------------------------------------------------------------------------

@@ -1,0 +1,56 @@
+[STOMP-INIT] Activating STOMP stimulus client...
+[STOMP-DEBUG] Opening Web Socket...
+[STOMP-DEBUG] Web Socket Opened...
+[STOMP-DEBUG] >>> CONNECT
+accept-version:1.2,1.1,1.0
+heart-beat:10000,10000
+
+
+[STOMP-DEBUG] Received data
+[STOMP-DEBUG] <<< CONNECTED
+heart-beat:0,0
+version:1.2
+content-length:0
+
+
+[STOMP-DEBUG] connected to server undefined
+[STOMP-CONNECTED] Connected to ws://localhost:8080/ws-raw
+[STOMP-DEBUG] >>> SUBSCRIBE
+id:sub-0
+destination:/topic/checkins
+
+
+[STOMP-PUBLISH] Publishing foreign CheckInEvent to /topic/checkins:
+{
+  "tripId": 999999,
+  "tripCode": "TRIP-FOREIGN-999999",
+  "vehicleId": 999,
+  "plateNumber": "99X-99999",
+  "stationId": 999,
+  "stationName": "Trạm Ngoại Tuyến 999",
+  "stopOrder": 99,
+  "checkInTime": "2026-09-04T07:26:50.354Z",
+  "message": "Xe 99X-99999 đã check-in thành công tại Trạm Ngoại Tuyến 999"
+}
+[STOMP-DEBUG] >>> SEND
+destination:/topic/checkins
+content-length:292
+
+
+[STOMP-DEBUG] Received data
+[STOMP-DEBUG] <<< MESSAGE
+content-length:292
+message-id:3c7e6756-a790-4e45-82da-e862001ebafa-2
+subscription:sub-0
+destination:/topic/checkins
+content-length:292
+
+
+[STOMP-SUBSCRIBER-CONFIRMATION] Received CheckInEvent from /topic/checkins:
+{"tripId":999999,"tripCode":"TRIP-FOREIGN-999999","vehicleId":999,"plateNumber":"99X-99999","stationId":999,"stationName":"Trạm Ngoại Tuyến 999","stopOrder":99,"checkInTime":"2026-09-04T07:26:50.354Z","message":"Xe 99X-99999 đã check-in thành công tại Trạm Ngoại Tuyến 999"}
+[STOMP-DELIVERY-VERIFIED] Broker broadcast confirmed: message delivered to /topic/checkins subscriber.
+[STOMP-DISCONNECT] Finished stimulus execution. Disconnecting...
+[STOMP-DEBUG] >>> DISCONNECT
+receipt:close-1
+
+

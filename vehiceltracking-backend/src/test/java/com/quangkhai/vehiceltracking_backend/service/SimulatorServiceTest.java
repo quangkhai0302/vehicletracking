@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -415,8 +416,153 @@ class SimulatorServiceTest {
     }
 
     @Test
-    @DisplayName("REV-001 / TC-005: Multiplier cao làm bước nhảy qua nhiều waypoint phải kích hoạt geofence check cho mọi waypoint trung gian")
-    void tickSingleSimulation_MultiStepAdvance_ChecksAllIntermediateWaypoints() {
+    @DisplayName("TC-005: Simulator tick ở waypoint index 0 kiểm tra START station trước khi di chuyển")
+    void tickSingleSimulation_AtWaypointIndexZero_ChecksStartStationBeforeMovement() {
+        // Precondition: START station (checkInA) đang ở trạng thái PENDING
+        checkInA.setStatus(CheckInStatus.PENDING);
+        checkInA.setActualArrivalTime(null);
+
+        when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(500L))
+                .thenReturn(Arrays.asList(checkInA, checkInB, checkInC));
+        when(incidentRepository.findByActiveTrue()).thenReturn(Collections.emptyList());
+
+        Vehicle vehicle = Vehicle.builder()
+                .id(50L)
+                .plateNumber("51B-99999")
+                .status(VehicleStatus.IN_TRANSIT)
+                .currentSpeed(40.0)
+                .build();
+        when(vehicleRepository.findById(50L)).thenReturn(Optional.of(vehicle));
+
+        SimulatorService.Waypoint wp0 = SimulatorService.Waypoint.builder()
+                .latitude(10.7719)
+                .longitude(106.6983)
+                .stationId(1L)
+                .stationName("Trạm A")
+                .stopOrder(1)
+                .build();
+        SimulatorService.Waypoint wp1 = SimulatorService.Waypoint.builder()
+                .latitude(10.7750)
+                .longitude(106.7000)
+                .build();
+
+        session.setWaypoints(Arrays.asList(wp0, wp1));
+        session.setCurrentWaypointIndex(0);
+        session.setSpeedMultiplier(1.0);
+
+        // REV-001: Khẳng định rằng tại thời điểm geofencingService được gọi cho wp0, index của session vẫn là 0
+        doAnswer(invocation -> {
+            assertEquals(0, session.getCurrentWaypointIndex(),
+                    "Waypoint index phải vẫn là 0 tại thời điểm đánh giá trạm START trước khi di chuyển");
+            return Optional.of(checkInA);
+        }).when(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp0.getLatitude()), eq(wp0.getLongitude()));
+
+        simulatorService.tickSingleSimulation(session);
+
+        // Đảm bảo geofencingService được gọi cho waypoint 0 (START) trước khi tới waypoint 1
+        InOrder inOrder = inOrder(geofencingService);
+        inOrder.verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp0.getLatitude()), eq(wp0.getLongitude()));
+        inOrder.verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp1.getLatitude()), eq(wp1.getLongitude()));
+
+        // Sau khi hoàn thành tick, index mới chuyển thành 1
+        assertEquals(1, session.getCurrentWaypointIndex());
+    }
+
+    @Test
+    @DisplayName("REV-001 / TC-005: Khi geofence START ném exception, session index không bị tăng trước và giữ nguyên tại 0")
+    void tickSingleSimulation_WhenStartGeofenceThrowsException_SessionIndexRemainsAtZero() {
+        checkInA.setStatus(CheckInStatus.PENDING);
+        checkInA.setActualArrivalTime(null);
+
+        SimulatorService.Waypoint wp0 = SimulatorService.Waypoint.builder()
+                .latitude(10.7719)
+                .longitude(106.6983)
+                .stationId(1L)
+                .stationName("Trạm A")
+                .stopOrder(1)
+                .build();
+        SimulatorService.Waypoint wp1 = SimulatorService.Waypoint.builder()
+                .latitude(10.7750)
+                .longitude(106.7000)
+                .build();
+
+        session.setWaypoints(Arrays.asList(wp0, wp1));
+        session.setCurrentWaypointIndex(0);
+        session.setSpeedMultiplier(1.0);
+
+        doThrow(new RuntimeException("Lỗi tạm thời khi kết nối database"))
+                .when(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp0.getLatitude()), eq(wp0.getLongitude()));
+
+        assertThrows(RuntimeException.class, () -> simulatorService.tickSingleSimulation(session));
+        assertEquals(0, session.getCurrentWaypointIndex(),
+                "Index không được tăng nếu bước kiểm tra trạm START bị ném ngoại lệ");
+    }
+
+    @Test
+    @DisplayName("REV-003 / TC-009: Một session gặp geofence no-op/invalid không làm gián đoạn việc thực thi session tiếp theo")
+    void tickSingleSimulation_SessionNoOpDoesNotBlockSubsequentSessionExecution() {
+        // Session 1: geofencing trả về Optional.empty (no-op)
+        when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(500L))
+                .thenReturn(Arrays.asList(checkInA, checkInB, checkInC));
+        when(incidentRepository.findByActiveTrue()).thenReturn(Collections.emptyList());
+
+        Vehicle vehicle1 = Vehicle.builder().id(50L).plateNumber("51B-99999").status(VehicleStatus.IN_TRANSIT).currentSpeed(40.0).build();
+        when(vehicleRepository.findById(50L)).thenReturn(Optional.of(vehicle1));
+
+        SimulatorService.Waypoint wp0 = SimulatorService.Waypoint.builder().latitude(10.7850).longitude(106.7050).build();
+        SimulatorService.Waypoint wp1 = SimulatorService.Waypoint.builder().latitude(10.7900).longitude(106.7100).build();
+
+        session.setWaypoints(Arrays.asList(wp0, wp1));
+        session.setCurrentWaypointIndex(0);
+        session.setSpeedMultiplier(1.0);
+
+        when(geofencingService.checkAndProcessAutoCheckIn(anyLong(), anyDouble(), anyDouble()))
+                .thenReturn(Optional.empty()); // No-op cho session 1
+
+        // Tick session 1 thành công mà không có exception
+        assertDoesNotThrow(() -> simulatorService.tickSingleSimulation(session));
+        assertEquals(1, session.getCurrentWaypointIndex());
+
+        // Session 2: Chuyến đi 600 độc lập
+        TripCheckIn s2CheckIn = TripCheckIn.builder()
+                .id(201L)
+                .station(stationA)
+                .stopOrder(1)
+                .status(CheckInStatus.PENDING)
+                .scheduledArrivalTime(fixedNow.plusMinutes(10))
+                .build();
+        when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(600L))
+                .thenReturn(Collections.singletonList(s2CheckIn));
+
+        Vehicle vehicle2 = Vehicle.builder().id(60L).plateNumber("51B-88888").status(VehicleStatus.IN_TRANSIT).currentSpeed(40.0).build();
+        when(vehicleRepository.findById(60L)).thenReturn(Optional.of(vehicle2));
+
+        SimulatorService.SimulationSession session2 = SimulatorService.SimulationSession.builder()
+                .tripId(600L)
+                .vehicleId(60L)
+                .plateNumber("51B-88888")
+                .routeId(2L)
+                .routeName("Tuyến Số 2")
+                .waypoints(Arrays.asList(wp0, wp1))
+                .currentWaypointIndex(0)
+                .baseSpeedKmh(40.0)
+                .speedMultiplier(1.0)
+                .isPaused(false)
+                .isCompleted(false)
+                .alertedIncidentIds(new HashSet<>())
+                .build();
+
+        // Tick session 2 sau session 1
+        assertDoesNotThrow(() -> simulatorService.tickSingleSimulation(session2));
+        assertEquals(1, session2.getCurrentWaypointIndex());
+
+        // Cả 2 session đều phát telemetry độc lập
+        verify(messagingTemplate, times(2)).convertAndSend(eq("/topic/telemetry"), any(VehicleTelemetryDto.class));
+    }
+
+    @Test
+    @DisplayName("TC-006: Multiplier cao làm bước nhảy qua nhiều waypoint phải kích hoạt geofence check cho mọi waypoint theo thứ tự")
+    void tickSingleSimulation_MultiStepAdvance_ChecksAllIntermediateWaypointsInOrder() {
         when(tripCheckInRepository.findByTripIdOrderByStopOrderAsc(500L))
                 .thenReturn(Arrays.asList(checkInA, checkInB, checkInC));
         when(incidentRepository.findByActiveTrue()).thenReturn(Collections.emptyList());
@@ -441,9 +587,11 @@ class SimulatorServiceTest {
         simulatorService.tickSingleSimulation(session);
 
         assertEquals(3, session.getCurrentWaypointIndex());
-        // Verify geofencingService được gọi lần lượt cho tất cả các waypoint 1, 2, 3
-        verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp1.getLatitude()), eq(wp1.getLongitude()));
-        verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp2.getLatitude()), eq(wp2.getLongitude()));
-        verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp3.getLatitude()), eq(wp3.getLongitude()));
+        // Verify geofencingService được gọi lần lượt cho tất cả các waypoint 0, 1, 2, 3 theo thứ tự
+        InOrder inOrder = inOrder(geofencingService);
+        inOrder.verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp0.getLatitude()), eq(wp0.getLongitude()));
+        inOrder.verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp1.getLatitude()), eq(wp1.getLongitude()));
+        inOrder.verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp2.getLatitude()), eq(wp2.getLongitude()));
+        inOrder.verify(geofencingService).checkAndProcessAutoCheckIn(eq(500L), eq(wp3.getLatitude()), eq(wp3.getLongitude()));
     }
 }

@@ -244,9 +244,21 @@ public class SimulatorService {
         double metersPerSecond = (effectiveSpeedKmh * 1000.0 / 3600.0) * session.getSpeedMultiplier();
         int stepAdvance = Math.max(1, (int) Math.round(metersPerSecond / 15.0));
         int nextIndex = Math.min(currentIndex + stepAdvance, waypoints.size() - 1);
+
+        // 4. Kiểm tra Geofencing tự động check-in
+        // SPEC-003 / BR-004: Khi bắt đầu ở waypoint index 0, kiểm tra vị trí hiện tại (START) trước khi tăng index di chuyển
+        if (currentIndex == 0) {
+            geofencingService.checkAndProcessAutoCheckIn(
+                    session.getTripId(),
+                    currentWp.getLatitude(),
+                    currentWp.getLongitude()
+            );
+        }
+
+        // Cập nhật waypoint index của session sau khi START đã được xử lý
         session.setCurrentWaypointIndex(nextIndex);
 
-        // 4. Kiểm tra Geofencing tự động check-in cho tất cả các waypoint trong bước nhảy
+        // Sau đó kiểm tra tất cả các waypoint trong bước nhảy (currentIndex, nextIndex]
         if (currentIndex < nextIndex) {
             for (int i = currentIndex + 1; i <= nextIndex; i++) {
                 Waypoint wp = waypoints.get(i);
@@ -256,7 +268,7 @@ public class SimulatorService {
                         wp.getLongitude()
                 );
             }
-        } else {
+        } else if (currentIndex > 0) {
             Waypoint wp = waypoints.get(nextIndex);
             geofencingService.checkAndProcessAutoCheckIn(
                     session.getTripId(),

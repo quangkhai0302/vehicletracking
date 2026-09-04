@@ -39,6 +39,18 @@ public class GeofencingService {
      */
     @Transactional
     public Optional<TripCheckIn> checkAndProcessAutoCheckIn(Long tripId, double vehicleLat, double vehicleLng) {
+        if (tripId == null || tripId <= 0) {
+            log.warn("Auto check-in bị từ chối: tripId không hợp lệ ({})", tripId);
+            return Optional.empty();
+        }
+
+        if (!Double.isFinite(vehicleLat) || vehicleLat < -90.0 || vehicleLat > 90.0
+                || !Double.isFinite(vehicleLng) || vehicleLng < -180.0 || vehicleLng > 180.0) {
+            log.warn("Auto check-in bị từ chối: Tọa độ xe không hợp lệ (lat: {}, lng: {}) cho tripId: {}",
+                    vehicleLat, vehicleLng, tripId);
+            return Optional.empty();
+        }
+
         // Tìm trạm kế tiếp đang ở trạng thái PENDING
         Optional<TripCheckIn> pendingCheckInOpt = tripCheckInRepository
                 .findFirstByTripIdAndStatusOrderByStopOrderAsc(tripId, CheckInStatus.PENDING);
@@ -49,11 +61,30 @@ public class GeofencingService {
 
         TripCheckIn checkIn = pendingCheckInOpt.get();
         Station station = checkIn.getStation();
-        double radiusMeters = station.getRadiusMeters() != null ? station.getRadiusMeters() : 60.0;
+        if (station == null) {
+            log.warn("Auto check-in bị từ chối: Station của checkIn #{} là null cho tripId: {}", checkIn.getId(), tripId);
+            return Optional.empty();
+        }
+
+        Double stationLat = station.getLatitude();
+        Double stationLng = station.getLongitude();
+        if (stationLat == null || !Double.isFinite(stationLat) || stationLat < -90.0 || stationLat > 90.0
+                || stationLng == null || !Double.isFinite(stationLng) || stationLng < -180.0 || stationLng > 180.0) {
+            log.warn("Auto check-in bị từ chối: Tọa độ station #{} không hợp lệ (lat: {}, lng: {})",
+                    station.getId(), stationLat, stationLng);
+            return Optional.empty();
+        }
+
+        Double radiusMeters = station.getRadiusMeters();
+        if (radiusMeters == null || !Double.isFinite(radiusMeters) || radiusMeters < 30.0 || radiusMeters > 150.0) {
+            log.warn("Auto check-in bị từ chối: Bán kính station #{} không hợp lệ ({}m)",
+                    station.getId(), radiusMeters);
+            return Optional.empty();
+        }
 
         double distanceMeters = GeoUtil.calculateDistanceMeters(
                 vehicleLat, vehicleLng,
-                station.getLatitude(), station.getLongitude()
+                stationLat, stationLng
         );
 
         if (distanceMeters <= radiusMeters) {
@@ -62,8 +93,10 @@ public class GeofencingService {
             checkIn.setActualArrivalTime(now);
             TripCheckIn savedCheckIn = tripCheckInRepository.save(checkIn);
 
-            Trip trip = checkIn.getTrip();
-            String plateNumber = trip.getVehicle() != null ? trip.getVehicle().getPlateNumber() : "Unknown";
+            Trip trip = savedCheckIn.getTrip();
+            String plateNumber = (trip != null && trip.getVehicle() != null) ? trip.getVehicle().getPlateNumber() : "Unknown";
+            Long vehicleId = (trip != null && trip.getVehicle() != null) ? trip.getVehicle().getId() : null;
+            String tripCode = trip != null ? trip.getTripCode() : null;
 
             log.info("AUTO CHECK-IN: Xe {} đã vào trạm {} (cự ly: {}m, bán kính trạm: {}m)",
                     plateNumber, station.getName(), Math.round(distanceMeters), radiusMeters);
@@ -71,12 +104,12 @@ public class GeofencingService {
             // Bắn sự kiện CheckInEventDto qua WebSocket
             CheckInEventDto event = CheckInEventDto.builder()
                     .tripId(tripId)
-                    .tripCode(trip.getTripCode())
-                    .vehicleId(trip.getVehicle() != null ? trip.getVehicle().getId() : null)
+                    .tripCode(tripCode)
+                    .vehicleId(vehicleId)
                     .plateNumber(plateNumber)
                     .stationId(station.getId())
                     .stationName(station.getName())
-                    .stopOrder(checkIn.getStopOrder())
+                    .stopOrder(savedCheckIn.getStopOrder())
                     .checkInTime(now)
                     .message("Xe " + plateNumber + " đã check-in thành công tại " + station.getName() + " lúc " + now.format(TIME_FORMATTER))
                     .build();
@@ -90,7 +123,7 @@ public class GeofencingService {
                     .title("Check-in Thành Công")
                     .message("Xe [" + plateNumber + "] vừa ghi nhận qua trạm: " + station.getName())
                     .tripId(tripId)
-                    .vehicleId(trip.getVehicle() != null ? trip.getVehicle().getId() : null)
+                    .vehicleId(vehicleId)
                     .timestamp(now)
                     .build();
             messagingTemplate.convertAndSend("/topic/alerts", alert);
@@ -107,9 +140,9 @@ public class GeofencingService {
                         .id(UUID.randomUUID().toString())
                         .level("INFO")
                         .title("Hoàn thành chuyến đi")
-                        .message("Xe [" + plateNumber + "] đã hoàn thành toàn bộ lộ trình chuyến đi " + trip.getTripCode() + "!")
+                        .message("Xe [" + plateNumber + "] đã hoàn thành toàn bộ lộ trình chuyến đi " + (tripCode != null ? tripCode : "") + "!")
                         .tripId(tripId)
-                        .vehicleId(trip.getVehicle() != null ? trip.getVehicle().getId() : null)
+                        .vehicleId(vehicleId)
                         .timestamp(now)
                         .build();
                 messagingTemplate.convertAndSend("/topic/alerts", completedAlert);
