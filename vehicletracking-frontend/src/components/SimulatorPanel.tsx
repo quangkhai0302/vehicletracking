@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, RotateCcw, Zap, AlertOctagon, PlusCircle, Layers, Radio } from 'lucide-react';
+import { Play, Pause, RotateCcw, AlertOctagon, PlusCircle, Layers, Radio, Route as RouteIcon } from 'lucide-react';
 import { Trip, Route } from '../types';
 
 interface SimulatorPanelProps {
@@ -16,10 +16,11 @@ interface SimulatorPanelProps {
   onToggleClickMode: (mode: 'ADD_STATION' | 'ADD_INCIDENT') => void;
   onOpenIncidentsModal: () => void;
   onOpenStationsModal: () => void;
+  onOpenRoutesModal: () => void;
 }
 
 export default function SimulatorPanel({
-  trip,
+  trip: _trip,
   route,
   simStatus,
   multiplier,
@@ -31,7 +32,8 @@ export default function SimulatorPanel({
   onSetMultiplier,
   onToggleClickMode,
   onOpenIncidentsModal,
-  onOpenStationsModal,
+  onOpenStationsModal: _onOpenStationsModal,
+  onOpenRoutesModal,
 }: SimulatorPanelProps) {
   return (
     <header
@@ -163,6 +165,12 @@ export default function SimulatorPanel({
         >
           <PlusCircle size={15} color={clickMode === 'ADD_STATION' ? '#fff' : '#00f0ff'} />
           <span>{clickMode === 'ADD_STATION' ? 'Nhấp bản đồ để đặt trạm' : '+ Thêm Trạm'}</span>
+        </button>
+
+        {/* Quản lý Tuyến đường */}
+        <button className="glass-btn" onClick={onOpenRoutesModal} title="Quản lý danh sách và cấu hình tuyến đường">
+          <RouteIcon size={15} color="#00f0ff" />
+          <span>Tuyến Đường</span>
         </button>
 
         {/* Danh sách quản lý sự cố */}

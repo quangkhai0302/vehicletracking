@@ -8,7 +8,8 @@ import TimelinePanel from './components/TimelinePanel';
 import ToastNotification from './components/ToastNotification';
 import IncidentModal from './components/IncidentModal';
 import StationModal from './components/StationModal';
-import { Station, Route, Trip, TrafficIncident, VehicleTelemetry, ToastItem } from './types';
+import RouteModal from './components/RouteModal';
+import { Station, Route, RouteRequest, Trip, TrafficIncident, VehicleTelemetry, ToastItem } from './types';
 
 export default function App() {
   const [stations, setStations] = useState<Station[]>([]);
@@ -25,6 +26,7 @@ export default function App() {
   const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isIncidentsModalOpen, setIsIncidentsModalOpen] = useState(false);
   const [isStationsModalOpen, setIsStationsModalOpen] = useState(false);
+  const [isRoutesModalOpen, setIsRoutesModalOpen] = useState(false);
 
   // Thêm Toast thông báo
   const addToast = useCallback((toast: Omit<ToastItem, 'id' | 'time'>) => {
@@ -289,6 +291,100 @@ export default function App() {
     }
   };
 
+  // Quản lý Tuyến đường
+  const refreshRoutes = async () => {
+    try {
+      const rts = await api.getRoutes();
+      setRoutes(rts);
+      if (selectedRoute) {
+        const stillExists = rts.find((r) => r.id === selectedRoute.id);
+        if (stillExists) {
+          setSelectedRoute(stillExists);
+        } else if (rts.length > 0) {
+          setSelectedRoute(rts[0]);
+        } else {
+          setSelectedRoute(null);
+        }
+      } else if (rts.length > 0) {
+        setSelectedRoute(rts[0]);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi không xác định';
+      addToast({
+        type: 'INFO',
+        level: 'WARNING',
+        title: 'Cảnh báo đồng bộ',
+        message: 'Không thể làm mới danh sách tuyến đường: ' + msg,
+      });
+    }
+  };
+
+  const handleCreateRoute = async (data: RouteRequest) => {
+    try {
+      const created = await api.createRoute(data);
+      addToast({
+        type: 'INFO',
+        level: 'INFO',
+        title: 'Tạo tuyến thành công',
+        message: `Đã tạo tuyến ${created.name} (${created.code})`,
+      });
+      await refreshRoutes();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi tạo tuyến đường';
+      addToast({
+        type: 'INFO',
+        level: 'WARNING',
+        title: 'Lỗi tạo tuyến đường',
+        message: msg,
+      });
+      throw err;
+    }
+  };
+
+  const handleUpdateRoute = async (id: number, data: RouteRequest) => {
+    try {
+      const updated = await api.updateRoute(id, data);
+      addToast({
+        type: 'INFO',
+        level: 'INFO',
+        title: 'Cập nhật thành công',
+        message: `Đã cập nhật tuyến ${updated.name} (${updated.code})`,
+      });
+      await refreshRoutes();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi cập nhật tuyến đường';
+      addToast({
+        type: 'INFO',
+        level: 'WARNING',
+        title: 'Lỗi cập nhật tuyến đường',
+        message: msg,
+      });
+      throw err;
+    }
+  };
+
+  const handleDeleteRoute = async (id: number) => {
+    try {
+      await api.deleteRoute(id);
+      addToast({
+        type: 'INFO',
+        level: 'INFO',
+        title: 'Xóa tuyến thành công',
+        message: 'Đã xóa tuyến đường khỏi hệ thống',
+      });
+      await refreshRoutes();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi xóa tuyến đường';
+      addToast({
+        type: 'INFO',
+        level: 'WARNING',
+        title: 'Lỗi xóa tuyến đường',
+        message: msg,
+      });
+      throw err;
+    }
+  };
+
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {/* Bản đồ nền tương tác */}
@@ -316,6 +412,7 @@ export default function App() {
         onToggleClickMode={handleToggleClickMode}
         onOpenIncidentsModal={() => setIsIncidentsModalOpen(true)}
         onOpenStationsModal={() => setIsStationsModalOpen(true)}
+        onOpenRoutesModal={() => setIsRoutesModalOpen(true)}
       />
 
       {/* Bảng tiến trình chuyến đi & ETA thời gian thực bên trái */}
@@ -354,6 +451,17 @@ export default function App() {
         onUpdateStation={handleUpdateStation}
         onDeleteStation={handleDeleteStation}
         pendingCoords={pendingCoords}
+      />
+
+      {/* Modal Quản lý Tuyến đường */}
+      <RouteModal
+        isOpen={isRoutesModalOpen}
+        onClose={() => setIsRoutesModalOpen(false)}
+        routes={routes}
+        stations={stations}
+        onCreateRoute={handleCreateRoute}
+        onUpdateRoute={handleUpdateRoute}
+        onDeleteRoute={handleDeleteRoute}
       />
     </div>
   );

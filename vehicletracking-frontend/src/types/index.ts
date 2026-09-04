@@ -35,6 +35,13 @@ export interface Route {
   createdAt?: string;
 }
 
+export interface RouteRequest {
+  code?: string;
+  name: string;
+  description?: string;
+  stationIds: number[];
+}
+
 export interface Vehicle {
   id: number;
   plateNumber: string;

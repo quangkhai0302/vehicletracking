@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface RouteRepository extends JpaRepository<Route, Long> {
     Optional<Route> findByCode(String code);
     boolean existsByCode(String code);
+    boolean existsByCodeAndIdNot(String code, Long id);
 }

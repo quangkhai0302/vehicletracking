@@ -1,4 +1,4 @@
-import { Station, Route, Vehicle, Trip, TrafficIncident } from '../types';
+import { Station, Route, RouteRequest, Vehicle, Trip, TrafficIncident } from '../types';
 
 const API_BASE = 'http://localhost:8080/api';
 
@@ -21,8 +21,8 @@ async function parseErrorMessage(res: Response, defaultMessage: string): Promise
     // Non-JSON response
   }
   if (res.status === 400) return 'Dữ liệu không hợp lệ (400)';
-  if (res.status === 404) return 'Không tìm thấy trạm dừng (404)';
-  if (res.status === 409) return 'Mã trạm hoặc quan hệ bị xung đột (409)';
+  if (res.status === 404) return 'Không tìm thấy tài nguyên (404)';
+  if (res.status === 409) return 'Xung đột dữ liệu hoặc dữ liệu đang được sử dụng (409)';
   if (res.status >= 500) return 'Lỗi máy chủ nội bộ (500)';
   return defaultMessage;
 }
@@ -75,24 +75,45 @@ export const api = {
   // Tuyến đường
   getRoutes: async (): Promise<Route[]> => {
     const res = await fetch(`${API_BASE}/routes`);
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi lấy danh sách tuyến đường'));
+    }
     return res.json();
   },
   getRouteById: async (id: number): Promise<Route> => {
     const res = await fetch(`${API_BASE}/routes/${id}`);
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Không tìm thấy tuyến đường'));
+    }
     return res.json();
   },
-  createRoute: async (data: { code?: string; name: string; description?: string; stationIds: number[] }): Promise<Route> => {
+  createRoute: async (data: RouteRequest): Promise<Route> => {
     const res = await fetch(`${API_BASE}/routes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error((await res.json()).message || 'Lỗi tạo tuyến');
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi tạo tuyến đường'));
+    }
+    return res.json();
+  },
+  updateRoute: async (id: number, data: RouteRequest): Promise<Route> => {
+    const res = await fetch(`${API_BASE}/routes/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi cập nhật tuyến đường'));
+    }
     return res.json();
   },
   deleteRoute: async (id: number): Promise<void> => {
     const res = await fetch(`${API_BASE}/routes/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Lỗi xóa tuyến');
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, 'Lỗi xóa tuyến đường'));
+    }
   },
 
   // Phương tiện & Chuyến đi

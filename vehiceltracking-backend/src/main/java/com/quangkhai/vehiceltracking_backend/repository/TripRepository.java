@@ -13,4 +13,5 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     Optional<Trip> findByTripCode(String tripCode);
     List<Trip> findByStatus(TripStatus status);
     List<Trip> findByVehicleIdAndStatus(Long vehicleId, TripStatus status);
+    boolean existsByRouteId(Long routeId);
 }

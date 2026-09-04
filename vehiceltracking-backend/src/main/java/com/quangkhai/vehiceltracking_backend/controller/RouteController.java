@@ -33,6 +33,11 @@ public class RouteController {
         return ResponseEntity.status(HttpStatus.CREATED).body(routeService.createRoute(request));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<RouteResponseDto> updateRoute(@PathVariable Long id, @Valid @RequestBody RouteRequestDto request) {
+        return ResponseEntity.ok(routeService.updateRoute(id, request));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteRoute(@PathVariable Long id) {
         routeService.deleteRoute(id);
