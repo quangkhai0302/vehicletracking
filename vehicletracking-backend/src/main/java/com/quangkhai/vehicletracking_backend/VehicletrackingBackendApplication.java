@@ -1,13 +1,12 @@
-package com.quangkhai.vehiceltracking_backend;
+package com.quangkhai.vehicletracking_backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class VehiceltrackingBackendApplication {
+public class VehicletrackingBackendApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(VehiceltrackingBackendApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(VehicletrackingBackendApplication.class, args);
+    }
 }

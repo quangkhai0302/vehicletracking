@@ -1,10 +1,10 @@
-package com.quangkhai.vehiceltracking_backend;
+package com.quangkhai.vehicletracking_backend;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class VehiceltrackingBackendApplicationTests {
+class VehicletrackingBackendApplicationTests {
 
 	@Test
 	void contextLoads() {
