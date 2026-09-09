@@ -69,7 +69,15 @@ h1, h2, h3, h4, h5, h6 {
 .leaflet-container {
   width: 100%;
   height: 100%;
-  background: #070b14;
+  background: #aad3df;
+}
+
+/* Triệt tiêu hoàn toàn đường viền ranh giới ô vuông giữa các tile */
+.leaflet-container img.leaflet-tile {
+  outline: 1px solid transparent;
+  padding: 0;
+  border: none;
+  max-width: none !important;
 }
 
 /* Header Bar */

@@ -6,14 +6,14 @@ interface MapControlsProps {
   theme: MapTheme;
   onThemeChange: (theme: MapTheme) => void;
   onResetCenter: () => void;
-  mouseCoords: { lat: number; lng: number } | null;
+  coordRef?: React.RefObject<HTMLSpanElement | null>;
 }
 
 export const MapControls: FC<MapControlsProps> = ({
   theme,
   onThemeChange,
   onResetCenter,
-  mouseCoords,
+  coordRef,
 }) => {
   return (
     <>
@@ -21,10 +21,8 @@ export const MapControls: FC<MapControlsProps> = ({
       <div className="bottom-left-bar">
         <div className="coordinate-badge">
           <Compass size={14} color="#00f0ff" />
-          <span>
-            {mouseCoords
-              ? `Tọa độ: ${mouseCoords.lat.toFixed(5)}, ${mouseCoords.lng.toFixed(5)}`
-              : 'Di chuột trên bản đồ để xem tọa độ'}
+          <span ref={coordRef}>
+            Di chuột trên bản đồ để xem tọa độ
           </span>
         </div>
       </div>
