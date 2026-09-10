@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/vehicle_tracking
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: false
+  mvc:
+    problemdetails:
+      enabled: true
+
+here:
+  traffic:
+    base-url: https://data.traffic.hereapi.com
+    api-key: test-here-api-key-fake
+    connect-timeout-ms: 2000
+    read-timeout-ms: 5000
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173

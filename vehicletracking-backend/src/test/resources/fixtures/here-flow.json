@@ -1,0 +1,28 @@
+{
+  "sourceUpdated": "2026-09-09T08:00:00Z",
+  "results": [
+    {
+      "location": {
+        "description": "Nguyen Hue, District 1",
+        "length": 500,
+        "shape": {
+          "links": [
+            {
+              "points": [
+                { "lat": 10.7745, "lng": 106.7025 },
+                { "lat": 10.7755, "lng": 106.7035 }
+              ]
+            }
+          ]
+        }
+      },
+      "currentFlow": {
+        "speed": 8.33,
+        "freeFlow": 11.11,
+        "jamFactor": 4.5,
+        "traversability": "open",
+        "confidence": 0.95
+      }
+    }
+  ]
+}

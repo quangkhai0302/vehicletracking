@@ -1,0 +1,30 @@
+{
+  "sourceUpdated": "2026-09-09T08:00:00Z",
+  "results": [
+    {
+      "id": "incident-hcmc-001",
+      "location": {
+        "description": "Le Duan, District 1",
+        "shape": {
+          "links": [
+            {
+              "points": [
+                { "lat": 10.7801, "lng": 106.6985 },
+                { "lat": 10.7815, "lng": 106.7001 }
+              ]
+            }
+          ]
+        }
+      },
+      "incidentDetails": {
+        "type": "ROAD_WORKS",
+        "description": {
+          "value": "Road resurfacing work"
+        },
+        "criticality": "major",
+        "startTime": "2026-09-09T07:30:00Z",
+        "endTime": "2026-09-09T18:00:00Z"
+      }
+    }
+  ]
+}

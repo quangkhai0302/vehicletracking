@@ -34,8 +34,8 @@ export interface TrafficFlowSegment {
   speedKmh: number;
   freeFlowKmh: number;
   jamFactor: number; // 0.0 to 10.0
-  traversability?: string;
-  confidence?: number;
+  traversability?: string | null;
+  confidence?: number | null;
 }
 
 export interface TrafficIncident {
