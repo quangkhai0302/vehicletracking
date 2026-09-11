@@ -1,178 +1,227 @@
-import type { FormEvent } from 'react';
-import { Edit3, MapPin, Plus, Save, Trash2, X } from 'lucide-react';
-import type { Station, StationFormMode, StationFormState, StationInput } from '../types/station';
+import { useMemo, useState } from 'react';
+import {
+  ArrowUpDown,
+  Edit3,
+  MapPin,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react';
+import type { Station, StationFormMode } from '../types/station';
+
+export type StationSortBy = 'NAME' | 'RADIUS';
 
 interface StationPanelProps {
   stations: Station[];
+  selectedStationId: number | null;
   loading: boolean;
-  saving: boolean;
   error: string | null;
-  mode: StationFormMode;
-  form: StationFormState;
+  selectionDisabled: boolean;
+  mode?: StationFormMode;
   onBeginCreate: () => void;
-  onBeginEdit: (station: Station) => void;
-  onCancel: () => void;
-  onFieldChange: (field: keyof StationFormState, value: string) => void;
-  onSave: (input: StationInput) => Promise<void>;
-  onDelete: (station: Station) => void;
-  onFocus: (station: Station) => void;
+  onSelect: (station: Station) => void;
+  onBeginEdit?: (station: Station) => void;
+  onDelete?: (station: Station) => void;
 }
 
 export function StationPanel({
   stations,
+  selectedStationId,
   loading,
-  saving,
   error,
-  mode,
-  form,
+  selectionDisabled,
+  mode = 'closed',
   onBeginCreate,
+  onSelect,
   onBeginEdit,
-  onCancel,
-  onFieldChange,
-  onSave,
   onDelete,
-  onFocus,
 }: StationPanelProps) {
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    await onSave({
-      name: form.name.trim(),
-      address: form.address.trim() || null,
-      latitude: Number(form.latitude),
-      longitude: Number(form.longitude),
-      checkinRadiusMeters: Number(form.checkinRadiusMeters),
+  const [query, setQuery] = useState('');
+  const [sortBy, setSortBy] = useState<StationSortBy>('NAME');
+
+  const filteredStations = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase('vi');
+    let list = stations.filter((station) => {
+      if (normalizedQuery) {
+        const matchName = station.name.toLocaleLowerCase('vi').includes(normalizedQuery);
+        const matchAddress = station.address?.toLocaleLowerCase('vi').includes(normalizedQuery);
+        return matchName || matchAddress;
+      }
+      return true;
     });
-  };
+
+    if (sortBy === 'NAME') {
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    } else if (sortBy === 'RADIUS') {
+      list = [...list].sort((a, b) => b.checkinRadiusMeters - a.checkinRadiusMeters);
+    }
+
+    return list;
+  }, [query, sortBy, stations]);
 
   return (
-    <aside className="station-panel" aria-label="Quản lý trạm">
+    <aside className="station-panel" aria-label="Danh sách trạm">
+      {/* Header */}
       <div className="station-panel-header">
         <div>
-          <div className="station-panel-eyebrow">Điểm trên bản đồ</div>
-          <h2>Quản lý trạm</h2>
+          <div className="panel-eyebrow">Dữ liệu vận hành</div>
+          <h2>Danh sách trạm</h2>
         </div>
-        {mode === 'closed' && (
-          <button className="station-primary-btn" onClick={onBeginCreate}>
-            <Plus size={16} /> Thêm trạm
-          </button>
-        )}
+        <span className="count-badge tabular-numbers" title="Số trạm hiển thị / Tổng số trạm">
+          {filteredStations.length} / {stations.length}
+        </span>
       </div>
 
-      {error && <div className="station-alert">{error}</div>}
+      {/* Thanh công cụ tìm kiếm và sắp xếp */}
+      <div className="station-toolbar">
+        <label className="station-search flex-1">
+          <Search size={15} aria-hidden="true" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Tìm theo tên trạm hoặc địa chỉ..."
+            aria-label="Tìm kiếm trạm"
+          />
+        </label>
 
-      {mode !== 'closed' && (
-        <form className="station-form" onSubmit={handleSubmit}>
-          <div className="station-form-title">
-            <span>{mode === 'create' ? 'Trạm mới' : 'Chỉnh sửa trạm'}</span>
-            <button type="button" className="station-icon-btn" onClick={onCancel} title="Đóng biểu mẫu">
-              <X size={16} />
-            </button>
-          </div>
+        <button
+          type="button"
+          className={`station-sort-toggle-btn ${sortBy === 'RADIUS' ? 'active' : ''}`}
+          onClick={() => setSortBy((cur) => (cur === 'NAME' ? 'RADIUS' : 'NAME'))}
+          title={sortBy === 'NAME' ? 'Đang xếp theo Tên (A-Z). Bấm để xếp theo Bán kính' : 'Đang xếp theo Bán kính. Bấm để xếp theo Tên'}
+          aria-label="Đổi thứ tự sắp xếp"
+        >
+          <ArrowUpDown size={14} />
+          <span>{sortBy === 'NAME' ? 'Tên A-Z' : 'Bán kính'}</span>
+        </button>
+      </div>
 
-          <p className="station-form-hint">
-            Nhấp lên bản đồ để chọn hoặc thay đổi tọa độ.
-          </p>
+      {error && <div className="station-alert" role="alert">{error}</div>}
 
-          <label className="station-field">
-            <span>Tên trạm *</span>
-            <input
-              value={form.name}
-              onChange={(event) => onFieldChange('name', event.target.value)}
-              maxLength={150}
-              required
-              placeholder="Ví dụ: Bến xe Miền Đông"
-            />
-          </label>
-
-          <label className="station-field">
-            <span>Địa chỉ</span>
-            <input
-              value={form.address}
-              onChange={(event) => onFieldChange('address', event.target.value)}
-              maxLength={255}
-              placeholder="Địa chỉ mô tả của trạm"
-            />
-          </label>
-
-          <div className="station-field-row">
-            <label className="station-field">
-              <span>Vĩ độ *</span>
-              <input
-                type="number"
-                value={form.latitude}
-                onChange={(event) => onFieldChange('latitude', event.target.value)}
-                min={-90}
-                max={90}
-                step="0.000001"
-                required
-              />
-            </label>
-            <label className="station-field">
-              <span>Kinh độ *</span>
-              <input
-                type="number"
-                value={form.longitude}
-                onChange={(event) => onFieldChange('longitude', event.target.value)}
-                min={-180}
-                max={180}
-                step="0.000001"
-                required
-              />
-            </label>
-          </div>
-
-          <label className="station-field">
-            <span>Bán kính check-in (m) *</span>
-            <input
-              type="number"
-              value={form.checkinRadiusMeters}
-              onChange={(event) => onFieldChange('checkinRadiusMeters', event.target.value)}
-              min={10}
-              max={1000}
-              required
-            />
-          </label>
-
-          <div className="station-form-actions">
-            <button type="button" className="station-secondary-btn" onClick={onCancel} disabled={saving}>
-              Hủy
-            </button>
-            <button type="submit" className="station-primary-btn" disabled={saving}>
-              <Save size={15} /> {saving ? 'Đang lưu…' : 'Lưu trạm'}
-            </button>
-          </div>
-        </form>
-      )}
-
+      {/* Danh sách trạm */}
       <div className="station-list" aria-live="polite">
         {loading && <div className="station-empty">Đang tải danh sách trạm…</div>}
         {!loading && stations.length === 0 && (
           <div className="station-empty">
-            <MapPin size={24} />
-            <span>Chưa có trạm nào.</span>
-            <small>Chọn “Thêm trạm”, sau đó nhấp lên bản đồ.</small>
+            <MapPin size={26} aria-hidden="true" />
+            <strong>Chưa có trạm nào</strong>
+            <span>Nhấn “Thêm trạm” ở bên dưới để đặt trạm đầu tiên lên bản đồ.</span>
           </div>
         )}
-        {!loading && stations.map((station) => (
-          <article className="station-list-item" key={station.id}>
-            <button className="station-summary" onClick={() => onFocus(station)}>
-              <span className="station-marker-dot" />
-              <span>
-                <strong>{station.name}</strong>
-                <small>{station.address || `${station.latitude}, ${station.longitude}`}</small>
-                <small>Bán kính: {station.checkinRadiusMeters} m</small>
-              </span>
-            </button>
-            <div className="station-item-actions">
-              <button className="station-icon-btn" onClick={() => onBeginEdit(station)} title="Sửa trạm">
-                <Edit3 size={15} />
-              </button>
-              <button className="station-icon-btn danger" onClick={() => onDelete(station)} title="Xóa trạm">
-                <Trash2 size={15} />
-              </button>
-            </div>
-          </article>
-        ))}
+        {!loading && stations.length > 0 && filteredStations.length === 0 && (
+          <div className="station-empty compact">Không tìm thấy trạm phù hợp với tìm kiếm.</div>
+        )}
+
+        {!loading &&
+          filteredStations.map((station) => {
+            const isSelected = selectedStationId === station.id;
+
+            return (
+              <div
+                key={station.id}
+                className={`station-card ${isSelected ? 'selected' : ''}`}
+                onClick={() => onSelect(station)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onSelect(station);
+                  }
+                }}
+                aria-pressed={isSelected}
+              >
+                <div className="station-card-top">
+                  <div className="station-card-title-row">
+                    <span
+                      className="status-dot active"
+                      title="Đang hoạt động"
+                      aria-label="Đang hoạt động"
+                    />
+                    <strong className="station-card-name" title={station.name}>
+                      {station.name}
+                    </strong>
+                  </div>
+
+                  {/* Nút hành động Sửa & Xóa */}
+                  <div className="station-card-actions">
+                    {onBeginEdit && (
+                      <button
+                        type="button"
+                        className="card-action-btn"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onBeginEdit(station);
+                        }}
+                        onKeyDown={(event) => {
+                          event.stopPropagation();
+                        }}
+                        disabled={selectionDisabled}
+                        title="Chỉnh sửa trạm này"
+                        aria-label={`Sửa trạm ${station.name}`}
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        className="card-action-btn danger"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDelete(station);
+                        }}
+                        onKeyDown={(event) => {
+                          event.stopPropagation();
+                        }}
+                        disabled={selectionDisabled}
+                        title="Ngừng sử dụng trạm này"
+                        aria-label={`Ngừng sử dụng trạm ${station.name}`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {station.address && (
+                  <p className="station-card-address" title={station.address}>
+                    {station.address}
+                  </p>
+                )}
+
+                <div className="station-card-body">
+                  <div className="station-card-meta tabular-numbers">
+                    <span className="station-meta-coords">
+                      {station.latitude.toFixed(5)}, {station.longitude.toFixed(5)}
+                    </span>
+                    <span className="station-meta-radius">
+                      Bán kính checkin: {station.checkinRadiusMeters}m
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+      </div>
+
+      {/* Footer & Nút Thêm trạm */}
+      <div className="station-panel-bottom">
+        <button
+          type="button"
+          className="add-station-dashed-btn"
+          onClick={onBeginCreate}
+          disabled={selectionDisabled}
+          aria-label="Thêm trạm mới"
+        >
+          <Plus size={16} /> Thêm trạm mới
+        </button>
+        <div className="station-panel-footer-mode">
+          <span className="station-count-summary">{stations.length} trạm trong hệ thống</span>
+          {mode === 'create' && <span className="mode-indicator create">Đang tạo trạm mới</span>}
+          {mode === 'edit' && <span className="mode-indicator edit">Đang chỉnh sửa trạm</span>}
+        </div>
       </div>
     </aside>
   );

@@ -6,5 +6,5 @@
 target/
 dist/
 node_modules/
-docs/
 .env.example
+docs/

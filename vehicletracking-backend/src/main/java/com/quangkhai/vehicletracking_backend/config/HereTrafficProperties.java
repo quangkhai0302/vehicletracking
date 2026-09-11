@@ -9,17 +9,26 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "here.traffic")
 public class HereTrafficProperties {
 
+    private boolean enabled = false;
+
     @NotBlank
     private String baseUrl = "https://data.traffic.hereapi.com";
 
-    @NotBlank
-    private String apiKey;
+    private String apiKey = "";
 
     @Positive
     private int connectTimeoutMs = 2000;
 
     @Positive
     private int readTimeoutMs = 5000;
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     public String getBaseUrl() {
         return baseUrl;

@@ -32,7 +32,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = StationController.class, properties = {
-        "here.traffic.api-key=test-key",
         "app.cors.allowed-origins=http://localhost:5173"
 })
 @EnableConfigurationProperties(CorsProperties.class)
