@@ -13,6 +13,7 @@ import type { RouteSummary } from '../../types/route';
 import { formatDuration } from '../../utils/format';
 
 interface RoutePanelProps {
+  createDisabled?: boolean;
   routes: RouteSummary[];
   selectedRouteId: number | null;
   loading: boolean;
@@ -23,6 +24,7 @@ interface RoutePanelProps {
 }
 
 export function RoutePanel({
+  createDisabled = false,
   routes,
   selectedRouteId,
   loading,
@@ -49,7 +51,7 @@ export function RoutePanel({
       <div className="route-panel-header">
         <div>
           <div className="panel-eyebrow">Dữ liệu vận hành</div>
-          <h2>Tuyến đường cố định</h2>
+          <h2>Danh sách tuyến</h2>
         </div>
         <span className="count-badge tabular-numbers" title="Số tuyến hiển thị / Tổng số tuyến">
           {filteredRoutes.length}/{routes.length}
@@ -63,6 +65,7 @@ export function RoutePanel({
             type="search"
             className="route-search-input"
             placeholder="Tìm theo tên tuyến, trạm..."
+            aria-label="Tìm kiếm tuyến đường"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -71,6 +74,7 @@ export function RoutePanel({
           type="button"
           className="btn-primary-create"
           onClick={onBeginCreate}
+          disabled={createDisabled}
           title="Tạo tuyến đường mới"
         >
           <Plus size={15} />
@@ -109,7 +113,7 @@ export function RoutePanel({
                 : 'Bắt đầu tạo tuyến đường cố định đầu tiên bằng cách chọn danh sách điểm dừng.'}
             </p>
             {!query && (
-              <button type="button" className="btn-primary-create" onClick={onBeginCreate}>
+              <button type="button" className="btn-primary-create" onClick={onBeginCreate} disabled={createDisabled}>
                 <Plus size={15} /> Tạo tuyến ngay
               </button>
             )}

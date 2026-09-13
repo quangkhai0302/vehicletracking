@@ -1,33 +1,28 @@
 import { useEffect, useMemo, useRef, useState, type FC } from 'react';
 import L from 'leaflet';
-import { createStation, deleteStation, fetchStations, updateStation } from '../services/stations';
 import { decodeFlexiblePolyline } from '../services/polyline';
 import type { MapTheme } from '../types/map';
-import type { RouteDetail, RouteStopRole } from '../types/route';
-import {
-  EMPTY_STATION_FORM,
-  type Station,
-  type StationFormMode,
-  type StationFormState,
-  type StationInput,
-} from '../types/station';
-import type { Vehicle } from '../types/vehicle';
+import type { RouteDetail, RouteDraftStop, RouteStopRole } from '../types/route';
+import { useLiveOperations } from '../hooks/useLiveOperations';
+import { useSimulator } from '../hooks/useSimulator';
+import { useVehicleMarkers } from '../hooks/useVehicleMarkers';
 import type { WorkspaceMode } from '../types/workspace';
 import { MapControls } from './MapControls';
 import { StationDrawer } from './StationDrawer';
 import { StationPanel } from './StationPanel';
-import { TrackingPanel } from './TrackingPanel';
-import { VehicleDrawer } from './VehicleDrawer';
+import { FleetWorkspace } from './fleet/FleetWorkspace';
 import { RouteWorkspace } from './route/RouteWorkspace';
 import './route/route.css';
-import { Crosshair, X } from 'lucide-react';
+import { Bell, ChevronDown, ChevronUp, Crosshair, List, PanelLeftClose, Play, X } from 'lucide-react';
+import { useMapCamera } from '../hooks/useMapCamera';
+import { useStationWorkspace } from '../hooks/useStationWorkspace';
+import { useCompactLayout } from '../hooks/useCompactLayout';
+import { ModeBar } from './operations/ModeBar';
+import { SimulatorPanel } from './operations/SimulatorPanel';
+import { AlertStream } from './operations/AlertStream';
+import { ConfirmStationDelete } from './operations/ConfirmStationDelete';
 
 const HCMC_CENTER: [number, number] = [10.7769, 106.7009];
-
-interface MapComponentProps {
-  workspace: WorkspaceMode;
-  onWorkspaceChange: (workspace: WorkspaceMode) => void;
-}
 
 function createRouteStopIcon(sequenceNumber: number, role: RouteStopRole): L.DivIcon {
   const roleClass = role.toLowerCase();
@@ -52,108 +47,94 @@ function createStationIcon(state: 'default' | 'selected' | 'muted' | 'draft'): L
   });
 }
 
-function createVehicleIcon(vehicle: Vehicle, selected: boolean): L.DivIcon {
-  const isDelayed = vehicle.status === 'DELAYED';
-  const statusClass = isDelayed ? 'delayed' : 'running';
-  const selectedClass = selected ? 'selected' : '';
-
-  const svg = `
-    <div class="vehicle-map-marker ${statusClass} ${selectedClass}">
-      <div class="vehicle-marker-pulse"></div>
-      <div class="vehicle-marker-body" style="transform: rotate(${vehicle.heading}deg);">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-          <path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/>
-        </svg>
-      </div>
-    </div>
-  `;
-
-  return L.divIcon({
-    className: 'vehicle-div-icon',
-    html: svg,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -22],
-    tooltipAnchor: [0, -20],
-  });
-}
-
 function validCoordinate(value: string, min: number, max: number): number | null {
   if (!value.trim()) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : null;
 }
 
-export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChange }) => {
+export const MapComponent: FC = () => {
+  const rootRef = useRef<HTMLElement>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceMode>('tracking');
+  const compact = useCompactLayout();
+  const [activePanel, setActivePanel] = useState<'context' | 'simulator' | 'alerts' | null>('context');
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [simulatorExpanded, setSimulatorExpanded] = useState(true);
+  const [alertsExpanded, setAlertsExpanded] = useState(true);
+  const [showStations, setShowStations] = useState(true);
+  const [showRoutes, setShowRoutes] = useState(true);
+  const [draftStops, setDraftStops] = useState<RouteDraftStop[]>([]);
+  const [selectedDraftStopId, setSelectedDraftStopId] = useState<string | null>(null);
+  const routeDraftLayerRef = useRef<L.LayerGroup | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const stationLayerRef = useRef<L.LayerGroup | null>(null);
   const draftLayerRef = useRef<L.LayerGroup | null>(null);
-  const vehicleLayerRef = useRef<L.LayerGroup | null>(null);
   const routeLayerRef = useRef<L.LayerGroup | null>(null);
   const plannedRouteLayerRef = useRef<L.LayerGroup | null>(null);
+  const plannedRouteBoundsRef = useRef<L.LatLngBounds | null>(null);
   const stationMarkerRef = useRef<Map<number, L.Marker>>(new Map());
-  const vehicleMarkerRef = useRef<Map<string, L.Marker>>(new Map());
   const coordRef = useRef<HTMLSpanElement>(null);
 
-  const [theme, setTheme] = useState<MapTheme>('google-roadmap');
-  const [stations, setStations] = useState<Station[]>([]);
-  const [loadingStations, setLoadingStations] = useState(true);
-  const [savingStation, setSavingStation] = useState(false);
-  const [deletingStation, setDeletingStation] = useState(false);
-  const [stationError, setStationError] = useState<string | null>(null);
-  const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
-  const [formMode, setFormMode] = useState<StationFormMode>('closed');
-  const [editingStation, setEditingStation] = useState<Station | null>(null);
-  const [stationForm, setStationForm] = useState<StationFormState>(EMPTY_STATION_FORM);
-  const [pickingLocation, setPickingLocation] = useState(false);
-  const [deleteCandidate, setDeleteCandidate] = useState<Station | null>(null);
+  const [theme, setTheme] = useState<MapTheme>('google-dark');
   const [toast, setToast] = useState<string | null>(null);
+  const live = useLiveOperations();
+  const simulator = useSimulator(live.snapshot, setToast);
+  const connectionLabel = live.connection === 'live' ? 'Realtime đã kết nối' : live.connection === 'connecting' ? 'Đang kết nối realtime…' : 'Realtime đang kết nối lại';
+  const { focusLocation, fitBounds, getVisibleCenter, releaseFocus } = useMapCamera(rootRef, mapInstanceRef);
+  const stationWorkspace = useStationWorkspace({
+    focusLocation, onToast: setToast,
+    onPickStart: () => setActivePanel(null),
+    onPickEnd: () => { setDrawerOpen(true); setActivePanel('context'); },
+  });
+  const {
+    stations, loadingStations, savingStation, deletingStation, stationError, selectedStationId,
+    formMode, editingStation, stationForm, pickingLocation, deleteCandidate, selectedStation,
+    setStationForm, setPickingLocation, setSelectedStationId, setStationError, setDeleteCandidate,
+    handleBeginCreate, handleSelectStation, handleBeginEdit, handleCloseStationDrawer,
+    handleSaveStation, handleFieldChange, handleDeactivate,
+  } = stationWorkspace;
+  const contextVisible = drawerOpen && !(pickingLocation && workspace === 'stations') && (!compact || activePanel === 'context');
+  const selectMode = (mode: WorkspaceMode) => {
+    if (mode !== 'stations') setPickingLocation(false);
+    setWorkspace(mode);
+    setSheetExpanded(false);
+    setDrawerOpen(true);
+    setActivePanel(mode === 'simulation' ? 'simulator' : 'context');
+    if (mode === 'simulation') setSimulatorExpanded(true);
+  };
+  const openPanel = (panel: 'context' | 'simulator' | 'alerts') => {
+    setPickingLocation(false);
+    setActivePanel(panel);
+    setSheetExpanded(false);
+    if (panel === 'context') { setDrawerOpen(true); setPickingLocation(false); }
+    if (panel === 'simulator') setSimulatorExpanded(true);
+    if (panel === 'alerts') setAlertsExpanded(true);
+  };
 
   // Route Planning Display State (Data flow managed by RouteWorkspace)
-  const [plannedRoute, setPlannedRoute] = useState<RouteDetail | null>(null);
+  const [editorRoute, setPlannedRoute] = useState<RouteDetail | null>(null);
+  const [tripRoute, setTripRoute] = useState<RouteDetail | null | undefined>(undefined);
+  const plannedRoute = workspace === 'simulation' && simulator.tripId !== null ? simulator.detail?.route ?? null :
+    (workspace === 'tracking' || workspace === 'simulation') && tripRoute !== undefined ? tripRoute : editorRoute;
 
-  // Vehicle Tracking State (Dữ liệu thật, mặc định không có mock xe)
-  const [vehicles] = useState<Vehicle[]>([]);
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [followingVehicle, setFollowingVehicle] = useState(false);
-
-  const selectedStation = useMemo(
-    () => stations.find((station) => station.id === selectedStationId) ?? null,
-    [selectedStationId, stations]
-  );
-
   const selectedVehicle = useMemo(
-    () => vehicles.find((v) => v.id === selectedVehicleId) ?? null,
-    [selectedVehicleId, vehicles]
+    () => live.snapshot?.positions.find(point => point.vehicleId === selectedVehicleId) ?? null,
+    [selectedVehicleId, live.snapshot]
   );
+  useVehicleMarkers({ mapRef: mapInstanceRef, snapshot: live.snapshot, now: live.now,
+    visible: workspace === 'tracking' || workspace === 'simulation', selectedId: selectedVehicleId,
+    following: followingVehicle, onSelect: setSelectedVehicleId, onFocus: focusLocation });
 
-  const drawerVisible =
-    (workspace === 'stations' && (formMode !== 'closed' || selectedStation !== null)) ||
-    (workspace === 'tracking' && selectedVehicle !== null) ||
-    (workspace === 'routes' && plannedRoute !== null);
-
-
-  // Fetch Stations from backend database
-  useEffect(() => {
-    let active = true;
-    fetchStations()
-      .then((data) => {
-        if (!active) return;
-        setStations(data);
-        setStationError(null);
-      })
-      .catch((error: unknown) => {
-        if (active) setStationError(error instanceof Error ? error.message : 'Không thể tải danh sách trạm');
-      })
-      .finally(() => {
-        if (active) setLoadingStations(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const focusVehicle = (id: number) => {
+    const point = live.snapshot?.positions.find(item => item.vehicleId === id);
+    if (point) { setSelectedVehicleId(id); focusLocation([point.latitude,point.longitude],16); }
+  };
+  const openSimulation = (id: number) => { simulator.select(id); selectMode('simulation'); };
 
   // Auto hide toast
   useEffect(() => {
@@ -179,13 +160,12 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
       inertiaMaxSpeed: 2000,
     });
 
-    L.control.zoom({ position: 'topright' }).addTo(map);
+    routeDraftLayerRef.current = L.layerGroup().addTo(map);
 
     routeLayerRef.current = L.layerGroup().addTo(map);
     plannedRouteLayerRef.current = L.layerGroup().addTo(map);
     stationLayerRef.current = L.layerGroup().addTo(map);
     draftLayerRef.current = L.layerGroup().addTo(map);
-    vehicleLayerRef.current = L.layerGroup().addTo(map);
 
     let rafId: number | null = null;
     let pendingCoords: { lat: number; lng: number } | null = null;
@@ -210,6 +190,7 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
     // User drag starts -> Stop following vehicle
     const onDragStart = () => {
       setFollowingVehicle(false);
+      releaseFocus();
     };
 
     map.on('mousemove', onMouseMove);
@@ -226,11 +207,11 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
       mapInstanceRef.current = null;
       stationLayerRef.current = null;
       draftLayerRef.current = null;
-      vehicleLayerRef.current = null;
       routeLayerRef.current = null;
       plannedRouteLayerRef.current = null;
+      routeDraftLayerRef.current = null;
     };
-  }, []);
+  }, [releaseFocus]);
 
   // Map click for picking location
   useEffect(() => {
@@ -245,6 +226,8 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
         longitude: event.latlng.lng.toFixed(6),
       }));
       setPickingLocation(false);
+      setDrawerOpen(true); setActivePanel('context');
+      focusLocation(event.latlng);
     };
 
     map.on('click', onMapClick);
@@ -253,7 +236,7 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
       map.off('click', onMapClick);
       mapContainer?.classList.remove('station-picking');
     };
-  }, [formMode, pickingLocation, workspace]);
+  }, [formMode, pickingLocation, workspace, setStationForm, setPickingLocation, focusLocation]);
 
   // Render Stations Layer
   useEffect(() => {
@@ -263,7 +246,10 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
     layer.clearLayers();
     stationMarkerRef.current.clear();
 
+    if (!showStations) return;
     stations.forEach((station) => {
+      if (showRoutes && (plannedRoute?.stops.some(stop => stop.stationId === station.id) ||
+        (workspace === 'routes' && draftStops.some(stop => stop.stationId === station.id)))) return;
       if (workspace === 'stations' && formMode === 'edit' && editingStation?.id === station.id) return;
       const selected = workspace === 'stations' && selectedStationId === station.id;
       const position: L.LatLngExpression = [station.latitude, station.longitude];
@@ -271,7 +257,7 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
       if (selected) {
         L.circle(position, {
           radius: station.checkinRadiusMeters,
-          color: '#0284c7',
+          color: '#22d3ee',
           weight: 2,
           opacity: 0.85,
           fillColor: '#38bdf8',
@@ -293,21 +279,22 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
 
       if (workspace === 'tracking') {
         marker.on('click', () => {
-          map.setView([station.latitude, station.longitude], 16, { animate: true });
+          focusLocation([station.latitude, station.longitude], 16);
         });
       } else {
         marker.on('click', () => {
           if (formMode !== 'closed') return;
           setSelectedStationId(station.id);
+          setDrawerOpen(true); setActivePanel('context');
           setStationError(null);
-          map.setView([station.latitude, station.longitude], 16, { animate: true });
+          focusLocation([station.latitude, station.longitude], 16);
         });
       }
 
       marker.addTo(layer);
       stationMarkerRef.current.set(station.id, marker);
     });
-  }, [editingStation?.id, formMode, selectedStationId, stations, workspace]);
+  }, [editingStation?.id, formMode, selectedStationId, stations, workspace, showStations, focusLocation, setSelectedStationId, setStationError, showRoutes, plannedRoute, draftStops]);
 
   // Render Draft Station (Create/Edit)
   useEffect(() => {
@@ -354,53 +341,7 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
 
     marker.bindTooltip('Kéo để tinh chỉnh vị trí trạm', { permanent: true, direction: 'top', offset: [0, -28] });
     marker.addTo(layer);
-  }, [formMode, stationForm, workspace]);
-
-  // Render Vehicles & Route Polyline (Chỉ render khi có xe thật)
-  useEffect(() => {
-    const vLayer = vehicleLayerRef.current;
-    const rLayer = routeLayerRef.current;
-    const map = mapInstanceRef.current;
-    if (!vLayer || !rLayer || !map) return;
-
-    vLayer.clearLayers();
-    rLayer.clearLayers();
-    vehicleMarkerRef.current.clear();
-
-    if (workspace !== 'tracking' || vehicles.length === 0) {
-      return;
-    }
-
-    vehicles.forEach((v) => {
-      const isSelected = selectedVehicleId === v.id;
-      const marker = L.marker([v.latitude, v.longitude], {
-        icon: createVehicleIcon(v, isSelected),
-        zIndexOffset: isSelected ? 800 : 400,
-      });
-
-      marker.bindTooltip(`${v.plateNumber} • ${v.speedKmh} km/h`, {
-        direction: 'top',
-        offset: [0, -18],
-        opacity: 0.92,
-      });
-
-      marker.on('click', () => {
-        setSelectedVehicleId(v.id);
-        map.setView([v.latitude, v.longitude], 16, { animate: true });
-      });
-
-      marker.addTo(vLayer);
-      vehicleMarkerRef.current.set(v.id, marker);
-    });
-
-    // Follow vehicle auto-pan
-    if (followingVehicle && selectedVehicle) {
-      map.panTo([selectedVehicle.latitude, selectedVehicle.longitude], {
-        animate: true,
-        duration: 0.6,
-      });
-    }
-  }, [followingVehicle, selectedVehicle, selectedVehicleId, vehicles, workspace]);
+  }, [formMode, stationForm, workspace, setStationForm, setPickingLocation]);
 
   // Tile layer change (Themes)
   useEffect(() => {
@@ -431,8 +372,9 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
     if (!layer || !map) return;
 
     layer.clearLayers();
+    plannedRouteBoundsRef.current = null;
 
-    if (workspace !== 'routes' || !plannedRoute) {
+    if (!showRoutes || !plannedRoute) {
       return;
     }
 
@@ -468,7 +410,7 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
 
     if (allCoords.length > 0) {
       L.polyline(allCoords, {
-        color: '#0284c7',
+        color: '#22d3ee',
         weight: 5,
         opacity: 0.9,
         lineCap: 'round',
@@ -501,267 +443,160 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
 
     // Fit bounds only when all sections decoded successfully
     if (allCoords.length > 0) {
-      map.fitBounds(L.latLngBounds(allCoords), {
-        padding: [60, 60],
-        maxZoom: 16,
-      });
+      plannedRouteBoundsRef.current = L.latLngBounds(allCoords);
+    }
+    if (allCoords.length > 0 && mapContainerRef.current?.clientWidth) {
+      map.invalidateSize({ pan: false });
+      fitBounds(L.latLngBounds(allCoords));
     }
 
     return () => {
       if (toastTimer !== null) window.clearTimeout(toastTimer);
     };
-  }, [plannedRoute, workspace]);
+  }, [plannedRoute, showRoutes, fitBounds]);
 
-  // Actions for Stations
-  const handleBeginCreate = () => {
-    setSelectedStationId(null);
-    setEditingStation(null);
-    setStationForm(EMPTY_STATION_FORM);
-    setStationError(null);
-    setFormMode('create');
-    setPickingLocation(true);
-  };
-
-  const handleSelectStation = (station: Station) => {
-    if (formMode !== 'closed') return;
-    setSelectedStationId(station.id);
-    setStationError(null);
-    mapInstanceRef.current?.setView([station.latitude, station.longitude], 16, { animate: true });
-  };
-
-  const handleBeginEdit = (targetStation?: Station) => {
-    const target = targetStation && typeof targetStation.id === 'number' ? targetStation : selectedStation;
-    if (!target) return;
-    setSelectedStationId(target.id);
-    setEditingStation(target);
-    setStationForm({
-      name: target.name,
-      address: target.address || '',
-      latitude: String(target.latitude),
-      longitude: String(target.longitude),
-      checkinRadiusMeters: String(target.checkinRadiusMeters),
+  // Draft markers communicate order only; the POST response supplies road geometry.
+  useEffect(() => {
+    const layer = routeDraftLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (workspace !== 'routes' || !showRoutes || plannedRoute) return;
+    draftStops.forEach((stop, index) => {
+      const station = stations.find(item => item.id === stop.stationId && item.active);
+      if (!station) return;
+      const role = index === 0 ? 'START' : index === draftStops.length - 1 ? 'END' : 'STOP';
+      const marker = L.marker([station.latitude, station.longitude], {
+        icon: createRouteStopIcon(index + 1, role),
+        zIndexOffset: stop.id === selectedDraftStopId ? 1100 : 900,
+        keyboard: true,
+        title: `Điểm nháp ${index + 1}: ${station.name}`,
+      });
+      const label = document.createElement('span');
+      label.textContent = `Nháp #${index + 1} · ${station.name} · Chưa tính tuyến`;
+      marker.bindTooltip(label, { direction: 'top' });
+      marker.on('click', () => {
+        setSelectedDraftStopId(stop.id);
+        setDrawerOpen(true);
+        setActivePanel('context');
+        focusLocation([station.latitude, station.longitude]);
+      });
+      marker.addTo(layer);
     });
-    setStationError(null);
-    setFormMode('edit');
-    setPickingLocation(false);
-    mapInstanceRef.current?.setView([target.latitude, target.longitude], 16, { animate: true });
-  };
+  }, [draftStops, stations, workspace, plannedRoute, selectedDraftStopId, showRoutes, focusLocation]);
 
-  const handleCloseStationDrawer = () => {
-    const closingMode = formMode;
-    setFormMode('closed');
-    setEditingStation(null);
-    setStationForm(EMPTY_STATION_FORM);
-    setPickingLocation(false);
-    if (closingMode !== 'edit') setSelectedStationId(null);
+  const focusDraftStop = (id: string) => {
+    setSelectedDraftStopId(id);
+    const stop = draftStops.find(item => item.id === id);
+    const station = stations.find(item => item.id === stop?.stationId);
+    if (station) focusLocation([station.latitude, station.longitude], 16);
   };
-
-  const handleSaveStation = async (input: StationInput) => {
-    setSavingStation(true);
-    setStationError(null);
-    try {
-      const saved =
-        formMode === 'edit' && editingStation
-          ? await updateStation(editingStation.id, input)
-          : await createStation(input);
-      setStations((current) => [...current.filter((station) => station.id !== saved.id), saved]);
-      setSelectedStationId(saved.id);
-      setFormMode('closed');
-      setEditingStation(null);
-      setStationForm(EMPTY_STATION_FORM);
-      setPickingLocation(false);
-      setToast(formMode === 'create' ? `Đã tạo trạm “${saved.name}”.` : `Đã cập nhật trạm “${saved.name}”.`);
-      mapInstanceRef.current?.setView([saved.latitude, saved.longitude], 16, { animate: true });
-    } catch (error) {
-      setStationError(error instanceof Error ? error.message : 'Không thể lưu trạm');
-    } finally {
-      setSavingStation(false);
+  const handleFit = () => {
+    if (plannedRouteBoundsRef.current && showRoutes) {
+      fitBounds(plannedRouteBoundsRef.current);
+      return;
     }
-  };
-
-  const handleFieldChange = (field: keyof StationFormState, value: string) => {
-    setStationForm((current) => ({ ...current, [field]: value }));
-    if ((field === 'latitude' || field === 'longitude') && value.trim()) {
-      setPickingLocation(false);
-    }
-  };
-
-  const handleDeactivate = async () => {
-    if (!deleteCandidate) return;
-    setDeletingStation(true);
-    setStationError(null);
-    try {
-      await deleteStation(deleteCandidate.id);
-      setStations((current) => current.filter((station) => station.id !== deleteCandidate.id));
-      setSelectedStationId(null);
-      setDeleteCandidate(null);
-      setToast(`Đã ngừng sử dụng trạm “${deleteCandidate.name}”.`);
-    } catch (error) {
-      setDeleteCandidate(null);
-      setStationError(error instanceof Error ? error.message : 'Không thể ngừng sử dụng trạm');
-    } finally {
-      setDeletingStation(false);
-    }
+    const draftStations = draftStops.map(stop => stations.find(station => station.id === stop.stationId)).filter(station => station !== undefined);
+    const points = workspace === 'routes' && draftStations.length ? draftStations : showStations ? stations : [];
+    if (points.length) fitBounds(L.latLngBounds(points.map(station => [station.latitude, station.longitude])));
   };
 
   // Helper: Pick map center coordinates
   const handlePickMapCenter = () => {
     const map = mapInstanceRef.current;
     if (!map) return;
-    const center = map.getCenter();
+    const center = getVisibleCenter();
+    if (!center) return;
     setStationForm((cur) => ({
       ...cur,
       latitude: center.lat.toFixed(6),
       longitude: center.lng.toFixed(6),
     }));
     setPickingLocation(false);
+    setDrawerOpen(true); setActivePanel('context');
     setToast('Đã gán tọa độ tâm bản đồ vào biểu mẫu.');
-  };
-
-  // Actions for Vehicle Tracking
-  const handleSelectVehicle = (vehicle: Vehicle) => {
-    setSelectedVehicleId(vehicle.id);
-    mapInstanceRef.current?.setView([vehicle.latitude, vehicle.longitude], 16, { animate: true });
+    focusLocation(center);
   };
 
   return (
-    <main className={`map-viewport ${drawerVisible ? 'has-right-drawer' : ''}`} data-workspace={workspace}>
-      <div ref={mapContainerRef} className="map-canvas" />
+    <main ref={rootRef} className="map-first" data-workspace={workspace} data-sheet-expanded={sheetExpanded}>
+      <div id="main-map" ref={mapContainerRef} className="map-canvas" aria-label="Bản đồ tương tác" tabIndex={-1} />
+      <ModeBar mode={workspace} onChange={selectMode} connectionLabel={connectionLabel} />
+      {selectedVehicle && (workspace === 'tracking' || workspace === 'simulation') && <div className="live-follow glass-panel">
+        <span>{live.snapshot?.trips.find(trip => trip.id === selectedVehicle.tripId)?.vehiclePlateNumber ?? selectedVehicle.vehicleId} · {selectedVehicle.source === 'SIMULATOR' ? 'Giả lập' : 'GPS'}</span>
+        <button aria-pressed={followingVehicle} onClick={() => { setFollowingVehicle(value => !value); if (!followingVehicle) focusVehicle(selectedVehicle.vehicleId); }}>{followingVehicle ? 'Bỏ theo xe' : 'Theo xe'}</button>
+        <button aria-label="Bỏ chọn xe" onClick={() => { setSelectedVehicleId(null); setFollowingVehicle(false); }}>×</button>
+      </div>}
 
-      {/* WORKSPACE 1: THEO DÕI XE */}
-      {workspace === 'tracking' && (
-        <>
-          <TrackingPanel
-            vehicles={vehicles}
-            selectedVehicleId={selectedVehicleId}
-            onSelectVehicle={handleSelectVehicle}
-            onManageStations={() => onWorkspaceChange('stations')}
-          />
-          <VehicleDrawer
-            vehicle={selectedVehicle}
-            following={followingVehicle}
-            onToggleFollow={() => setFollowingVehicle((cur) => !cur)}
-            onFitRoute={() => {}}
-            onClose={() => {
-              setSelectedVehicleId(null);
-              setFollowingVehicle(false);
-            }}
-          />
-        </>
-      )}
-
-      {/* WORKSPACE 2: QUẢN LÝ TRẠM */}
-      {workspace === 'stations' && (
-        <>
-          <StationPanel
-            stations={stations}
-            selectedStationId={selectedStationId}
-            loading={loadingStations}
-            error={formMode === 'closed' ? stationError : null}
-            selectionDisabled={formMode !== 'closed'}
-            mode={formMode}
-            onBeginCreate={handleBeginCreate}
-            onSelect={handleSelectStation}
-            onBeginEdit={handleBeginEdit}
-            onDelete={(station) => setDeleteCandidate(station)}
-          />
-          <StationDrawer
-            station={selectedStation}
-            mode={formMode}
-            form={stationForm}
-            saving={savingStation}
-            error={formMode !== 'closed' ? stationError : null}
-            pickingLocation={pickingLocation}
-            onClose={handleCloseStationDrawer}
-            onBeginEdit={() => handleBeginEdit()}
-            onPickLocation={() => setPickingLocation(true)}
-            onFieldChange={handleFieldChange}
-            onSave={handleSaveStation}
-            onRequestDeactivate={() => selectedStation && setDeleteCandidate(selectedStation)}
-          />
-        </>
-      )}
-
-      {/* WORKSPACE 3: QUẢN LÝ TUYẾN ĐƯỜNG */}
-      {workspace === 'routes' && (
-        <RouteWorkspace
-          stations={stations}
-          onPlannedRouteDisplay={setPlannedRoute}
-          onShowToast={(msg) => setToast(msg)}
-        />
-      )}
-
-      {/* Banner hướng dẫn và tiện ích chọn vị trí trạm trên bản đồ */}
-      {pickingLocation && workspace === 'stations' && (
-        <div className="map-picking-banner" role="status">
-          <Crosshair size={15} />
-          <span>Nhấp chuột lên bản đồ để đặt vị trí trạm</span>
-          <div className="picking-banner-actions">
-            <button
-              type="button"
-              className="picking-center-btn"
-              onClick={handlePickMapCenter}
-              title="Lấy ngay tọa độ tâm màn hình bản đồ hiện tại"
-            >
-              Lấy tâm bản đồ
-            </button>
-            <button
-              type="button"
-              className="picking-cancel-btn"
-              onClick={() => setPickingLocation(false)}
-              title="Hủy chế độ chọn vị trí"
-            >
-              <X size={14} />
-            </button>
+      <aside className="context-drawer glass-panel" data-map-edge="left" hidden={!contextVisible} aria-label="Bảng dữ liệu vận hành">
+        <div className="floating-panel-heading">
+          <span><List size={15} />{workspace === 'tracking' || workspace === 'simulation' ? 'ĐỘI XE' : 'THIẾT LẬP LỘ TRÌNH'}</span>
+          <div>
+            <button className="sheet-expand" onClick={() => setSheetExpanded(value => !value)} aria-label={sheetExpanded ? 'Thu chiều cao bảng' : 'Mở rộng bảng'}>{sheetExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</button>
+            <button onClick={() => { setDrawerOpen(false); setActivePanel(null); rootRef.current?.querySelector<HTMLButtonElement>('.panel-launchers button')?.focus(); }} aria-label="Thu bảng dữ liệu"><PanelLeftClose size={16} /></button>
           </div>
         </div>
-      )}
-
-      <MapControls
-        theme={theme}
-        onThemeChange={setTheme}
-        onResetCenter={() => mapInstanceRef.current?.setView(HCMC_CENTER, 13, { animate: true })}
-        coordRef={coordRef}
-      />
-
-      {/* Hộp thoại xác nhận ngừng sử dụng trạm */}
-      {deleteCandidate && (
-        <div className="dialog-backdrop" role="presentation">
-          <section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="deactivate-title">
-            <div className="dialog-icon" aria-hidden="true">!</div>
-            <h2 id="deactivate-title">Ngừng sử dụng trạm đón trả khách?</h2>
-            <div className="dialog-station-info">
-              <strong className="dialog-station-name">{deleteCandidate.name}</strong>
-              {deleteCandidate.address && <p className="dialog-station-addr">{deleteCandidate.address}</p>}
-              <span className="dialog-station-coords tabular-numbers">
-                Tọa độ: {deleteCandidate.latitude.toFixed(5)}, {deleteCandidate.longitude.toFixed(5)}
-              </span>
-            </div>
-            <p className="dialog-explanation">
-              Trạm này sẽ chuyển sang trạng thái ngừng hoạt động và không hiển thị cho các chuyến đi mới. Dữ liệu vẫn được lưu trữ để phục vụ lịch sử vận hành.
-            </p>
-            <div className="dialog-actions">
-              <button
-                type="button"
-                className="secondary-action"
-                onClick={() => setDeleteCandidate(null)}
-                disabled={deletingStation}
-              >
-                Hủy bỏ
-              </button>
-              <button
-                type="button"
-                className="danger-action"
-                onClick={handleDeactivate}
-                disabled={deletingStation}
-              >
-                {deletingStation ? 'Đang xử lý…' : 'Xác nhận ngừng sử dụng'}
-              </button>
-            </div>
-          </section>
+        <div className="planning-tabs" hidden={workspace !== 'stations' && workspace !== 'routes'} aria-label="Dữ liệu lộ trình">
+          <button aria-pressed={workspace === 'routes'} onClick={() => setWorkspace('routes')}>Tuyến đường</button>
+          <button aria-pressed={workspace === 'stations'} onClick={() => setWorkspace('stations')}>Trạm dừng <span>{stations.length}</span></button>
         </div>
-      )}
+        <div className="context-content" hidden={workspace !== 'tracking' && workspace !== 'simulation'}>
+          <FleetWorkspace liveSnapshot={live.snapshot} onSimulateTrip={openSimulation} onFocusVehicle={focusVehicle} onToast={setToast} onTripRoute={setTripRoute} onFocusStop={focusLocation} onManageRoutes={() => selectMode('routes')} onManageStations={() => selectMode('stations')} />
+        </div>
+        <div className="context-content station-workspace" hidden={workspace !== 'stations'}>
+          <div className="panel-list-slot" hidden={formMode !== 'closed' || selectedStation !== null}>
+            <StationPanel stations={stations} selectedStationId={selectedStationId} loading={loadingStations} error={formMode === 'closed' ? stationError : null} selectionDisabled={formMode !== 'closed'} mode={formMode} onBeginCreate={handleBeginCreate} onSelect={handleSelectStation} onBeginEdit={handleBeginEdit} onDelete={setDeleteCandidate} />
+          </div>
+          <StationDrawer station={selectedStation} mode={formMode} form={stationForm} saving={savingStation} error={stationError} pickingLocation={pickingLocation}
+            onClose={handleCloseStationDrawer} onBeginEdit={() => handleBeginEdit()} onPickLocation={() => { setPickingLocation(true); setActivePanel(null); }}
+            onFieldChange={handleFieldChange} onSave={handleSaveStation} onRequestDeactivate={() => selectedStation && setDeleteCandidate(selectedStation)} />
+        </div>
+        <div className="context-content" hidden={workspace !== 'routes'}>
+          <RouteWorkspace stations={stations} loadingStations={loadingStations} onPlannedRouteDisplay={setPlannedRoute} onShowToast={setToast}
+            onDraftStopsChange={setDraftStops} selectedDraftStopId={selectedDraftStopId} onFocusDraftStop={focusDraftStop} onFocusStop={focusLocation} />
+        </div>
+        <div className="context-footer"><span className="status-dot" />{workspace === 'stations' ? 'Danh sách trạm đã lưu' : workspace === 'routes' ? 'Lộ trình tính qua HERE' : connectionLabel}</div>
+      </aside>
 
+      <div className="operations-dock" data-map-edge="right" hidden={compact && activePanel !== 'simulator' && activePanel !== 'alerts'}>
+        <div className="floating-panel glass-panel" hidden={compact && activePanel !== 'simulator'}>
+          <div className="floating-panel-heading"><span><Play size={15} />MÔ PHỎNG XE</span><div>
+            <button className="sheet-expand" onClick={() => setSheetExpanded(value => !value)} aria-label={sheetExpanded ? 'Thu chiều cao bảng' : 'Mở rộng bảng'}>{sheetExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</button>
+            <button aria-label={simulatorExpanded ? 'Thu bảng mô phỏng' : 'Mở bảng mô phỏng'} aria-expanded={simulatorExpanded}
+              onClick={() => { if (compact) setActivePanel(null); else setSimulatorExpanded(value => !value); }}><ChevronDown size={16} /></button>
+          </div></div>
+          <div className="floating-panel-body" hidden={!simulatorExpanded}><SimulatorPanel simulator={simulator} snapshot={live.snapshot} connection={live.connection} connectionError={live.error} onReconnect={live.reconnect} onShowRoute={() => {
+            setWorkspace('simulation');
+            if (simulator.trip) focusVehicle(simulator.trip.vehicleId);
+          }} /></div>
+        </div>
+        <div className="floating-panel glass-panel alert-panel" hidden={compact && activePanel !== 'alerts'}>
+          <div className="floating-panel-heading"><span><Bell size={15} />CẢNH BÁO</span><div><span className="count-badge">—</span>
+            <button className="sheet-expand" onClick={() => setSheetExpanded(value => !value)} aria-label={sheetExpanded ? 'Thu chiều cao bảng' : 'Mở rộng bảng'}>{sheetExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</button>
+            <button aria-label={alertsExpanded ? 'Thu bảng cảnh báo' : 'Mở bảng cảnh báo'} aria-expanded={alertsExpanded}
+              onClick={() => { if (compact) setActivePanel(null); else setAlertsExpanded(value => !value); }}><ChevronDown size={16} /></button>
+          </div></div>
+          <div className="floating-panel-body" hidden={!alertsExpanded}><AlertStream /></div>
+        </div>
+      </div>
+
+      <div className="panel-launchers" data-map-edge="bottom" aria-label="Mở bảng công cụ">
+        <button onClick={() => openPanel('context')} aria-pressed={contextVisible}><List size={16} /><span>{workspace === 'tracking' || workspace === 'simulation' ? 'Đội xe' : 'Tuyến & trạm'}</span></button>
+        <button onClick={() => openPanel('simulator')} aria-pressed={compact ? activePanel === 'simulator' : simulatorExpanded}><Play size={16} /><span>Mô phỏng</span></button>
+        <button onClick={() => openPanel('alerts')} aria-pressed={compact ? activePanel === 'alerts' : alertsExpanded}><Bell size={16} /><span>Cảnh báo</span></button>
+      </div>
+
+      <div className="map-picking-banner" role="status" hidden={!pickingLocation || workspace !== 'stations'}>
+        <Crosshair size={17} /><span>Chọn vị trí trạm trên bản đồ</span>
+        <button className="picking-center-btn" onClick={handlePickMapCenter}>Lấy tâm bản đồ</button>
+        <button className="picking-cancel-btn" onClick={() => { setPickingLocation(false); openPanel('context'); }} aria-label="Hủy chế độ chọn vị trí"><X size={16} /></button>
+      </div>
+
+      <MapControls theme={theme} onThemeChange={setTheme} coordRef={coordRef}
+        onResetCenter={() => focusLocation(HCMC_CENTER, 13)}
+        onZoomIn={() => mapInstanceRef.current?.zoomIn()} onZoomOut={() => mapInstanceRef.current?.zoomOut()}
+        onFit={handleFit} canFit={(showStations && stations.length > 0) || (showRoutes && (plannedRoute !== null || draftStops.length > 0))}
+        showStations={showStations} showRoutes={showRoutes} onToggleStations={() => setShowStations(value => !value)} onToggleRoutes={() => setShowRoutes(value => !value)} />
+      {deleteCandidate && <ConfirmStationDelete station={deleteCandidate} saving={deletingStation} onCancel={() => setDeleteCandidate(null)} onConfirm={handleDeactivate} />}
       {toast && <div className="application-toast" role="status">{toast}</div>}
     </main>
   );

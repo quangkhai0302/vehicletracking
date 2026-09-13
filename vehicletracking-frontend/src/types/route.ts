@@ -7,6 +7,11 @@ export interface RouteStopInput {
   dwellDurationSeconds: number;
 }
 
+/** Stable identity belongs to an occurrence, since a route may revisit a station. */
+export interface RouteDraftStop extends RouteStopInput {
+  id: string;
+}
+
 export interface RouteCreateInput {
   name: string;
   stops: RouteStopInput[];

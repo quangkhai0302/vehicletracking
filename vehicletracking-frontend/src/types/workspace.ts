@@ -1,1 +1,1 @@
-export type WorkspaceMode = 'tracking' | 'stations' | 'routes';
+export type WorkspaceMode = 'tracking' | 'stations' | 'routes' | 'simulation';

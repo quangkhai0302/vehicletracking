@@ -1,0 +1,18 @@
+{
+  "checks": [
+    "Desktop empty fleet",
+    "Vehicle creation, normalization, draft persistence, discard Escape, no duplicate submit/no fake position",
+    "Vehicle update/duplicate conflict, vehicle trip filter, trip draft persistence, UTC/day rollover and route map",
+    "Deactivate conflict, start conflict/reload, start/complete/cancel, immutable baseline",
+    "Stale trip GET cannot replace newer selection",
+    "Trip detail 390",
+    "Trip editor 390",
+    "Trip detail 320",
+    "Trip editor 320",
+    "Soft deactivate after terminal trips and retained history",
+    "Initial API error/retry without fake empty or telemetry"
+  ],
+  "pageErrors": [],
+  "api": "Intercepted fixtures only; no live data writes",
+  "date": "2026-09-13T16:48:18.377Z"
+}

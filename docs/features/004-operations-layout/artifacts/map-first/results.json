@@ -1,0 +1,13 @@
+{
+  "checks": [
+    "Thu/mở drawer và đổi mode",
+    "Reorder bằng nút/drag, đánh dấu stale, tính lại sơ đồ",
+    "Playback và tốc độ thời gian",
+    "Đặt sự cố SIM trên bản đồ và cập nhật stream",
+    "Bật/tắt lớp traffic minh họa",
+    "Responsive 1024px, không tràn ngang",
+    "Responsive 390px, không tràn ngang"
+  ],
+  "pageErrors": [],
+  "scope": "Design prototype only; SVG diagram and fixture interactions, no application/API verification."
+}

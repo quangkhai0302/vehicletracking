@@ -101,7 +101,7 @@ export function StationPanel({
       {/* Danh sách trạm */}
       <div className="station-list" aria-live="polite">
         {loading && <div className="station-empty">Đang tải danh sách trạm…</div>}
-        {!loading && stations.length === 0 && (
+        {!loading && !error && stations.length === 0 && (
           <div className="station-empty">
             <MapPin size={26} aria-hidden="true" />
             <strong>Chưa có trạm nào</strong>
@@ -197,7 +197,7 @@ export function StationPanel({
                       {station.latitude.toFixed(5)}, {station.longitude.toFixed(5)}
                     </span>
                     <span className="station-meta-radius">
-                      Bán kính checkin: {station.checkinRadiusMeters}m
+                      Bán kính: {station.checkinRadiusMeters} m
                     </span>
                   </div>
                 </div>

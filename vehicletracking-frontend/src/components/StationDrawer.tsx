@@ -66,6 +66,7 @@ export function StationDrawer({
         : false;
 
   const handleSafeClose = () => {
+    if (saving) return;
     if (isFormOpen && isDirty) {
       setShowDiscardConfirm(true);
     } else {
@@ -80,7 +81,8 @@ export function StationDrawer({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isRadiusValid) return;
+    if (saving || !isRadiusValid) return;
+    setShowDiscardConfirm(false);
 
     await onSave({
       name: form.name.trim(),
@@ -213,7 +215,7 @@ export function StationDrawer({
 
       {/* Mode CREATE / EDIT: Biểu mẫu form */}
       {isFormOpen && (
-        <form className="station-form" onSubmit={handleSubmit}>
+        <form className="station-form" onSubmit={handleSubmit}><fieldset disabled={saving}>
           {/* Vùng hướng dẫn chọn vị trí trên map */}
           <div className={`location-picker-status ${pickingLocation ? 'picking' : ''}`}>
             <Crosshair size={18} />
@@ -358,7 +360,7 @@ export function StationDrawer({
             )}
 
             <span className="radius-helper-text">
-              Vòng tròn geofence trên bản đồ sẽ hiển thị vùng nhận diện phương tiện tự động (10 – 1.000m).
+              Vòng tròn thể hiện bán kính của trạm (10 – 1.000m). Dịch vụ check-in tự động chưa được kết nối.
             </span>
           </div>
 
@@ -386,7 +388,7 @@ export function StationDrawer({
               <Save size={15} /> {saving ? 'Đang lưu…' : mode === 'create' ? 'Tạo trạm' : 'Lưu thay đổi'}
             </button>
           </div>
-        </form>
+        </fieldset></form>
       )}
     </aside>
   );

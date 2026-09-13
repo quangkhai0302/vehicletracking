@@ -1,20 +1,19 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   AlertCircle,
-  ArrowDown,
-  ArrowUp,
   Car,
   CheckCircle2,
   Plus,
   RefreshCw,
-  Trash2,
   X,
 } from 'lucide-react';
-import type { RouteCreateInput, RouteDetail, RouteStopRole } from '../../types/route';
+import type { RouteCreateInput, RouteDetail, RouteDraftStop } from '../../types/route';
 import type { Station } from '../../types/station';
+import { SortableStopList } from './SortableStopList';
 import { formatDuration } from '../../utils/format';
 
 interface RouteDrawerProps {
+  onFocusStop: (position: [number, number], zoom?: number) => void;
   mode: 'closed' | 'create' | 'view';
   routeDetail: RouteDetail | null;
   stations: Station[];
@@ -23,21 +22,12 @@ interface RouteDrawerProps {
   error: string | null;
   onClose: () => void;
   onSaveRoute: (input: RouteCreateInput) => void;
+  onDraftStopsChange: (stops: RouteDraftStop[]) => void;
+  selectedDraftStopId: string | null;
+  onFocusDraftStop: (id: string) => void;
 }
 
-interface FormStopItem {
-  id: string;
-  stationId: number;
-  dwellDurationSeconds: number;
-}
-
-function getStopRole(index: number, total: number): RouteStopRole {
-  if (index === 0) return 'START';
-  if (index === total - 1) return 'END';
-  return 'STOP';
-}
-
-function normalizeStops(stops: FormStopItem[]): FormStopItem[] {
+function normalizeStops(stops: RouteDraftStop[]): RouteDraftStop[] {
   return stops.map((stop, idx) => {
     if (idx === 0 || idx === stops.length - 1) {
       return { ...stop, dwellDurationSeconds: 0 };
@@ -53,6 +43,9 @@ interface RouteCreateContentProps {
   error: string | null;
   onClose: () => void;
   onSaveRoute: (input: RouteCreateInput) => void;
+  onDraftStopsChange: (stops: RouteDraftStop[]) => void;
+  selectedDraftStopId: string | null;
+  onFocusDraftStop: (id: string) => void;
 }
 
 function RouteCreateContent({
@@ -61,12 +54,14 @@ function RouteCreateContent({
   error,
   onClose,
   onSaveRoute,
+  onDraftStopsChange, selectedDraftStopId, onFocusDraftStop,
 }: RouteCreateContentProps) {
   const nameInputId = useId();
   const [name, setName] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
-  const [formStops, setFormStops] = useState<FormStopItem[]>(() => {
+  const [formStops, setFormStops] = useState<RouteDraftStop[]>(() => {
     const active = stations.filter((s) => s.active);
     if (active.length >= 2) {
       return [
@@ -80,6 +75,14 @@ function RouteCreateContent({
     return [];
   });
 
+  const initialStopsRef = useRef(formStops);
+  useEffect(() => { onDraftStopsChange(formStops); }, [formStops, onDraftStopsChange]);
+  useEffect(() => () => onDraftStopsChange([]), [onDraftStopsChange]);
+  const safeClose = () => {
+    if (saving) return;
+    if (name.trim() || JSON.stringify(formStops) !== JSON.stringify(initialStopsRef.current)) setConfirmDiscard(true);
+    else onClose();
+  };
   const activeStations = stations.filter((s) => s.active);
 
   const handleAddStop = () => {
@@ -98,50 +101,6 @@ function RouteCreateContent({
     );
   };
 
-  const handleRemoveStop = (index: number) => {
-    setFormStops((prev) => normalizeStops(prev.filter((_, i) => i !== index)));
-  };
-
-  const handleMoveUp = (index: number) => {
-    if (index <= 0) return;
-    setFormStops((prev) => {
-      const next = [...prev];
-      const temp = next[index - 1];
-      next[index - 1] = next[index];
-      next[index] = temp;
-      return normalizeStops(next);
-    });
-  };
-
-  const handleMoveDown = (index: number) => {
-    if (index >= formStops.length - 1) return;
-    setFormStops((prev) => {
-      const next = [...prev];
-      const temp = next[index + 1];
-      next[index + 1] = next[index];
-      next[index] = temp;
-      return normalizeStops(next);
-    });
-  };
-
-  const handleChangeStation = (index: number, newStationId: number) => {
-    setFormStops((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], stationId: newStationId };
-      return next;
-    });
-  };
-
-  const handleChangeDwell = (index: number, seconds: number) => {
-    if (index === 0 || index === formStops.length - 1) return;
-    const clamped = Math.max(0, Math.min(3600, Number.isFinite(seconds) ? seconds : 0));
-    setFormStops((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], dwellDurationSeconds: clamped };
-      return next;
-    });
-  };
-
   const trimmedName = name.trim();
   const isNameValid = trimmedName.length > 0 && trimmedName.length <= 150;
   const isStopsCountValid = formStops.length >= 2 && formStops.length <= 50;
@@ -152,10 +111,12 @@ function RouteCreateContent({
     if (i === 0 || i === formStops.length - 1) return s.dwellDurationSeconds === 0;
     return s.dwellDurationSeconds >= 0 && s.dwellDurationSeconds <= 3600;
   });
-  const isFormValid = isNameValid && isStopsCountValid && hasNoConsecutiveDuplicates && areDwellsValid;
+  const allStationsActive = formStops.every(stop => activeStations.some(station => station.id === stop.stationId));
+  const isFormValid = isNameValid && isStopsCountValid && hasNoConsecutiveDuplicates && areDwellsValid && allStationsActive;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving || !isFormValid) return;
     setLocalError(null);
 
     if (!isNameValid) {
@@ -201,7 +162,7 @@ function RouteCreateContent({
         <button
           type="button"
           className="drawer-close-btn"
-          onClick={onClose}
+          onClick={safeClose}
           disabled={saving}
           title="Đóng bảng tạo tuyến"
           aria-label="Đóng"
@@ -211,6 +172,10 @@ function RouteCreateContent({
       </div>
 
       <div className="route-drawer-body">
+        {confirmDiscard && <div className="discard-confirm" role="alert">
+          <strong>Bỏ bản nháp tuyến đường?</strong><p>Tên và thứ tự điểm dừng chưa lưu sẽ bị xóa.</p>
+          <div><button type="button" className="btn-secondary" onClick={() => setConfirmDiscard(false)}>Tiếp tục chỉnh sửa</button><button type="button" className="danger-action" onClick={onClose}>Bỏ bản nháp</button></div>
+        </div>}
         {(localError || error) && (
           <div className="route-error-banner" role="alert">
             <AlertCircle size={16} />
@@ -218,7 +183,7 @@ function RouteCreateContent({
           </div>
         )}
 
-        <form id="route-create-form" onSubmit={handleSubmit}>
+        <form id="route-create-form" onSubmit={handleSubmit}><fieldset disabled={saving} className="route-form-fields">
           <div className="form-field">
             <label htmlFor={nameInputId} className="form-label">
               Tên tuyến đường *
@@ -250,7 +215,7 @@ function RouteCreateContent({
               }}
             >
               <Car size={16} className="text-cyan" />
-              <span>Ô tô / Xe buýt (HERE CAR Mode)</span>
+              <span>Ô tô</span>
             </div>
           </div>
 
@@ -264,94 +229,9 @@ function RouteCreateContent({
               </span>
             </div>
 
-            <div className="stops-list">
-              {formStops.map((stop, idx) => {
-                const role = getStopRole(idx, formStops.length);
-                return (
-                  <div key={stop.id} className="stop-builder-item">
-                    <span className={`stop-badge ${role.toLowerCase()}`}>
-                      {role === 'START' ? 'Đầu' : role === 'END' ? 'Cuối' : `#${idx + 1}`}
-                    </span>
-
-                    <select
-                      className="stop-select"
-                      value={stop.stationId}
-                      onChange={(e) => handleChangeStation(idx, Number(e.target.value))}
-                      aria-label={`Chọn trạm cho điểm dừng ${idx + 1}`}
-                    >
-                      {activeStations.map((station) => (
-                        <option key={station.id} value={station.id}>
-                          {station.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    {role === 'STOP' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <input
-                          type="number"
-                          className="stop-dwell-input"
-                          min={0}
-                          max={3600}
-                          value={stop.dwellDurationSeconds}
-                          onChange={(e) => handleChangeDwell(idx, parseInt(e.target.value, 10))}
-                          title="Thời gian đón/trả khách (0-3600 giây)"
-                          aria-label={`Thời gian dừng cho điểm ${idx + 1} (giây)`}
-                        />
-                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>s</span>
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '11px',
-                          color: 'var(--color-text-muted)',
-                          minWidth: '52px',
-                        }}
-                        title={role === 'START' ? 'Điểm xuất phát (không dừng)' : 'Điểm kết thúc (không dừng)'}
-                      >
-                        0s
-                      </div>
-                    )}
-
-                    <div className="stop-actions">
-                      <button
-                        type="button"
-                        className="btn-icon-small"
-                        onClick={() => handleMoveUp(idx)}
-                        disabled={idx === 0}
-                        title="Di chuyển lên"
-                        aria-label="Di chuyển lên"
-                      >
-                        <ArrowUp size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-icon-small"
-                        onClick={() => handleMoveDown(idx)}
-                        disabled={idx === formStops.length - 1}
-                        title="Di chuyển xuống"
-                        aria-label="Di chuyển xuống"
-                      >
-                        <ArrowDown size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-icon-small danger"
-                        onClick={() => handleRemoveStop(idx)}
-                        disabled={formStops.length <= 2}
-                        title="Xóa điểm dừng"
-                        aria-label="Xóa điểm dừng"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <SortableStopList stops={formStops} stations={activeStations} disabled={saving}
+              onChange={stops => setFormStops(normalizeStops(stops))}
+              selectedId={selectedDraftStopId} onFocusStop={onFocusDraftStop} />
 
             <button
               type="button"
@@ -362,11 +242,15 @@ function RouteCreateContent({
               <Plus size={14} /> Thêm điểm dừng đón/trả
             </button>
           </div>
-        </form>
+          <p className="route-draft-note">Bản nháp · Chưa tính lộ trình hoặc ETA. Tính & lưu sẽ tạo một tuyến mới theo thứ tự trên.</p>
+          {!hasNoConsecutiveDuplicates && formStops.length >= 2 && <p role="alert" className="inline-error">Hai điểm liền nhau phải là hai trạm khác nhau.</p>}
+          {!allStationsActive && <p role="alert" className="inline-error">Có trạm đã ngừng hoạt động. Chọn lại trạm trước khi lưu.</p>}
+          {formStops.length < 2 && <p className="availability-note">Cần ít nhất hai điểm dừng. Bạn có thể thêm trạm ở tab Trạm dừng rồi quay lại.</p>}
+        </fieldset></form>
       </div>
 
       <div className="route-drawer-footer">
-        <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
+        <button type="button" className="btn-secondary" onClick={safeClose} disabled={saving}>
           Hủy
         </button>
         <button
@@ -383,7 +267,7 @@ function RouteCreateContent({
           ) : (
             <>
               <CheckCircle2 size={14} />
-              <span>Lưu tuyến đường</span>
+              <span>Tính & lưu tuyến mới</span>
             </>
           )}
         </button>
@@ -393,6 +277,7 @@ function RouteCreateContent({
 }
 
 interface RouteViewContentProps {
+  onFocusStop: (position: [number, number], zoom?: number) => void;
   routeDetail: RouteDetail | null;
   loadingDetail: boolean;
   error: string | null;
@@ -404,6 +289,7 @@ function RouteViewContent({
   loadingDetail,
   error,
   onClose,
+  onFocusStop,
 }: RouteViewContentProps) {
   return (
     <>
@@ -450,7 +336,7 @@ function RouteViewContent({
               </div>
 
               <div className="metric-card">
-                <span className="metric-card-label">Tổng thời gian</span>
+                <span className="metric-card-label">Thời gian dự kiến</span>
                 <span className="metric-card-value tabular-numbers">
                   {formatDuration(routeDetail.estimatedTripDurationSeconds)}
                 </span>
@@ -462,7 +348,7 @@ function RouteViewContent({
                 <span className="metric-card-value tabular-numbers">
                   {formatDuration(routeDetail.estimatedTravelDurationSeconds)}
                 </span>
-                <span className="metric-card-sub">HERE Router CAR</span>
+                <span className="metric-card-sub">Di chuyển bằng ô tô</span>
               </div>
 
               <div className="metric-card">
@@ -472,6 +358,11 @@ function RouteViewContent({
                 </span>
                 <span className="metric-card-sub">{routeDetail.stops.length} điểm dừng</span>
               </div>
+            </div>
+
+            <div className="route-snapshot-note">
+              <strong>Ước tính khi tạo tuyến · {new Date(routeDetail.calculatedAt).toLocaleString('vi-VN')}</strong>
+              Thời gian này chưa được cập nhật theo vị trí xe đang di chuyển.
             </div>
 
             <div style={{ marginTop: '10px' }}>
@@ -490,7 +381,7 @@ function RouteViewContent({
 
                       <div className="timeline-content">
                         <div className="timeline-title-row">
-                          <span className="timeline-station-name">{stop.stationName}</span>
+                          <button className="timeline-station-name" onClick={() => onFocusStop([stop.latitude, stop.longitude], 16)} title="Xem trạm trên bản đồ">{stop.stationName}</button>
                           <span className={`stop-badge ${role.toLowerCase()}`}>
                             {role === 'START' ? 'Khởi hành' : role === 'END' ? 'Về đích' : 'Đón trả'}
                           </span>
@@ -548,6 +439,8 @@ export function RouteDrawer({
   error,
   onClose,
   onSaveRoute,
+  onDraftStopsChange, selectedDraftStopId, onFocusDraftStop,
+  onFocusStop,
 }: RouteDrawerProps) {
   if (mode === 'closed') {
     return null;
@@ -561,6 +454,7 @@ export function RouteDrawer({
       {mode === 'create' && (
         <RouteCreateContent
           key="create"
+          onDraftStopsChange={onDraftStopsChange} selectedDraftStopId={selectedDraftStopId} onFocusDraftStop={onFocusDraftStop}
           stations={stations}
           saving={saving}
           error={error}
@@ -571,6 +465,7 @@ export function RouteDrawer({
       {mode === 'view' && (
         <RouteViewContent
           key={routeDetail?.id ?? 'view'}
+          onFocusStop={onFocusStop}
           routeDetail={routeDetail}
           loadingDetail={loadingDetail}
           error={error}

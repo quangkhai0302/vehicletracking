@@ -1,0 +1,173 @@
+package com.quangkhai.vehicletracking_backend.simulation;
+
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationStatus;
+import com.quangkhai.vehicletracking_backend.simulation.service.*;
+import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository;
+import com.quangkhai.vehicletracking_backend.telemetry.dto.*;
+import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource;
+import com.quangkhai.vehicletracking_backend.telemetry.repository.*;
+import com.quangkhai.vehicletracking_backend.telemetry.service.*;
+import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
+import com.quangkhai.vehicletracking_backend.trip.dto.*;
+import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
+import com.quangkhai.vehicletracking_backend.trip.service.TripService;
+import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
+import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
+import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
+import com.quangkhai.vehicletracking_backend.station.repository.StationRepository;
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.web.server.ResponseStatusException;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.*;
+import java.time.*;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@Testcontainers
+@SpringBootTest(properties={"here.routing.enabled=false","here.traffic.enabled=false","app.simulation.scheduling-enabled=false"})
+class OperationsIntegrationTest {
+    @Container @ServiceConnection static final PostgreSQLContainer<?> POSTGRES=new PostgreSQLContainer<>("postgres:17");
+    @Autowired SimulationService simulator;
+    @Autowired TelemetryService telemetry;
+    @Autowired TelemetryRepository samples;
+    @Autowired VehiclePositionRepository positions;
+    @Autowired SimulationRepository runs;
+    @Autowired OperationsSnapshotService snapshots;
+    @Autowired TripService trips;
+    @Autowired StationRepository stations;
+    @Autowired RouteRepository routes;
+    @Autowired VehicleRepository vehicles;
+    @MockitoBean Clock operationsClock;
+    final AtomicReference<Instant> time=new AtomicReference<>();
+    static final AtomicInteger ids=new AtomicInteger();
+    @BeforeEach void clock() { time.set(Instant.now().truncatedTo(ChronoUnit.MICROS)); when(operationsClock.instant()).thenAnswer(call->time.get()); }
+    private TripDetailResponse create() {
+        var a=stations.saveAndFlush(TripFixtures.station("A")); var b=stations.saveAndFlush(TripFixtures.station("B"));
+        var route=routes.saveAndFlush(SimulationFixtures.route(a,b));
+        var vehicle=vehicles.saveAndFlush(new VehicleEntity("SIM"+ids.incrementAndGet(),"Xe thử 006",null));
+        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get()));
+    }
+    private TelemetryRequest gps(TripDetailResponse trip,UUID event,Instant recorded,double latitude) {
+        return new TelemetryRequest(event,trip.trip().vehicleId(),trip.trip().id(),recorded,latitude,106.7,30d,45d,5d,TelemetrySource.GPS);
+    }
+    private void seconds(long value) { time.updateAndGet(t->t.plusSeconds(value)); }
+    private void conflict(org.assertj.core.api.ThrowableAssert.ThrowingCallable operation) {
+        assertThatThrownBy(operation).isInstanceOfSatisfying(ResponseStatusException.class,ex->assertThat(ex.getStatusCode().value()).isEqualTo(409));
+    }
+    @Test void gpsDeduplicationHistoryAndOldPacketsNeverRegressLatest() {
+        var trip=create(); trips.start(trip.trip().id()); var event=UUID.randomUUID();
+        var request=gps(trip,event,time.get(),10.77);
+        var first=telemetry.ingestGps(request); seconds(1);
+        assertThat(telemetry.ingestGps(request).id()).isEqualTo(first.id());
+        conflict(()->telemetry.ingestGps(gps(trip,event,request.recordedAt(),10.78)));
+        conflict(()->telemetry.ingestGps(gps(trip,UUID.randomUUID(),request.recordedAt(),10.78)));
+        var second=telemetry.ingestGps(gps(trip,UUID.randomUUID(),time.get(),10.78));
+        conflict(()->telemetry.ingestGps(gps(trip,UUID.randomUUID(),time.get().minusSeconds(2),10.79)));
+        assertThat(samples.countByTripId(trip.trip().id())).isEqualTo(2);
+        assertThat(snapshots.snapshot().positions()).filteredOn(p->p.vehicleId()==trip.trip().vehicleId()).singleElement().isEqualTo(second);
+        trips.complete(trip.trip().id());
+        assertThat(telemetry.ingestGps(request).id()).isEqualTo(first.id()); // Retry still safe after trip ends.
+        seconds(1); conflict(()->telemetry.ingestGps(gps(trip,UUID.randomUUID(),time.get(),10.78)));
+    }
+    @Test void invalidFutureAndSourceAreRejected() {
+        var trip=create(); trips.start(trip.trip().id());
+        assertThatThrownBy(()->telemetry.ingestGps(gps(trip,UUID.randomUUID(),time.get().plusSeconds(31),10.77)))
+            .isInstanceOfSatisfying(ResponseStatusException.class,ex->assertThat(ex.getStatusCode().value()).isEqualTo(400));
+        assertThatThrownBy(()->telemetry.ingestGps(gps(trip,UUID.randomUUID(),time.get(),Double.NaN))).isInstanceOf(ResponseStatusException.class);
+        var fake=new TelemetryRequest(UUID.randomUUID(),trip.trip().vehicleId(),trip.trip().id(),time.get(),10.77,106.7,0d,0d,0d,TelemetrySource.SIMULATOR);
+        assertThatThrownBy(()->telemetry.ingestGps(fake)).isInstanceOf(ResponseStatusException.class);
+        assertThat(samples.countByTripId(trip.trip().id())).isZero();
+    }
+    @Test void wrongVehicleAndScheduledTripsRejectGps() {
+        var trip=create();
+        conflict(()->telemetry.ingestGps(gps(trip,UUID.randomUUID(),time.get(),10.77)));
+        trips.start(trip.trip().id());
+        var wrong=new TelemetryRequest(UUID.randomUUID(),trip.trip().vehicleId()+9999,trip.trip().id(),time.get(),10.77,106.7,0d,0d,0d,TelemetrySource.GPS);
+        conflict(()->telemetry.ingestGps(wrong));
+    }
+    @Test void clockPauseResumeMultiplierAndCompletionKeepBaseline() {
+        var trip=create();long id=trip.trip().id();
+        var initial=simulator.play(id);
+        assertThat(initial.status()).isEqualTo(SimulationStatus.RUNNING);
+        seconds(5);simulator.tick(id);var paused=simulator.pause(id);
+        assertThat(paused.elapsedSeconds()).isEqualTo(5);
+        assertThat(paused.frame().speedKmh()).isZero();
+        var count=samples.countByTripId(id);
+        seconds(20);simulator.tick(id);
+        assertThat(samples.countByTripId(id)).isEqualTo(count);
+        simulator.speed(id,5);var resumed=simulator.play(id);
+        assertThat(resumed.elapsedSeconds()).isEqualTo(5);
+        assertThat(resumed.frame().speedKmh()).isCloseTo(initial.frame().speedKmh(),within(.0001));
+        seconds(3);simulator.tick(id);
+        var run=snapshots.snapshot().simulations().stream().filter(s->s.tripId()==id).findFirst().orElseThrow();
+        assertThat(run.elapsedSeconds()).isEqualTo(20);assertThat(run.frame().dwelling()).isTrue();
+        seconds(6);simulator.tick(id);
+        assertThat(trips.findById(id).trip().status()).isEqualTo(TripStatus.COMPLETED);
+        assertThat(trips.findById(id).stops()).isEqualTo(trip.stops());
+        assertThat(runs.findByTripId(id).orElseThrow().getElapsedSeconds()).isEqualTo(44);
+        var position=snapshots.snapshot().positions().stream().filter(p->p.tripId()==id).findFirst().orElseThrow();
+        assertThat(position.speedKmh()).isZero();assertThat(position.source()).isEqualTo(TelemetrySource.SIMULATOR);
+        assertThat(position.simulatedAt()).isEqualTo(trip.trip().scheduledDepartureAt().plusSeconds(44));
+    }
+    @Test void resetRetainsHistoryAndIsIdempotent() {
+        var trip=create();long id=trip.trip().id();simulator.play(id);seconds(3);simulator.tick(id);
+        var count=samples.countByTripId(id);
+        var replacement=simulator.reset(id);
+        assertThat(replacement.tripId()).isNotEqualTo(id);assertThat(replacement.status()).isEqualTo(SimulationStatus.PAUSED);
+        assertThat(simulator.reset(id).tripId()).isEqualTo(replacement.tripId());
+        assertThat(trips.findById(id).trip().status()).isEqualTo(TripStatus.CANCELLED);
+        assertThat(samples.countByTripId(id)).isGreaterThanOrEqualTo(count);
+        assertThat(trips.findById(replacement.tripId()).trip().status()).isEqualTo(TripStatus.SCHEDULED);
+        assertThat(trips.findById(replacement.tripId()).trip().routeId()).isEqualTo(trip.trip().routeId());
+        simulator.play(replacement.tripId());
+        conflict(()->simulator.play(id));
+    }
+    @Test void restartPausesWithoutAdvancingAcrossDowntime() {
+        var trip=create();long id=trip.trip().id();simulator.play(id);seconds(2);simulator.tick(id);
+        seconds(500);simulator.recover(id);
+        var run=runs.findByTripId(id).orElseThrow();
+        assertThat(run.getStatus()).isEqualTo(SimulationStatus.PAUSED);assertThat(run.getElapsedSeconds()).isEqualTo(2);
+        seconds(2);simulator.tick(id);assertThat(runs.findByTripId(id).orElseThrow().getElapsedSeconds()).isEqualTo(2);
+    }
+    @Test void gpsAndSimulatorCannotShareTrip() {
+        var gpsTrip=create();trips.start(gpsTrip.trip().id());telemetry.ingestGps(gps(gpsTrip,UUID.randomUUID(),time.get(),10.77));
+        conflict(()->simulator.play(gpsTrip.trip().id()));
+        var simulated=create();simulator.play(simulated.trip().id());seconds(1);
+        conflict(()->telemetry.ingestGps(gps(simulated,UUID.randomUUID(),time.get(),10.77)));
+    }
+    @Test void manualCancelStopsFutureTicks() {
+        var trip=create();long id=trip.trip().id();simulator.play(id);
+        var count=samples.countByTripId(id);trips.cancel(id);seconds(2);simulator.tick(id);
+        assertThat(runs.findByTripId(id).orElseThrow().getStatus()).isEqualTo(SimulationStatus.STOPPED);
+        assertThat(samples.countByTripId(id)).isEqualTo(count);
+    }
+    @Test void concurrentPlayCreatesOneRunAndSameVehicleCannotRunTwoTrips() throws Exception {
+        var trip=create();long id=trip.trip().id();
+        try(var executor=Executors.newFixedThreadPool(2)) {
+            var gate=new CountDownLatch(1);
+            var first=executor.submit(()->{ gate.await(); return simulator.play(id).id(); });
+            var second=executor.submit(()->{ gate.await(); return simulator.play(id).id(); });
+            gate.countDown();
+            assertThat(first.get(15,TimeUnit.SECONDS)).isEqualTo(second.get(15,TimeUnit.SECONDS));
+        }
+        var other=trips.create(new TripCreateRequest(trip.trip().vehicleId(),trip.trip().routeId(),time.get()));
+        conflict(()->simulator.play(other.trip().id()));
+        assertThat(runs.findByTripId(other.trip().id())).isEmpty();
+    }
+    @Test void corruptRouteCannotStartOrCreateRun() {
+        var a=stations.saveAndFlush(TripFixtures.station("Bad A"));var b=stations.saveAndFlush(TripFixtures.station("Bad B"));
+        var route=routes.saveAndFlush(TripFixtures.route(a,b));var vehicle=vehicles.saveAndFlush(new VehicleEntity("BAD"+ids.incrementAndGet(),"Bad",null));
+        var trip=trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get()));
+        conflict(()->simulator.play(trip.trip().id()));
+        assertThat(trips.findById(trip.trip().id()).trip().status()).isEqualTo(TripStatus.SCHEDULED);
+        assertThat(runs.findByTripId(trip.trip().id())).isEmpty();
+    }
+}

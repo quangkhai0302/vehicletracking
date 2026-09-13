@@ -1,0 +1,27 @@
+{
+  "checks": [
+    "Desktop 1440 map-first",
+    "Station CRUD, dirty confirm, native modal Escape, draft/search retention",
+    "Persistent Leaflet instance, camera and selected route across modes",
+    "Native drag, keyboard reorder/Escape, buttons, draft retention/markers, validation, failed POST retry and save during mode switch",
+    "Route 1024x900",
+    "Simulator 1024x900",
+    "Route 768x900",
+    "Simulator 768x900",
+    "Route 390x844",
+    "Simulator 390x844",
+    "Route 320x720",
+    "Simulator 320x720",
+    "Route 844x390",
+    "Simulator 844x390",
+    "Mobile expanded route editor",
+    "Mobile station pick restores sheet",
+    "Mobile sheet expand, discard, map pick, layer controls and draft retention",
+    "Error/retry/empty and stale detail request cannot replace newer route",
+    "Corrupt polyline rejects entire map geometry"
+  ],
+  "pageErrors": [],
+  "api": "intercepted fixtures only",
+  "browser": "headless Microsoft Edge",
+  "date": "2026-09-13T16:47:03.792Z"
+}

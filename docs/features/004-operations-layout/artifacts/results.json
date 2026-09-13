@@ -1,0 +1,19 @@
+{
+  "passed": [
+    "Desktop tracking 1440",
+    "Chi tiết thay danh sách, đóng giữ tìm kiếm",
+    "Tạo/sửa/ngừng sử dụng trạm và xác nhận bỏ form, API fixture",
+    "Tạo tuyến với dwell, detail, timeline, polyline",
+    "Route detail 1024",
+    "Route detail 768",
+    "Mobile stations 390",
+    "Mobile 390: form tuyến, reorder, fit tuyến khi chuyển view",
+    "Mobile 390: chọn tọa độ, chuyển view giữ form, đổi lớp bản đồ",
+    "Mobile stations 320",
+    "Mobile 320: form tuyến, reorder, fit tuyến khi chuyển view",
+    "Mobile 320: chọn tọa độ, chuyển view giữ form, đổi lớp bản đồ",
+    "Lỗi API không hiển thị nhầm empty; retry tuyến về empty"
+  ],
+  "pageErrors": [],
+  "source": "API fixtures; no live backend or HERE verification"
+}

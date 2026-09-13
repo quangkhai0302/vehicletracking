@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { RouteCreateInput, RouteDetail, RouteSummary } from '../../types/route';
+import type { RouteCreateInput, RouteDetail, RouteDraftStop, RouteSummary } from '../../types/route';
 import type { Station } from '../../types/station';
 import { createRoute, fetchRouteById, fetchRoutes } from '../../services/routes';
 import { RoutePanel } from './RoutePanel';
@@ -7,12 +7,17 @@ import { RouteDrawer } from './RouteDrawer';
 
 interface RouteWorkspaceProps {
   stations: Station[];
+  loadingStations: boolean;
+  onDraftStopsChange: (stops: RouteDraftStop[]) => void;
+  selectedDraftStopId: string | null;
+  onFocusDraftStop: (id: string) => void;
+  onFocusStop: (position: [number, number], zoom?: number) => void;
   onPlannedRouteDisplay: (routeDetail: RouteDetail | null) => void;
   onShowToast: (message: string) => void;
 }
 
 export function RouteWorkspace({
-  stations,
+  stations, loadingStations, onDraftStopsChange, selectedDraftStopId, onFocusDraftStop, onFocusStop,
   onPlannedRouteDisplay,
   onShowToast,
 }: RouteWorkspaceProps) {
@@ -44,15 +49,14 @@ export function RouteWorkspace({
     const abortController = new AbortController();
     fetchRoutes(abortController.signal)
       .then((data) => {
-        setRoutes(data);
-        setRouteError(null);
+        if (!abortController.signal.aborted) { setRoutes(data); setRouteError(null); }
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
         setRouteError(err instanceof Error ? err.message : 'Không thể tải danh sách tuyến đường');
       })
       .finally(() => {
-        setLoadingRoutes(false);
+        if (!abortController.signal.aborted) setLoadingRoutes(false);
       });
 
     return () => {
@@ -221,6 +225,7 @@ export function RouteWorkspace({
 
   return (
     <>
+      <div className="panel-list-slot" hidden={routeDrawerMode !== 'closed'}>
       <RoutePanel
         routes={routes}
         selectedRouteId={selectedRouteId}
@@ -228,12 +233,16 @@ export function RouteWorkspace({
         error={routeError && routeDrawerMode === 'closed' ? routeError : null}
         onSelectRoute={handleSelectRoute}
         onBeginCreate={handleBeginCreateRoute}
+        createDisabled={loadingStations}
         onRetry={handleRetry}
       />
+      </div>
       <RouteDrawer
         mode={routeDrawerMode}
         routeDetail={routeDetail}
         stations={stations}
+        onDraftStopsChange={onDraftStopsChange} selectedDraftStopId={selectedDraftStopId}
+        onFocusDraftStop={onFocusDraftStop} onFocusStop={onFocusStop}
         loadingDetail={loadingRouteDetail}
         saving={savingRoute}
         error={routeDrawerMode !== 'closed' ? routeError : null}

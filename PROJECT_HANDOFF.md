@@ -1,5 +1,9 @@
 # Vehicle Tracking — Project Handoff
 
+> **Bàn giao session mới (2026-09-14):** bắt đầu tại [docs/SESSION_HANDOFF.md](docs/SESSION_HANDOFF.md). Báo cáo tổng hợp trạng thái code, phần chưa thực hiện, bằng chứng kiểm thử, lệnh tiếp tục feature 006 và đoạn yêu cầu có thể copy sang session mới. Các mục bên dưới giữ lịch sử theo từng mốc.
+
+> **Cập nhật 006 ngày 2026-09-14:** đọc mục 19 ở cuối file. Source telemetry/simulator đã có, nhưng HTTP/SSE/full suite và browser nối Spring/PostgreSQL còn chờ quyền thực thi do usage limit. Mục 17/18 lưu mốc Map-First 004 và xe/chuyến 005; mục 1–16 là snapshot cũ. Chi tiết: `docs/PROJECT_PROGRESS.md`, `docs/features/006-telemetry-simulator/verification.md` (hiện local/untracked, rule ignore docs đã được bỏ trong thay đổi đồng thời).
+
 > Snapshot kiểm tra ngày 2026-09-13. Tài liệu này dùng để bàn giao dự án sang máy hoặc phiên làm việc khác. Không chứa API key, mật khẩu thật hoặc dữ liệu nhạy cảm.
 
 ## 1. Trạng thái Git tại thời điểm bàn giao
@@ -615,4 +619,115 @@ Trước khi sửa:
 5. Xác nhận runtime Java 26, Node 24 và Docker.
 6. Không đọc/in API key từ `.env` vào log hoặc câu trả lời.
 7. Sau thay đổi, chạy test/build phù hợp và ghi rõ lệnh/kết quả thực tế.
+
+## 17. Cập nhật tiến độ và layout 004 — 2026-09-13
+
+> **Hướng UI hiện tại:** người dùng đã duyệt và source đã chuyển sang Map-First Canvas dark mode. Thiết kế: `docs/features/004-operations-layout/map-first-design.md`; phạm vi/evidence: `map-first-implementation.md` cùng thư mục. Prototype SVG là minh họa riêng. Các file dưới `docs/` vẫn local/ignored.
+
+Khảo sát tại HEAD `8d398b0`; thay đổi lượt này nằm trong working tree, chưa commit/push. `docs/` không có trong checkout lúc bắt đầu, gồm `workflow.md` và hồ sơ 001–003. Không tái dựng các tài liệu cũ theo phỏng đoán; hồ sơ mới dùng ID 004 tiếp nối lịch sử bàn giao.
+
+### Kết quả đối chiếu bảy yêu cầu sản phẩm
+
+- **Đã có:** CRUD trạm/xóa mềm, bán kính và tọa độ; tạo/xem tuyến từ 2–50 trạm qua HERE, thời gian di chuyển + dừng, offset đến/rời từng trạm. Evidence: `station/service/StationService.java`, `route/service/RouteService.java`, `route/dto/RouteDetailResponse.java` trong backend.
+- **Chưa có:** xe/trip persistence, telemetry ingestion/realtime push, automatic check-in, simulator engine, traffic backend, ETA động, reroute và notification. Evidence: `MapComponent.tsx` / state `vehicles=[]`; inventory controller chỉ có `StationController` và `RouteController`; migration V1–V3 chỉ có stations/routes/route_stops/route_sections. `SimulatorControls` và `hereTraffic.ts` vẫn chưa được nối vào app.
+- Vai trò START/STOP/END thuộc stop occurrence trong tuyến, không phải loại cố định của station (`RouteDetailResponse.from`). Thời gian lưu trong route là snapshot lúc tính, chưa phải ETA của xe đang chạy.
+- Hiệu chỉnh mô tả cũ: `StationPanel.filteredStations` hiện tìm tên và địa chỉ, chưa tìm tọa độ.
+
+### Layout hiện tại — revision Map-First
+
+`App` chỉ mount `MapComponent`; map chiếm toàn viewport, ModeBar nổi có Theo dõi / Tuyến & trạm / Mô phỏng. Drawer trái giữ list/detail/form của trạm và tuyến. `workspace.css` đã thay bộ style dashboard bằng dark floating layout, tablet một panel và mobile một bottom sheet.
+
+Station CRUD/form state tách vào `src/hooks/useStationWorkspace.ts`. `useMapCamera` đo panel đang hiện để tính padding fit/focus, cleanup ResizeObserver/RAF. `RouteWorkspace` được giữ mounted khi đổi mode; request token và AbortController vẫn bảo vệ phản hồi cũ. `SortableStopList` hỗ trợ kéo, bàn phím và nút đổi thứ tự; UUID thuộc stop occurrence, không dùng station ID làm key. Bản nháp chỉ có marker; nút “Tính & lưu tuyến mới” gọi POST hiện có. Detail ghi rõ thời điểm snapshot.
+
+`SimulatorPanel` và `AlertStream` mới đã mount với trạng thái chưa kết nối, telemetry —, playback/sự cố bị vô hiệu hóa. `SimulatorControls` cũ vẫn là component rời; chưa có engine/realtime/traffic/check-in. `MapControls` có zoom, fit, basemap và bật/tắt layer; traffic chưa kết nối.
+
+### Kế hoạch đề xuất tiếp theo
+
+| Mốc | Phạm vi | Đầu ra nghiệm thu |
+| --- | --- | --- |
+| 005 | Xe và chuyến đi | Gán xe–tuyến–giờ xuất phát, lifecycle trip, snapshot stop/radius và lịch kế hoạch |
+| 006 | Telemetry + simulator cơ bản | Ingestion chung cho GPS/simulator, lưu vị trí, SSE, hai tab cùng thấy xe chạy trên geometry |
+| 007 | Check-in | Nhận diện xe đi ngang vùng trạm, chống trùng, xét thứ tự và trạm lặp trong tuyến vòng |
+| 008 | Traffic + ETA + simulator theo traffic | Flow/incidents backend, tốc độ/ETA theo đoạn đường, freshness và fallback có nhãn |
+| 009 | Reroute và thông báo | Trip revision, giữ điểm dừng bắt buộc, ETA cũ/mới, lưu thông báo và chống spam |
+
+Đây là đề xuất chưa triển khai. Chi tiết data/API, phụ thuộc, case biên và acceptance criteria: `docs/PROJECT_PROGRESS.md`, mục 4. Không đưa driver CRUD, email/SMS hoặc broker thành điều kiện bắt buộc khi bảy yêu cầu chưa cần.
+
+### Xác minh mới trên máy này
+
+- Node `22.20.0` đáp ứng engines frontend, Java `26.0.1`. Kiểm tra frontend sau revision Map-First: `npm.cmd run lint`, `node_modules/.bin/tsc.cmd --noEmit`, `npm.cmd run build` đều exit 0; build 1872 modules.
+- Kết quả backend từ lượt khảo sát trước (không chạy lại ở revision UI): `mvnw.cmd test` **không pass toàn bộ**, báo 75 kết quả, 0 assertion failures, 2 errors. 73 test pass; `RouteRepositoryIntegrationTest` và `StationRepositoryIntegrationTest` lỗi khởi tạo vì Testcontainers không tìm được Docker khả dụng. Các repository test chưa thực thi đầy đủ; không dùng kết quả 85 pass cũ để thay thế.
+- Browser smoke dùng Edge headless, intercept toàn bộ `/api/` bằng fixture; kiểm tra desktop/mobile, CRUD, form, route và map. Script/evidence: `docs/features/004-operations-layout/verification/` và `artifacts/`; kết quả UI hiện hành ở `map-first-implementation.md`, script `verification/map-first-app-smoke.mjs` và `artifacts/map-first-app/results.json`.
+- Chưa xác minh HERE live, UI với database thật hoặc GPS thật. Không đọc/đổi `.env`, không sửa backend/migration. `docs/` vẫn bị ignore; cần copy riêng khi chuyển máy nếu muốn giữ báo cáo/ảnh.
+
+## 18. Xe và chuyến đi 005 — hoàn thành 2026-09-13
+
+Người dùng đã yêu cầu triển khai trực tiếp mốc 005. Source hiện có quản lý xe và lịch chuyến xuyên UI–API–JPA; chưa triển khai engine 006. Thay đổi nằm trong working tree cùng Map-First 004, chưa commit/push. Những mô tả “chưa có vehicle/trip” và lỗi thiếu Docker ở các mục lịch sử bên trên đã được thay thế bởi kết quả này.
+
+### Đã triển khai
+
+- CRUD xe tại `/api/v1/vehicles`: chuẩn hóa biển số hoa/bỏ dấu phân cách, unique kể cả inactive; ngừng sử dụng là xóa mềm và bị chặn nếu xe còn chuyến SCHEDULED/IN_PROGRESS. Evidence: backend `vehicle/controller/VehicleController`, `vehicle/service/VehicleService.create/update/deactivate`, `vehicle/entity/VehicleEntity`.
+- Tạo/list/detail `/api/v1/trips`, lọc vehicleId; tạo từ xe active + tuyến đã lưu có các trạm active + giờ xuất phát. Không gọi lại HERE. Snapshot từng stop gồm tên/tọa độ/radius/dwell/offset/giờ kế hoạch; geometry tham chiếu route immutable qua FK RESTRICT. Evidence: `trip/service/TripService.create`, `trip/entity/TripStopEntity`, `trip/dto/TripDetailResponse.from`.
+- POST `/api/v1/trips/{id}/start|complete|cancel`; lifecycle hợp lệ, retry cùng trạng thái đích không đổi timestamp, kế hoạch không dịch chuyển khi khởi hành trễ. Vehicle lock + partial unique index bảo đảm tối đa một IN_PROGRESS/xe, kể cả start đồng thời. Evidence: `TripService.transition`, `VehicleRepository.findLockedById`, migration `V4__create_vehicles_and_trips.sql` (`uq_trips_running_vehicle`, `chk_trips_state`).
+- Drawer Theo dõi có tab Đội xe/Chuyến đi, tìm/lọc, form, confirmation, timeline ngày/giờ địa phương, chọn trip vẽ tuyến và click stop focus map. Draft được giữ qua đổi mode; AbortController/token chống response cũ, busyRef chặn submit lặp. Evidence frontend: `components/fleet/FleetWorkspace`, `VehicleEditor`, `TripEditor`, `TripDetailPanel`, `hooks/useFleetWorkspace`, `services/fleet.ts`.
+- `MapComponent` giữ `editorRoute` và `tripRoute` riêng để không mất tuyến đang biên tập. `FleetVehicle` là danh mục, khác `Vehicle` telemetry. Mảng telemetry `vehicles=[]` vẫn chưa có nguồn; UI ghi “Chưa có vị trí xe”. Không tạo marker/tốc độ/ETA giả từ danh mục xe.
+
+Các đường dẫn Java trên tính từ `vehicletracking-backend/src/main/java/com/quangkhai/vehicletracking_backend/`; migration từ `src/main/resources/db/migration/`. Đường dẫn frontend từ `vehicletracking-frontend/src/`. Không có edit/delete trip; hủy qua lifecycle. Route đã gắn trip cần tiếp tục bất biến nếu bổ sung route lifecycle ở feature sau.
+
+### Kết quả kiểm tra mới
+
+- Backend `mvnw.cmd test`: **118 tests, 0 failures, 0 errors, 0 skipped**, BUILD SUCCESS lúc 23:42:59 +07; Java 26.0.1, Docker Engine 29.6.1, PostgreSQL 17 Testcontainers. Gồm 33 test mới: VehicleServiceTest 8, TripServiceTest 13, FleetControllerTest 7, FleetRepositoryIntegrationTest 5. Integration kiểm tra snapshot sau sửa trạm/xe, DB constraints và hai transaction start đồng thời chỉ một thành công.
+- `pom.xml` Surefire đặt `user.timezone=UTC` riêng JVM test để tránh timezone alias Windows không được PostgreSQL chấp nhận. `TripService` chuẩn hóa timestamps về microsecond phù hợp PostgreSQL cho response retry ổn định. Không đổi timezone runtime hoặc `.env`.
+- Frontend `npm.cmd run lint`, `node_modules/.bin/tsc.cmd --noEmit`, `npm.cmd run build`: exit 0, không có lint warning; build 1881 modules. Node 22.20.0 đáp ứng engines, `.nvmrc` vẫn định hướng Node 24.
+- Browser headless Edge: 11 nhóm fleet + 19 nhóm hồi quy Map-First, `pageErrors: []`; desktop/mobile 320–1440 px và landscape. Tất cả API dùng fixture, không ghi dữ liệu thật. Script `docs/features/005-vehicles-trips/verification/fleet-smoke.mjs`, `regression-004.mjs`; screenshots/results trong `artifacts/`.
+- Chưa kiểm tra UI nối backend/database thật hoặc HERE/GPS live. V4 đã chạy trong database test tạm; chưa áp dụng vào database phát triển của người dùng. Log đầy đủ `docs/features/005-vehicles-trips/backend-test.log` (UTF-16), JUnit `vehicletracking-backend/target/surefire-reports/`.
+
+### Sử dụng và bước tiếp theo
+
+Khởi động lại backend với cấu hình hiện có để Flyway áp dụng V4; không cần biến môi trường mới. Vào **Theo dõi → Đội xe → Thêm xe**, sau đó **Chuyến đi → Tạo chuyến mới**, chọn xe/tuyến/giờ xuất phát. Chi tiết hiển thị lịch cố định và cho khởi hành/hoàn thành/hủy; thao tác khởi hành chưa tự làm xe chạy trên bản đồ.
+
+Ưu tiên tiếp theo **006 — telemetry và simulator cơ bản**: chạy geometry qua backend, nguồn SIMULATOR rõ ràng, vị trí/tốc độ/SSE đồng bộ hai tab. Sau đó 007 check-in, 008 traffic/ETA, 009 reroute/notification. Đây vẫn là đề xuất chưa triển khai; không tự thêm driver, broker, email/SMS.
+
+Hồ sơ 005 gồm `spec.md`, `plan.md`, `test-plan.md`, `verification.md`; tiến độ cập nhật tại `docs/PROJECT_PROGRESS.md`. `docs/` vẫn bị Git ignore và `docs/workflow.md` không có khi khảo sát; không đổi ignore hay tái dựng tài liệu cũ. Copy riêng hồ sơ/ảnh khi chuyển máy nếu cần giữ bằng chứng.
+
+## 19. Telemetry và simulator 006 — source đã có, chờ kiểm tra cuối 2026-09-14
+
+Người dùng yêu cầu trực tiếp feature 006, sau đó tiếp tục công việc. Đã triển khai backend/frontend trong working tree, giữ thay đổi 004–005; chưa commit/push, không đọc/đổi `.env`. **Chưa đánh dấu 006 hoàn thành:** các bước verification cuối bị chặn do auto-review báo usage limit, không phải đã chạy test rồi thất bại.
+
+### Code hiện tại
+
+- V5 `vehicletracking-backend/src/main/resources/db/migration/V5__create_telemetry_and_simulation.sql`: telemetry_samples append-only, vehicle_positions latest và simulation_runs với FK/unique/CHECK. V1–V4 giữ nguyên. V5 đã chạy thành công trong PostgreSQL 17 Testcontainers; chưa áp dụng vào database phát triển của người dùng.
+- Backend `telemetry/service/TelemetryService.ingestGps/ingestSimulator`: HTTP GPS, simulator nội bộ dùng cùng ingestion; unique eventId, retry cùng nội dung trả mẫu cũ, ID collision/old/equal timestamp bị 409, validation và source guard. recordedAt wall clock, receivedAt server, simulatedAt riêng cho simulator.
+- `simulation/motion/FlexiblePolyline.decode`, `RouteMotion.at`: nội suy theo chiều dài segment/từng section, dwell theo stop occurrence, tuyến vòng, next stop/progress/countdown; geometry hỏng bị từ chối, không nối đường thẳng fallback.
+- `simulation/service/SimulationService.play/pause/speed/stop/reset/tick/recover`: clock checkpoint backend, multiplier 1/5/10, pause không cộng thời gian nghỉ, physical speed không nhân multiplier, complete trip cuối tuyến. Reset tạo trip/run mới và giữ lịch sử; lặp reset trả cùng replacement. Trip → vehicle lock theo thứ tự 005. `SimulationScheduler` chạy mỗi giây, recover RUNNING thành PAUSED sau restart, FAILED khi lỗi có kiểm soát.
+- `telemetry/service/OperationsSnapshotService.snapshot` đọc REPEATABLE_READ; `OperationsStreamService` phát SseEmitter full snapshot ngay khi kết nối/mỗi giây, reconnect resync, timeout/cleanup, tối đa một write chờ/client. Scheduler stream độc lập simulator. Chưa replay mọi mẫu lịch sử.
+- API: POST `/api/v1/telemetry` source GPS; GET `/api/v1/telemetry/snapshot` và `/stream`; POST `/api/v1/trips/{tripId}/simulation/play|pause|speed|stop|reset`. Speed body `{multiplier:1|5|10}`; reset response chứa tripId mới. Controller chỉ validation/delegation.
+- Frontend `useLiveOperations`, `useSimulator`, `services/operations`, `types/operations`: một snapshot chung cho map/panel, EventSource/reconnect/freshness và command state. `useVehicleMarkers` giữ DOM marker, cập nhật tọa độ/heading/tooltip, source GPS/GIẢ LẬP, >15 giây stale/>60 giây offline; follow chỉ dịch camera khi tọa độ mới.
+- `SimulatorPanel`: chọn trip, phát/pause/speed/stop/reset, confirmation/busy/error, simulated clock/progress/countdown; traffic injector vẫn disabled với giải thích. `MapComponent` route simulator riêng trong mode simulation. `FleetWorkspace/useFleetWorkspace` cập nhật trạng thái từ stream, không mất draft; chi tiết có nút mở simulator. Mảng `vehicles=[]` cũ đã được thay.
+
+Đường dẫn Java tính từ backend `src/main/java/com/quangkhai/vehicletracking_backend/`, frontend từ `vehicletracking-frontend/src/`. Thiết kế chỉ một backend instance, chưa có distributed scheduler hoặc auth thiết bị/retention. Chưa triển khai 007 check-in, 008 HERE Traffic/ETA, 009 reroute/notification.
+
+### Kiểm tra đã chạy
+
+- `.\mvnw.cmd -DskipTests compile`: exit 0.
+- `.\mvnw.cmd '-Dtest=RouteMotionTest,OperationsIntegrationTest' test`: **24 tests / 0 failures / 0 errors / 0 skipped**, BUILD SUCCESS 00:11:55 +07 ngày 2026-09-14. 14 thuật toán + 10 integration service/JPA; V1–V5 + Hibernate validate. Log `docs/features/006-telemetry-simulator/backend-focused.log` (UTF-16).
+- Frontend lint/tsc/build exit 0, không có lint warning, build 1887 modules.
+- Browser Edge với Node API fixture/SSE socket thật: **9 nhóm 006**, hai tab/clock/pause/5×/10×/reset/complete/follow, 409, GPS stale/offline, mất kết nối khóa control, reconnect, 390/320 px. Regression 004 **19 nhóm**, 005 **11 nhóm**; tổng 39 nhóm và không có pageErrors. **Đây chưa phải browser nối Spring/PostgreSQL.** Artifacts dưới `docs/features/006-telemetry-simulator/artifacts/`.
+- Browser tìm ra icon bị thay DOM liên tục khiến hover/tooltip chập chờn; đã sửa giữ marker DOM và chỉ follow khi tọa độ đổi, chạy lại fixture đạt. Không dùng kết quả 118 pass của 005 để tuyên bố full suite 006 đạt.
+
+### Cần tiếp tục trước khi nghiệm thu
+
+`OperationsHttpIntegrationTest` đã viết nhưng **chưa compile/run**: HTTP validation/lifecycle, hai SseEmitter subscriber, CORS, resync Last-Event-ID, cleanup, đo latency. Có extension chạy browser trên backend/DB test tạm. Khi hạn mức/quyền thực thi cho phép, chạy từ backend:
+
+```powershell
+.\mvnw.cmd '-Dtest=OperationsHttpIntegrationTest' test
+.\mvnw.cmd '-Dtest=OperationsHttpIntegrationTest' '-Dverification.browser006=true' test
+.\mvnw.cmd test
+```
+
+Browser extension cần frontend dev server `http://127.0.0.1:5173`; test truyền API port/trip qua env vào `docs/features/006-telemetry-simulator/verification/live-browser.mjs`. Toàn bộ dữ liệu nằm trong Testcontainers, HERE tắt. Chạy script trực tiếp không có VERIFICATION_API chỉ kiểm tra fixture. Nếu kiểm tra thất bại, sửa và chạy lại, cập nhật verification/progress trước khi đánh dấu hoàn thành hoặc sang 007.
+
+**Blocker:** auto-review đã từ chối Maven/Docker bổ sung với `Automatic approval review failed: You've hit your usage limit`, thông báo thử lại 04:30. Không thử đường vòng để vượt từ chối. Các công việc frontend độc lập đã hoàn tất. Chưa có latency end-to-end thực đo và chưa xác minh HERE/GPS thật.
+
+Hồ sơ 006 gồm spec/plan/test-plan/verification và scripts/artifacts. Kiểm tra Git cuối thấy `.gitignore` được chỉnh đồng thời ngoài phần agent sửa để bỏ rule `docs/`; giữ nguyên thay đổi này, tài liệu hiện untracked thay vì ignored. `docs/workflow.md` không có khi khảo sát. Không cần env mới; backend khởi động với cấu hình hiện tại sẽ áp dụng V5. Property `app.simulation.scheduling-enabled=false` dành cho test clock, mặc định true.
 

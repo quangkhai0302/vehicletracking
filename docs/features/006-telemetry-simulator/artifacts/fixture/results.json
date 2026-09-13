@@ -1,0 +1,17 @@
+{
+  "mode": "fixture",
+  "checks": [
+    "Two tabs receive backend movement, identical paused clock and markers",
+    "5x controls synchronized, source SIMULATOR and reload resync",
+    "Vehicle selection and follow",
+    "Reset creates new paused trip and retains terminal trip/run history",
+    "Simulator mobile 390",
+    "Simulator mobile 320",
+    "409 is displayed and controls recover",
+    "10x completion reaches final point and completes trip on both tabs",
+    "GPS stale/offline retains marker; disconnect disables commands; explicit SSE reconnect resyncs"
+  ],
+  "pageErrors": [],
+  "api": "Isolated verification only; no user data writes",
+  "date": "2026-09-13T17:30:40.989Z"
+}

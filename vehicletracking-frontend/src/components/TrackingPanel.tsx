@@ -65,7 +65,7 @@ export function TrackingPanel({
     <aside className="operations-panel" aria-label="Theo dõi đội xe">
       <div className="operations-panel-header">
         <div>
-          <div className="panel-eyebrow">Vận hành realtime</div>
+          <div className="panel-eyebrow">Tổng quan phương tiện</div>
           <h2>Theo dõi đội xe</h2>
         </div>
         <span className="count-badge tabular-numbers">{counts.total} xe</span>
@@ -96,11 +96,14 @@ export function TrackingPanel({
           <div className="operations-empty-icon">
             <Route size={28} />
           </div>
-          <strong>Chưa có dữ liệu telemetry</strong>
+          <span className="empty-state-label">CHƯA KẾT NỐI</span>
+          <strong>Đội xe của bạn sẽ ở đây</strong>
           <p>
-            Hệ thống đang sẵn sàng tiếp nhận dữ liệu thời gian thực từ thiết bị GPS/OBD của phương tiện.
-            Vị trí, vận tốc và lộ trình sẽ tự động hiển thị tại đây khi có tín hiệu kết nối.
+            Chưa kết nối nguồn vị trí xe. Bạn có thể bắt đầu bằng việc thiết lập trạm và tuyến đường.
           </p>
+          <button type="button" className="primary-action" onClick={onManageStations}>
+            <MapPinned size={16} /> Thiết lập trạm
+          </button>
         </div>
       ) : (
         <>
@@ -219,10 +222,7 @@ export function TrackingPanel({
 
       {/* Footer chuyển sang Quản lý trạm */}
       <div className="operations-panel-footer">
-        <span>Cần thiết lập hoặc sửa trạm đón?</span>
-        <button type="button" className="secondary-action" onClick={onManageStations}>
-          <MapPinned size={14} /> Quản lý trạm
-        </button>
+        <Radio size={15} /><span>Vị trí, vận tốc và ETA cần nguồn dữ liệu xe.</span>
       </div>
     </aside>
   );
