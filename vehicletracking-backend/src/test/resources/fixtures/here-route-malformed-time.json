@@ -1,0 +1,17 @@
+{
+  "routes": [
+    {
+      "id": "route-malformed-time",
+      "sections": [
+        {
+          "id": "sec-1",
+          "type": "vehicle",
+          "departure": { "time": "not-a-valid-iso-timestamp" },
+          "arrival": { "time": "2026-09-11T05:10:00Z", "place": { "type": "place" } },
+          "polyline": "BFoz5xJ67i1B1B7PzIhaxL7Y",
+          "travelSummary": { "duration": 600, "length": 4000, "baseDuration": 500 }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "routes": [
+    {
+      "id": "route-test-two-vias",
+      "sections": [
+        {
+          "id": "sec-1",
+          "type": "vehicle",
+          "departure": {
+            "time": "2026-09-11T05:00:00Z",
+            "place": { "type": "place", "location": { "lat": 10.801234, "lng": 106.710123 } }
+          },
+          "arrival": {
+            "time": "2026-09-11T05:10:00Z",
+            "place": { "type": "via", "location": { "lat": 10.810000, "lng": 106.720000 }, "waypoint": 0 }
+          },
+          "polyline": "BFoz5xJ67i1B1B7PzIhaxL7Y",
+          "travelSummary": { "duration": 600, "length": 4000, "baseDuration": 500 }
+        },
+        {
+          "id": "sec-2",
+          "type": "vehicle",
+          "departure": {
+            "time": "2026-09-11T05:11:00Z",
+            "place": { "type": "via", "location": { "lat": 10.810000, "lng": 106.720000 } }
+          },
+          "arrival": {
+            "time": "2026-09-11T05:25:00Z",
+            "place": { "type": "via", "location": { "lat": 10.820000, "lng": 106.730000 }, "waypoint": 1 }
+          },
+          "polyline": "BFo_7yJ89k2C2C8QzJhbyM8Z",
+          "travelSummary": { "duration": 840, "length": 6000, "baseDuration": 750 }
+        },
+        {
+          "id": "sec-3",
+          "type": "vehicle",
+          "departure": {
+            "time": "2026-09-11T05:26:00Z",
+            "place": { "type": "via", "location": { "lat": 10.820000, "lng": 106.730000 } }
+          },
+          "arrival": {
+            "time": "2026-09-11T05:40:00Z",
+            "place": { "type": "place", "location": { "lat": 10.830000, "lng": 106.740000 } }
+          },
+          "polyline": "BFpA8zK90l3D3D9RzKhczN9a",
+          "travelSummary": { "duration": 840, "length": 5500, "baseDuration": 720 }
+        }
+      ]
+    }
+  ]
+}

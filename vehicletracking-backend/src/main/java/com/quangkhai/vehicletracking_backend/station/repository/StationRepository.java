@@ -11,4 +11,6 @@ public interface StationRepository extends JpaRepository<StationEntity, Long> {
     List<StationEntity> findAllByActiveTrueOrderByNameAscIdAsc();
 
     Optional<StationEntity> findByIdAndActiveTrue(long id);
+
+    List<StationEntity> findAllByIdInAndActiveTrue(java.util.Collection<Long> ids);
 }

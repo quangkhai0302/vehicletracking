@@ -29,6 +29,12 @@ here:
     api-key: ${HERE_API_KEY:}
     connect-timeout-ms: ${HERE_CONNECT_TIMEOUT_MS:${HERE_TRAFFIC_CONNECT_TIMEOUT_MS:2000}}
     read-timeout-ms: ${HERE_READ_TIMEOUT_MS:${HERE_TRAFFIC_READ_TIMEOUT_MS:5000}}
+  routing:
+    enabled: ${HERE_ROUTING_ENABLED:false}
+    base-url: ${HERE_ROUTING_BASE_URL:https://router.hereapi.com}
+    api-key: ${HERE_API_KEY:}
+    connect-timeout-ms: ${HERE_ROUTING_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${HERE_ROUTING_READ_TIMEOUT_MS:10000}
 
 app:
   cors:

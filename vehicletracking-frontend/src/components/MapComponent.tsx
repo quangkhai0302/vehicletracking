@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FC } from 'react';
 import L from 'leaflet';
 import { createStation, deleteStation, fetchStations, updateStation } from '../services/stations';
+import { decodeFlexiblePolyline } from '../services/polyline';
 import type { MapTheme } from '../types/map';
+import type { RouteDetail, RouteStopRole } from '../types/route';
 import {
   EMPTY_STATION_FORM,
   type Station,
@@ -16,6 +18,8 @@ import { StationDrawer } from './StationDrawer';
 import { StationPanel } from './StationPanel';
 import { TrackingPanel } from './TrackingPanel';
 import { VehicleDrawer } from './VehicleDrawer';
+import { RouteWorkspace } from './route/RouteWorkspace';
+import './route/route.css';
 import { Crosshair, X } from 'lucide-react';
 
 const HCMC_CENTER: [number, number] = [10.7769, 106.7009];
@@ -25,6 +29,17 @@ interface MapComponentProps {
   onWorkspaceChange: (workspace: WorkspaceMode) => void;
 }
 
+function createRouteStopIcon(sequenceNumber: number, role: RouteStopRole): L.DivIcon {
+  const roleClass = role.toLowerCase();
+  return L.divIcon({
+    className: 'route-stop-div-icon',
+    html: `<div class="route-stop-map-marker ${roleClass}">${sequenceNumber}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
+    tooltipAnchor: [0, -14],
+  });
+}
 
 function createStationIcon(state: 'default' | 'selected' | 'muted' | 'draft'): L.DivIcon {
   return L.divIcon({
@@ -77,6 +92,7 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
   const draftLayerRef = useRef<L.LayerGroup | null>(null);
   const vehicleLayerRef = useRef<L.LayerGroup | null>(null);
   const routeLayerRef = useRef<L.LayerGroup | null>(null);
+  const plannedRouteLayerRef = useRef<L.LayerGroup | null>(null);
   const stationMarkerRef = useRef<Map<number, L.Marker>>(new Map());
   const vehicleMarkerRef = useRef<Map<string, L.Marker>>(new Map());
   const coordRef = useRef<HTMLSpanElement>(null);
@@ -95,6 +111,9 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
   const [deleteCandidate, setDeleteCandidate] = useState<Station | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Route Planning Display State (Data flow managed by RouteWorkspace)
+  const [plannedRoute, setPlannedRoute] = useState<RouteDetail | null>(null);
+
   // Vehicle Tracking State (Dữ liệu thật, mặc định không có mock xe)
   const [vehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -112,7 +131,9 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
 
   const drawerVisible =
     (workspace === 'stations' && (formMode !== 'closed' || selectedStation !== null)) ||
-    (workspace === 'tracking' && selectedVehicle !== null);
+    (workspace === 'tracking' && selectedVehicle !== null) ||
+    (workspace === 'routes' && plannedRoute !== null);
+
 
   // Fetch Stations from backend database
   useEffect(() => {
@@ -161,6 +182,7 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     routeLayerRef.current = L.layerGroup().addTo(map);
+    plannedRouteLayerRef.current = L.layerGroup().addTo(map);
     stationLayerRef.current = L.layerGroup().addTo(map);
     draftLayerRef.current = L.layerGroup().addTo(map);
     vehicleLayerRef.current = L.layerGroup().addTo(map);
@@ -206,6 +228,7 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
       draftLayerRef.current = null;
       vehicleLayerRef.current = null;
       routeLayerRef.current = null;
+      plannedRouteLayerRef.current = null;
     };
   }, []);
 
@@ -263,7 +286,10 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
         bubblingMouseEvents: false,
       });
 
-      marker.bindTooltip(station.name, { direction: 'top', offset: [0, -28], opacity: 0.9 });
+      // H-02: Use DOM node and textContent to prevent XSS in Leaflet tooltip
+      const stationTooltip = document.createElement('span');
+      stationTooltip.textContent = station.name;
+      marker.bindTooltip(stationTooltip, { direction: 'top', offset: [0, -28], opacity: 0.9 });
 
       if (workspace === 'tracking') {
         marker.on('click', () => {
@@ -397,6 +423,94 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
     newTileLayer.addTo(map).bringToBack();
     tileLayerRef.current = newTileLayer;
   }, [theme]);
+
+  // Render Planned Route (Polyline & Stop markers)
+  useEffect(() => {
+    const layer = plannedRouteLayerRef.current;
+    const map = mapInstanceRef.current;
+    if (!layer || !map) return;
+
+    layer.clearLayers();
+
+    if (workspace !== 'routes' || !plannedRoute) {
+      return;
+    }
+
+    let toastTimer: number | null = null;
+    let hasDecodeError = false;
+    const allCoords: [number, number][] = [];
+
+    // M2-04: Decode polyline for each section. If ANY section fails or returns empty coordinates, fail the whole route!
+    for (const section of plannedRoute.sections) {
+      try {
+        const coords = decodeFlexiblePolyline(section.encodedPolyline);
+        if (coords.length === 0) {
+          hasDecodeError = true;
+          break;
+        }
+        allCoords.push(...coords);
+      } catch {
+        hasDecodeError = true;
+        break;
+      }
+    }
+
+    // If any section is broken, reject partial geometry: clear layer, don't draw markers, notify user
+    if (hasDecodeError) {
+      layer.clearLayers();
+      toastTimer = window.setTimeout(() => {
+        setToast('Lỗi: Hình học đường đi (polyline) của tuyến bị hỏng, không thể hiển thị lộ trình.');
+      }, 0);
+      return () => {
+        if (toastTimer !== null) window.clearTimeout(toastTimer);
+      };
+    }
+
+    if (allCoords.length > 0) {
+      L.polyline(allCoords, {
+        color: '#0284c7',
+        weight: 5,
+        opacity: 0.9,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }).addTo(layer);
+    }
+
+    // Draw numbered stop markers
+    plannedRoute.stops.forEach((stop) => {
+      const marker = L.marker([stop.latitude, stop.longitude], {
+        icon: createRouteStopIcon(stop.sequenceNumber, stop.role),
+        zIndexOffset: 700 + stop.sequenceNumber,
+      });
+
+      const roleName = stop.role === 'START' ? 'Khởi hành' : stop.role === 'END' ? 'Về đích' : 'Đón/trả';
+
+      // H-02: Use DOM node and textContent to prevent XSS in Leaflet tooltip
+      const tooltipContainer = document.createElement('div');
+      const strongEl = document.createElement('strong');
+      strongEl.textContent = `#${stop.sequenceNumber} - ${stop.stationName}`;
+      tooltipContainer.appendChild(strongEl);
+      tooltipContainer.appendChild(document.createTextNode(` (${roleName})`));
+      tooltipContainer.appendChild(document.createElement('br'));
+      tooltipContainer.appendChild(document.createTextNode(`Dừng: ${stop.dwellDurationSeconds}s`));
+
+      marker.bindTooltip(tooltipContainer, { direction: 'top', offset: [0, -14], opacity: 0.95 });
+
+      marker.addTo(layer);
+    });
+
+    // Fit bounds only when all sections decoded successfully
+    if (allCoords.length > 0) {
+      map.fitBounds(L.latLngBounds(allCoords), {
+        padding: [60, 60],
+        maxZoom: 16,
+      });
+    }
+
+    return () => {
+      if (toastTimer !== null) window.clearTimeout(toastTimer);
+    };
+  }, [plannedRoute, workspace]);
 
   // Actions for Stations
   const handleBeginCreate = () => {
@@ -566,6 +680,15 @@ export const MapComponent: FC<MapComponentProps> = ({ workspace, onWorkspaceChan
             onRequestDeactivate={() => selectedStation && setDeleteCandidate(selectedStation)}
           />
         </>
+      )}
+
+      {/* WORKSPACE 3: QUẢN LÝ TUYẾN ĐƯỜNG */}
+      {workspace === 'routes' && (
+        <RouteWorkspace
+          stations={stations}
+          onPlannedRouteDisplay={setPlannedRoute}
+          onShowToast={(msg) => setToast(msg)}
+        />
       )}
 
       {/* Banner hướng dẫn và tiện ích chọn vị trí trạm trên bản đồ */}

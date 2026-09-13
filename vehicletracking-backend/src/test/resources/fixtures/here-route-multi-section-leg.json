@@ -1,0 +1,95 @@
+{
+  "routes": [
+    {
+      "id": "route-test-multi-section",
+      "sections": [
+        {
+          "id": "sec-1a",
+          "type": "vehicle",
+          "departure": {
+            "time": "2026-09-11T05:00:00Z",
+            "place": {
+              "type": "place",
+              "location": { "lat": 10.801234, "lng": 106.710123 }
+            }
+          },
+          "arrival": {
+            "time": "2026-09-11T05:05:00Z",
+            "place": {
+              "type": "place",
+              "location": { "lat": 10.800500, "lng": 106.710500 }
+            }
+          },
+          "polyline": "BFoz5xJ67i1B",
+          "summary": {
+            "duration": 300,
+            "length": 1500,
+            "baseDuration": 250
+          },
+          "travelSummary": {
+            "duration": 300,
+            "length": 1500,
+            "baseDuration": 250
+          }
+        },
+        {
+          "id": "sec-1b",
+          "type": "ferry",
+          "departure": {
+            "time": "2026-09-11T05:05:00Z",
+            "place": {
+              "type": "place",
+              "location": { "lat": 10.800500, "lng": 106.710500 }
+            }
+          },
+          "arrival": {
+            "time": "2026-09-11T05:15:00Z",
+            "place": {
+              "type": "via",
+              "location": { "lat": 10.800100, "lng": 106.711100 },
+              "waypoint": 0
+            }
+          },
+          "polyline": "1B7PzIhaxL7Y",
+          "summary": {
+            "duration": 600,
+            "length": 1000
+          },
+          "travelSummary": {
+            "duration": 600,
+            "length": 1000
+          }
+        },
+        {
+          "id": "sec-2",
+          "type": "vehicle",
+          "departure": {
+            "time": "2026-09-11T05:15:00Z",
+            "place": {
+              "type": "via",
+              "location": { "lat": 10.800100, "lng": 106.711100 }
+            }
+          },
+          "arrival": {
+            "time": "2026-09-11T05:30:00Z",
+            "place": {
+              "type": "place",
+              "location": { "lat": 10.772123, "lng": 106.698123 }
+            }
+          },
+          "polyline": "BFo_7yJ89k2C",
+          "summary": {
+            "duration": 900,
+            "length": 5000,
+            "baseDuration": 800
+          },
+          "travelSummary": {
+            "duration": 900,
+            "length": 5000,
+            "baseDuration": 800
+          }
+        }
+      ]
+    }
+  ]
+}

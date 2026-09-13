@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BusFront, MapPinned, Navigation, Radio } from 'lucide-react';
+import { BusFront, MapPinned, Navigation, Radio, Route } from 'lucide-react';
 import { MapComponent } from './components/MapComponent';
 import type { WorkspaceMode } from './types/workspace';
 
@@ -37,6 +37,13 @@ export default function App() {
           >
             <MapPinned size={16} /> Quản lý trạm
           </button>
+          <button
+            className={workspace === 'routes' ? 'active' : ''}
+            onClick={() => setWorkspace('routes')}
+            aria-pressed={workspace === 'routes'}
+          >
+            <Route size={16} /> Tuyến đường
+          </button>
         </nav>
 
         <div className="header-status">
@@ -45,7 +52,9 @@ export default function App() {
             <span>
               {workspace === 'tracking'
                 ? 'Chờ nguồn telemetry'
-                : 'Chế độ quản lý trạm'}
+                : workspace === 'stations'
+                  ? 'Chế độ quản lý trạm'
+                  : 'Chế độ quản lý tuyến đường'}
             </span>
           </div>
         </div>

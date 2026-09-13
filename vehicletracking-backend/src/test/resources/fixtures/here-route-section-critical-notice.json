@@ -1,0 +1,38 @@
+{
+  "routes": [
+    {
+      "id": "route-section-critical",
+      "sections": [
+        {
+          "id": "sec-1",
+          "type": "vehicle",
+          "departure": { "time": "2026-09-11T05:00:00Z" },
+          "arrival": {
+            "time": "2026-09-11T05:10:00Z",
+            "place": { "type": "via", "waypoint": 0 }
+          },
+          "polyline": "BFoz5xJ67i1B1B7PzIhaxL7Y",
+          "travelSummary": { "duration": 600, "length": 4000, "baseDuration": 500 }
+        },
+        {
+          "id": "sec-2",
+          "type": "vehicle",
+          "departure": { "time": "2026-09-11T05:11:00Z" },
+          "arrival": {
+            "time": "2026-09-11T05:40:00Z",
+            "place": { "type": "place" }
+          },
+          "polyline": "BFpA8zK90l3D3D9RzKhczN9a",
+          "travelSummary": { "duration": 840, "length": 5500, "baseDuration": 720 },
+          "notices": [
+            {
+              "title": "Road is completely blocked",
+              "code": "criticalRoadClosure",
+              "severity": "critical"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "routes": [
+    {
+      "id": "route-negative-distance",
+      "sections": [
+        {
+          "id": "sec-1",
+          "type": "vehicle",
+          "departure": { "time": "2026-09-11T04:30:00Z" },
+          "arrival": { "time": "2026-09-11T05:10:00Z", "place": { "type": "place" } },
+          "polyline": "BFoz5xJ67i1B1B7PzIhaxL7Y",
+          "travelSummary": { "duration": 600, "length": -100, "baseDuration": 500 }
+        }
+      ]
+    }
+  ]
+}

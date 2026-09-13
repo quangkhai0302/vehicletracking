@@ -1,0 +1,10 @@
+{
+  "routes": [],
+  "notices": [
+    {
+      "title": "No route found",
+      "code": "noRouteFound",
+      "severity": "info"
+    }
+  ]
+}

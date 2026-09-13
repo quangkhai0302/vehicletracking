@@ -1,0 +1,17 @@
+{
+  "routes": [
+    {
+      "id": "route-base-duration-fallback",
+      "sections": [
+        {
+          "id": "sec-1",
+          "type": "vehicle",
+          "departure": { "time": "2026-09-11T05:00:00Z" },
+          "arrival": { "time": "2026-09-11T05:10:00Z", "place": { "type": "place" } },
+          "polyline": "BFoz5xJ67i1B1B7PzIhaxL7Y",
+          "summary": { "duration": 600, "length": 4000, "baseDuration": 480 }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "id": "route-with-critical-notice",
+      "sections": [],
+      "notices": [
+        {
+          "title": "Road blocked completely",
+          "code": "criticalBlockage",
+          "severity": "critical"
+        }
+      ]
+    }
+  ],
+  "notices": []
+}
