@@ -14,6 +14,8 @@ public interface TripRepository extends JpaRepository<TripEntity, Long> {
     @EntityGraph(attributePaths = {"vehicle", "route"})
     List<TripEntity> findAllByVehicleIdOrderByScheduledDepartureAtDescIdDesc(long vehicleId);
     boolean existsByVehicleIdAndStatusIn(long vehicleId, Collection<TripStatus> statuses);
+    boolean existsByRouteId(long routeId);
+    boolean existsByRouteIdAndStatusIn(long routeId, Collection<TripStatus> statuses);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from TripEntity t where t.id = :id")
     Optional<TripEntity> findLockedById(@Param("id") long id);

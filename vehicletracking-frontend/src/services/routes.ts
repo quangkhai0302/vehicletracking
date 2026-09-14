@@ -24,7 +24,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     }
     throw new Error(message);
   }
-
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -42,4 +42,9 @@ export function createRoute(input: RouteCreateInput): Promise<RouteDetail> {
     body: JSON.stringify(input),
   });
 }
-
+export function updateRoute(id: number, input: RouteCreateInput): Promise<RouteDetail> {
+  return request<RouteDetail>(`${ROUTES_URL}/${id}`, { method: 'PUT', body: JSON.stringify(input) });
+}
+export function deactivateRoute(id: number): Promise<void> {
+  return request<void>(`${ROUTES_URL}/${id}`, { method: 'DELETE' }).then(() => undefined);
+}

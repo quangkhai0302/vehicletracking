@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -30,7 +31,7 @@ public class HereRoutingProvider implements RoutingProvider {
     private final RestClient hereRoutingRestClient;
     private final HereRoutingProperties properties;
 
-    public HereRoutingProvider(RestClient hereRoutingRestClient, HereRoutingProperties properties) {
+    public HereRoutingProvider(@Qualifier("hereRoutingRestClient") RestClient hereRoutingRestClient, HereRoutingProperties properties) {
         this.hereRoutingRestClient = hereRoutingRestClient;
         this.properties = properties;
     }

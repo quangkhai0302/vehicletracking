@@ -34,7 +34,7 @@ public class TripEntity {
     @Column(name = "ended_at") private Instant endedAt;
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
-    @OneToMany(mappedBy = "trip", cascade = CascadeType.PERSIST)
+    @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sequenceNumber ASC")
     private List<TripStopEntity> stops = new ArrayList<>();
 
@@ -48,4 +48,8 @@ public class TripEntity {
     public void start(Instant now) { status = TripStatus.IN_PROGRESS; startedAt = now; }
     public void complete(Instant now) { status = TripStatus.COMPLETED; endedAt = now; }
     public void cancel(Instant now) { status = TripStatus.CANCELLED; endedAt = now; }
+    public void reschedule(Instant departure) {
+        scheduledDepartureAt = departure;
+        stops.forEach(stop -> stop.reschedule(departure));
+    }
 }

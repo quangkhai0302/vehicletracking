@@ -11,10 +11,11 @@ import type { RouteCreateInput, RouteDetail, RouteDraftStop } from '../../types/
 import type { Station } from '../../types/station';
 import { SortableStopList } from './SortableStopList';
 import { formatDuration } from '../../utils/format';
+import { FleetConfirmDialog } from '../fleet/FleetConfirmDialog';
 
 interface RouteDrawerProps {
   onFocusStop: (position: [number, number], zoom?: number) => void;
-  mode: 'closed' | 'create' | 'view';
+  mode: 'closed' | 'create' | 'edit' | 'view';
   routeDetail: RouteDetail | null;
   stations: Station[];
   loadingDetail: boolean;
@@ -22,6 +23,8 @@ interface RouteDrawerProps {
   error: string | null;
   onClose: () => void;
   onSaveRoute: (input: RouteCreateInput) => void;
+  onEdit: () => void;
+  onDeactivate: () => Promise<boolean>;
   onDraftStopsChange: (stops: RouteDraftStop[]) => void;
   selectedDraftStopId: string | null;
   onFocusDraftStop: (id: string) => void;
@@ -38,6 +41,7 @@ function normalizeStops(stops: RouteDraftStop[]): RouteDraftStop[] {
 }
 
 interface RouteCreateContentProps {
+  initialRoute?: RouteDetail;
   stations: Station[];
   saving: boolean;
   error: string | null;
@@ -49,6 +53,7 @@ interface RouteCreateContentProps {
 }
 
 function RouteCreateContent({
+  initialRoute,
   stations,
   saving,
   error,
@@ -57,11 +62,12 @@ function RouteCreateContent({
   onDraftStopsChange, selectedDraftStopId, onFocusDraftStop,
 }: RouteCreateContentProps) {
   const nameInputId = useId();
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialRoute?.name ?? '');
   const [localError, setLocalError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const [formStops, setFormStops] = useState<RouteDraftStop[]>(() => {
+    if (initialRoute) return initialRoute.stops.map(stop => ({ id: crypto.randomUUID(), stationId: stop.stationId, dwellDurationSeconds: stop.dwellDurationSeconds }));
     const active = stations.filter((s) => s.active);
     if (active.length >= 2) {
       return [
@@ -80,7 +86,7 @@ function RouteCreateContent({
   useEffect(() => () => onDraftStopsChange([]), [onDraftStopsChange]);
   const safeClose = () => {
     if (saving) return;
-    if (name.trim() || JSON.stringify(formStops) !== JSON.stringify(initialStopsRef.current)) setConfirmDiscard(true);
+    if (name !== (initialRoute?.name ?? '') || JSON.stringify(formStops) !== JSON.stringify(initialStopsRef.current)) setConfirmDiscard(true);
     else onClose();
   };
   const activeStations = stations.filter((s) => s.active);
@@ -157,7 +163,7 @@ function RouteCreateContent({
       <div className="route-drawer-header">
         <div>
           <div className="panel-eyebrow">Kế hoạch vận hành</div>
-          <h3>Tạo tuyến đường mới</h3>
+          <h3>{initialRoute ? 'Sửa tuyến đường' : 'Tạo tuyến đường mới'}</h3>
         </div>
         <button
           type="button"
@@ -207,15 +213,19 @@ function RouteCreateContent({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px',
-                background: 'rgba(255, 255, 255, 0.04)',
+                justifyContent: 'space-between',
+                padding: '9px 12px',
+                background: 'linear-gradient(145deg, rgba(20, 32, 48, 0.7) 0%, rgba(10, 18, 28, 0.85) 100%)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
                 borderRadius: '8px',
                 fontSize: '12px',
               }}
             >
-              <Car size={16} className="text-cyan" />
-              <span>Ô tô</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Car size={16} className="text-cyan" />
+                <span style={{ fontWeight: 500, color: '#f1f5f9' }}>Ô tô / Xe buýt</span>
+              </div>
+              <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', background: 'rgba(34, 211, 238, 0.15)', color: '#38bdf8', border: '1px solid rgba(34, 211, 238, 0.35)' }}>HERE CAR</span>
             </div>
           </div>
 
@@ -242,7 +252,7 @@ function RouteCreateContent({
               <Plus size={14} /> Thêm điểm dừng đón/trả
             </button>
           </div>
-          <p className="route-draft-note">Bản nháp · Chưa tính lộ trình hoặc ETA. Tính & lưu sẽ tạo một tuyến mới theo thứ tự trên.</p>
+          <p className="route-draft-note">{initialRoute ? 'Tính lại lộ trình HERE và cập nhật tuyến hiện tại. Chỉ sửa được tuyến chưa từng được dùng bởi chuyến đi.' : 'Bản nháp · Chưa tính lộ trình hoặc ETA. Tính & lưu sẽ tạo một tuyến mới theo thứ tự trên.'}</p>
           {!hasNoConsecutiveDuplicates && formStops.length >= 2 && <p role="alert" className="inline-error">Hai điểm liền nhau phải là hai trạm khác nhau.</p>}
           {!allStationsActive && <p role="alert" className="inline-error">Có trạm đã ngừng hoạt động. Chọn lại trạm trước khi lưu.</p>}
           {formStops.length < 2 && <p className="availability-note">Cần ít nhất hai điểm dừng. Bạn có thể thêm trạm ở tab Trạm dừng rồi quay lại.</p>}
@@ -267,7 +277,7 @@ function RouteCreateContent({
           ) : (
             <>
               <CheckCircle2 size={14} />
-              <span>Tính & lưu tuyến mới</span>
+              <span>{initialRoute ? 'Tính & cập nhật tuyến' : 'Tính & lưu tuyến mới'}</span>
             </>
           )}
         </button>
@@ -277,6 +287,9 @@ function RouteCreateContent({
 }
 
 interface RouteViewContentProps {
+  saving: boolean;
+  onEdit: () => void;
+  onDeactivate: () => Promise<boolean>;
   onFocusStop: (position: [number, number], zoom?: number) => void;
   routeDetail: RouteDetail | null;
   loadingDetail: boolean;
@@ -285,12 +298,14 @@ interface RouteViewContentProps {
 }
 
 function RouteViewContent({
+  saving, onEdit, onDeactivate,
   routeDetail,
   loadingDetail,
   error,
   onClose,
   onFocusStop,
 }: RouteViewContentProps) {
+  const [confirm, setConfirm] = useState(false);
   return (
     <>
       <div className="route-drawer-header">
@@ -302,6 +317,7 @@ function RouteViewContent({
           type="button"
           className="drawer-close-btn"
           onClick={onClose}
+          disabled={saving}
           title="Đóng bảng chi tiết"
           aria-label="Đóng"
         >
@@ -422,15 +438,22 @@ function RouteViewContent({
       </div>
 
       <div className="route-drawer-footer">
-        <button type="button" className="btn-secondary" onClick={onClose}>
+        <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
           Đóng
         </button>
+        {!loadingDetail && routeDetail && <>
+          <button type="button" className="btn-secondary" disabled={saving} onClick={onEdit}>Sửa tuyến</button>
+          <button type="button" className="danger-action" disabled={saving} onClick={() => setConfirm(true)}>Ngừng sử dụng</button>
+        </>}
       </div>
+      {confirm && <FleetConfirmDialog title="Ngừng sử dụng tuyến đường?" message="Tuyến sẽ không còn trong danh sách tạo chuyến. Lịch sử được giữ lại; chuyến chưa kết thúc có thể ngăn thao tác này."
+        confirmLabel="Xác nhận ngừng tuyến" busy={saving} error={error} onClose={() => setConfirm(false)} onConfirm={() => { void onDeactivate().then(success => { if (success) setConfirm(false); }); }} />}
     </>
   );
 }
 
 export function RouteDrawer({
+  onEdit, onDeactivate,
   mode,
   routeDetail,
   stations,
@@ -449,11 +472,12 @@ export function RouteDrawer({
   return (
     <aside
       className="route-drawer"
-      aria-label={mode === 'create' ? 'Tạo tuyến đường' : 'Chi tiết tuyến đường'}
+      aria-label={mode === 'create' ? 'Tạo tuyến đường' : mode === 'edit' ? 'Sửa tuyến đường' : 'Chi tiết tuyến đường'}
     >
-      {mode === 'create' && (
+      {(mode === 'create' || mode === 'edit') && (
         <RouteCreateContent
-          key="create"
+          key={mode === 'edit' ? `edit-${routeDetail?.id}` : 'create'}
+          initialRoute={mode === 'edit' ? routeDetail ?? undefined : undefined}
           onDraftStopsChange={onDraftStopsChange} selectedDraftStopId={selectedDraftStopId} onFocusDraftStop={onFocusDraftStop}
           stations={stations}
           saving={saving}
@@ -464,6 +488,7 @@ export function RouteDrawer({
       )}
       {mode === 'view' && (
         <RouteViewContent
+          saving={saving} onEdit={onEdit} onDeactivate={onDeactivate}
           key={routeDetail?.id ?? 'view'}
           onFocusStop={onFocusStop}
           routeDetail={routeDetail}

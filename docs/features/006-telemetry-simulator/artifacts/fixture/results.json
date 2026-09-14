@@ -1,6 +1,7 @@
 {
   "mode": "fixture",
   "checks": [
+    "Check-in read model is visible with explicit empty state",
     "Two tabs receive backend movement, identical paused clock and markers",
     "5x controls synchronized, source SIMULATOR and reload resync",
     "Vehicle selection and follow",
@@ -13,5 +14,5 @@
   ],
   "pageErrors": [],
   "api": "Isolated verification only; no user data writes",
-  "date": "2026-09-13T17:30:40.989Z"
+  "date": "2026-09-14T02:03:06.700Z"
 }

@@ -19,8 +19,16 @@ public record RouteSummaryResponse(
         long totalDwellDurationSeconds,
         long estimatedTripDurationSeconds,
         Instant calculatedAt,
-        Instant createdAt
+        Instant createdAt,
+        boolean active
 ) {
+    public RouteSummaryResponse(Long id, String name, RouteTransportMode transportMode, RoutingProviderName routingProvider,
+                                String startStationName, String endStationName, int stopCount, long totalDistanceMeters,
+                                long estimatedTravelDurationSeconds, long totalDwellDurationSeconds, long estimatedTripDurationSeconds,
+                                Instant calculatedAt, Instant createdAt) {
+        this(id, name, transportMode, routingProvider, startStationName, endStationName, stopCount, totalDistanceMeters,
+                estimatedTravelDurationSeconds, totalDwellDurationSeconds, estimatedTripDurationSeconds, calculatedAt, createdAt, true);
+    }
     public static RouteSummaryResponse from(RouteEntity entity) {
         String startName = entity.getStops().isEmpty() ? "" : entity.getStops().get(0).getStationNameSnapshot();
         String endName = entity.getStops().isEmpty() ? "" : entity.getStops().get(entity.getStops().size() - 1).getStationNameSnapshot();
@@ -38,7 +46,8 @@ public record RouteSummaryResponse(
                 entity.getTotalDwellDurationSeconds(),
                 entity.getEstimatedTripDurationSeconds(),
                 entity.getCalculatedAt(),
-                entity.getCreatedAt()
+                entity.getCreatedAt(),
+                entity.isActive()
         );
     }
 }

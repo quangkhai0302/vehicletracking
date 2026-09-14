@@ -20,6 +20,12 @@ public class TripController {
         var created = service.create(request);
         return ResponseEntity.created(URI.create("/api/v1/trips/" + created.trip().id())).body(created);
     }
+    @PutMapping("/{id}") public TripDetailResponse update(@PathVariable long id, @Valid @RequestBody TripUpdateRequest request) {
+        return service.update(id, request);
+    }
+    @DeleteMapping("/{id}") public ResponseEntity<Void> delete(@PathVariable long id) {
+        service.delete(id); return ResponseEntity.noContent().build();
+    }
     @PostMapping("/{id}/start") public TripDetailResponse start(@PathVariable long id) { return service.start(id); }
     @PostMapping("/{id}/complete") public TripDetailResponse complete(@PathVariable long id) { return service.complete(id); }
     @PostMapping("/{id}/cancel") public TripDetailResponse cancel(@PathVariable long id) { return service.cancel(id); }

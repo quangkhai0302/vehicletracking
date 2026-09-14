@@ -1,6 +1,11 @@
 spring:
   application:
     name: vehicletracking-backend
+  config:
+    # Local development: run from the repository root or vehicletracking-backend.
+    # Later files override earlier files; process environment still takes precedence.
+    # These files use unquoted KEY=value (Java properties), not shell export syntax.
+    import: "${APP_ENV_IMPORT:optional:file:../.env[.properties],optional:file:./.env[.properties],optional:file:./vehicletracking-backend/.env[.properties]}"
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/vehicle_tracking}
     username: ${DB_USERNAME:postgres}
@@ -26,15 +31,26 @@ here:
   traffic:
     enabled: ${HERE_TRAFFIC_ENABLED:false}
     base-url: ${HERE_TRAFFIC_BASE_URL:https://data.traffic.hereapi.com}
+    tile-base-url: ${HERE_TRAFFIC_TILE_BASE_URL:https://traffic.maps.hereapi.com}
     api-key: ${HERE_API_KEY:}
     connect-timeout-ms: ${HERE_CONNECT_TIMEOUT_MS:${HERE_TRAFFIC_CONNECT_TIMEOUT_MS:2000}}
     read-timeout-ms: ${HERE_READ_TIMEOUT_MS:${HERE_TRAFFIC_READ_TIMEOUT_MS:5000}}
+    cache-ttl-seconds: ${TRAFFIC_CACHE_TTL_SECONDS:60}
+    stale-ttl-seconds: ${TRAFFIC_STALE_TTL_SECONDS:300}
+    corridor-radius-meters: ${TRAFFIC_CORRIDOR_RADIUS_METERS:100}
+    max-bbox-span-hundredths: ${TRAFFIC_MAX_BBOX_SPAN_HUNDREDTHS:100}
   routing:
     enabled: ${HERE_ROUTING_ENABLED:false}
     base-url: ${HERE_ROUTING_BASE_URL:https://router.hereapi.com}
     api-key: ${HERE_API_KEY:}
     connect-timeout-ms: ${HERE_ROUTING_CONNECT_TIMEOUT_MS:2000}
     read-timeout-ms: ${HERE_ROUTING_READ_TIMEOUT_MS:10000}
+
+reroute:
+  delay-seconds: ${REROUTE_DELAY_SECONDS:600}
+  delay-percent: ${REROUTE_DELAY_PERCENT:30}
+  cooldown-seconds: ${REROUTE_COOLDOWN_SECONDS:300}
+  consecutive-fetches: ${REROUTE_CONSECUTIVE_FETCHES:2}
 
 app:
   cors:

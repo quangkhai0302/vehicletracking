@@ -14,6 +14,10 @@ import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource;
 import com.quangkhai.vehicletracking_backend.telemetry.repository.*;
 import com.quangkhai.vehicletracking_backend.telemetry.service.TelemetryService;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
+import com.quangkhai.vehicletracking_backend.traffic.TrafficSource;
+import com.quangkhai.vehicletracking_backend.traffic.TrafficStatus;
+import com.quangkhai.vehicletracking_backend.traffic.eta.TripEtaResponse;
+import com.quangkhai.vehicletracking_backend.traffic.eta.TrafficEtaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +37,7 @@ public class SimulationService {
     private final TelemetryRepository samples;
     private final VehiclePositionRepository positions;
     private final Clock operationsClock;
+    private final TrafficEtaService trafficEta;
     // Routes are immutable. Bound the decoded geometry cache for repeated scheduler/SSE reads.
     private final Map<Long,RouteMotion> motions=Collections.synchronizedMap(new LinkedHashMap<>(16,0.75f,true) {
         @Override protected boolean removeEldestEntry(Map.Entry<Long,RouteMotion> eldest) { return size()>100; }
@@ -123,8 +128,11 @@ public class SimulationService {
         double delta=Math.max(0,Duration.between(run.getLastTickAt(),now).toNanos()/1_000_000_000d);
         if(delta==0) return;
         var motion=motion(trip);
-        run.advance(Math.min(motion.duration(),run.getElapsedSeconds()+delta*run.getMultiplier()),now);
-        emit(trip,run,false);
+        double baselineRemaining = Math.max(0, motion.duration() - run.getElapsedSeconds());
+        double trafficRate = trafficEta.simulationRate(trip.getId(), baselineRemaining);
+        double progressDelta = delta * run.getMultiplier() * trafficRate;
+        run.advance(Math.min(motion.duration(),run.getElapsedSeconds()+progressDelta),now);
+        emit(trip,run,false,trafficRate);
         if(run.getElapsedSeconds()>=motion.duration()) { tripService.complete(trip.getId()); run.changeStatus(SimulationStatus.COMPLETED,now); }
     }
     private void stop(TripEntity trip,SimulationRunEntity run) {
@@ -135,8 +143,23 @@ public class SimulationService {
         if(run.getStatus()!=SimulationStatus.COMPLETED && run.getStatus()!=SimulationStatus.STOPPED) run.changeStatus(SimulationStatus.STOPPED,now());
     }
     private void emit(TripEntity trip,SimulationRunEntity run,boolean stationary) {
+        double baselineRemaining = Math.max(0, motion(trip).duration() - run.getElapsedSeconds());
+        double trafficRate = stationary ? 0d : trafficEta.simulationRate(trip.getId(), baselineRemaining);
+        emit(trip, run, stationary, trafficRate);
+    }
+    private void emit(TripEntity trip,SimulationRunEntity run,boolean stationary,double trafficRate) {
         var frame=motion(trip).at(run.getElapsedSeconds());
+        if (!stationary && frame.speedKmh() > 0 && Double.isFinite(trafficRate)) {
+            frame = new RouteMotion.Frame(frame.latitude(), frame.longitude(), frame.heading(),
+                frame.speedKmh() * Math.max(0, Math.min(1.5d, trafficRate)), frame.progressPercent(),
+                frame.nextStopSequence(), frame.nextStopEtaSeconds(), frame.dwelling(), frame.finished());
+        }
         Instant recorded=now();
+        // TripService uses the application wall clock for lifecycle changes;
+        // keep the first simulator sample from being timestamped just before
+        // startedAt when a deterministic/test clock is a few microseconds
+        // behind it.
+        if (trip.getStartedAt()!=null && recorded.isBefore(trip.getStartedAt())) recorded=trip.getStartedAt();
         var latest=positions.findById(trip.getVehicle().getId());
         if(latest.isPresent() && !recorded.isAfter(latest.get().getSample().getRecordedAt()))
             recorded=latest.get().getSample().getRecordedAt().plus(1,ChronoUnit.MICROS);
@@ -150,11 +173,36 @@ public class SimulationService {
             try { frame=motion(trip).at(run.getElapsedSeconds()); }
             catch(ResponseStatusException ignored) { /* Historical malformed geometry remains inspectable. */ }
         }
+        if (frame != null && run.getStatus() == SimulationStatus.RUNNING) {
+            double baselineRemaining = Math.max(0, motion(trip).duration() - run.getElapsedSeconds());
+            double trafficRate = trafficEta.simulationRate(trip.getId(), baselineRemaining);
+            if (frame.speedKmh() > 0 && Double.isFinite(trafficRate)) {
+                frame = new RouteMotion.Frame(frame.latitude(), frame.longitude(), frame.heading(),
+                    frame.speedKmh() * Math.max(0, Math.min(1.5d, trafficRate)), frame.progressPercent(),
+                    frame.nextStopSequence(), frame.nextStopEtaSeconds(), frame.dwelling(), frame.finished());
+            }
+        }
         if(frame!=null && run.getStatus()!=SimulationStatus.RUNNING)
             frame=new RouteMotion.Frame(frame.latitude(),frame.longitude(),frame.heading(),0,frame.progressPercent(),
                 frame.nextStopSequence(),frame.nextStopEtaSeconds(),frame.dwelling(),frame.finished());
         return new SimulationResponse(run.getId(),trip.getId(),run.getStatus(),run.getMultiplier(),run.getElapsedSeconds(),
-            trip.getRoute().getEstimatedTripDurationSeconds(),simulatedAt(trip,run),run.getUpdatedAt(),run.getErrorMessage(),run.getReplacementTripId(),frame);
+            trip.getRoute().getEstimatedTripDurationSeconds(),simulatedAt(trip,run),run.getUpdatedAt(),run.getErrorMessage(),run.getReplacementTripId(),frame,
+            trafficMetadata(trip));
+    }
+    private SimulationTrafficMetadata trafficMetadata(TripEntity trip) {
+        try {
+            TripEtaResponse eta = trafficEta.calculate(trip.getId());
+            Long nextEta = eta.nextStopSequence() == null ? null : eta.stops().stream()
+                    .filter(stop -> stop.sequenceNumber() == eta.nextStopSequence())
+                    .map(TripEtaResponse.EtaStop::etaSeconds)
+                    .findFirst().orElse(null);
+            return new SimulationTrafficMetadata(eta.source(), eta.status(), nextEta,
+                    eta.trafficObservedAt(), eta.trafficFetchedAt(), eta.status() == TrafficStatus.BLOCKED, eta.warning());
+        } catch (RuntimeException ignored) {
+            // Traffic must never break simulator position/lifecycle updates.
+            return new SimulationTrafficMetadata(TrafficSource.UNAVAILABLE, TrafficStatus.UNAVAILABLE,
+                    null, null, null, false, "TRAFFIC_UNAVAILABLE");
+        }
     }
     private RouteMotion motion(TripEntity trip) {
         try { return motions.computeIfAbsent(trip.getRoute().getId(),id->new RouteMotion(RouteDetailResponse.from(trip.getRoute()))); }

@@ -115,6 +115,8 @@
                     <systemPropertyVariables>
                         <!-- Stable JDBC timezone on Windows and repeatable schedule tests. -->
                         <user.timezone>UTC</user.timezone>
+                        <!-- Never load developer credentials from .env during Maven tests. -->
+                        <APP_ENV_IMPORT>optional:classpath:/no-local-env.properties</APP_ENV_IMPORT>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

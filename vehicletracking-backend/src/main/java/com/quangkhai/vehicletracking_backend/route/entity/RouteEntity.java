@@ -66,6 +66,9 @@ public class RouteEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(nullable = false)
+    private boolean active = true;
+
     @OneToMany(mappedBy = "route", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sequenceNumber ASC")
     @BatchSize(size = 50)
@@ -115,5 +118,24 @@ public class RouteEntity {
     public void addSection(RouteSectionEntity section) {
         sections.add(section);
         section.setRoute(this);
+    }
+
+    public void deactivate() { active = false; }
+
+    public void replaceDefinition(RouteEntity replacement) {
+        this.name = replacement.name;
+        this.transportMode = replacement.transportMode;
+        this.routingProvider = replacement.routingProvider;
+        this.totalDistanceMeters = replacement.totalDistanceMeters;
+        this.estimatedTravelDurationSeconds = replacement.estimatedTravelDurationSeconds;
+        this.baseTravelDurationSeconds = replacement.baseTravelDurationSeconds;
+        this.totalDwellDurationSeconds = replacement.totalDwellDurationSeconds;
+        this.estimatedTripDurationSeconds = replacement.estimatedTripDurationSeconds;
+        this.estimatedDepartureAt = replacement.estimatedDepartureAt;
+        this.calculatedAt = replacement.calculatedAt;
+        this.stops.clear();
+        this.sections.clear();
+        replacement.stops.forEach(this::addStop);
+        replacement.sections.forEach(this::addSection);
     }
 }

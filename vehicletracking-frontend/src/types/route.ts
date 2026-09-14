@@ -54,6 +54,7 @@ export interface RouteSummary {
   estimatedTripDurationSeconds: number;
   calculatedAt: string;
   createdAt: string;
+  active?: boolean;
 }
 
 export interface RouteDetail {
@@ -72,4 +73,3 @@ export interface RouteDetail {
   stops: RouteStop[];
   sections: RouteSection[];
 }
-

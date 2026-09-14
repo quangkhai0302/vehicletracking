@@ -10,7 +10,7 @@ import java.time.Duration;
 @Configuration
 public class HereRoutingHttpClientConfig {
 
-    @Bean
+    @Bean(name = "hereRoutingRestClient")
     public RestClient hereRoutingRestClient(HereRoutingProperties properties) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()));

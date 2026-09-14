@@ -13,6 +13,7 @@ export interface VehicleInput { plateNumber: string; name: string; description: 
 export type TripStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 export type TripAction = 'start' | 'complete' | 'cancel';
 export interface TripInput { vehicleId: number; routeId: number; scheduledDepartureAt: string }
+export interface TripUpdateInput { scheduledDepartureAt: string }
 export interface TripSummary {
   id: number; vehicleId: number; vehiclePlateNumber: string; routeId: number; routeName: string;
   status: TripStatus; scheduledDepartureAt: string; plannedEndAt: string;

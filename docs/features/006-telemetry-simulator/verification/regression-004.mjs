@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const output = fileURLToPath(new URL('../artifacts/regression-004/', import.meta.url));
 await mkdir(output, { recursive: true });
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const browser = await chromium.launch({ ...(process.env.VERIFICATION_BROWSER_PATH
+  ? { executablePath: process.env.VERIFICATION_BROWSER_PATH } : { channel: 'msedge' }), headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await context.newPage();
 page.setDefaultTimeout(12000);
@@ -48,7 +49,7 @@ let detailDelay = 0;
 let postFailure = false;
 let corruptRoute = false;
 await context.route('**/api/**', async (route) => {
-  if(new URL(route.request().url()).pathname.endsWith('/telemetry/snapshot')) return route.fulfill({json:{serverTime:new Date().toISOString(),positions:[],simulations:[],trips:[]}});
+  if(new URL(route.request().url()).pathname.endsWith('/telemetry/snapshot')) return route.fulfill({json:{serverTime:new Date().toISOString(),positions:[],simulations:[],trips:[],checkIns:[]}});
   if(new URL(route.request().url()).pathname.endsWith('/telemetry/stream')) return route.fulfill({contentType:'text/event-stream',body:': fixture heartbeat\\n\\n'});
 
   const request = route.request();

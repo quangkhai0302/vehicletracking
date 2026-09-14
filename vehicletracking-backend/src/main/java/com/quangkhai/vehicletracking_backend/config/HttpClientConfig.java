@@ -1,6 +1,5 @@
 package com.quangkhai.vehicletracking_backend.config;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -9,17 +8,16 @@ import org.springframework.web.client.RestClient;
 import java.time.Duration;
 
 @Configuration
-@ConditionalOnProperty(prefix = "here.traffic", name = "enabled", havingValue = "true")
 public class HttpClientConfig {
 
-    @Bean
+    @Bean(name = "hereTrafficRestClient")
     public RestClient hereTrafficRestClient(HereTrafficProperties properties) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()));
         requestFactory.setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMs()));
 
         return RestClient.builder()
-                .baseUrl(properties.getBaseUrl())
+                .baseUrl(properties.getApiBaseUrl())
                 .requestFactory(requestFactory)
                 .build();
     }

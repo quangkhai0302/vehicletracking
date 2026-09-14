@@ -1,10 +1,10 @@
 # Báo cáo bàn giao session — Vehicle Tracking
 
-**Mốc chốt: 2026-09-14, múi giờ Asia/Saigon. Workspace: `D:\vehicletracking`, PowerShell, branch `master`, HEAD `8d398b0` (`docs: add project handoff documentation`).**
+**Mốc chốt: 2026-09-14, múi giờ Asia/Saigon. Workspace hiện tại: `/home/khainq/Code/vehicletracking`, bash. Working tree có source 004–008 chưa commit.**
 
-Đây là báo cáo tổng hợp để tiếp tục ở session mới mà không cần đọc lại hội thoại. Nội dung được đối chiếu với source, cấu hình và log đang có trên máy. Các kết quả test bên dưới thuộc lần chạy được nêu, không phải một lần chạy mới trong lượt viết báo cáo này.
+Đây là báo cáo tổng hợp để tiếp tục ở session mới mà không cần đọc lại hội thoại. Nội dung được đối chiếu với source, cấu hình và log đang có trên máy. Các kết quả test bên dưới ghi rõ lệnh và phạm vi; full suite/browser end-to-end vẫn chưa chạy trong môi trường hiện tại.
 
-**Việc cần làm đầu tiên ở session tiếp theo: hoàn tất kiểm tra feature 006.** Backend/frontend 006 đã có source và một phần kiểm thử đạt, nhưng HTTP/SSE qua Spring, browser nối PostgreSQL thật và full Maven suite sau 006 chưa được chạy. Chưa chuyển sang 007 hoặc tuyên bố 006 đã hoàn thành.
+**Trạng thái hiện tại: Feature 009 và 010 đã triển khai source; việc tiếp theo là migrate V7/V8 và verification integration/browser.** Backend 008 đã có provider/cache/API/matching/ETA theo vị trí/raster tile proxy, simulator rate/blocked metadata; Feature 009 thêm evaluator hai fetch, route revision, notification persistence/API và SSE; Feature 010 thêm management endpoints. Test policy/compile/frontend pass; full Maven suite ở môi trường hiện tại bị giới hạn JDK 26 Byte Buddy và Docker PostgreSQL. 007–010 vẫn còn edge/load/live evidence.
 
 ## 1. Mục tiêu sản phẩm và quyết định đã được người dùng chấp thuận
 
@@ -14,22 +14,22 @@ Người dùng không hài lòng dashboard truyền thống và đã chọn **Ma
 
 004 và 005 đã triển khai theo yêu cầu trực tiếp. Người dùng cũng đã yêu cầu trực tiếp triển khai **006 — telemetry và simulator cơ bản**, rồi nhiều lần yêu cầu tiếp tục. Phần công việc còn lại của 006 đã được cho phép về phạm vi; không cần xin lại quyết định có làm feature hay không. Quyền thực thi công cụ/hạn mức là vấn đề riêng.
 
-007–009 là lộ trình đã đề xuất, chưa có source/hồ sơ feature riêng và chưa tự triển khai trong lượt 006. Không đưa driver CRUD, MQTT/broker, email/SMS hoặc production infrastructure thành điều kiện của các mốc hiện tại.
+007 đã được triển khai theo yêu cầu trực tiếp. 008 và 009 đã được triển khai source trong working tree; 009 vẫn cần integration/live verification. Không đưa driver CRUD, MQTT/broker, email/SMS hoặc production infrastructure thành điều kiện của các mốc hiện tại.
 
 ## 2. Trạng thái thực tế theo chức năng
 
 | Chức năng | Đã có | Còn thiếu / giới hạn bằng chứng |
 | --- | --- | --- |
-| Quản lý trạm | CRUD, xóa mềm, tọa độ, bán kính, map picking và kéo marker, tìm tên/địa chỉ | Chưa tự check-in; tìm kiếm tọa độ chưa có |
+| Quản lý trạm | CRUD, xóa mềm, tọa độ, bán kính, map picking và kéo marker, tìm tên/địa chỉ | Check-in do feature 007 xử lý theo TripStop snapshot; tìm kiếm tọa độ chưa có |
 | Lập tuyến | 2–50 điểm, reorder, dwell, gọi HERE server-side, lưu snapshot và vẽ tuyến | Chưa edit/recalculate/deactivate/versioning tuyến đã lưu; chưa xác minh HERE live trong session này |
 | Layout 004 | Map-First dark, drawer/panel, mobile, camera tránh vùng bị che, drag/keyboard reorder | Prototype/ảnh dashboard cũ chỉ là lịch sử |
 | Xe và chuyến 005 | CRUD/xóa mềm xe; gán tuyến + giờ xuất phát; snapshot lịch; start/complete/cancel; khóa xe và DB unique bảo vệ race | Chưa có driver, edit/delete trip; hủy bằng lifecycle |
-| Telemetry 006 | HTTP GPS contract, lịch sử/latest JPA, chống trùng và bản tin cũ, source GPS/SIMULATOR | HTTP test mới chưa compile/run; chưa kết nối thiết bị GPS thật |
-| Simulator 006 | Nội suy geometry, clock ở backend, dwell, play/pause/1×/5×/10×/stop/reset, persistence, recovery paused, UI | 24 test thuật toán/JPA đạt; scheduler + HTTP/SSE end-to-end vẫn cần kiểm tra |
-| Realtime UI 006 | SSE snapshot, marker/follow, nguồn/thời điểm, stale/offline, đồng bộ panel/status | Browser hai tab mới chạy với Node fixture/SSE; chưa chạy với Spring/PostgreSQL thật |
-| Check-in 007 | Có bán kính trạm và snapshot radius trong trip | Chưa có stop visit, thuật toán giao cắt GPS/geofence, actual arrival/check-out |
-| Traffic/ETA 008 | Có cấu hình HERE Traffic, service frontend cũ chưa dùng, snapshot duration tuyến | Chưa có traffic controller/provider nghiệp vụ, flow/incidents overlay, ETA mọi trạm theo traffic |
-| Reroute/cảnh báo 009 | UI AlertStream đã có chỗ hiển thị | Chưa có revision, thông báo persistence, trigger/cooldown hoặc phát cảnh báo nghiệp vụ |
+| Telemetry 006 | HTTP GPS contract, lịch sử/latest JPA, chống trùng và bản tin cũ, source GPS/SIMULATOR | Chưa kết nối thiết bị GPS thật |
+| Simulator 006 | Nội suy geometry, clock ở backend, dwell, play/pause/1×/5×/10×/stop/reset, persistence, recovery paused, UI | Browser Spring/PostgreSQL đã chạy trong extension 007; chưa có traffic live |
+| Realtime UI 006 | SSE snapshot, marker/follow, nguồn/thời điểm, stale/offline, đồng bộ panel/status | Chưa có load benchmark production |
+| Check-in 007 | GPS POINT/SEGMENT, simulator ROUTE_TRACE, ordered visits, revision, GET/API snapshot/SSE, timeline UI; browser core đã xác nhận 3 visits | Còn load/edge evidence; feature đang `Implementing` |
+| Traffic/ETA 008 | Provider v7 flow/incidents server-side, raster tile proxy, cache fresh/stale, API bbox, ETA theo vị trí, simulator traffic rate/blocked, map tile/ETA UI; live spike upstream flow/incidents/tile HTTP 200 | Chưa xác minh browser → Spring → HERE; chưa full-suite/load evidence |
+| Reroute/cảnh báo 009 | Revision + checkpoint + notification persistence, evaluator HERE, API/SSE và AlertStream đã có source | Chưa chạy full integration PostgreSQL/HERE live; chưa điều khiển dẫn đường thiết bị |
 
 Evidence chính: các symbol và file ở mục 5–9. Không quy đổi thành phần trăm; “có source”, “đã test” và “đã nghiệm thu end-to-end” là các trạng thái khác nhau.
 
@@ -65,7 +65,7 @@ Tên biến cần biết, **không cần đọc giá trị trong .env để hi�
 
 - Backend DB: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`. Compose dùng nhóm `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`; phải cấu hình hai phía tương ứng khi chạy dev.
 - Routing: `HERE_ROUTING_ENABLED`, `HERE_API_KEY`, `HERE_ROUTING_BASE_URL`, các timeout routing. Mặc định disabled. Khi cần tạo tuyến mới bằng HERE phải cấu hình key backend hợp lệ; simulator chạy tuyến đã lưu không cần gọi lại HERE.
-- Traffic: `HERE_TRAFFIC_ENABLED`, base URL/key/timeouts đã có cấu hình, chưa đồng nghĩa feature Traffic đã hoạt động.
+- Traffic: `HERE_TRAFFIC_ENABLED`, base URL/key/timeouts/TTL đã có cấu hình; source provider/cache/API/ETA nằm trong `vehicletracking-backend/.../traffic`, không đồng nghĩa đã xác minh HERE live.
 - CORS: `APP_CORS_ALLOWED_ORIGINS` hoặc fallback `CORS_ALLOWED_ORIGINS`; default có localhost:5173 và 127.0.0.1:5173. Config `WebConfig` cho `/api/**`.
 - Frontend: `VITE_API_BASE_URL` là origin/base backend, ví dụ `http://localhost:8080`; services tự nối `/api/v1`. Không đặt key HERE hoặc secret trong `VITE_*`. `vite-env.d.ts` chỉ khai báo type public này.
 - 006 không yêu cầu env mới. `app.simulation.scheduling-enabled=false` là Spring property phục vụ test clock; mặc định true khi chạy ứng dụng.
@@ -195,8 +195,9 @@ Nguồn: `vehicletracking-backend/src/main/resources/db/migration/`.
 | V3 | `V3__create_routes_tables.sql` | Routes, route_stops, route_sections, snapshots |
 | V4 | `V4__create_vehicles_and_trips.sql` | Vehicles, trips, trip_stops; unique biển số, partial unique running vehicle, state/time CHECK |
 | V5 | `V5__create_telemetry_and_simulation.sql` | Telemetry history, latest positions, simulation runs; source/time data, FK, unique/check |
+| V6 | `V6__create_trip_stop_checkins.sql` | Durable detector checkpoint, immutable ordered stop visits, provenance composite FK/checks |
 
-Flyway + `ddl-auto=validate`, `open-in-view=false`. Không sửa migration đã chia sẻ/áp dụng. V4/V5 đã chạy trong database test tạm; agent chưa áp dụng vào database phát triển người dùng trong các lượt này, không biết người dùng có tự chạy backend sau đó hay chưa. Khi thêm schema sau 006, kiểm tra inventory để chọn version mới, hiện kế tiếp là V6.
+Flyway + `ddl-auto=validate`, `open-in-view=false`. Không sửa migration đã chia sẻ/áp dụng. V6 đã chạy trong PostgreSQL Testcontainers; database phát triển người dùng sẽ áp dụng khi backend khởi động.
 
 ### 7.2. HTTP contract
 
@@ -221,10 +222,14 @@ Tất cả prefix `/api/v1`; controller code là nguồn chính xác. Không tr�
 | GET `/telemetry/stream` | SSE event snapshot |
 | POST `/trips/{tripId}/simulation/play`, `/pause`, `/stop`, `/reset` | SimulationResponse; reset trả tripId mới |
 | POST `/trips/{tripId}/simulation/speed` | `{multiplier:1}` hoặc 5 hoặc 10 → SimulationResponse |
+| GET `/trips/{tripId}/check-ins` | Ordered `TripCheckInsResponse` gồm revision, target, awaitingExit và visits |
+| GET `/traffic/flow?west=...&south=...&east=...&north=...` | HERE Traffic flow envelope theo viewport |
+| GET `/traffic/incidents?west=...&south=...&east=...&north=...` | HERE incidents envelope theo viewport |
+| GET `/trips/{tripId}/eta` | ETA từng stop còn lại, source/status/freshness/affected segments |
 
 GPS payload có `eventId` UUID, `vehicleId`, `tripId`, `recordedAt` ISO Instant, `latitude`, `longitude`, `speedKmh`, `heading`, `accuracyMeters`, `source:"GPS"`. Client gửi SIMULATOR bị 400. Validation 400, missing 404, business conflict/old packet/duplicate collision 409; route provider còn có 422/502/503/504 theo `RouteExceptionHandler/RouteErrorCode`.
 
-`SimulationResponse` gồm id, tripId, status, multiplier, elapsedSeconds, durationSeconds, simulatedAt, updatedAt, errorMessage, replacementTripId và frame. Frame gồm tọa độ, heading, speedKmh, progressPercent, nextStopSequence, nextStopEtaSeconds, dwelling, finished; có thể null khi geometry/run lỗi. Không diễn giải nextStop/progress là actual check-in.
+`SimulationResponse` gồm id, tripId, status, multiplier, elapsedSeconds, durationSeconds, simulatedAt, updatedAt, errorMessage, replacementTripId, frame và field additive `traffic` (source/status/nextStopEtaSeconds/observedAt/fetchedAt/blocked/warning). Frame gồm tọa độ, heading, speedKmh, progressPercent, nextStopSequence, nextStopEtaSeconds, dwelling, finished; có thể null khi geometry/run lỗi. Không diễn giải nextStop/progress là actual check-in.
 
 ## 8. Frontend Map-First và quyền sở hữu state
 
@@ -262,13 +267,16 @@ Component cũ `TrackingPanel`, `VehicleDrawer`, `SimulatorControls`, type `Vehic
 | 005 full backend | `mvnw.cmd test` | **118 tests, 0 failures/errors/skipped**, 2026-09-13 23:42:59 +07 |
 | 006 production compile | `mvnw.cmd -DskipTests compile` | **BUILD SUCCESS**, 2026-09-14 00:08:29 +07; đây không compile test HTTP mới thêm sau |
 | 006 focused backend | `mvnw.cmd -Dtest=RouteMotionTest,OperationsIntegrationTest test` | **24 tests, 0 failures/errors/skipped**, 00:11:55 +07 |
-| 006 frontend | lint, tsc --noEmit, build | Exit 0, không lint warning, **1887 modules**; build cuối JS ~454.63 kB/gzip 135.98 kB |
-| 006 browser simulator | `live-browser.mjs` không có VERIFICATION_API | **9 nhóm**, pageErrors=[], Node API fixture có SSE socket thật; kết quả 00:30:40 +07 |
-| 006 browser regression 004 | `regression-004.mjs` | **19 nhóm**, pageErrors=[], fixture; 00:27:47 +07 |
-| 006 browser regression 005 | `regression-005.mjs` | **11 nhóm**, pageErrors=[], fixture; 00:27:07 +07 |
-| 006 HTTP/SSE + live browser/full suite | Các lệnh ở mục 10 | **Chưa chạy; không kết luận pass** |
+| 006 frontend + 007 UI | lint, tsc --noEmit, build (Node v24.16.0) | Exit 0, không lint warning, **1889 modules**; build JS 459.19 kB/gzip 137.37 kB, CSS 105.25 kB/gzip 23.64 kB |
+| 006 browser simulator | `live-browser.mjs` không có VERIFICATION_API | **10 nhóm**, pageErrors=[], Node API fixture có SSE socket thật; explicit empty check-in state; kết quả 2026-09-14 |
+| 006 browser regression 004 | `regression-004.mjs` | **19 nhóm lịch sử**, pageErrors=[], fixture; lần rerun hiện tại dừng ở locator form trạm, không dùng làm pass evidence |
+| 006 browser regression 005 | `regression-005.mjs` | **11 nhóm lịch sử**, pageErrors=[], fixture; lần rerun hiện tại thiếu summary trip, không dùng làm pass evidence |
+| 007 backend/full + HTTP/SSE | `bash ./mvnw -q test` | **178 tests, 0 failures/errors/skipped**, PostgreSQL Testcontainers V1→V8; check-in slice 12 integration + 2 HTTP/SSE |
+| 007 browser fixture/Spring | `docs/features/007-automatic-station-check-in/verification/live-browser.mjs`; `-Dverification.browser006=true` | Fixture **10 checks**, Spring/PostgreSQL **9 checks** (ordered visits), `pageErrors=[]` |
+| 008 provider/cache/controller/matching/tile/position/config-error | `HereTrafficProviderTest,TrafficQueryServiceTest,TrafficControllerTest,TrafficRouteMatcherTest,RoutePositionMatcherTest,TrafficEtaServicePolicyTest` | **20 tests pass**; backend production compile pass; live upstream spike flow/incidents/tile HTTP 200; Google traffic overlay đã thay bằng HERE tile proxy; chưa chạy browser/Spring end-to-end |
+| 008 frontend | Node v24.16.0: lint, tsc, build | Exit 0; không có lint warning; build pass |
 
-**Không cộng 118 cũ + 24 chọn lọc rồi gọi đó là full suite hiện tại.** Surefire reports còn nhiều mốc; dùng log từng lần chạy và tổng Maven của lần tương ứng.
+**Mốc 008:** các test deterministic ở trên pass. Lần thử `./mvnw test` hiện không thể lặp lại mốc 155 vì JDK 26 không attach được Byte Buddy Mockito và Docker PostgreSQL không khả dụng; không dùng kết quả đó để kết luận regression. Frontend lint/tsc/build hiện pass bằng Node v24.16.0.
 
 Evidence:
 
@@ -277,19 +285,19 @@ Evidence:
 - [Simulator fixture results](features/006-telemetry-simulator/artifacts/fixture/results.json), [Regression 004 results](features/006-telemetry-simulator/artifacts/regression-004/results.json), [Regression 005 results](features/006-telemetry-simulator/artifacts/regression-005/results.json).
 - [Ảnh desktop simulator](features/006-telemetry-simulator/artifacts/fixture/simulator-desktop.png), [Panel 320 px](features/006-telemetry-simulator/artifacts/fixture/simulator-320.png). Ảnh và failure.png từ lần lỗi trước không thay cho results cuối.
 
-24 test backend 006 gồm `T/simulation/RouteMotionTest` 14 (decoder, invalid geometry, distance interpolation, dwell/loop/bounds) và `OperationsIntegrationTest` 10 (JPA/clock/dedupe/source/future/old/wrong vehicle/pause/multiplier/completion/reset/recover/manual cancel/concurrent play). Testcontainers đã chạy migrations V1–V5 và Hibernate validate.
+178 test backend trong lần chạy gần nhất gồm toàn bộ hồi quy hiện tại, `RouteMotionTest` 14, `GeofenceCrossingTest` 3 và `OperationsIntegrationTest` 12 (thêm GPS POINT→SEGMENT và simulator ROUTE_TRACE ordered visits), cùng HTTP/SSE check-in. Testcontainers đã chạy migrations V1–V8 và Hibernate validate.
 
-39 nhóm browser fixture gồm hai tab, pause clock, tốc độ 5×/10×, reset/complete, follow, 409 recovery, GPS stale/offline, disconnect khóa lệnh/reconnect, mobile 320/390 px; hồi quy còn 1024/768/landscape và trạm/tuyến/xe/chuyến. Cử chỉ cảm ứng vật lý, HERE live, thiết bị GPS thật và production load chưa được kiểm chứng.
+Bộ browser fixture lịch sử gồm 39 nhóm (hai tab, pause clock, tốc độ 5×/10×, reset/complete, follow, 409 recovery, GPS stale/offline, disconnect khóa lệnh/reconnect, mobile 320/390 px); hồi quy còn 1024/768/landscape và trạm/tuyến/xe/chuyến. Cử chỉ cảm ứng vật lý, HERE live, thiết bị GPS thật và production load chưa được kiểm chứng.
 
-## 10. Phần 006 chưa xong và cách tiếp tục cụ thể
+## 10. Việc còn lại sau feature 007
 
-### 10.1. Điểm bị chặn ở session cũ
+### 10.1. Điểm cần hoàn tất
 
-Sau 24 focused tests đạt, lệnh chạy `OperationsHttpIntegrationTest` với quyền Maven/Docker bị bộ duyệt tự động từ chối: **`Automatic approval review failed: You've hit your usage limit`**, có thông báo thử lại 04:30. Đây là blocker **hạn mức/quyền thực thi ở lần đó**, không phải lỗi test/code đã được xác định. Không suy ra đổi session tự khôi phục hạn mức, cũng không suy ra blocker còn tồn tại mãi.
+Core 007 đã chạy được bằng Maven/Docker. Browser verification riêng cho 007 đã có wrapper và xác nhận visits; còn thiếu load benchmark 10×50 stop/2 tab và các edge/fault-injection case trong test-plan. Đây là phần cần làm để chuyển trạng thái `Implementing` → `Verified`, không phải lỗi runtime đã xác định.
 
-Không chạy lại Maven/Docker qua lệnh gián tiếp để vượt một từ chối hiện hành. Khi môi trường/quyền/hạn mức cho phép, tiếp tục các lệnh đã được chấp thuận về phạm vi dưới đây. Công việc ghi báo cáo hiện tại không cần Maven và đã thực hiện bình thường.
+Khi đổi máy, cài Node ≥22.12 rồi chạy lại frontend build và browser verification riêng cho 007. Không cần HERE key để kiểm tra check-in.
 
-### 10.2. Test HTTP đã chuẩn bị
+### 10.2. Test HTTP đã chạy
 
 File: [OperationsHttpIntegrationTest.java](../vehicletracking-backend/src/test/java/com/quangkhai/vehicletracking_backend/simulation/OperationsHttpIntegrationTest.java).
 
@@ -297,11 +305,11 @@ File: [OperationsHttpIntegrationTest.java](../vehicletracking-backend/src/test/j
 - `httpValidationSourceAndLifecycleContracts`: validation payload, cấm source giả, play/pause/speed/stop/reset và conflict.
 - `twoStreamsReceiveCommittedStateAndReconnectResyncs`: hai HTTP SSE subscribers nhận committed positions, reconnect với Last-Event-ID cũ, PAUSED snapshot, đóng stream và subscriberCount về 0; in `latency_ms` đo từ lệnh play tới hai snapshot.
 - `verification.browser006=true` mở phần extension: tạo fixture riêng, ProcessBuilder gọi Node browser script, truyền `VERIFICATION_API` (bao gồm /api/v1) và `VERIFICATION_TRIP`, timeout 180 giây.
-- **File test này chưa compile/run.** Import LocalServerPort đã sửa đúng `org.springframework.boot.test.web.server.LocalServerPort` bằng đối chiếu jar; Jackson 3 dùng `tools.jackson.databind` và `JsonNode.asString()`. Đối chiếu symbol không chứng minh test chạy được.
+- Test đã compile/run trong full suite; endpoint check-ins trả revision/visit và snapshot/SSE chứa mảng `checkIns`.
 
-### 10.3. Thứ tự chạy ở session mới
+### 10.3. Thứ tự tiếp tục ở session mới
 
-Đầu tiên đọc AGENTS, báo cáo này và [spec 006](features/006-telemetry-simulator/spec.md), rồi kiểm tra working tree/runtime; không làm sạch cây file.
+Đầu tiên đọc AGENTS, báo cáo này và [evidence 007](features/007-automatic-station-check-in/evidence.md), rồi kiểm tra working tree/runtime; không làm sạch cây file.
 
 ```powershell
 Set-Location D:\vehicletracking
@@ -397,38 +405,38 @@ Sau pass: ghi số test thực tế/lệnh/exit code, latency đo được và g
 4. **Theo dõi → Đội xe**: thêm xe; **Chuyến đi**: chọn xe/tuyến/giờ xuất phát.
 5. **Mở mô phỏng chuyến này** hoặc mode **Mô phỏng**, chọn trip và phát. Nút **Khởi hành** trong lifecycle 005 chỉ đổi status; nút **Phát mô phỏng** của 006 mới điều khiển engine.
 6. Chọn cùng trip ở tab thứ hai. Xem position/speed/clock, pause/resume, 1/5/10, follow. Pause không phải hoàn thành chuyến; stop hủy chuyến; chạy lại tạo chuyến mới.
-7. AlertStream và traffic injector chưa hoạt động nghiệp vụ. Thời gian còn lại tới trạm là theo mô phỏng/snapshot, chưa phải ETA HERE live và chưa có auto check-in.
+7. Bật `Lớp bản đồ → Giao thông trực tiếp` để xem flow/incidents theo viewport. Chọn trip để xem ETA từng stop, source/freshness và trạng thái fallback/blocked; AlertStream hiển thị notification 009 khi evaluator tạo cảnh báo. Check-in vẫn do backend xử lý qua telemetry accepted.
 
-## 12. Các feature tiếp theo — đề xuất, chưa implement
+## 12. Các feature tiếp theo
 
-### 007 — Automatic check-in
+### 007 — Automatic check-in — đang triển khai, core đã có
 
-Hoàn tất 006 rồi mới tạo hồ sơ 007 theo workflow/AGENTS thực tế. Dùng telemetry accepted làm đầu vào chung GPS/SIMULATOR, xử lý trong backend; tránh mỗi tab tự check-in.
+Source nằm tại `vehicletracking-backend/.../checkin`, migration V6 và frontend `types/checkin.ts`/`services/checkins.ts`/`hooks/useTripCheckIns.ts`. Dùng telemetry accepted làm đầu vào chung GPS/SIMULATOR, xử lý trong backend; tránh mỗi tab tự check-in. Evidence: [007 evidence](features/007-automatic-station-check-in/evidence.md), walkthrough: [007 walkthrough](features/007-automatic-station-check-in/walkthrough.md).
 
 - Visit key `(trip_id, stop_sequence)` vì A→B→A là ba occurrence; unique DB bảo vệ retry/concurrency. Dùng radius snapshot của TripStop, không radius station hiện tại.
 - Check stop tiếp theo theo thứ tự; xe đi ngang là đủ, không bắt buộc tốc độ=0/dừng. Cần tách suy luận đi qua với phục vụ hành khách nếu sau này có yêu cầu.
 - Xét đoạn nối hai GPS samples để không bỏ sót vùng nhỏ khi xe nhanh, nhưng phải giới hạn gap/accuracy/tốc độ hợp lý; không nội suy thẳng qua trạm sau mất GPS dài.
 - Ghi actualArrivalAt, source và evidence sample; timestamp nội suy phải đánh dấu suy ra. Điểm đầu check-in đúng policy, không tự hoàn thành điểm cuối trùng tọa độ đầu trên tuyến vòng. Hysteresis nếu thêm check-out.
-- Test trong/ngoài/rìa vùng, đứng yên, jitter, trùng/cũ, gap dài, hai vùng chồng nhau, loop, service restart và concurrent retry. Sau đó đưa sự kiện check-in vào UI/stream và lịch thực tế từng stop.
+- Đã test GPS POINT→SEGMENT, simulator ROUTE_TRACE A→B→A, ordered visits, GET/API snapshot/SSE, retry và browser wrapper 007 với 3 visits. Còn load/edge/fault-injection evidence trước khi chuyển `Verified`.
 
-### 008 — HERE Traffic, ETA và simulator theo traffic
+### 008 — HERE Traffic, ETA và simulator theo traffic — source đã triển khai, verification pending
 
-Chưa có provider nghiệp vụ. Dùng config HereTrafficProperties/RestClient hiện có làm điểm xuất phát, API qua backend, không đưa key lên Vite.
+Đã có provider HERE v7 `/flow` và `/incidents` server-side, raster tile proxy v3, envelope freshness/cache, endpoint bbox, matcher geometry/hướng, ETA theo vị trí telemetry/stop/check-in/dwell/fallback/blocked, simulator traffic rate/blocked và metadata additive, frontend layer/ETA UI. Xem [008 evidence](features/008-here-traffic-eta/evidence.md) và [008 walkthrough](features/008-here-traffic-eta/walkthrough.md). Không đưa key lên Vite.
 
-- Cần spike HERE thật tại khu vực TP.HCM để xác minh quyền/coverage flow và incidents. Tài liệu provider là tham khảo, không thay live evidence.
-- DTO nội bộ cần geometry/hướng, speed/đơn vị, jamFactor, confidence, observedAt/fetchedAt; incidents có ID/type/severity/location/hiệu lực.
-- Match phần đường còn lại theo geometry/hướng, không coi mọi incident trong bounding box đều ảnh hưởng trip. Cache/quota/TTL (60 giây từng là đề xuất), timeout/rate-limit, last-known có tuổi dữ liệu; provider lỗi không được hiển thị thông thoáng.
-- ETA qua remaining sections + dwell chưa hoàn thành, stop qua rồi hiển thị actual; không dùng khoảng cách thẳng/tốc độ GPS tức thời. Baseline 005 giữ nguyên, ETA động là giá trị khác.
-- Simulator dùng cùng traffic/ETA service, nguồn HERE_LIVE/LAST_KNOWN/ROUTE_SNAPSHOT rõ. Đồng hồ mô phỏng 5×/10× không có nghĩa provider trả giao thông tương lai; live ưu tiên 1× và ghi timestamp traffic đã lấy.
-- Test jam làm giảm vận tốc/tăng ETA, closure không phải tốc độ bình thường, ngoài tuyến/hết hạn không ảnh hưởng, provider lỗi/stale; fixture và live báo riêng. Nút kẹt xe/tai nạn/công trường là tình huống giả lập có nhãn, không trà trộn vào incidents thật.
+- Live spike HERE tại khu vực TP.HCM đã xác minh quyền/coverage ở mức upstream cho flow, incidents và raster tile; browser → Spring → HERE vẫn chưa xác minh. Tài liệu provider là tham khảo, không thay live evidence.
+- DTO nội bộ đã có geometry/hướng, speed/đơn vị, jamFactor, confidence, observedAt/fetchedAt; incidents có ID/type/severity/location/hiệu lực.
+- Match phần đường còn lại theo geometry/hướng; cache/quota/TTL, timeout/rate-limit, last-known có tuổi dữ liệu; provider lỗi không được hiển thị thông thoáng.
+- ETA qua remaining sections + dwell đã hoàn thành, stop qua rồi hiển thị actual; không dùng khoảng cách thẳng/tốc độ GPS tức thời. Baseline 005 giữ nguyên, ETA động là giá trị khác.
+- Simulator/operations có metadata traffic additive nguồn HERE_LIVE/LAST_KNOWN/ROUTE_SNAPSHOT; đồng hồ mô phỏng tách wall clock traffic, tốc độ tiến độ được điều chỉnh theo ETA rate và closure giữ elapsed/speed ở 0. Evaluator 009 có thể tạo revision từ vị trí telemetry và các stop còn lại.
+- Test fixture provider/cache/controller/matching/tile pass; live upstream đã xác minh flow/incidents/tile HTTP 200 nhưng browser/Spring/load chưa xác minh. Google traffic overlay đã được thay bằng HERE raster tile proxy; nút kẹt xe/tai nạn/công trường vẫn là injector disabled, không trà trộn incidents thật.
 
-### 009 — Đổi lộ trình/lịch trình và thông báo
+### 009 — Đổi lộ trình/lịch trình và thông báo (source đã triển khai)
 
-- Trigger đề xuất: closure còn hiệu lực trên phần đường chưa đi, hoặc trễ đáng kể ổn định qua nhiều lần cập nhật. Ngưỡng thử từng nêu ≥5 phút đồng thời ≥30%, hai lần cập nhật; cần chốt/đo, không phải chuẩn HERE hay code đã có.
+- Trigger hiện tại: closure còn hiệu lực hoặc trễ ≥600 giây và ≥30% trên phần đường chưa đi; yêu cầu hai `trafficFetchedAt` khác nhau. Cooldown/fingerprint 300 giây. Mỗi telemetry accepted (GPS hoặc simulator) tự kích hoạt evaluator; cache timestamp không bị tính lại.
 - Tính từ vị trí xe qua tất cả stop bắt buộc còn lại, tạo trip route revision mới; không sửa route snapshot gốc hoặc bỏ stop để rút ngắn đường.
 - Lưu baseline/revised schedule riêng. Không có đường tốt/khả dụng hơn thì giữ phương án hiện hành và thông báo bị chặn; ETA đổi có thể cần thông báo dù geometry không đổi.
-- Notification trong ứng dụng: trip/vehicle, lý do/incident, stop bị ảnh hưởng, ETA cũ→mới, generatedAt/revision/severity/readAt. Revision + notification trong transaction, phát SSE sau commit.
-- Idempotency theo trip/revision/type, debounce/cooldown (5 phút là đề xuất), có trạng thái phục hồi; reload đọc lại lịch sử. Chưa thêm SMS/email.
+- Notification trong ứng dụng: trip, lý do/incident, stop bị ảnh hưởng, ETA cũ→mới, createdAt/revision/severity/readAt. Revision + notification được ghi trong transaction và xuất qua snapshot SSE.
+- Idempotency theo fingerprint/dedupe key, cooldown 5 phút và checkpoint bền; reload đọc lại lịch sử. Chưa thêm SMS/email.
 - Nghiệm thu end-to-end simulator → traffic fixture → ETA đổi → revision → alert; hai client cùng revision, không spam, stop đã xong không tính lại, timeout không mất route.
 
 Route versioning/edit lifecycle, auth/quyền điều hành, device onboarding, audit, retention/pagination, HTTPS/deploy/backup và scale nhiều instance chỉ đưa vào kế hoạch khi cần hoặc được yêu cầu; hiện chưa triển khai. Những mục này không thay mục tiêu sản phẩm 007–009.
@@ -449,8 +457,8 @@ Route versioning/edit lifecycle, auth/quyền điều hành, device onboarding, 
 
 ## 14. Đoạn yêu cầu có thể dùng cho session mới
 
-> Đọc AGENTS.md và docs/SESSION_HANDOFF.md trong D:\vehicletracking, rồi tiếp tục hoàn tất feature 006 đã được yêu cầu triển khai. Giữ nguyên working tree 004–006 và thay đổi .gitignore, không đọc/in secret, không commit/push. Ưu tiên chạy OperationsHttpIntegrationTest, extension verification.browser006 với Spring/PostgreSQL Testcontainers, rồi full Maven suite; sửa lỗi trong phạm vi 006 nếu có và kiểm tra frontend liên quan. Phân biệt rõ browser fixture với browser nối backend thật, ghi số test/latency thực tế vào verification và cập nhật tiến độ. Nếu công cụ còn bị từ chối do hạn mức/quyền thực thi, báo rõ phần chưa chạy và không đi đường vòng. Chưa chuyển sang 007 trước khi 006 được nghiệm thu.
+> Đọc AGENTS.md và docs/SESSION_HANDOFF.md trong D:\vehicletracking, tiếp tục migrate V7 và verification integration/browser cho feature 009/008. Giữ nguyên working tree và không đọc/in secret, không commit/push. Chạy policy/compile, frontend lint/tsc/build và full Maven khi JDK agent/Docker PostgreSQL sẵn sàng; live HERE chỉ dùng key được cấp phép và không lưu raw key/response. Ghi số test/giới hạn thực tế vào evidence tương ứng.
 
-## 15. Phạm vi lượt tạo báo cáo này
+## 15. Phạm vi lượt cập nhật báo cáo này
 
-Lượt này chỉ khảo sát/read-only source và log, tạo báo cáo tổng hợp, thêm đường dẫn chỉ tới báo cáo mới trong tài liệu đầu vào. Không sửa source nghiệp vụ, không chạy lại build/test/Maven/Docker, không chạy migration, không đọc `.env`, không commit/push. Bất kỳ kết quả runtime nào được nêu đều có mốc và evidence phía trên; cần xác nhận lại môi trường khi session mới tiếp tục.
+Lượt này đã triển khai source 008 và cập nhật evidence/walkthrough bằng fixture; không sửa migration hay gọi HERE live, không commit/push và không ghi secret. Full suite cần được xác nhận lại khi môi trường có Byte Buddy agent và Docker PostgreSQL.

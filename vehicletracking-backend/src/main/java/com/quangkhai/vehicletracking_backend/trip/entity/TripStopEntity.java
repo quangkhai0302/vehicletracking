@@ -36,5 +36,9 @@ public class TripStopEntity {
         plannedArrivalAt = departure.plusSeconds(arrivalOffsetSeconds);
         plannedDepartureAt = departure.plusSeconds(departureOffsetSeconds);
     }
+    public void reschedule(Instant departure) {
+        plannedArrivalAt = departure.plusSeconds(arrivalOffsetSeconds);
+        plannedDepartureAt = departure.plusSeconds(departureOffsetSeconds);
+    }
     void assignTo(TripEntity trip) { this.trip = trip; }
 }

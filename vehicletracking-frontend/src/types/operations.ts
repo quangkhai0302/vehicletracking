@@ -1,4 +1,7 @@
 import type { TripSummary } from './fleet';
+import type { TripCheckIns } from './checkin';
+import type { TrafficSource, TrafficStatus } from './traffic';
+import type { NotificationItem } from './notifications';
 
 export interface TelemetryPosition {
   id: number; eventId: string; vehicleId: number; tripId: number;
@@ -15,9 +18,11 @@ export interface SimulationRun {
   id: number; tripId: number; status: SimulationStatus; multiplier: 1 | 5 | 10;
   elapsedSeconds: number; durationSeconds: number; simulatedAt: string; updatedAt: string;
   errorMessage: string | null; replacementTripId: number | null; frame: SimulationFrame | null;
+  traffic?: { source: TrafficSource; status: TrafficStatus; nextStopEtaSeconds: number | null;
+    observedAt: string | null; fetchedAt: string | null; blocked: boolean; warning: string | null } | null;
 }
 export interface OperationsSnapshot {
-  serverTime: string; positions: TelemetryPosition[]; simulations: SimulationRun[]; trips: TripSummary[];
+  serverTime: string; positions: TelemetryPosition[]; simulations: SimulationRun[]; trips: TripSummary[]; checkIns: TripCheckIns[]; notifications: NotificationItem[];
 }
 export type StreamConnection = 'connecting' | 'live' | 'reconnecting';
 export type SimulationAction = 'play' | 'pause' | 'speed' | 'stop' | 'reset';

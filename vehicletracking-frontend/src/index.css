@@ -674,34 +674,37 @@ h3 {
 }
 
 .card-action-btn {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border);
-  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
   cursor: pointer;
-  transition: 120ms ease;
+  transition: all 0.15s ease;
 }
 
 .card-action-btn:hover {
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(34, 211, 238, 0.15);
+  border-color: rgba(34, 211, 238, 0.4);
+  transform: translateY(-1px);
 }
 
 .card-action-btn.danger:hover {
   color: #fca5a5;
   background: rgba(239, 68, 68, 0.2);
   border-color: rgba(239, 68, 68, 0.4);
+  transform: translateY(-1px);
 }
 
 .card-action-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
+  transform: none;
 }
 
 .station-card-body {
@@ -899,19 +902,25 @@ h3 {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 9px;
-  margin-bottom: 15px;
-  padding: 10px 12px;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
   color: var(--text-secondary);
-  background: rgba(56, 189, 248, 0.055);
-  border: 1px solid rgba(56, 189, 248, 0.18);
-  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(14, 24, 38, 0.7) 0%, rgba(8, 14, 24, 0.85) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.location-picker-status svg {
+  color: var(--cyan);
 }
 
 .location-picker-status.picking {
   color: #fde68a;
-  background: rgba(245, 158, 11, 0.08);
-  border-color: rgba(245, 158, 11, 0.32);
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.4);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.15);
 }
 
 .location-picker-status > div {
@@ -921,23 +930,33 @@ h3 {
 }
 
 .location-picker-status strong {
-  font-size: 0.72rem;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f1f5f9;
 }
 
 .location-picker-status span {
   color: var(--text-muted);
-  font-size: 0.64rem;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .location-picker-status button {
-  padding: 5px 8px;
-  color: var(--cyan);
-  background: transparent;
-  border: 1px solid rgba(56, 189, 248, 0.28);
-  border-radius: 6px;
+  padding: 6px 12px;
+  color: #38bdf8;
+  background: rgba(34, 211, 238, 0.12);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  border-radius: 7px;
   cursor: pointer;
-  font-size: 0.68rem;
+  font-size: 11px;
   font-weight: 600;
+  transition: all 0.15s ease;
+}
+.location-picker-status button:hover {
+  background: rgba(34, 211, 238, 0.22);
+  color: #ffffff;
+  border-color: #22d3ee;
+  transform: translateY(-1px);
 }
 
 .station-field {
@@ -2337,25 +2356,31 @@ h3 {
   height: 36px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 9px;
+  gap: 6px;
+  padding: 0 12px;
   color: var(--text-secondary);
-  background: rgba(0, 0, 0, 0.22);
-  border: 1px solid var(--border);
+  background: rgba(8, 14, 24, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
-  font-size: 0.68rem;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  transition: all 0.2s ease;
 }
 
 .station-sort-toggle-btn:hover {
-  color: var(--text);
-  border-color: rgba(255, 255, 255, 0.2);
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .station-sort-toggle-btn.active {
-  color: var(--color-accent);
-  border-color: rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  background: rgba(34, 211, 238, 0.14);
+  border-color: rgba(34, 211, 238, 0.45);
+  font-weight: 600;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.2);
 }
 
 .station-card-address {

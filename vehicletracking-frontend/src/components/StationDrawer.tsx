@@ -360,7 +360,7 @@ export function StationDrawer({
             )}
 
             <span className="radius-helper-text">
-              Vòng tròn thể hiện bán kính của trạm (10 – 1.000m). Dịch vụ check-in tự động chưa được kết nối.
+              Vòng tròn thể hiện bán kính của trạm (10 – 1.000m). Check-in tự động được ghi nhận khi chuyến nhận telemetry đi qua vùng này.
             </span>
           </div>
 

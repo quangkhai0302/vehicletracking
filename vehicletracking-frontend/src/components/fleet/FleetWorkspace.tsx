@@ -90,7 +90,7 @@ export function FleetWorkspace({ onToast, onTripRoute, onFocusStop, onManageRout
       onSave={async (input, id) => { const saved = await fleet.saveVehicle(input, id); if (saved) { setQuery(''); setVehicleStatus('active'); } return saved; }} onClose={fleet.close} />}
     {screen.kind === 'trip-form' && <TripEditor vehicles={fleet.vehicles} initialVehicleId={screen.vehicleId} busy={fleet.busy} error={fleet.error} onSave={fleet.saveTrip} onClose={fleet.close} onManageRoutes={onManageRoutes} />}
     {screen.kind === 'trip-detail' && <TripDetailPanel key={screen.id} detail={fleet.detail} loading={fleet.loadingDetail} busy={fleet.busy} error={fleet.error} onClose={fleet.close}
-      onRetry={() => void fleet.selectTrip(screen.id)} onAction={fleet.transition} onFocusStop={onFocusStop} onSimulate={onSimulateTrip} />}
+      onRetry={() => void fleet.selectTrip(screen.id)} onAction={fleet.transition} onUpdateSchedule={fleet.updateTripSchedule} onDeleteTrip={fleet.removeTrip} onFocusStop={onFocusStop} onSimulate={onSimulateTrip} liveSnapshot={liveSnapshot} />}
     {deactivate && <FleetConfirmDialog title={`Ngừng sử dụng xe ${deactivate.plateNumber}?`} message="Các chuyến chưa kết thúc phải được hoàn thành hoặc hủy trước. Lịch sử xe và chuyến đi vẫn được lưu."
       confirmLabel="Xác nhận ngừng sử dụng xe" busy={fleet.busy} error={fleet.error} onClose={() => setDeactivate(null)}
       onConfirm={() => { void fleet.removeVehicle(deactivate).then(success => { if (success) setDeactivate(null); }); }} />}

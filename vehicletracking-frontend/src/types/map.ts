@@ -47,6 +47,7 @@ export interface TrafficIncident {
   endTime?: string;
   points: [number, number][];
   center: [number, number];
+  status?: 'ACTIVE' | 'EXPIRED' | string;
 }
 
 export interface TrafficSummary {

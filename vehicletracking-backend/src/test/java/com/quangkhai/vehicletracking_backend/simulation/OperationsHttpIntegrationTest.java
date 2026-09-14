@@ -2,12 +2,12 @@ package com.quangkhai.vehicletracking_backend.simulation;
 
 import com.quangkhai.vehicletracking_backend.simulation.service.SimulationService;
 import com.quangkhai.vehicletracking_backend.telemetry.service.OperationsStreamService;
-import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.service.TripService;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
+import com.quangkhai.vehicletracking_backend.station.entity.StationEntity;
 import com.quangkhai.vehicletracking_backend.station.repository.StationRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +18,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
 import tools.jackson.databind.*;
 import java.io.*;
+import java.math.BigDecimal;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
@@ -45,8 +46,12 @@ class OperationsHttpIntegrationTest {
     final HttpClient client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private String base() { return "http://127.0.0.1:"+port+"/api/v1"; }
     private TripDetailResponse fixture() {
-        var a=stations.saveAndFlush(TripFixtures.station("A · SIMULATOR HTTP"));
-        var b=stations.saveAndFlush(TripFixtures.station("B · SIMULATOR HTTP"));
+        // Match the deterministic route geometry so the browser gate can
+        // observe all three automatic check-ins rather than a location jump.
+        var a=stations.saveAndFlush(new StationEntity("A · SIMULATOR HTTP",null,
+                new BigDecimal("10.770000"),new BigDecimal("106.700000"),50));
+        var b=stations.saveAndFlush(new StationEntity("B · SIMULATOR HTTP",null,
+                new BigDecimal("10.771000"),new BigDecimal("106.701000"),50));
         var route=routes.saveAndFlush(SimulationFixtures.route(a,b));
         var vehicle=vehicles.saveAndFlush(new VehicleEntity("HTTP"+ids.incrementAndGet(),"Xe kiểm tra HTTP 006",null));
         return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),Instant.now()));
@@ -56,8 +61,18 @@ class OperationsHttpIntegrationTest {
             .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(body)).build();
         return client.send(request,HttpResponse.BodyHandlers.ofString());
     }
+    private HttpResponse<String> get(String path) throws Exception {
+        var request=HttpRequest.newBuilder(URI.create(base()+path)).timeout(Duration.ofSeconds(8)).GET().build();
+        return client.send(request,HttpResponse.BodyHandlers.ofString());
+    }
     @Test void httpValidationSourceAndLifecycleContracts() throws Exception {
         var trip=fixture();long id=trip.trip().id();
+        var emptyCheckIns=get("/trips/"+id+"/check-ins");
+        assertThat(emptyCheckIns.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(emptyCheckIns.body()).get("revision").asLong()).isZero();
+        assertThat(json.readTree(emptyCheckIns.body()).get("nextStopSequence").asInt()).isEqualTo(1);
+        assertThat(get("/trips/999999/check-ins").statusCode()).isEqualTo(404);
+        assertThat(get("/trips/not-a-trip/check-ins").statusCode()).isEqualTo(400);
         assertThat(post("/telemetry","{}").statusCode()).isEqualTo(400);
         var body=json.writeValueAsString(Map.of("eventId",UUID.randomUUID(),"vehicleId",trip.trip().vehicleId(),"tripId",id,
             "recordedAt",Instant.now().toString(),"latitude",10.77,"longitude",106.7,"speedKmh",0,"heading",0,"accuracyMeters",0,"source","SIMULATOR"));
@@ -65,6 +80,10 @@ class OperationsHttpIntegrationTest {
         var play=post("/trips/"+id+"/simulation/play","{}");
         assertThat(play.statusCode()).isEqualTo(200);
         assertThat(json.readTree(play.body()).get("status").asString()).isEqualTo("RUNNING");
+        var checkIns=get("/trips/"+id+"/check-ins");
+        assertThat(checkIns.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(checkIns.body()).get("tripId").asLong()).isEqualTo(id);
+        assertThat(json.readTree(checkIns.body()).get("revision").asLong()).isGreaterThanOrEqualTo(1);
         assertThat(post("/trips/"+id+"/simulation/speed","{\"multiplier\":2}").statusCode()).isEqualTo(400);
         assertThat(post("/trips/"+id+"/simulation/speed","{}").statusCode()).isEqualTo(400);
         assertThat(post("/trips/"+id+"/simulation/pause","{}").statusCode()).isEqualTo(200);
@@ -98,8 +117,11 @@ class OperationsHttpIntegrationTest {
             var second=executor.submit(()->readSnapshot(two,id,true));
             long start=System.nanoTime();
             assertThat(post("/trips/"+id+"/simulation/play","{}").statusCode()).isEqualTo(200);
-            assertThat(first.get(8,TimeUnit.SECONDS).get("positions").isArray()).isTrue();
-            assertThat(second.get(8,TimeUnit.SECONDS).get("simulations").isArray()).isTrue();
+            var firstSnapshot=first.get(8,TimeUnit.SECONDS);
+            var secondSnapshot=second.get(8,TimeUnit.SECONDS);
+            assertThat(firstSnapshot.get("positions").isArray()).isTrue();
+            assertThat(secondSnapshot.get("simulations").isArray()).isTrue();
+            assertThat(firstSnapshot.get("checkIns").isArray()).isTrue();
             long latency=TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-start);
             System.out.println("006 SSE two subscribers command-to-snapshot latency_ms="+latency);
         }
@@ -119,7 +141,7 @@ class OperationsHttpIntegrationTest {
         if(Boolean.getBoolean("verification.browser006")) {
             var browserTrip=fixture();
             var root=Path.of("..").toAbsolutePath().normalize();
-            var builder=new ProcessBuilder("node",root.resolve("docs/features/006-telemetry-simulator/verification/live-browser.mjs").toString());
+            var builder=new ProcessBuilder("node",root.resolve("docs/features/007-automatic-station-check-in/verification/live-browser.mjs").toString());
             builder.directory(root.toFile()); builder.inheritIO();
             builder.environment().put("VERIFICATION_API",base());
             builder.environment().put("VERIFICATION_TRIP",Long.toString(browserTrip.trip().id()));

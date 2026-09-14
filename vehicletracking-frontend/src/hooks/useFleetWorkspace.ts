@@ -116,6 +116,19 @@ export function useFleetWorkspace(onToast: (message: string) => void, liveSnapsh
       onToast(action === 'start' ? 'Đã ghi nhận khởi hành.' : action === 'complete' ? 'Đã hoàn thành chuyến đi.' : 'Đã hủy chuyến đi.');
     });
   };
+  const updateTripSchedule = (id: number, input: { scheduledDepartureAt: string }) => mutate(async () => {
+    const saved = await fleet.updateTrip(id, input);
+    if (!mounted.current) return;
+    setDetail(saved); setTrips(current => current.map(item => item.id === id ? saved.trip : item));
+    onToast('Đã cập nhật giờ xuất phát và lịch các điểm dừng.');
+  });
+  const removeTrip = (id: number) => mutate(async () => {
+    await fleet.deleteTrip(id);
+    if (!mounted.current) return;
+    setTrips(current => current.filter(item => item.id !== id));
+    setDetail(null); setScreen({ kind: 'list' });
+    onToast('Đã xóa chuyến đi chưa khởi hành.');
+  });
   const showVehicleTrips = (id: number) => { close(); setVehicleFilter(id); setTab('trips'); };
 
   const remoteTrips = liveSnapshot?.trips ?? [];
@@ -125,5 +138,5 @@ export function useFleetWorkspace(onToast: (message: string) => void, liveSnapsh
   const visibleDetail = detail ? { ...detail, trip: newerTrip(detail.trip, remoteTrips.find(item => item.id === detail.trip.id)) } : null;
   return { vehicles, trips: mergedTrips, tab, setTab, vehicleFilter, setVehicleFilter, screen, detail: visibleDetail, loading,
     loadingDetail, busy, error, reload, close, openVehicleForm, openTripForm, selectTrip,
-    saveVehicle, removeVehicle, saveTrip, transition, showVehicleTrips };
+    saveVehicle, removeVehicle, saveTrip, transition, updateTripSchedule, removeTrip, showVehicleTrips };
 }

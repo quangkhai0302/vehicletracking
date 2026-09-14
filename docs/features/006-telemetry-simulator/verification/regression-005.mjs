@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const output = fileURLToPath(new URL('../artifacts/regression-005/', import.meta.url));
 await mkdir(output, { recursive: true });
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const browser = await chromium.launch({ ...(process.env.VERIFICATION_BROWSER_PATH
+  ? { executablePath: process.env.VERIFICATION_BROWSER_PATH } : { channel: 'msedge' }), headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, timezoneId: 'Asia/Ho_Chi_Minh' });
 const page = await context.newPage();
 page.setDefaultTimeout(12000);
@@ -60,7 +61,7 @@ function tripDetail(summary) {
 await context.route('**/api/**', async route=>{
   const request=route.request(),path=new URL(request.url()).pathname,method=request.method();
   const json=(value,status=200)=>route.fulfill({status,json:value});
-  if(path.endsWith('/telemetry/snapshot')) return json({serverTime:new Date().toISOString(),positions:[],simulations:[],trips:[]});
+  if(path.endsWith('/telemetry/snapshot')) return json({serverTime:new Date().toISOString(),positions:[],simulations:[],trips:[],checkIns:[]});
   if(path.endsWith('/telemetry/stream')) return route.fulfill({contentType:'text/event-stream',body:': fixture heartbeat\n\n'});
   if(method!=='GET') writes.push({method,path,body:request.postData()});
   if(apiError && (path.endsWith('/vehicles')||path.endsWith('/trips'))) return json({detail:'Không thể tải đội xe (fixture).'},503);

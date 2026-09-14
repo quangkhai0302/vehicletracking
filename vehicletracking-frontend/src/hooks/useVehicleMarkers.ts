@@ -3,6 +3,20 @@ import L from 'leaflet';
 import type { OperationsSnapshot } from '../types/operations';
 import { positionFreshness } from '../types/operations';
 
+// Top-down car: its front points north at heading 0, matching telemetry bearings.
+const vehicleGlyph = `<svg class="live-vehicle-glyph" viewBox="0 0 32 40" aria-hidden="true" focusable="false">
+  <path d="m13 4 3-3 3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="5" y="13" width="4" height="7" rx="1.5" fill="#0f172a"/>
+  <rect x="23" y="13" width="4" height="7" rx="1.5" fill="#0f172a"/>
+  <rect x="5" y="27" width="4" height="6" rx="1.5" fill="#0f172a"/>
+  <rect x="23" y="27" width="4" height="6" rx="1.5" fill="#0f172a"/>
+  <rect x="8" y="7" width="16" height="30" rx="6" fill="currentColor" stroke="#fff" stroke-width="1.5"/>
+  <path d="m11 14 1 6h8l1-6c-3-2-7-2-10 0Z" fill="#0c4a6e"/>
+  <path d="m12 29-1 4h10l-1-4Z" fill="#0c4a6e"/>
+  <path d="M11 10h2m6 0h2" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  <path d="M11 35h2m6 0h2" stroke="#fb7185" stroke-width="2" stroke-linecap="round"/>
+</svg>`;
+
 export function useVehicleMarkers({ mapRef, snapshot, now, visible, selectedId, following, onSelect, onFocus }: {
   mapRef: RefObject<L.Map | null>; snapshot: OperationsSnapshot | null; now: number; visible: boolean;
   selectedId: number | null; following: boolean; onSelect: (id: number) => void;
@@ -31,8 +45,8 @@ export function useVehicleMarkers({ mapRef, snapshot, now, visible, selectedId, 
       const stationary = run?.status !== undefined && run.status !== 'RUNNING';
       const stale = freshness !== 'fresh' || stationary;
       const icon = L.divIcon({
-        className: 'live-vehicle-icon', iconSize: [36,36], iconAnchor: [18,18], tooltipAnchor: [0,-22],
-        html: `<div class="live-vehicle-marker ${stale ? 'muted' : ''} ${point.vehicleId === selectedId ? 'selected' : ''}" data-vehicle-id="${Number(point.vehicleId)}" style="--heading:${Number.isFinite(point.heading) ? point.heading : 0}deg"><span>▲</span></div>`,
+        className: 'live-vehicle-icon', iconSize: [44,44], iconAnchor: [22,22], tooltipAnchor: [0,-26],
+        html: `<div class="live-vehicle-marker ${stale ? 'muted' : ''} ${point.vehicleId === selectedId ? 'selected' : ''}" data-vehicle-id="${Number(point.vehicleId)}" style="--heading:${Number.isFinite(point.heading) ? point.heading : 0}deg">${vehicleGlyph}</div>`,
       });
       let marker = markers.current.get(point.vehicleId);
       if (!marker) {

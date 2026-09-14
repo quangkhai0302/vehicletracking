@@ -15,6 +15,7 @@ import com.quangkhai.vehicletracking_backend.route.provider.RoutingWaypoint;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.station.entity.StationEntity;
 import com.quangkhai.vehicletracking_backend.station.repository.StationRepository;
+import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,6 +53,9 @@ class RouteServiceTest {
     @Mock
     private RoutePersistenceService routePersistenceService;
 
+    @Mock
+    private TripRepository tripRepository;
+
     private RouteService routeService;
 
     @BeforeEach
@@ -60,7 +64,8 @@ class RouteServiceTest {
                 routeRepository,
                 stationRepository,
                 routingProvider,
-                routePersistenceService
+                routePersistenceService,
+                tripRepository
         );
     }
 

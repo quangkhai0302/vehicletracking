@@ -31,7 +31,8 @@ export async function startFixtureServer() {
       speedKmh:running && !(elapsed>=20&&elapsed<24)&&elapsed<44?28.06:0,progressPercent:elapsed<=20?elapsed/20*50:elapsed<24?50:50+(elapsed-24)/20*50,
       nextStopSequence:elapsed<20?2:3,nextStopEtaSeconds:elapsed<20?20-elapsed:44-elapsed,dwelling:elapsed>=20&&elapsed<24,finished:elapsed>=44};
   }
-  const snapshot=()=>({serverTime:new Date().toISOString(),positions:position?[position]:[],simulations:runs,trips});
+  const snapshot=()=>({serverTime:new Date().toISOString(),positions:position?[position]:[],simulations:runs,trips,
+    checkIns:trips.map(trip=>({tripId:trip.id,revision:0,nextStopSequence:1,awaitingExit:false,visits:[]}))});
   function update(run) {
     const trip=trips.find(t=>t.id===run.tripId),now=new Date().toISOString();
     run.frame=frame(run.elapsedSeconds,run.status==='RUNNING');run.updatedAt=now;run.simulatedAt=new Date(Date.parse(trip.scheduledDepartureAt)+run.elapsedSeconds*1000).toISOString();
@@ -61,6 +62,11 @@ export async function startFixtureServer() {
     if(path.endsWith('/routes'))return json([{...route,stopCount:3,startStationName:'A',endStationName:'A'}]);
     if(/\/routes\/\d+$/.test(path))return json(route);
     if(path.endsWith('/trips'))return json(trips);
+    const checkInMatch=path.match(/\/trips\/(\d+)\/check-ins$/);
+    if(checkInMatch) {
+      const trip=trips.find(item=>item.id===Number(checkInMatch[1]));
+      return trip ? json({tripId:trip.id,revision:0,nextStopSequence:1,awaitingExit:false,visits:[]}) : json({detail:'Không tìm thấy chuyến.'},404);
+    }
     const match=path.match(/\/trips\/(\d+)(?:\/simulation\/(\w+))?$/);
     if(match) {
       const trip=trips.find(t=>t.id===Number(match[1]));if(!trip)return json({detail:'Không tìm thấy chuyến.'},404);

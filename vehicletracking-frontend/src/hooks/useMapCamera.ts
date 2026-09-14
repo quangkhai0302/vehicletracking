@@ -50,6 +50,7 @@ export function useMapCamera(rootRef: RefObject<HTMLElement | null>, mapRef: Ref
     frameRef.current = requestAnimationFrame(() => {
       const map = mapRef.current;
       if (!map || !bounds.isValid()) return;
+      map.invalidateSize({ pan: false });
       const view = getViewport();
       map.fitBounds(bounds, {
         paddingTopLeft: [view.left, view.top],

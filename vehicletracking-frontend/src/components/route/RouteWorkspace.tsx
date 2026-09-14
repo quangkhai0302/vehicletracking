@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RouteCreateInput, RouteDetail, RouteDraftStop, RouteSummary } from '../../types/route';
 import type { Station } from '../../types/station';
-import { createRoute, fetchRouteById, fetchRoutes } from '../../services/routes';
+import { createRoute, updateRoute, deactivateRoute, fetchRouteById, fetchRoutes } from '../../services/routes';
 import { RoutePanel } from './RoutePanel';
 import { RouteDrawer } from './RouteDrawer';
 
@@ -27,8 +27,9 @@ export function RouteWorkspace({
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
   const [routeDetail, setRouteDetail] = useState<RouteDetail | null>(null);
   const [loadingRouteDetail, setLoadingRouteDetail] = useState(false);
-  const [routeDrawerMode, setRouteDrawerMode] = useState<'closed' | 'create' | 'view'>('closed');
+  const [routeDrawerMode, setRouteDrawerMode] = useState<'closed' | 'create' | 'edit' | 'view'>('closed');
   const [savingRoute, setSavingRoute] = useState(false);
+  const mutationRef = useRef(false);
 
   // M-04: Request token & AbortController to prevent race condition on consecutive route selections
   const detailAbortRef = useRef<AbortController | null>(null);
@@ -93,6 +94,7 @@ export function RouteWorkspace({
   };
 
   const handleSelectRoute = (route: RouteSummary) => {
+    if (mutationRef.current) return;
     // Abort previous in-flight detail request
     if (detailAbortRef.current) {
       detailAbortRef.current.abort();
@@ -135,6 +137,7 @@ export function RouteWorkspace({
   };
 
   const handleBeginCreateRoute = () => {
+    if (mutationRef.current) return;
     if (detailAbortRef.current) {
       detailAbortRef.current.abort();
     }
@@ -149,6 +152,7 @@ export function RouteWorkspace({
   };
 
   const handleCloseRouteDrawer = () => {
+    if (mutationRef.current) return;
     if (detailAbortRef.current) {
       detailAbortRef.current.abort();
     }
@@ -162,13 +166,17 @@ export function RouteWorkspace({
   };
 
   const handleSaveRoute = async (input: RouteCreateInput) => {
+    if (mutationRef.current) return;
+    mutationRef.current = true;
+    const editingId = routeDrawerMode === 'edit' ? routeDetail?.id : undefined;
     const createId = ++createRequestIdRef.current;
     setSavingRoute(true);
     setRouteError(null);
     let created: RouteDetail;
     try {
-      created = await createRoute(input);
+      created = editingId === undefined ? await createRoute(input) : await updateRoute(editingId, input);
     } catch (err: unknown) {
+      mutationRef.current = false;
       if (!isMountedRef.current || createRequestIdRef.current !== createId) {
         return;
       }
@@ -177,6 +185,7 @@ export function RouteWorkspace({
       setSavingRoute(false);
       return;
     }
+    mutationRef.current = false;
 
     // Luôn cập nhật danh sách tuyến cục bộ nếu component còn mounted
     const newSummary: RouteSummary = {
@@ -204,7 +213,7 @@ export function RouteWorkspace({
       setRouteDetail(created);
       onPlannedRouteDisplayRef.current(created);
       setRouteDrawerMode('view');
-      onShowToast(`Đã tạo tuyến đường "${created.name}" thành công!`);
+      onShowToast(`Đã ${editingId === undefined ? 'tạo' : 'cập nhật'} tuyến đường "${created.name}" thành công!`);
       setSavingRoute(false);
     } else if (isMountedRef.current) {
       // M5-01: Response stale của request cũ chỉ thông báo toast, tuyệt đối không gọi setSavingRoute(false)
@@ -212,14 +221,26 @@ export function RouteWorkspace({
       onShowToast(`Đã tạo tuyến đường "${created.name}" thành công!`);
     }
 
-    // Background sync - failure here does NOT affect the created route
+  };
+
+  const handleDeactivate = async () => {
+    if (!routeDetail || mutationRef.current) return false;
+    mutationRef.current = true;
+    setSavingRoute(true); setRouteError(null);
     try {
-      const refreshed = await fetchRoutes();
-      if (isMountedRef.current) {
-        setRoutes(refreshed);
-      }
-    } catch {
-      // Background sync failed; local list already updated
+      await deactivateRoute(routeDetail.id);
+      if (!isMountedRef.current) return true;
+      setRoutes(current => current.filter(route => route.id !== routeDetail.id));
+      mutationRef.current = false;
+      handleCloseRouteDrawer();
+      onShowToast('Đã ngừng sử dụng tuyến. Lịch sử vẫn được giữ lại.');
+      return true;
+    } catch (err) {
+      if (isMountedRef.current) setRouteError(err instanceof Error ? err.message : 'Không thể ngừng tuyến.');
+      return false;
+    } finally {
+      mutationRef.current = false;
+      if (isMountedRef.current) setSavingRoute(false);
     }
   };
 
@@ -248,6 +269,8 @@ export function RouteWorkspace({
         error={routeDrawerMode !== 'closed' ? routeError : null}
         onClose={handleCloseRouteDrawer}
         onSaveRoute={handleSaveRoute}
+        onEdit={() => { if (!mutationRef.current && routeDetail) { setRouteError(null); setRouteDrawerMode('edit'); onPlannedRouteDisplayRef.current(null); } }}
+        onDeactivate={handleDeactivate}
       />
     </>
   );

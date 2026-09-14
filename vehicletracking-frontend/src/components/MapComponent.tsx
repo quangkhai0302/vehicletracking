@@ -21,6 +21,8 @@ import { ModeBar } from './operations/ModeBar';
 import { SimulatorPanel } from './operations/SimulatorPanel';
 import { AlertStream } from './operations/AlertStream';
 import { ConfirmStationDelete } from './operations/ConfirmStationDelete';
+import { useTraffic } from '../hooks/useTraffic';
+import { TrafficLayer } from './traffic/TrafficLayer';
 
 const HCMC_CENTER: [number, number] = [10.7769, 106.7009];
 
@@ -64,11 +66,13 @@ export const MapComponent: FC = () => {
   const [alertsExpanded, setAlertsExpanded] = useState(true);
   const [showStations, setShowStations] = useState(true);
   const [showRoutes, setShowRoutes] = useState(true);
+  const [showTraffic, setShowTraffic] = useState(true);
   const [draftStops, setDraftStops] = useState<RouteDraftStop[]>([]);
   const [selectedDraftStopId, setSelectedDraftStopId] = useState<string | null>(null);
   const routeDraftLayerRef = useRef<L.LayerGroup | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const stationLayerRef = useRef<L.LayerGroup | null>(null);
   const draftLayerRef = useRef<L.LayerGroup | null>(null);
@@ -78,10 +82,17 @@ export const MapComponent: FC = () => {
   const stationMarkerRef = useRef<Map<number, L.Marker>>(new Map());
   const coordRef = useRef<HTMLSpanElement>(null);
 
-  const [theme, setTheme] = useState<MapTheme>('google-dark');
+  const [theme, setTheme] = useState<MapTheme>('google-roadmap');
   const [toast, setToast] = useState<string | null>(null);
   const live = useLiveOperations();
   const simulator = useSimulator(live.snapshot, setToast);
+  const traffic = useTraffic(mapInstanceRef, showTraffic, mapReady);
+  const trafficStatus = traffic.incidents?.status;
+  const trafficMessage = traffic.loading
+    ? 'Đang tải dữ liệu HERE Traffic…'
+    : traffic.error ?? (trafficStatus === 'STALE' ? 'Đang dùng dữ liệu HERE gần nhất.'
+      : trafficStatus === 'UNAVAILABLE' ? 'HERE Traffic chưa khả dụng.'
+        : showTraffic ? 'Dữ liệu HERE Traffic đã cập nhật.' : 'Bật để tải dữ liệu HERE Traffic theo vùng bản đồ.');
   const connectionLabel = live.connection === 'live' ? 'Realtime đã kết nối' : live.connection === 'connecting' ? 'Đang kết nối realtime…' : 'Realtime đang kết nối lại';
   const { focusLocation, fitBounds, getVisibleCenter, releaseFocus } = useMapCamera(rootRef, mapInstanceRef);
   const stationWorkspace = useStationWorkspace({
@@ -127,7 +138,7 @@ export const MapComponent: FC = () => {
     [selectedVehicleId, live.snapshot]
   );
   useVehicleMarkers({ mapRef: mapInstanceRef, snapshot: live.snapshot, now: live.now,
-    visible: workspace === 'tracking' || workspace === 'simulation', selectedId: selectedVehicleId,
+    visible: true, selectedId: selectedVehicleId,
     following: followingVehicle, onSelect: setSelectedVehicleId, onFocus: focusLocation });
 
   const focusVehicle = (id: number) => {
@@ -159,6 +170,12 @@ export const MapComponent: FC = () => {
       inertiaDeceleration: 3400,
       inertiaMaxSpeed: 2000,
     });
+
+    const trafficPane = map.createPane('trafficPane');
+    trafficPane.style.zIndex = '350';
+
+    const routePane = map.createPane('routePane');
+    routePane.style.zIndex = '450';
 
     routeDraftLayerRef.current = L.layerGroup().addTo(map);
 
@@ -197,6 +214,7 @@ export const MapComponent: FC = () => {
     map.on('mouseout', onMouseOut);
     map.on('dragstart', onDragStart);
     mapInstanceRef.current = map;
+    setMapReady(true);
 
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
@@ -205,6 +223,7 @@ export const MapComponent: FC = () => {
       map.off('dragstart', onDragStart);
       map.remove();
       mapInstanceRef.current = null;
+      setMapReady(false);
       stationLayerRef.current = null;
       draftLayerRef.current = null;
       routeLayerRef.current = null;
@@ -343,12 +362,20 @@ export const MapComponent: FC = () => {
     marker.addTo(layer);
   }, [formMode, stationForm, workspace, setStationForm, setPickingLocation]);
 
-  // Tile layer change (Themes)
+  // Base map tile layer. Traffic is rendered separately by TrafficLayer
+  // through the backend HERE Raster Tile proxy, so the Google base layer
+  // must never add its own `traffic` overlay.
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map) return;
-    if (tileLayerRef.current) map.removeLayer(tileLayerRef.current);
-    const layerType = theme === 'google-satellite' ? 'y' : 'm';
+    if (!map || !mapReady) return;
+
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+      tileLayerRef.current = null;
+    }
+
+    const baseType = theme === 'google-satellite' ? 'y' : 'm';
+    const layerType = showTraffic ? `${baseType},traffic` : baseType;
     const newTileLayer = L.tileLayer(
       `https://{s}.google.com/vt/lyrs=${layerType}&hl=vi&gl=VN&x={x}&y={y}&z={z}`,
       {
@@ -356,14 +383,36 @@ export const MapComponent: FC = () => {
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
         className: theme === 'google-dark' ? 'dark-map-tiles' : '',
         attribution: '&copy; Google Maps',
-        updateWhenZooming: true,
-        updateWhenIdle: false,
-        keepBuffer: 6,
+        updateWhenZooming: false,
+        updateWhenIdle: true,
+        keepBuffer: 4,
       }
     );
+
+    // Auto-retry transient failed tiles (e.g. rate-limit or network timeout)
+    newTileLayer.on('tileerror', (event) => {
+      const tile = (event as L.TileEvent).tile as HTMLImageElement;
+      if (!tile) return;
+      const retryCount = Number(tile.dataset.retryCount || '0');
+      if (retryCount < 2) {
+        tile.dataset.retryCount = String(retryCount + 1);
+        const originalSrc = tile.src;
+        setTimeout(() => {
+          tile.src = originalSrc;
+        }, 600 * (retryCount + 1));
+      }
+    });
+
     newTileLayer.addTo(map).bringToBack();
     tileLayerRef.current = newTileLayer;
-  }, [theme]);
+
+    return () => {
+      if (tileLayerRef.current && map) {
+        map.removeLayer(tileLayerRef.current);
+        tileLayerRef.current = null;
+      }
+    };
+  }, [theme, showTraffic, mapReady]);
 
   // Render Planned Route (Polyline & Stop markers)
   useEffect(() => {
@@ -409,12 +458,37 @@ export const MapComponent: FC = () => {
     }
 
     if (allCoords.length > 0) {
+      // 1. Google Maps ambient glow (giúp nổi bật trên nền bản đồ tối hoặc vệ tinh)
       L.polyline(allCoords, {
-        color: '#22d3ee',
-        weight: 5,
-        opacity: 0.9,
+        pane: 'routePane',
+        color: '#0b57d0',
+        weight: 12,
+        opacity: 0.42,
         lineCap: 'round',
         lineJoin: 'round',
+        interactive: false,
+      }).addTo(layer);
+
+      // 2. Google Maps outer casing (viền xanh đậm định hình đường đi chuẩn Google Maps)
+      L.polyline(allCoords, {
+        pane: 'routePane',
+        color: '#0842a0',
+        weight: 8,
+        opacity: 1,
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: false,
+      }).addTo(layer);
+
+      // 3. Google Maps inner core (lớp lõi xanh dương đặc trưng Google Maps #4285f4)
+      L.polyline(allCoords, {
+        pane: 'routePane',
+        color: '#1a73e8',
+        weight: 5.5,
+        opacity: 1.0,
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: false,
       }).addTo(layer);
     }
 
@@ -461,6 +535,42 @@ export const MapComponent: FC = () => {
     if (!layer) return;
     layer.clearLayers();
     if (workspace !== 'routes' || !showRoutes || plannedRoute) return;
+
+    // Google Maps style draft connector line between draft stations
+    const draftCoords: [number, number][] = [];
+    draftStops.forEach((stop) => {
+      const station = stations.find(item => item.id === stop.stationId && item.active);
+      if (station) {
+        draftCoords.push([station.latitude, station.longitude]);
+      }
+    });
+
+    if (draftCoords.length >= 2) {
+      // Draft Casing
+      L.polyline(draftCoords, {
+        pane: 'routePane',
+        color: '#0842a0',
+        weight: 6,
+        opacity: 0.95,
+        dashArray: '6, 8',
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: false,
+      }).addTo(layer);
+
+      // Draft Inner Google Blue
+      L.polyline(draftCoords, {
+        pane: 'routePane',
+        color: '#1a73e8',
+        weight: 4,
+        opacity: 1.0,
+        dashArray: '6, 8',
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: false,
+      }).addTo(layer);
+    }
+
     draftStops.forEach((stop, index) => {
       const station = stations.find(item => item.id === stop.stationId && item.active);
       if (!station) return;
@@ -518,10 +628,11 @@ export const MapComponent: FC = () => {
   };
 
   return (
-    <main ref={rootRef} className="map-first" data-workspace={workspace} data-sheet-expanded={sheetExpanded}>
+    <main ref={rootRef} className="map-first" data-workspace={workspace} data-sheet-expanded={sheetExpanded} data-drawer-open={contextVisible}>
       <div id="main-map" ref={mapContainerRef} className="map-canvas" aria-label="Bản đồ tương tác" tabIndex={-1} />
+      <TrafficLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showTraffic} incidents={traffic.incidents} />
       <ModeBar mode={workspace} onChange={selectMode} connectionLabel={connectionLabel} />
-      {selectedVehicle && (workspace === 'tracking' || workspace === 'simulation') && <div className="live-follow glass-panel">
+      {selectedVehicle && <div className="live-follow glass-panel">
         <span>{live.snapshot?.trips.find(trip => trip.id === selectedVehicle.tripId)?.vehiclePlateNumber ?? selectedVehicle.vehicleId} · {selectedVehicle.source === 'SIMULATOR' ? 'Giả lập' : 'GPS'}</span>
         <button aria-pressed={followingVehicle} onClick={() => { setFollowingVehicle(value => !value); if (!followingVehicle) focusVehicle(selectedVehicle.vehicleId); }}>{followingVehicle ? 'Bỏ theo xe' : 'Theo xe'}</button>
         <button aria-label="Bỏ chọn xe" onClick={() => { setSelectedVehicleId(null); setFollowingVehicle(false); }}>×</button>
@@ -570,12 +681,12 @@ export const MapComponent: FC = () => {
           }} /></div>
         </div>
         <div className="floating-panel glass-panel alert-panel" hidden={compact && activePanel !== 'alerts'}>
-          <div className="floating-panel-heading"><span><Bell size={15} />CẢNH BÁO</span><div><span className="count-badge">—</span>
+          <div className="floating-panel-heading"><span><Bell size={15} />CẢNH BÁO</span><div><span className="count-badge">{live.snapshot?.notifications?.filter(item => !item.readAt).length ?? 0}</span>
             <button className="sheet-expand" onClick={() => setSheetExpanded(value => !value)} aria-label={sheetExpanded ? 'Thu chiều cao bảng' : 'Mở rộng bảng'}>{sheetExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</button>
             <button aria-label={alertsExpanded ? 'Thu bảng cảnh báo' : 'Mở bảng cảnh báo'} aria-expanded={alertsExpanded}
               onClick={() => { if (compact) setActivePanel(null); else setAlertsExpanded(value => !value); }}><ChevronDown size={16} /></button>
           </div></div>
-          <div className="floating-panel-body" hidden={!alertsExpanded}><AlertStream /></div>
+          <div className="floating-panel-body" hidden={!alertsExpanded}><AlertStream notifications={live.snapshot?.notifications ?? []} /></div>
         </div>
       </div>
 
@@ -595,7 +706,9 @@ export const MapComponent: FC = () => {
         onResetCenter={() => focusLocation(HCMC_CENTER, 13)}
         onZoomIn={() => mapInstanceRef.current?.zoomIn()} onZoomOut={() => mapInstanceRef.current?.zoomOut()}
         onFit={handleFit} canFit={(showStations && stations.length > 0) || (showRoutes && (plannedRoute !== null || draftStops.length > 0))}
-        showStations={showStations} showRoutes={showRoutes} onToggleStations={() => setShowStations(value => !value)} onToggleRoutes={() => setShowRoutes(value => !value)} />
+        showStations={showStations} showRoutes={showRoutes} onToggleStations={() => setShowStations(value => !value)} onToggleRoutes={() => setShowRoutes(value => !value)}
+        showTraffic={showTraffic} onToggleTraffic={() => setShowTraffic(value => !value)} trafficMessage={trafficMessage}
+        trafficCanRetry={Boolean(traffic.error) || trafficStatus === 'UNAVAILABLE'} onRetryTraffic={traffic.refresh} />
       {deleteCandidate && <ConfirmStationDelete station={deleteCandidate} saving={deletingStation} onCancel={() => setDeleteCandidate(null)} onConfirm={handleDeactivate} />}
       {toast && <div className="application-toast" role="status">{toast}</div>}
     </main>

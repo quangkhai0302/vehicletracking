@@ -7,11 +7,13 @@ import com.quangkhai.vehicletracking_backend.telemetry.dto.*;
 import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource;
 import com.quangkhai.vehicletracking_backend.telemetry.repository.*;
 import com.quangkhai.vehicletracking_backend.telemetry.service.*;
+import com.quangkhai.vehicletracking_backend.checkin.service.CheckInQueryService;
 import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
 import com.quangkhai.vehicletracking_backend.trip.service.TripService;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
+import com.quangkhai.vehicletracking_backend.station.entity.StationEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.station.repository.StationRepository;
@@ -25,6 +27,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
@@ -41,6 +44,7 @@ class OperationsIntegrationTest {
     @Autowired VehiclePositionRepository positions;
     @Autowired SimulationRepository runs;
     @Autowired OperationsSnapshotService snapshots;
+    @Autowired CheckInQueryService checkIns;
     @Autowired TripService trips;
     @Autowired StationRepository stations;
     @Autowired RouteRepository routes;
@@ -53,6 +57,13 @@ class OperationsIntegrationTest {
         var a=stations.saveAndFlush(TripFixtures.station("A")); var b=stations.saveAndFlush(TripFixtures.station("B"));
         var route=routes.saveAndFlush(SimulationFixtures.route(a,b));
         var vehicle=vehicles.saveAndFlush(new VehicleEntity("SIM"+ids.incrementAndGet(),"Xe thử 006",null));
+        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get()));
+    }
+    private TripDetailResponse createAligned() {
+        var a=stations.saveAndFlush(new StationEntity("A aligned",null,new BigDecimal("10.770000"),new BigDecimal("106.700000"),50));
+        var b=stations.saveAndFlush(new StationEntity("B aligned",null,new BigDecimal("10.771000"),new BigDecimal("106.701000"),50));
+        var route=routes.saveAndFlush(SimulationFixtures.route(a,b));
+        var vehicle=vehicles.saveAndFlush(new VehicleEntity("CHK"+ids.incrementAndGet(),"Xe check-in",null));
         return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get()));
     }
     private TelemetryRequest gps(TripDetailResponse trip,UUID event,Instant recorded,double latitude) {
@@ -116,6 +127,38 @@ class OperationsIntegrationTest {
         var position=snapshots.snapshot().positions().stream().filter(p->p.tripId()==id).findFirst().orElseThrow();
         assertThat(position.speedKmh()).isZero();assertThat(position.source()).isEqualTo(TelemetrySource.SIMULATOR);
         assertThat(position.simulatedAt()).isEqualTo(trip.trip().scheduledDepartureAt().plusSeconds(44));
+    }
+    @Test void simulatorPersistsOrderedCheckinsFromRouteTrace() {
+        var trip=createAligned(); long id=trip.trip().id();
+        simulator.play(id);
+        assertThat(checkIns.find(id).visits()).extracting(v->v.stopSequence()).containsExactly(1);
+        assertThat(checkIns.find(id).revision()).isEqualTo(1);
+        seconds(25); simulator.tick(id);
+        assertThat(checkIns.find(id).visits()).extracting(v->v.stopSequence()).containsExactly(1,2);
+        assertThat(checkIns.find(id).revision()).isEqualTo(2);
+        assertThat(checkIns.find(id).visits().get(1).evidenceKind()).isEqualTo(com.quangkhai.vehicletracking_backend.checkin.entity.CheckInEvidenceKind.ROUTE_TRACE);
+        seconds(19); simulator.tick(id);
+        var result=checkIns.find(id);
+        assertThat(result.visits()).extracting(v->v.stopSequence()).containsExactly(1,2,3);
+        assertThat(result.revision()).isEqualTo(3);
+        assertThat(result.visits()).extracting(v->v.source()).containsOnly(TelemetrySource.SIMULATOR);
+        assertThat(result.nextStopSequence()).isNull();
+        assertThat(result.awaitingExit()).isFalse();
+        assertThat(trips.findById(id).trip().status()).isEqualTo(TripStatus.COMPLETED);
+    }
+    @Test void gpsPersistsPointThenInterpolatedSegmentCheckin() {
+        var trip=createAligned(); long id=trip.trip().id(); trips.start(id);
+        telemetry.ingestGps(new TelemetryRequest(UUID.randomUUID(),trip.trip().vehicleId(),id,time.get(),
+            10.770000,106.700000,20d,90d,5d,TelemetrySource.GPS));
+        seconds(5);
+        telemetry.ingestGps(new TelemetryRequest(UUID.randomUUID(),trip.trip().vehicleId(),id,time.get(),
+            10.771000,106.701000,20d,90d,5d,TelemetrySource.GPS));
+        var result=checkIns.find(id);
+        assertThat(result.visits()).extracting(v->v.stopSequence()).containsExactly(1,2);
+        assertThat(result.revision()).isEqualTo(2);
+        assertThat(result.visits().getFirst().evidenceKind()).isEqualTo(com.quangkhai.vehicletracking_backend.checkin.entity.CheckInEvidenceKind.POINT);
+        assertThat(result.visits().get(1).evidenceKind()).isEqualTo(com.quangkhai.vehicletracking_backend.checkin.entity.CheckInEvidenceKind.SEGMENT);
+        assertThat(result.visits().get(1).fromSampleId()).isNotNull();
     }
     @Test void resetRetainsHistoryAndIsIdempotent() {
         var trip=create();long id=trip.trip().id();simulator.play(id);seconds(3);simulator.tick(id);

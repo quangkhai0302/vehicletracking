@@ -9,15 +9,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
   return response.json() as Promise<T>;
 }
-export const fetchOperations = (signal?: AbortSignal) => request<OperationsSnapshot>('/telemetry/snapshot', { signal });
+export const fetchOperations = (signal?: AbortSignal) => request<OperationsSnapshot>('/telemetry/snapshot', { signal }).then(snapshot => {
+  if (!Array.isArray(snapshot.checkIns)) throw new Error('Backend chưa hỗ trợ dữ liệu check-in của chuyến (cần nâng cấp backend).');
+  return { ...snapshot, notifications: Array.isArray(snapshot.notifications) ? snapshot.notifications : [] };
+});
 export function subscribeOperations(onSnapshot: (snapshot: OperationsSnapshot) => void, onDisconnect: () => void) {
   const source = new EventSource(BASE + '/telemetry/stream');
   const receive = (event: MessageEvent<string>) => {
     try {
       const snapshot = JSON.parse(event.data) as OperationsSnapshot;
       if (!Number.isFinite(Date.parse(snapshot.serverTime)) || !Array.isArray(snapshot.positions) ||
-          !Array.isArray(snapshot.simulations) || !Array.isArray(snapshot.trips)) throw new Error('Invalid snapshot');
-      onSnapshot(snapshot);
+          !Array.isArray(snapshot.simulations) || !Array.isArray(snapshot.trips) || !Array.isArray(snapshot.checkIns)) throw new Error('Invalid snapshot');
+      onSnapshot({ ...snapshot, notifications: Array.isArray(snapshot.notifications) ? snapshot.notifications : [] });
     } catch { onDisconnect(); }
   };
   source.addEventListener('snapshot', receive);

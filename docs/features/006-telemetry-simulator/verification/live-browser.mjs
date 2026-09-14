@@ -12,7 +12,8 @@ const markerSelector='.live-vehicle-marker[data-vehicle-id="'+initialTrip.trip.v
 const mode=fixture?'fixture':'live-test-database';
 const output=fileURLToPath(new URL('../artifacts/'+mode+'/',import.meta.url));
 await mkdir(output,{recursive:true});
-const browser=await chromium.launch({channel:'msedge',headless:true});
+const browser=await chromium.launch({...(process.env.VERIFICATION_BROWSER_PATH
+  ? {executablePath:process.env.VERIFICATION_BROWSER_PATH} : {channel:'msedge'}),headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:900}});
 const errors=[],checks=[];
 await context.route('**/api/**',route=>{
@@ -27,6 +28,10 @@ const runValue=page=>page.getByTestId('simulation-elapsed').textContent().then(N
 const select=async(page,id)=>{await page.getByRole('button',{name:'Mô phỏng',exact:true}).first().click();await page.getByLabel('Chọn chuyến mô phỏng').selectOption(String(id));await page.getByText('Đang tải tuyến mô phỏng…').waitFor({state:'hidden'});};
 try {
   for(const page of pages){await page.goto('http://127.0.0.1:5173',{waitUntil:'domcontentloaded'});await page.locator('.simulation-connection[data-state=live]').waitFor();await select(page,tripId);}
+  await pages[0].getByText(/Đã ghi nhận 0\/3 điểm dừng/).waitFor();
+  const checkInReadModel=await fetch(api+'/trips/'+tripId+'/check-ins').then(r=>r.json());
+  assert.equal(checkInReadModel.tripId,tripId);assert.equal(checkInReadModel.revision,0);assert.deepEqual(checkInReadModel.visits,[]);
+  checks.push('Check-in read model is visible with explicit empty state');
   assert.equal(await pages[0].locator(markerSelector).count(),0);
   await pages[0].getByRole('button',{name:'Bắt đầu mô phỏng',exact:true}).click();
   await pages[1].getByTestId('simulation-status').filter({hasText:'Đang mô phỏng'}).waitFor();
@@ -91,6 +96,18 @@ try {
   assert.equal(done.trips.find(t=>t.id===tripId).status,'COMPLETED');
   assert.equal(done.positions.find(p=>p.tripId===tripId).speedKmh,0);
   checks.push('10x completion reaches final point and completes trip on both tabs');
+  if (!fixture && process.env.VERIFICATION_CHECKINS === 'true') {
+    await pages[0].getByText(/Đã ghi nhận 3\/3 điểm dừng/).waitFor();
+    await pages[0].getByText(/Lần gần nhất:/).waitFor();
+    const checkIns=await fetch(api+'/trips/'+tripId+'/check-ins').then(r=>r.json());
+    assert.equal(checkIns.tripId,tripId);
+    assert.ok(checkIns.revision>=3);
+    assert.deepEqual(checkIns.visits.map(visit=>visit.stopSequence),[1,2,3]);
+    assert.deepEqual(checkIns.visits.map(visit=>visit.source),['SIMULATOR','SIMULATOR','SIMULATOR']);
+    assert.equal(checkIns.visits[0].evidenceKind,'POINT');
+    assert.deepEqual(checkIns.visits.slice(1).map(visit=>visit.evidenceKind),['ROUTE_TRACE','ROUTE_TRACE']);
+    checks.push('Automatic check-in history and simulator summary contain ordered visits');
+  }
   if(fixture) {
     fixture.gpsAge(20);await wait(1200);
     await pages[0].locator(markerSelector).hover();await pages[0].locator('.leaflet-tooltip').filter({hasText:'Vị trí cũ'}).waitFor();

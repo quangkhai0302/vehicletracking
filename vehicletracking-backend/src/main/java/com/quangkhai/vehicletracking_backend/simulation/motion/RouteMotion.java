@@ -1,6 +1,7 @@
 package com.quangkhai.vehicletracking_backend.simulation.motion;
 
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
+import com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing;
 import com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline.Point;
 import java.util.*;
 
@@ -39,6 +40,72 @@ public final class RouteMotion {
             || elapsed!=route.estimatedTripDurationSeconds() || !Double.isFinite(elapsed)) throw invalid();
     }
     public double duration() { return route.estimatedTripDurationSeconds(); }
+
+    /**
+     * Finds the first outside-to-inside crossing of a stop along the actual
+     * decoded route trace between two simulator elapsed times. Unlike a GPS
+     * segment this walks every polyline vertex and never joins two sections
+     * across a geometry gap.
+     */
+    public GeofenceCrossing.Crossing firstEntryBetween(double fromElapsed, double toElapsed,
+                                                        double centerLatitude, double centerLongitude,
+                                                        double radiusMeters, double minimumFraction) {
+        if (!Double.isFinite(fromElapsed) || !Double.isFinite(toElapsed)
+                || toElapsed < fromElapsed || !Double.isFinite(minimumFraction)) return null;
+        double start = Math.max(0, Math.min(duration(), fromElapsed));
+        double end = Math.max(0, Math.min(duration(), toElapsed));
+        double span = end - start;
+        if (span <= 0) {
+            var point = at(start);
+            return GeofenceCrossing.inside(new GeofenceCrossing.Point(point.latitude(), point.longitude()),
+                    centerLatitude, centerLongitude, radiusMeters)
+                    ? new GeofenceCrossing.Crossing(1, point.latitude(), point.longitude()) : null;
+        }
+        for (var leg : legs) {
+            double legStart = Math.max(start, leg.start());
+            double legEnd = Math.min(end, leg.end());
+            if (legEnd <= legStart || leg.end() <= leg.start()) continue;
+            var points = new ArrayList<TimedPoint>();
+            points.add(new TimedPoint(legStart, pointAt(leg, legStart)));
+            for (int i = 1; i < leg.points().size() - 1; i++) {
+                if (leg.length() <= 0) continue;
+                double vertexElapsed = leg.start() + leg.distances()[i] / leg.length() * (leg.end() - leg.start());
+                if (vertexElapsed > legStart && vertexElapsed < legEnd)
+                    points.add(new TimedPoint(vertexElapsed, leg.points().get(i)));
+            }
+            points.add(new TimedPoint(legEnd, pointAt(leg, legEnd)));
+            for (int i = 1; i < points.size(); i++) {
+                var a = points.get(i - 1);
+                var b = points.get(i);
+                var from = new GeofenceCrossing.Point(a.point().latitude(), a.point().longitude());
+                var to = new GeofenceCrossing.Point(b.point().latitude(), b.point().longitude());
+                if (GeofenceCrossing.inside(from, centerLatitude, centerLongitude, radiusMeters)) continue;
+                var crossing = GeofenceCrossing.firstEntry(from, to, centerLatitude, centerLongitude, radiusMeters);
+                if (crossing == null) continue;
+                double globalFraction = (a.elapsed() + (b.elapsed() - a.elapsed()) * crossing.fraction() - start) / span;
+                if (globalFraction > minimumFraction + 1e-9)
+                    return new GeofenceCrossing.Crossing(globalFraction, crossing.latitude(), crossing.longitude());
+            }
+        }
+        return null;
+    }
+
+    private record TimedPoint(double elapsed, Point point) {}
+
+    private static Point pointAt(Leg leg, double elapsed) {
+        if (leg.points().size() == 1 || leg.length() <= 0) return leg.points().getFirst();
+        double fraction = (elapsed - leg.start()) / (leg.end() - leg.start());
+        double target = Math.max(0, Math.min(leg.length(), fraction * leg.length()));
+        int segment = 1;
+        while (segment < leg.distances().length - 1 && leg.distances()[segment] <= target) segment++;
+        var a = leg.points().get(segment - 1);
+        var b = leg.points().get(Math.min(segment, leg.points().size() - 1));
+        double segmentLength = leg.distances()[segment] - leg.distances()[segment - 1];
+        double ratio = segmentLength <= 0 ? 0 : (target - leg.distances()[segment - 1]) / segmentLength;
+        double deltaLon = ((b.longitude() - a.longitude() + 540) % 360) - 180;
+        double lon = ((a.longitude() + deltaLon * ratio + 540) % 360) - 180;
+        return new Point(a.latitude() + (b.latitude() - a.latitude()) * ratio, lon);
+    }
     public Frame at(double elapsed) {
         if(!Double.isFinite(elapsed)) throw invalid();
         elapsed=Math.max(0,Math.min(duration(),elapsed));

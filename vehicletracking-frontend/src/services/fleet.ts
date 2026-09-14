@@ -1,4 +1,4 @@
-import type { FleetVehicle, VehicleInput, TripSummary, TripDetail, TripInput, TripAction } from '../types/fleet';
+import type { FleetVehicle, VehicleInput, TripSummary, TripDetail, TripInput, TripAction, TripUpdateInput } from '../types/fleet';
 
 const BASE_URL = `${(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')}/api/v1`;
 
@@ -24,4 +24,6 @@ export const deactivateVehicle = (id: number) => request<void>(`/vehicles/${id}`
 export const fetchTrips = (signal?: AbortSignal) => request<TripSummary[]>('/trips', { signal });
 export const fetchTrip = (id: number, signal?: AbortSignal) => request<TripDetail>(`/trips/${id}`, { signal });
 export const createTrip = (input: TripInput) => request<TripDetail>('/trips', { method: 'POST', body: JSON.stringify(input) });
+export const updateTrip = (id: number, input: TripUpdateInput) => request<TripDetail>(`/trips/${id}`, { method: 'PUT', body: JSON.stringify(input) });
+export const deleteTrip = (id: number) => request<void>(`/trips/${id}`, { method: 'DELETE' });
 export const changeTripStatus = (id: number, action: TripAction) => request<TripDetail>(`/trips/${id}/${action}`, { method: 'POST' });
