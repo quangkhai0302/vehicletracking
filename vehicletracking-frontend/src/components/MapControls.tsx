@@ -199,7 +199,7 @@ export function MapControls({
           <span className={`gm-traffic-live-dot ${showTraffic ? 'active' : ''}`} />
           <div className="gm-traffic-pill-label">
             <span className="gm-traffic-title">Giao thông trực tiếp</span>
-            <span className="gm-traffic-sub">{showTraffic ? 'Đang hoạt động' : 'Tạm tắt'}</span>
+            <span className="gm-traffic-sub" title={trafficMessage}>{showTraffic ? trafficMessage : 'Tạm tắt'}</span>
           </div>
         </div>
 

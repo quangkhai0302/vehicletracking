@@ -30,6 +30,7 @@ export interface Route {
 export interface TrafficFlowSegment {
   id: string;
   description: string;
+  lengthMeters?: number;
   points: [number, number][]; // [lat, lng][]
   speedKmh: number;
   freeFlowKmh: number;

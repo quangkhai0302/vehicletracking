@@ -17,13 +17,16 @@ const vehicleGlyph = `<svg class="live-vehicle-glyph" viewBox="0 0 32 40" aria-h
   <path d="M11 35h2m6 0h2" stroke="#fb7185" stroke-width="2" stroke-linecap="round"/>
 </svg>`;
 
-export function useVehicleMarkers({ mapRef, snapshot, now, visible, selectedId, following, onSelect, onFocus }: {
+export function useVehicleMarkers({ mapRef, snapshot, now, visible, selectedId, following, onSelect, onFocus, groupSelection = false }: {
   mapRef: RefObject<L.Map | null>; snapshot: OperationsSnapshot | null; now: number; visible: boolean;
   selectedId: number | null; following: boolean; onSelect: (id: number) => void;
   onFocus: (point: L.LatLngExpression, zoom?: number) => void;
+  groupSelection?: boolean;
 }) {
   const markers = useRef(new Map<number, L.Marker>());
   const followedPoint = useRef<string | null>(null);
+  const vehiclePicker = useRef<L.Popup | null>(null);
+  useEffect(() => () => { vehiclePicker.current?.remove(); vehiclePicker.current=null; }, [groupSelection]);
   useEffect(() => {
     const map = mapRef.current;
     const current = markers.current;
@@ -64,11 +67,27 @@ export function useVehicleMarkers({ mapRef, snapshot, now, visible, selectedId, 
       const text = document.createElement('span');
       text.textContent = `${trip?.vehiclePlateNumber ?? point.vehicleId} · ${point.source === 'SIMULATOR' ? 'GIẢ LẬP' : 'GPS'} · ${state} · ${stationary ? 0 : point.speedKmh.toFixed(1)} km/h · ${new Date(point.recordedAt).toLocaleTimeString('vi-VN')}`;
       if (marker.getTooltip()) marker.setTooltipContent(text); else marker.bindTooltip(text, { direction: 'top', opacity: .95 });
-      marker.off('click').on('click', () => { onSelect(point.vehicleId); onFocus([point.latitude,point.longitude],16); });
+      marker.off('click').on('click', () => {
+        const anchor = map.latLngToContainerPoint([point.latitude,point.longitude]);
+        const nearby = groupSelection ? positions.filter(candidate => candidate.source==='SIMULATOR'
+          && map.latLngToContainerPoint([candidate.latitude,candidate.longitude]).distanceTo(anchor)<36) : [];
+        if (nearby.length > 1) {
+          const content = document.createElement('div'); content.className='simulation-station-picker';
+          const title = document.createElement('strong'); title.textContent=`${nearby.length} xe gần vị trí này`; content.append(title);
+          for (const candidate of nearby) {
+            const button=document.createElement('button');button.type='button';button.dataset.simulationVehicle=String(candidate.vehicleId);
+            button.textContent=snapshot?.trips.find(item=>item.id===candidate.tripId)?.vehiclePlateNumber ?? `Xe ${candidate.vehicleId}`;
+            button.onclick=()=>{map.closePopup();onSelect(candidate.vehicleId);onFocus([candidate.latitude,candidate.longitude],16);};content.append(button);
+          }
+          const popup=L.popup({maxWidth:260}).setLatLng([point.latitude,point.longitude]).setContent(content).openOn(map);
+          vehiclePicker.current=popup;
+          popup.once('remove',()=>content.querySelectorAll('button').forEach(button=>{button.onclick=null;}));
+        } else { onSelect(point.vehicleId); onFocus([point.latitude,point.longitude],16); }
+      });
     }
     const selected = positions.find(point => point.vehicleId === selectedId);
     const key = following && selected ? `${selected.vehicleId}:${selected.latitude}:${selected.longitude}` : null;
     if (key && key !== followedPoint.current && selected) onFocus([selected.latitude,selected.longitude]);
     followedPoint.current = key;
-  }, [mapRef,snapshot,now,visible,selectedId,following,onSelect,onFocus]);
+  }, [mapRef,snapshot,now,visible,selectedId,following,onSelect,onFocus,groupSelection]);
 }

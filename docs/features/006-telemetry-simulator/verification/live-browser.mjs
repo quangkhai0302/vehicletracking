@@ -47,7 +47,7 @@ try {
   checks.push('Two tabs receive backend movement, identical paused clock and markers');
   await pages[0].getByLabel('Tốc độ 5x',{exact:true}).click();
   await poll(async()=>await pages[1].getByLabel('Tốc độ 5x',{exact:true}).getAttribute('aria-pressed')==='true','Multiplier did not sync');
-  await pages[0].getByRole('button',{name:'Bắt đầu mô phỏng',exact:true}).click();
+  await pages[0].getByRole('button',{name:'Tiếp tục mô phỏng',exact:true}).click();
   await poll(async()=>await runValue(pages[1])>=paused+5,'5x progress missing');
   await pages[1].getByRole('button',{name:'Tạm dừng mô phỏng',exact:true}).click();
   await pages[0].getByTestId('simulation-status').filter({hasText:'Đã tạm dừng'}).waitFor();

@@ -45,8 +45,8 @@
 
 .live-follow {
   position: absolute; top: 88px; left: 50%; transform: translateX(-50%);
-  z-index: 1001; display: flex; align-items: center; gap: 9px;
-  max-width: 50vw; padding: 7px 14px; font-size: 12px; font-weight: 500;
+  z-index: 1001; width: 320px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 210px); overflow-y: auto;
+  padding: 10px 14px; font-size: 12px; font-weight: 500;
   border-radius: 12px; color: #f0f9ff;
   background: rgba(13, 20, 32, 0.92);
   border: 1px solid rgba(56, 189, 248, 0.4);
@@ -61,5 +61,44 @@
   transition: all .15s ease;
 }
 .live-follow button:hover { background: rgba(34, 211, 238, 0.25); color: #fff; }
-.live-follow span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (max-width: 899px) { .live-follow { top: 130px; max-width: calc(100vw - 24px); } }
+.live-follow-actions { display: flex; align-items: center; gap: 9px; }
+.live-follow-actions > span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trip-traffic-card { margin: 10px 0; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; color: #b7cbd9; }
+.trip-traffic-card .telemetry-grid { margin: 8px 0; }
+.trip-traffic-card .telemetry-grid > div { min-width: 0; }
+.trip-traffic-card .telemetry-grid strong { font-size: 20px; line-height: 1.3; }
+.trip-traffic-card .telemetry-grid small { font-size: 11px; }
+.trip-traffic-card p { margin: 6px 0; }
+.trip-traffic-next { display: flex; align-items: center; gap: 6px; color: #e0f5ff; }
+.trip-traffic-next svg { flex-shrink: 0; color: #38bdf8; }
+.trip-traffic-source { color: #6ee7b7; }
+.trip-traffic-source[data-stale=true], .trip-traffic-impacts { color: #fcd68d; }
+.trip-traffic-card .trip-traffic-blocked { color: #fda4af; }
+.trip-traffic-position, .trip-traffic-update { font-size: 10px; color: #9cb6c8; }
+.trip-traffic-card button { border: 0; background: transparent; padding: 0 3px; color: #7dd3fc; text-decoration: underline; cursor: pointer; }
+.simulation-locate { margin-bottom: 8px; }
+.simulation-fleet-list { font-size: 11px; color: #a5bdcd; margin: 12px 0; }
+.simulation-fleet-list p { margin: 7px 0; line-height: 1.5; }
+.simulation-fleet-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #e1f4ff; }
+.simulation-route-legend { font-size: 10px; }
+.simulation-route-swatch { display: inline-block; width: 16px; height: 4px; margin-right: 6px; vertical-align: middle; border-radius: 3px; }
+.simulation-route-path { cursor: pointer; }
+.simulation-route-path:focus-visible { outline: none; stroke-width: 9; filter: drop-shadow(0 0 3px #fff); }
+.simulation-fleet-picker summary { margin-top: 7px; color: #7dd3fc; cursor: pointer; }
+.simulation-fleet-list button { border: 0; background: transparent; color: #7dd3fc; cursor: pointer; font: inherit; text-align: left; }
+.simulation-fleet-rows { max-height: 168px; overflow-y: auto; margin: 8px 0; }
+.simulation-fleet-rows > button { display: block; width: 100%; padding: 9px; margin: 4px 0; border: 1px solid #284252; border-radius: 8px; background: #0e202c; }
+.simulation-fleet-rows > button[aria-pressed=true] { border-color: #38bdf8; background: #153749; }
+.simulation-fleet-rows span { display: flex; justify-content: space-between; gap: 8px; }
+.simulation-fleet-rows span + span { margin-top: 4px; font-size: 10px; color: #a5bdcd; }
+.simulation-fleet-rows small { color: #8fe1ba; font-size: 10px; }
+.simulation-ready { padding: 10px; margin: 10px 0; border: 1px solid #365268; border-radius: 8px; font-size: 11px; line-height: 1.5; color: #bdd9e8; }
+.simulation-ready strong { color: #91e0ff; }
+.simulation-waiting-marker { position: relative; width: 44px; height: 44px; display: grid; place-items: center; border: 2px dashed #60a5fa; border-radius: 50%; background: #eff6ff; font-size: 26px; box-shadow: 0 3px 10px #0005; }
+.simulation-waiting-marker b { position: absolute; top: -6px; right: -8px; min-width: 20px; height: 20px; padding: 1px 4px; border-radius: 12px; color: #fff; background: #0369a1; font: bold 12px/20px system-ui; text-align: center; }
+.simulation-station-picker { font-size: 12px; min-width: 190px; }
+.simulation-station-picker p { margin: 6px 0; }
+.simulation-station-picker button { display: block; width: 100%; padding: 9px; margin: 6px 0; border: 1px solid #98b5ca; border-radius: 7px; background: #eff6ff; color: #0c4a6e; font: inherit; text-align: left; cursor: pointer; }
+.simulation-waiting-icon:focus-visible, .simulation-station-picker button:focus-visible, .simulation-fleet-list button:focus-visible { outline: 3px solid #38bdf8; outline-offset: 2px; }
+.trip-traffic-details summary { cursor: pointer; color: #7dd3fc; font-size: 10px; }
+@media (max-width: 899px) { .live-follow { top: 130px; max-height: min(45dvh, calc(100dvh - 210px)); box-sizing: border-box; } }

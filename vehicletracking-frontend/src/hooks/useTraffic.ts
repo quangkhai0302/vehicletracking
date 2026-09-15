@@ -39,10 +39,16 @@ export function useTraffic(mapRef: RefObject<L.Map | null>, enabled: boolean, ma
       controller = new AbortController();
 
       // Buffer around current view and snap to 0.02 grid:
-      const west = snap(currentBounds.getWest() - 0.03);
-      const south = snap(currentBounds.getSouth() - 0.03);
-      const east = snap(currentBounds.getEast() + 0.03);
-      const north = snap(currentBounds.getNorth() + 0.03);
+      const west = Math.max(-180, snap(currentBounds.getWest() - 0.03));
+      const south = Math.max(-90, snap(currentBounds.getSouth() - 0.03));
+      const east = Math.min(180, snap(currentBounds.getEast() + 0.03));
+      const north = Math.min(90, snap(currentBounds.getNorth() + 0.03));
+      if (west >= east || south >= north || east - west > 1 || north - south > 1) {
+        setIncidents(null); setLoading(false);
+        setError('Phóng to bản đồ để xem sự cố giao thông.');
+        lastFetchedBboxRef.current = null; lastFetchedBoundsRef.current = null;
+        return;
+      }
       const bbox = `${west.toFixed(4)},${south.toFixed(4)},${east.toFixed(4)},${north.toFixed(4)}`;
 
       if (!force && bbox === lastFetchedBboxRef.current) {
@@ -58,10 +64,8 @@ export function useTraffic(mapRef: RefObject<L.Map | null>, enabled: boolean, ma
         setError(null);
       }).catch(reason => {
         if (alive && currentRequest === requestId && reason?.name !== 'AbortError') {
-          // Do not keep rendering an expired successful response as if it were
-          // current traffic when the backend can no longer provide a stale
-          // envelope. The next successful request will replace the layer.
           setIncidents(null);
+          lastFetchedBboxRef.current = null; lastFetchedBoundsRef.current = null;
           setError('Không tải được dữ liệu sự cố giao thông.');
         }
       }).finally(() => {

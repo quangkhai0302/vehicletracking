@@ -973,6 +973,7 @@ fieldset { border: 0; min-width: 0; }
 }
 
 /* Google Maps Layers Control (Bottom-Left) */
+.gm-traffic-sub { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gm-layers-widget {
   position: absolute;
   z-index: 1050;
@@ -1601,7 +1602,7 @@ fieldset { border: 0; min-width: 0; }
   .gm-legend-bar-gradient {
     width: 48px;
   }
-  .gm-layers-widget { top: 76px; left: 10px; bottom: auto; }
+  .map-first[data-drawer-open] .gm-layers-widget { top: 76px; left: 10px; bottom: auto; }
   .map-first[data-drawer-open="true"] .gm-layers-widget { left: 10px; }
   .gm-layers-popover { bottom: auto; top: 48px; left: 0; }
   .map-first .map-picking-banner { top: 126px; padding: 9px; font-size: 11px; gap: 6px; }

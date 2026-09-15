@@ -1,0 +1,33 @@
+.route-inspection-card {
+  position: fixed; z-index: 1600; width: 304px; max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px); overflow-y: auto; box-sizing: border-box;
+  padding: 14px; border: 1px solid #345569; border-radius: 14px;
+  background: #10212bf5; color: #e8f3fa; box-shadow: 0 12px 40px #0007;
+  font: 12px/1.5 Inter, system-ui, sans-serif; pointer-events: none; overflow-wrap: anywhere;
+}
+.route-inspection-card[data-pinned="true"] { pointer-events: auto; }
+.route-inspection-heading { display: flex; align-items: center; justify-content: space-between; color: #80dff6; letter-spacing: .08em; font-size: 10px; }
+.route-inspection-heading button { width: 30px; height: 30px; border: 0; border-radius: 6px; background: #233d4d; color: #fff; font-size: 23px; cursor: pointer; }
+.route-inspection-name { display: block; margin-top: 4px; font-size: 14px; }
+.route-inspection-card p { margin: 6px 0; }
+.route-inspection-leg, .route-inspection-note { color: #afc5d3; }
+.route-inspection-baseline { margin: 9px 0; padding: 8px; border-radius: 7px; background: #1b3240; }
+.route-inspection-baseline span, .route-inspection-source span { display: block; font-size: 10px; color: #a6bbca; }
+.route-inspection-card .route-inspection-status { color: #72e0ad; font-weight: 700; }
+.route-inspection-status[data-tone="warning"] { color: #ffd174; }
+.route-inspection-status[data-tone="danger"] { color: #ff9a9a; }
+.route-inspection-metrics { margin: 8px 0; }
+.route-inspection-metrics > div { display: flex; justify-content: space-between; gap: 10px; margin: 5px 0; }
+.route-inspection-metrics dt { color: #b6cbd9; flex: 1; }
+.route-inspection-metrics dd { margin: 0; max-width: 46%; text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; }
+.route-inspection-source, .route-inspection-note, .route-inspection-hint { font-size: 10px; }
+.route-inspection-source { color: #84dbef; }
+.route-inspection-source[data-stale="true"] { color: #ffd174; }
+.route-inspection-incidents { margin-top: 10px; padding-top: 8px; border-top: 1px solid #304957; }
+.route-inspection-incidents > strong { font-size: 11px; }
+.route-inspection-empty { color: #bcd0de; padding: 8px 0; }
+.route-inspection-hint { color: #9bb2c3; border-top: 1px solid #304957; padding-top: 8px; }
+.route-inspection-retry { padding: 6px 10px; border-radius: 6px; border: 1px solid #75d5ec; background: transparent; color: #a6eeff; cursor: pointer; }
+.route-inspection-retry:disabled { opacity: .5; cursor: wait; }
+.route-inspection-hit:focus { outline: none; stroke: #6be5ff; stroke-opacity: .5; stroke-width: 12; }
+.route-inspection-card button:focus-visible { outline: 2px solid #a6eeff; outline-offset: 2px; }
