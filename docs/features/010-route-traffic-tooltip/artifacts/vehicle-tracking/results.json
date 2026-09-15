@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-09-14T23:34:01.566Z",
+  "mode": "vehicle-tracking-fixture",
+  "checks": [
+    "no all-road inspection or viewport flow requests",
+    "waiting trip shows stationary start preview before playback",
+    "SSE updates vehicle location and simulator speed",
+    "congestion, accident and construction affect the displayed trip ETA",
+    "blocked road never displays the baseline countdown",
+    "stale and route snapshot states are explicit",
+    "ETA error is visible and retry recovers",
+    "locate vehicle opens speed, stop ETA and follow controls on map",
+    "vehicle card fits mobile viewport and selection can close",
+    "GPS vehicle uses its telemetry speed rather than the simulator frame",
+    "switching trips ignores a delayed ETA for the previous trip",
+    "clearing trip selection removes telemetry and stops its ETA polling"
+  ],
+  "pageErrors": [],
+  "flowRequests": 0,
+  "etaRequests": 19
+}

@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-09-14T16:14:55.337Z",
+  "mode": "browser-fixture",
+  "checks": [
+    "hover metrics, scope, freshness and escaped content",
+    "same-cell mouse movement reuses request and pin/Escape works",
+    "keyboard focus and Enter pin",
+    "stale data state",
+    "closed data state",
+    "zero data state",
+    "empty data state",
+    "opposite data state",
+    "error, retry and no stale success retained",
+    "late result for previous cell does not replace current section",
+    "traffic off, route layer cleanup and camera interactions",
+    "touch pin and contained card at 320 px"
+  ],
+  "pageErrors": [],
+  "flowRequests": 13
+}

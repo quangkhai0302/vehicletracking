@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-09-14T23:37:33.565Z",
+  "mode": "distinct-route-fleet-fixture",
+  "checks": [
+    "all three fleet routes appear before selection, with distinct geometry and no commands",
+    "start A and B on different routes; both paths persist when changing selection",
+    "fit all contains full paths, clicking another route selects its vehicle without stopping either run",
+    "shared road segment opens a chooser for both vehicles; route is keyboard accessible",
+    "SSE ticks reuse route paths and cached route requests; reload restores every route",
+    "route overlay toggle and leaving simulator clean up all fleet paths",
+    "one route request failure preserves other running routes and can retry",
+    "invalid geometry rejects only that route, retains its waiting marker, retry restores the path",
+    "mobile selects individual vehicles while retaining all paths without horizontal overflow",
+    "completed trip route leaves fleet without hiding another running vehicle"
+  ],
+  "pageErrors": [],
+  "commands": [
+    {
+      "path": "/api/v1/trips/1/simulation/play",
+      "body": ""
+    },
+    {
+      "path": "/api/v1/trips/2/simulation/play",
+      "body": ""
+    }
+  ]
+}

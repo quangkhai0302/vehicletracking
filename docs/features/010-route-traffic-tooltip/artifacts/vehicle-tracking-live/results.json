@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-09-14T16:20:30.892Z",
+  "mode": "vehicle-tracking-live-readonly",
+  "vehicleMarkerCount": 1,
+  "roadHitCount": 0,
+  "flowRequests": 0,
+  "speedVisible": true,
+  "etaVisible": true,
+  "sourceLabel": "Ước tính theo tuyến đã lưu",
+  "etaResponses": [
+    {
+      "httpStatus": 200,
+      "source": "ROUTE_SNAPSHOT",
+      "status": "AVAILABLE",
+      "nextStopSequence": null
+    }
+  ],
+  "pageErrors": [],
+  "blockedWrites": []
+}

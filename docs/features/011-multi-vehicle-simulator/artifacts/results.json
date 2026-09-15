@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-09-14T23:32:56.369Z",
+  "mode": "multi-vehicle-fixture",
+  "checks": [
+    "opening simulator stages three vehicles at start without commands",
+    "same-station popup selects vehicle A without starting it",
+    "start A replaces its waiting preview with telemetry",
+    "start B while A keeps moving; selecting does not pause A",
+    "clicking running vehicle opens its own controls; pause A leaves B running",
+    "multipliers are per vehicle and reload keeps both runs",
+    "leaving mode removes waiting layer but does not stop running vehicles",
+    "failed waiting-location load can retry without moving or starting vehicles",
+    "mobile 320px can choose a waiting vehicle and access its controls"
+  ],
+  "pageErrors": [],
+  "commands": [
+    {
+      "path": "/api/v1/trips/1/simulation/play",
+      "body": ""
+    },
+    {
+      "path": "/api/v1/trips/2/simulation/play",
+      "body": ""
+    },
+    {
+      "path": "/api/v1/trips/1/simulation/pause",
+      "body": ""
+    },
+    {
+      "path": "/api/v1/trips/1/simulation/speed",
+      "body": "{\"multiplier\":5}"
+    },
+    {
+      "path": "/api/v1/trips/1/simulation/play",
+      "body": ""
+    }
+  ]
+}

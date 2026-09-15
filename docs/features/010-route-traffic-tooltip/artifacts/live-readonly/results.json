@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-09-14T16:03:27.385Z",
+  "mode": "live-readonly",
+  "initialHitCount": 0,
+  "selectedHitCount": 2,
+  "accessibleSpotCount": 11,
+  "hoverVisible": true,
+  "section": "1",
+  "displaysSpeed": true,
+  "unavailableMessage": null,
+  "roadHover": {
+    "beforeRouteSelection": true,
+    "hitCount": 7344,
+    "accessibleSpotCount": 3359,
+    "visible": true,
+    "displaysSpeed": true
+  },
+  "trafficResponses": [
+    {
+      "path": "/api/v1/traffic/incidents",
+      "httpStatus": 200,
+      "source": "HERE_LIVE",
+      "status": "AVAILABLE",
+      "resultCount": 2
+    },
+    {
+      "path": "/api/v1/traffic/flow",
+      "httpStatus": 200,
+      "source": "HERE_LIVE",
+      "status": "AVAILABLE",
+      "resultCount": 7344
+    },
+    {
+      "path": "/api/v1/traffic/incidents",
+      "httpStatus": 200,
+      "source": "HERE_LIVE",
+      "status": "AVAILABLE",
+      "resultCount": 0
+    },
+    {
+      "path": "/api/v1/traffic/flow",
+      "httpStatus": 200,
+      "source": "HERE_LIVE",
+      "status": "AVAILABLE",
+      "resultCount": 40
+    },
+    {
+      "path": "/api/v1/traffic/incidents",
+      "httpStatus": 200,
+      "source": "HERE_LIVE",
+      "status": "AVAILABLE",
+      "resultCount": 2
+    },
+    {
+      "path": "/api/v1/traffic/flow",
+      "httpStatus": 200,
+      "source": "HERE_LIVE",
+      "status": "AVAILABLE",
+      "resultCount": 3860
+    }
+  ],
+  "pageErrors": [],
+  "blockedWrites": []
+}

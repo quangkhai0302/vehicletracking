@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-09-14T16:01:33.189Z",
+  "mode": "roads-browser-fixture",
+  "checks": [
+    "roads load and hover without any saved or selected route",
+    "road click pin, keyboard and Escape",
+    "road stale",
+    "road closed",
+    "road zero",
+    "road incident-error",
+    "road error removes hit paths and explains missing data",
+    "road empty removes hit paths and explains missing data",
+    "road unavailable removes hit paths and explains missing data",
+    "toggling traffic removes pinned road card and restores roads",
+    "late viewport response does not replace new viewport data",
+    "touch road on 320 px with no route and no invisible control blocker"
+  ],
+  "pageErrors": [],
+  "flowRequests": 13
+}

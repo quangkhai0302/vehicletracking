@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-09-14T23:37:25.828Z",
+  "mode": "live-readonly",
+  "fleetRows": 1,
+  "waitingGroups": 0,
+  "liveMarkers": 1,
+  "summary": "1 xe · 0 đang chạy\nXem tất cả",
+  "pageErrors": [],
+  "blockedWrites": [],
+  "routeTrips": [
+    {
+      "tripId": "2",
+      "color": "#a855f7",
+      "geometry": "M168 570L174 600L337 521L361 511L541 420L575 404L584 402L590 396L722 324L748 308L851 340L866 347L878 330L893 336L919 343L926 323M926 323L919 343L925 345L915 375L939 384L933 390L931 396L922 450L915 468L912 498L898 500L898 502"
+    }
+  ]
+}
