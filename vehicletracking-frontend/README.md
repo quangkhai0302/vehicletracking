@@ -31,3 +31,7 @@ npm run dev
 npm run lint
 npm run build
 ```
+
+## Hướng dẫn người sử dụng
+
+Sau khi chạy frontend, mở `/huong-dan/` để xem tài liệu hướng dẫn HTML/CSS. Trong ứng dụng, bấm **Hướng dẫn** trên thanh điều hướng để mở tài liệu ở tab mới. Trang có mục lục, hướng dẫn quản lý xe/trạm/tuyến, kéo chỉnh đường đi, tạo chuyến, mô phỏng, giao thông và xử lý lỗi; dùng Ctrl/Command + P để lưu PDF.

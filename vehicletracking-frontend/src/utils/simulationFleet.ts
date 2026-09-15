@@ -8,7 +8,9 @@ export function simulationRouteColor(vehicleId: number, selected = false) {
 }
 
 // One visible assignment per vehicle: an active trip blocks all waiting trips,
-// including when it is receiving GPS and therefore cannot be simulated.
+// including when it is receiving GPS and therefore cannot be simulated. A
+// completed simulator run remains eligible as a read-only assignment so its
+// last telemetry sample (the final station) stays visible on the map.
 export function simulationFleetTrips(snapshot: OperationsSnapshot | null): TripSummary[] {
   if (!snapshot) return [];
   const active = new Map(snapshot.trips.filter(trip => trip.status === 'IN_PROGRESS').map(trip => [trip.vehicleId, trip]));
@@ -21,6 +23,8 @@ export function simulationFleetTrips(snapshot: OperationsSnapshot | null): TripS
     if (active.has(trip.vehicleId)) {
       if (trip.status === 'IN_PROGRESS' && runs.has(trip.id)) byVehicle.set(trip.vehicleId, trip);
     } else if (trip.status === 'SCHEDULED' && !byVehicle.has(trip.vehicleId)) byVehicle.set(trip.vehicleId, trip);
+    else if (trip.status === 'COMPLETED' && runs.get(trip.id)?.status === 'COMPLETED' && !byVehicle.has(trip.vehicleId))
+      byVehicle.set(trip.vehicleId, trip);
   }
   return [...byVehicle.values()];
 }

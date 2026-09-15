@@ -102,37 +102,6 @@ export function MapControls({
               <span className="gm-section-title">Chi tiết bản đồ</span>
               <div className="gm-overlays-list">
                 <label className="gm-overlay-row">
-                  <input type="checkbox" checked={showTraffic} onChange={onToggleTraffic} />
-                  <span className="gm-overlay-name">Giao thông trực tiếp</span>
-                </label>
-
-                {showTraffic && (
-                  <div className="gm-traffic-details">
-                    <p className="gm-traffic-status" role="status">
-                      {trafficMessage}{' '}
-                      {trafficCanRetry && (
-                        <button type="button" className="traffic-retry" onClick={onRetryTraffic}>
-                          Thử lại
-                        </button>
-                      )}
-                    </p>
-                    <div className="traffic-legend" aria-label="Chú giải giao thông">
-                      <div className="traffic-legend-bar">
-                        <span>Nhanh</span>
-                        <div className="traffic-legend-gradient" />
-                        <span>Chậm</span>
-                      </div>
-                      <div className="traffic-legend-items">
-                        <span><i className="clear" />Thông thoáng</span>
-                        <span><i className="slow" />Chậm</span>
-                        <span><i className="congested" />Ùn tắc</span>
-                        <span><i className="blocked" />Kẹt / Đóng</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <label className="gm-overlay-row">
                   <input type="checkbox" checked={showStations} onChange={onToggleStations} />
                   <span className="gm-overlay-name">Trạm dừng</span>
                 </label>
@@ -200,6 +169,12 @@ export function MapControls({
             <span className="gm-traffic-sub" title={trafficMessage}>{showTraffic ? trafficMessage : 'Tạm tắt'}</span>
           </div>
         </div>
+
+        {showTraffic && trafficCanRetry && (
+          <button type="button" className="traffic-retry" onClick={onRetryTraffic}>
+            Thử lại
+          </button>
+        )}
 
         <div className="gm-traffic-pill-divider" />
 

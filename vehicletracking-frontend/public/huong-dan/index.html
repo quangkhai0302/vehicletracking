@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Hướng dẫn sử dụng Vehicle Tracking: quản lý xe, tạo trạm và tuyến, kéo chỉnh đường đi, theo dõi chuyến và chạy mô phỏng.">
+  <meta name="color-scheme" content="light">
+  <title>Hướng dẫn sử dụng · Vehicle Tracking</title>
+  <link rel="stylesheet" href="./guide.css">
+</head>
+<body>
+  <a class="skip-link" href="#noi-dung">Đi tới nội dung</a>
+  <aside class="sidebar">
+    <a class="brand" href="#dau-trang" aria-label="Vehicle Tracking — đầu tài liệu"><span class="brand-mark" aria-hidden="true">↗</span><span>vehicle <b>tracking</b><small>HƯỚNG DẪN SỬ DỤNG</small></span></a>
+    <nav aria-label="Mục lục hướng dẫn">
+      <p class="nav-label">BẮT ĐẦU TẠI ĐÂY</p>
+      <a href="#bat-dau"><span>01</span> Bắt đầu nhanh</a>
+      <a href="#ban-do"><span>02</span> Làm quen bản đồ</a>
+      <p class="nav-label">THIẾT LẬP & VẬN HÀNH</p>
+      <a href="#doi-xe"><span>03</span> Quản lý đội xe</a>
+      <a href="#tram"><span>04</span> Tạo trạm dừng</a>
+      <a href="#tuyen"><span>05</span> Tạo tuyến đường</a>
+      <a href="#keo-tuyen"><span>06</span> Kéo chỉnh đường đi <i>MỚI</i></a>
+      <a href="#chuyen"><span>07</span> Tạo & theo dõi chuyến</a>
+      <a href="#mo-phong"><span>08</span> Chạy mô phỏng</a>
+      <a href="#giao-thong"><span>09</span> Giao thông & cảnh báo</a>
+      <p class="nav-label">KHI CẦN TRỢ GIÚP</p>
+      <a href="#xu-ly-loi"><span>10</span> Câu hỏi thường gặp</a>
+    </nav>
+    <div class="sidebar-note">Đọc theo thứ tự nếu bạn mới sử dụng.<br>Đã quen? Chọn ngay mục cần tra cứu.</div>
+  </aside>
+
+  <main id="noi-dung">
+    <header class="hero" id="dau-trang">
+      <div class="hero-top"><span class="eyebrow">VEHICLE TRACKING / USER GUIDE</span><span class="edition">Cập nhật 15.09.2026</span></div>
+      <h1>Từ thiết lập tuyến<br>đến theo dõi <em>hành trình.</em></h1>
+      <p>Hướng dẫn dành cho người vận hành: chọn vị trí trạm trên bản đồ, lập chuyến và theo dõi xe qua từng điểm dừng.</p>
+      <div class="hero-actions"><a class="button" href="#bat-dau">Bắt đầu sử dụng <span aria-hidden="true">↗</span></a><a class="text-link" href="#keo-tuyen">Tôi muốn kéo chỉnh tuyến →</a></div>
+      <div class="hero-foot"><span>Hướng dẫn từng bước</span><span>Tra cứu khi gặp lỗi</span><span>Đọc offline · Có bản in</span></div>
+    </header>
+
+    <section id="bat-dau" class="section">
+      <div class="section-heading"><span class="section-number">01</span><div><p class="eyebrow">HÀNH TRÌNH ĐẦU TIÊN</p><h2>Bắt đầu nhanh</h2></div></div>
+      <p>Mở địa chỉ ứng dụng do người quản trị cung cấp. Để chạy chuyến đầu tiên, bạn cần có xe, ít nhất hai trạm và một tuyến đã lưu.</p>
+      <ol class="journey">
+        <li><a href="#doi-xe"><b>Thêm xe</b><span>Chọn loại xe và biển số</span></a></li>
+        <li><a href="#tram"><b>Tạo trạm</b><span>Đặt điểm đầu và điểm cuối</span></a></li>
+        <li><a href="#tuyen"><b>Tạo tuyến</b><span>Sắp thứ tự các trạm</span></a></li>
+        <li><a href="#chuyen"><b>Tạo chuyến</b><span>Chọn xe, tuyến và giờ đi</span></a></li>
+        <li><a href="#mo-phong"><b>Chạy mô phỏng</b><span>Chọn chuyến, bấm Bắt đầu</span></a></li>
+      </ol>
+      <div class="note"><strong>Đã có sẵn xe, trạm và tuyến?</strong> Bạn có thể chuyển thẳng đến bước <a href="#chuyen">tạo chuyến</a>.</div>
+      <div class="cards three">
+        <article class="card"><span class="card-icon" aria-hidden="true">◎</span><h3>Theo dõi</h3><p>Quản lý đội xe, tạo chuyến và xem thông tin xe đang chọn.</p></article>
+        <article class="card"><span class="card-icon" aria-hidden="true">⌁</span><h3>Tuyến & trạm</h3><p>Tạo trạm, thiết lập thứ tự điểm dừng và chỉnh đường đi.</p></article>
+        <article class="card"><span class="card-icon" aria-hidden="true">▷</span><h3>Mô phỏng</h3><p>Cho xe chạy thử, tạm dừng và xem ghi nhận qua trạm.</p></article>
+      </div>
+    </section>
+
+    <section id="ban-do" class="section">
+      <div class="section-heading"><span class="section-number">02</span><div><p class="eyebrow">KHÔNG GIAN LÀM VIỆC</p><h2>Làm quen bản đồ</h2></div></div>
+      <div class="cards two"><article class="card"><h3>Di chuyển & chọn xe</h3><ul><li>Giữ chuột và kéo vùng trống để di chuyển bản đồ.</li><li>Dùng con lăn hoặc nút <span class="ui">+</span> / <span class="ui">−</span> để phóng to, thu nhỏ.</li><li>Bấm biểu tượng xe để chọn xe và xem thông tin chuyến tương ứng.</li><li>Dùng <span class="ui">Theo xe</span> để bản đồ di chuyển theo xe được chọn.</li></ul></article>
+      <article class="card"><h3>Chọn lớp hiển thị</h3><p>Mở <span class="ui">Lớp bản đồ</span> ở góc dưới bên trái.</p><ul><li>Đổi nền: <strong>Đường bộ</strong>, <strong>Vệ tinh</strong> hoặc <strong>Ban đêm</strong>.</li><li>Bật/tắt <strong>Trạm dừng</strong> và <strong>Tuyến & điểm nháp</strong>.</li><li>Giao thông có nút bật/tắt riêng tại thanh <span class="ui">Giao thông trực tiếp</span> phía dưới bản đồ.</li><li>Nút vừa khung giúp nhìn bao quát tuyến hoặc các trạm.</li></ul></article></div>
+      <div class="note"><strong>Chọn xe để xem đúng chuyến.</strong> Bấm biểu tượng xe sẽ đồng bộ thông tin chuyến đi, tuyến của xe và bảng Mô phỏng xe. Khi nhiều xe đứng gần nhau, chọn xe trong danh sách hiện ra. Trên màn hình nhỏ, dùng nút <span class="ui">Đội xe</span> hoặc <span class="ui">Mô phỏng</span> phía dưới để chuyển giữa hai bảng.</div>
+      <p class="caption">Nếu bảng bên cạnh đang thu gọn, bấm tên bảng hoặc nút mở bảng để xem lại nội dung.</p>
+    </section>
+
+    <section id="doi-xe" class="section">
+      <div class="section-heading"><span class="section-number">03</span><div><p class="eyebrow">DANH MỤC PHƯƠNG TIỆN</p><h2>Quản lý đội xe</h2></div></div>
+      <ol class="steps"><li><h3>Mở danh sách xe</h3><p>Vào <span class="ui">Theo dõi</span> → <span class="ui">Đội xe</span> → <span class="ui">Thêm xe mới</span>.</p></li><li><h3>Điền thông tin</h3><p>Chọn <strong>Ô tô</strong> hoặc <strong>Xe máy</strong>, nhập biển số, tên xe và thông tin bổ sung nếu cần. Loại xe quyết định biểu tượng đại diện.</p></li><li><h3>Lưu xe</h3><p>Bấm <span class="ui">Thêm xe</span>. Xe xuất hiện trong danh sách và có thể được chọn khi tạo chuyến.</p></li></ol>
+      <div class="note"><strong>Muốn đổi thông tin?</strong> Bấm biểu tượng bút trên thẻ xe, chỉnh thông tin rồi chọn <span class="ui">Lưu xe</span>. Dùng ô tìm kiếm để tìm theo biển số hoặc tên xe.</div>
+      <p>Xe vừa thêm chưa có chuyến hoặc dữ liệu vị trí có thể chưa xuất hiện trên bản đồ. Sau khi tạo chuyến, xe chờ được hiển thị tại vị trí xuất phát.</p>
+    </section>
+
+    <section id="tram" class="section">
+      <div class="section-heading"><span class="section-number">04</span><div><p class="eyebrow">CHỌN ĐÚNG ĐIỂM DỪNG</p><h2>Tạo trạm dừng</h2></div></div>
+      <ol class="steps"><li><h3>Thêm trạm</h3><p>Vào <span class="ui">Tuyến & trạm</span>, chọn thẻ <span class="ui">Trạm dừng</span> rồi bấm nút thêm trạm.</p></li><li><h3>Đặt vị trí trên bản đồ</h3><p>Trong chế độ chọn vị trí, kéo và phóng to bản đồ để đưa điểm cần đặt trạm vào dấu ngắm giữa màn hình. Bấm <span class="ui">Chọn vị trí này</span>.</p></li><li><h3>Hoàn tất thông tin</h3><p>Nhập tên trạm, địa chỉ nếu có và bán kính check-in. Kiểm tra lại vị trí rồi bấm nút lưu trên biểu mẫu.</p></li></ol>
+      <div class="note warning"><strong>Đặt trạm sát vị trí xe có thể đi qua.</strong> Một trạm nằm sâu trong tòa nhà có thể khiến xe ngoài đường không vào được vùng ghi nhận. Không tăng bán kính quá rộng vì có thể bao gồm đường song song.</div>
+      <p>Để sửa trạm, chọn trạm trong danh sách và mở chỉnh sửa. Có thể chọn lại vị trí trên bản đồ. Hãy đọc thông báo xác nhận trước khi ngừng sử dụng trạm.</p>
+    </section>
+
+    <section id="tuyen" class="section">
+      <div class="section-heading"><span class="section-number">05</span><div><p class="eyebrow">THIẾT LẬP LỘ TRÌNH</p><h2>Tạo tuyến đường</h2></div></div>
+      <ol class="steps"><li><h3>Mở biểu mẫu tuyến</h3><p>Vào <span class="ui">Tuyến & trạm</span> → <span class="ui">Tuyến đường</span>, bấm nút tạo tuyến mới và nhập tên dễ nhận biết.</p></li><li><h3>Chọn các điểm dừng theo thứ tự</h3><p>Chọn trạm đầu, các trạm giữa nếu có và trạm cuối. Tuyến cần tối thiểu hai trạm. Dùng tay nắm kéo hoặc nút mũi tên để đổi thứ tự.</p></li><li><h3>Thiết lập thời gian dừng</h3><p>Nhập thời gian dừng ở các trạm giữa theo nhu cầu. Kiểm tra lại trạm đầu và cuối trước khi lưu.</p></li><li><h3>Tính và lưu tuyến</h3><p>Bấm <span class="ui">Tính & lưu tuyến mới</span>. Chờ hệ thống tính đường, sau đó kiểm tra đường vẽ, tổng quãng đường và thời gian dự kiến.</p></li></ol>
+      <div class="note"><strong>Tuyến và chuyến là hai việc khác nhau.</strong> Tuyến mô tả đường đi qua các trạm. Chuyến gắn tuyến đó với một xe và giờ xuất phát. Lưu tuyến xong, tiếp tục <a href="#chuyen">tạo chuyến</a> để sử dụng.</div>
+    </section>
+
+    <section id="keo-tuyen" class="section featured">
+      <div class="section-heading"><span class="section-number">06</span><div><p class="eyebrow">CHỌN CON ĐƯỜNG BẠN MUỐN</p><h2>Kéo chỉnh đường đi</h2></div></div>
+      <p>Giữ nguyên các trạm, thêm điểm dẫn đường để tuyến đi qua con đường bạn chọn.</p>
+      <figure class="route-demo">
+        <svg viewBox="0 0 760 220" role="img" aria-labelledby="route-title route-desc">
+          <title id="route-title">Minh họa thêm một điểm dẫn đường giữa hai trạm</title>
+          <desc id="route-desc">Đường cũ đi thẳng từ A đến B. Kéo điểm dẫn đường xuống đường phía dưới, rồi tính lại tuyến qua điểm đó. A và B vẫn giữ nguyên.</desc>
+          <path class="demo-road" d="M80 65H680 M80 165H680 M180 40V190 M580 40V190"/>
+          <path class="demo-old" d="M80 65H680"/>
+          <path class="demo-route" d="M80 65H180V165H580V65H680"/>
+          <path class="demo-arrow" d="M380 75V125m-6-7 6 7 6-7"/>
+          <circle class="demo-stop" cx="80" cy="65" r="19"/><circle class="demo-stop" cx="680" cy="65" r="19"/>
+          <text x="80" y="71" class="demo-stop-text">A</text><text x="680" y="71" class="demo-stop-text">B</text>
+          <circle class="demo-handle" cx="380" cy="165" r="16"/><text x="380" y="171" class="demo-handle-text">1</text>
+          <text x="380" y="37" class="demo-label">Đường đi trước khi chỉnh</text><text x="380" y="207" class="demo-label">Điểm dẫn đường bạn kéo tới</text>
+        </svg>
+        <figcaption>Hình minh họa thao tác; đường thực tế được tính lại sau khi bạn chọn điểm.</figcaption>
+      </figure>
+      <ol class="steps"><li><h3>Mở chế độ kéo chỉnh</h3><p>Chọn một tuyến đã lưu, mở chi tiết và bấm <span class="ui">Kéo chỉnh đường đi</span>.</p></li><li><h3>Kéo đường hoặc điểm trắng</h3><p>Giữ chuột trên đoạn tuyến xanh, kéo tới đường mong muốn rồi thả. Hoặc bấm đoạn tuyến để thêm điểm trắng có số, sau đó kéo điểm này. Kéo vùng trống để di chuyển bản đồ.</p></li><li><h3>Tính lại để xem đường mới</h3><p>Bấm <span class="ui">Tính lại tuyến</span>. Đợi đường mới xuất hiện và kiểm tra quãng đường, thời gian. Nếu chưa đúng, kéo điểm rồi tính lại lần nữa.</p></li><li><h3>Lưu kết quả</h3><p>Bấm <span class="ui">Lưu tuyến</span>. Nếu tuyến đã có chuyến đi, chọn <span class="ui">Lưu thành tuyến mới</span> trước khi lưu, rồi dùng tuyến mới khi tạo chuyến.</p></li></ol>
+      <div class="cards two"><article class="card"><h3>Điểm dẫn đường</h3><p>Điểm trắng không phải trạm check-in. Có thể xóa điểm hoặc dùng mũi tên trong danh sách để đổi thứ tự điểm cùng chặng. Tối đa 20 điểm dẫn đường.</p></article><article class="card"><h3>Trước khi đóng</h3><p>Thao tác kéo chưa tự lưu. Sau mỗi thay đổi, cần tính lại trước khi lưu. Nếu chọn hủy và xác nhận bỏ thay đổi, bản nháp sẽ bị bỏ.</p></article></div>
+      <div class="note warning"><strong>Chuyến đang chạy:</strong> thao tác này chỉnh tuyến trong danh mục. Lưu thành bản sao không tự thay đường của chuyến đang chạy. Việc tự đổi tuyến do giao thông được mô tả ở <a href="#giao-thong">mục 09</a>.</div>
+      <p class="caption">Biểu mẫu “Sửa tuyến” thông thường tính lại từ danh sách trạm và bỏ các điểm kéo chỉnh đã lưu. Khi chỉ muốn đổi đường đi, hãy dùng “Kéo chỉnh đường đi”.</p>
+    </section>
+
+    <section id="chuyen" class="section">
+      <div class="section-heading"><span class="section-number">07</span><div><p class="eyebrow">GẮN XE VỚI LỊCH TRÌNH</p><h2>Tạo & theo dõi chuyến</h2></div></div>
+      <ol class="steps"><li><h3>Tạo chuyến mới</h3><p>Vào <span class="ui">Theo dõi</span> → <span class="ui">Chuyến đi</span> → <span class="ui">Tạo chuyến mới</span>.</p></li><li><h3>Chọn xe, tuyến và giờ xuất phát</h3><p>Chọn xe đang sử dụng, tuyến đã lưu và giờ xuất phát theo giờ địa phương. Nếu thiếu tuyến, mở <span class="ui">Quản lý tuyến</span> để tạo, rồi quay lại tải danh sách.</p></li><li><h3>Tạo và kiểm tra</h3><p>Bấm <span class="ui">Tạo chuyến</span>. Mở chi tiết để xem lịch trình. Khi chưa khởi hành, xe chờ ở vị trí xuất phát.</p></li></ol>
+      <div class="cards two"><article class="card"><h3>Theo dõi vận hành</h3><p>Chọn xe hoặc chuyến để xem vị trí, lịch trình và các trạm. Nút <span class="ui">Khởi hành</span> bắt đầu trạng thái chuyến; dữ liệu vị trí cần đến từ GPS hoặc mô phỏng.</p><p>Để chạy thử xe, chọn <span class="ui">Mở mô phỏng chuyến này</span> rồi làm theo mục tiếp theo.</p></article><article class="card"><h3>Đọc ghi nhận qua trạm</h3><p>Check-in là ghi nhận tự động khi xe đi qua vùng trạm theo điều kiện của hệ thống. Xem dòng <strong>Đã qua trạm lúc…</strong> và số điểm dừng đã ghi nhận.</p><p>Ghi nhận qua trạm không xác nhận xe đã dừng đón/trả khách.</p></article></div>
+      <p>Chuyến chưa khởi hành có thể <span class="ui">Sửa giờ xuất phát</span>. Các thao tác <span class="ui">Hủy chuyến</span>, <span class="ui">Hoàn thành</span> và xóa chuyến có điều kiện hoặc bước xác nhận; hãy đọc thông báo trước khi tiếp tục.</p>
+    </section>
+
+    <section id="mo-phong" class="section">
+      <div class="section-heading"><span class="section-number">08</span><div><p class="eyebrow">CHẠY THỬ HÀNH TRÌNH</p><h2>Điều khiển mô phỏng</h2></div></div>
+      <ol class="steps"><li><h3>Chọn đúng chuyến</h3><p>Mở <span class="ui">Mô phỏng</span>, chọn xe hoặc chọn chuyến trong ô <span class="ui">Chuyến mô phỏng</span>. Kiểm tra biển số và tên tuyến.</p></li><li><h3>Bắt đầu và quan sát</h3><p>Khi kết nối trực tiếp sẵn sàng, bấm <span class="ui">Bắt đầu</span>. Dùng <span class="ui">Xem vị trí xe và tuyến đang chạy</span> để tìm xe trên bản đồ.</p></li><li><h3>Điều chỉnh tốc độ phát</h3><p>Chọn <span class="ui">1x</span>, <span class="ui">5x</span> hoặc <span class="ui">10x</span>. Xem vị trí, tiến độ và các trạm đã qua trong lúc chạy.</p></li></ol>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Ý nghĩa nút mô phỏng"><table><caption>Chọn thao tác phù hợp</caption><thead><tr><th scope="col">Nút</th><th scope="col">Kết quả</th></tr></thead><tbody>
+        <tr><th scope="row">Tạm dừng / Tiếp tục</th><td>Dừng tại vị trí hiện tại, rồi tiếp tục hành trình khi sẵn sàng.</td></tr>
+        <tr><th scope="row">1x / 5x / 10x</th><td>Thay tốc độ phát mô phỏng. 5x cho thời gian mô phỏng trôi nhanh gấp năm; số km/h hiển thị vẫn là vận tốc xe trong mô phỏng.</td></tr>
+        <tr><th scope="row">Chạy lại</th><td>Sau xác nhận, giữ mã chuyến và tuyến, đưa xe về trạm đầu. Lịch sử/check-in được lưu riêng theo lần chạy. Bấm Bắt đầu để chạy lần mới.</td></tr>
+        <tr><th scope="row">Dừng & hủy chuyến</th><td>Dừng mô phỏng và hủy chuyến sau xác nhận. Lịch sử vẫn được giữ lại.</td></tr>
+      </tbody></table></div>
+      <div class="note"><strong>Ví dụ:</strong> xe hiển thị 30 km/h ở chế độ 5x vẫn có vận tốc mô phỏng 30 km/h. Bạn đang xem hành trình diễn ra nhanh hơn, nên xe đi xa hơn trên màn hình trong cùng một giây thực.</div>
+      <p>Xe nhận tốc độ theo dữ liệu giao thông phù hợp khi có dữ liệu. Chỗ thiếu dữ liệu sử dụng thông tin tuyến. Xe đang được theo dõi bằng GPS không chạy mô phỏng đồng thời.</p>
+    </section>
+
+    <section id="giao-thong" class="section">
+      <div class="section-heading"><span class="section-number">09</span><div><p class="eyebrow">HIỂU THÔNG TIN TRÊN MÀN HÌNH</p><h2>Giao thông, thời gian đến & cảnh báo</h2></div></div>
+      <div class="legend" aria-label="Chú giải màu giao thông"><span><i class="clear"></i>Thông thoáng</span><span><i class="slow"></i>Chậm</span><span><i class="congested"></i>Ùn tắc</span><span><i class="blocked"></i>Kẹt / đóng</span></div>
+      <p>Bật/tắt bằng công tắc trên thanh <span class="ui">Giao thông trực tiếp</span> phía dưới bản đồ. Khi có lỗi và xuất hiện nút <span class="ui">Thử lại</span>, bấm để tải lại giao thông. Đọc cả trạng thái dữ liệu và cảnh báo; màu đường không đủ để xác định chắc chắn một sự cố đóng đường.</p>
+      <div class="cards two"><article class="card"><h3>Lịch kế hoạch</h3><p>Giờ đến/hoàn thành khi tạo chuyến dựa trên tuyến đã được tính và giờ xuất phát bạn chọn. Đây là mốc để lập lịch.</p></article><article class="card"><h3>ETA theo giao thông</h3><p>ETA là thời gian đến ước tính theo vị trí và dữ liệu giao thông có sẵn. Nếu xuất hiện thông báo dữ liệu cũ hoặc chưa cập nhật, độ tin cậy của ước tính giảm.</p></article></div>
+      <h3>Khi tuyến bị kẹt xe hoặc có sự cố</h3><p>Theo dõi bảng <span class="ui">Cảnh báo</span>. Hệ thống đánh giá giao thông và có thể tạo tuyến thay thế khi đáp ứng điều kiện. Simulator sử dụng tuyến được chấp nhận nếu có thể nối an toàn từ vị trí hiện tại.</p>
+      <p>Không phải mỗi đoạn màu đỏ đều lập tức làm xe đổi đường. Nếu chưa có tuyến khả dụng hoặc tuyến mới không cải thiện thời gian, hệ thống có thể báo không tạo được tuyến thay thế.</p>
+    </section>
+
+    <section id="xu-ly-loi" class="section">
+      <div class="section-heading"><span class="section-number">10</span><div><p class="eyebrow">TRA CỨU NHANH</p><h2>Câu hỏi thường gặp</h2></div></div>
+      <details open><summary>Không thấy nút “Kéo chỉnh đường đi”?</summary><div><p>Vào Tuyến & trạm → Tuyến đường, chọn một tuyến đã lưu để mở chi tiết. Nút nằm ở cuối bảng, cạnh Sửa tuyến. Nếu đang ở biểu mẫu sửa/tạo, đóng biểu mẫu để trở về chi tiết.</p><p>Nếu vẫn chưa thấy, tải lại trang. Liên hệ người quản trị để kiểm tra ứng dụng đã được cập nhật.</p></div></details>
+      <details open><summary>Kéo điểm rồi nhưng tuyến chưa thay đổi?</summary><div><p>Bấm Tính lại tuyến và đợi kết quả. Nếu bạn vừa kéo thêm lần nữa, cần tính lại trước khi lưu. Hãy đặt điểm trên con đường xe có thể đi qua.</p></div></details>
+      <details open><summary>Không lưu được tuyến đã chỉnh?</summary><div><p>Tuyến đã có chuyến đi cần chọn Lưu thành tuyến mới. Nếu báo lỗi dịch vụ, giữ bản nháp và thử tính lại. Nếu lỗi lặp lại, gửi người quản trị thông báo lỗi cùng thời điểm xảy ra.</p></div></details>
+      <details open><summary>Không kéo được bản đồ khi chọn trạm?</summary><div><p>Giữ chuột trên vùng bản đồ trống, ngoài bảng thông tin và các nút. Đưa vị trí cần chọn vào dấu ngắm giữa màn hình, rồi bấm Chọn vị trí này.</p></div></details>
+      <details open><summary>Xe mới tạo chưa xuất hiện trên bản đồ?</summary><div><p>Kiểm tra xe đã được tạo chuyến có tuyến và trạm đầu hợp lệ chưa. Dùng Xem vị trí xe trong danh sách để tìm xe, rồi tải lại danh sách nếu cần.</p></div></details>
+      <details open><summary>Nút Bắt đầu hoặc đổi tốc độ đang bị khóa?</summary><div><p>Chọn chuyến trước, đợi tải xong và kiểm tra trạng thái kết nối. Xe nhận GPS không dùng mô phỏng. Chuyến đã kết thúc cần dùng Chạy lại nếu đã có phiên mô phỏng, hoặc tạo chuyến khác.</p></div></details>
+      <details open><summary>Xe gần trạm nhưng chưa check-in?</summary><div><p>Nhìn gần trên bản đồ chưa chắc đã vào vùng ghi nhận. Kiểm tra đúng chuyến, thứ tự trạm, vị trí trạm và trạng thái cập nhật xe. Nếu vị trí trạm sai, chỉnh lại cho các tuyến/chuyến tiếp theo; không tăng bán kính quá rộng để bù vị trí sai.</p></div></details>
+      <details open><summary>ETA báo lỗi hoặc giao thông chưa cập nhật?</summary><div><p>Bấm Thử lại ETA hoặc Thử lại ở phần giao thông khi có nút. Nếu mất kết nối, bấm Kết nối lại và đợi. Khi lỗi HTTP 500/503 lặp lại, gửi nội dung lỗi, mã chuyến và thời điểm cho người quản trị kiểm tra.</p></div></details>
+      <details open><summary>Chạy lại có tạo mã chuyến mới không?</summary><div><p>Không. Chạy lại giữ mã chuyến và tuyến gốc, tách lịch sử/check-in theo lần chạy, đưa xe về trạm đầu và chờ bạn bấm Bắt đầu.</p></div></details>
+      <details open><summary>Làm sao lưu tài liệu này thành PDF?</summary><div><p>Dùng chức năng In của trình duyệt: Ctrl + P trên Windows/Linux hoặc Command + P trên macOS. Chọn Lưu thành PDF. Các câu hỏi được mở sẵn để dễ tìm kiếm và in; nếu bạn đã thu gọn chúng, hãy mở lại trước khi in.</p></div></details>
+    </section>
+    <footer><span>Vehicle Tracking · Hướng dẫn người sử dụng</span><a href="#dau-trang">Về đầu tài liệu ↑</a><p>Tra cứu nhanh bằng Ctrl + F hoặc Command + F. Tên xe, tuyến và hình minh họa trong tài liệu chỉ dùng để hướng dẫn.</p></footer>
+  </main>
+</body>
+</html>

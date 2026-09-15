@@ -180,8 +180,9 @@ export const MapComponent: FC = () => {
       && (point.source!=='SIMULATOR' || fleetTripIds.has(point.tripId)))};
   }, [live.snapshot,workspace,simulationFleet.previews,simulationFleet.trips]);
   const selectedVehicle = useMemo(
-    () => mapSnapshot?.positions.find(point => point.vehicleId === selectedVehicleId) ?? null,
-    [selectedVehicleId, mapSnapshot]
+    () => mapSnapshot?.positions.find(point => point.vehicleId === selectedVehicleId
+      && (!tripSelection?.tripId || point.tripId === tripSelection.tripId)) ?? null,
+    [selectedVehicleId, mapSnapshot, tripSelection]
   );
   const markerAnchors = useMemo(
     () => workspace === 'simulation'
@@ -189,9 +190,11 @@ export const MapComponent: FC = () => {
       : plannedVehicleAnchors,
     [workspace, plannedVehicleAnchors, simulationFleet.previews]
   );
-  const selectedPlannedVehicle = plannedVehicleAnchors.find(anchor => anchor.vehicleId === selectedVehicleId) ?? null;
-  const selectedWaitingVehicle = simulationFleet.previews.find(item => item.trip.vehicleId === selectedVehicleId);
-  const selectedTripId = selectedVehicle?.tripId
+  const selectedPlannedVehicle = plannedVehicleAnchors.find(anchor => anchor.vehicleId === selectedVehicleId
+    && (!tripSelection?.tripId || anchor.tripId === tripSelection.tripId)) ?? null;
+  const selectedWaitingVehicle = simulationFleet.previews.find(item => item.trip.vehicleId === selectedVehicleId
+    && (!tripSelection?.tripId || item.trip.id === tripSelection.tripId));
+  const selectedTripId = (selectedVehicleId !== null ? tripSelection?.tripId : null) ?? selectedVehicle?.tripId
     ?? (selectedVehicleId === null ? null : selectedPlannedVehicle?.tripId ?? selectedWaitingVehicle?.trip.id
       ?? (simulator.trip?.vehicleId === selectedVehicleId ? simulator.trip.id : null));
   const selectedRun = live.snapshot?.simulations.find(run => run.tripId === selectedTripId);
@@ -218,6 +221,7 @@ export const MapComponent: FC = () => {
       setWorkspace('tracking'); setPickingLocation(false);
     }
     setDrawerOpen(true); setSimulatorExpanded(true);
+    setSheetExpanded(true);
     setActivePanel('context');
   };
   const clearVehicleSelection = () => {
@@ -228,13 +232,12 @@ export const MapComponent: FC = () => {
   useVehicleMarkers({ mapRef: mapInstanceRef, snapshot: mapSnapshot, now: live.now,
     motionPaths,
     plannedPositions: markerAnchors, visible: true, selectedId: selectedVehicleId, groupSelection: workspace==='simulation',
-    following: followingVehicle, onSelect: id => {
-      const point = mapSnapshot?.positions.find(item=>item.vehicleId===id) ?? plannedVehicleAnchors.find(item=>item.vehicleId===id);
-      if (point) selectVehicleTrip(id, point.tripId);
-    }, onFocus: focusLocation });
+    following: followingVehicle, onSelect: selectVehicleTrip, onFocus: focusLocation });
 
   const focusVehicle = (id: number) => {
-    const point = mapSnapshot?.positions.find(item => item.vehicleId === id) ?? plannedVehicleAnchors.find(item => item.vehicleId === id);
+    const planned = plannedVehicleAnchors.find(item => item.vehicleId === id);
+    const actual = mapSnapshot?.positions.find(item => item.vehicleId === id);
+    const point = planned && actual?.tripId !== planned.tripId ? planned : actual ?? planned;
     if (point && !simulator.busy) {
       selectVehicleTrip(id, point.tripId); focusLocation([point.latitude,point.longitude],16);
     }
@@ -745,9 +748,11 @@ export const MapComponent: FC = () => {
         vehicles={simulationFleet.previews} onSelect={selectSimulationVehicle} />
         <SimulationRoutesLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showRoutes}
           routes={selectedSimulationRoutes} selectedTripId={selectedTripId} onSelect={selectSimulationVehicle} /></Suspense>}
-      {plannedRoute && <Suspense fallback={null}>
-        <RouteInspectionLayer mapRef={mapInstanceRef} mapReady={mapReady} route={plannedRoute}
-          visible={showRoutes && !pickingLocation && workspace !== 'simulation'} trafficEnabled={showTraffic} />
+      {(plannedRoute || hasSimulationRoute) && <Suspense fallback={null}>
+        <RouteInspectionLayer mapRef={mapInstanceRef} mapReady={mapReady}
+          route={workspace === 'simulation' ? selectedSimulationRoutes[0]?.route ?? null : plannedRoute}
+          visible={showRoutes && !pickingLocation && (workspace !== 'simulation' || hasSimulationRoute)}
+          trafficEnabled={showTraffic} />
       </Suspense>}
       <ModeBar mode={workspace} onChange={selectMode} connectionLabel={connectionLabel} />
       <div className="live-follow glass-panel" data-map-edge="top" hidden={!selectedVehicle && !selectedWaitingVehicle && !selectedPlannedVehicle}>

@@ -57,9 +57,6 @@ export function SimulationRoutesLayer({ mapRef, mapReady, visible, routes, selec
       L.polyline(row.segments,{...options,color:selected?'#1967d2':'#3c4043',weight:selected?8:5.5,opacity:selected?0.96:0.8,interactive:false}).addTo(layer);
       const path=L.polyline(row.segments,{...options,color:simulationRouteColor(row.vehicleId,selected),
         weight:selected?5:3.5,opacity:1,className:'simulation-route-path',interactive:true}).addTo(layer);
-      const label=document.createElement('span');
-      label.textContent=`${row.plate} · Chuyến #${row.tripId} · ${row.name}${selected?' · Đang chọn':''}`;
-      path.bindTooltip(label,{sticky:true});
       path.on('click',(event: L.LeafletMouseEvent)=>choose(row,event.latlng));
       const element=path.getElement();
       const keydown=(event: Event)=>{
@@ -75,7 +72,7 @@ export function SimulationRoutesLayer({ mapRef, mapReady, visible, routes, selec
         element.setAttribute('aria-pressed',String(selected));
         element.addEventListener('keydown',keydown);
       }
-      cleanups.push(()=>{element?.removeEventListener('keydown',keydown);path.off();path.unbindTooltip();});
+      cleanups.push(()=>{element?.removeEventListener('keydown',keydown);path.off();});
     }
     return ()=>{closePicker();cleanups.forEach(cleanup=>cleanup());layer.clearLayers();layer.remove();renderer.remove();};
   },[mapRef,mapReady,visible,signature,selectedTripId]);

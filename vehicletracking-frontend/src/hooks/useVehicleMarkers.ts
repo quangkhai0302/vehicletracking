@@ -28,7 +28,7 @@ type VehicleAnimation = {
 export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], motionPaths, now, visible, selectedId, following, onSelect, onFocus, groupSelection = false }: {
   mapRef: RefObject<L.Map | null>; snapshot: OperationsSnapshot | null; now: number; visible: boolean;
   plannedPositions?: readonly VehicleMarkerAnchor[];
-  selectedId: number | null; following: boolean; onSelect: (id: number) => void;
+  selectedId: number | null; following: boolean; onSelect: (id: number, tripId: number) => void;
   onFocus: (point: L.LatLngExpression, zoom?: number) => void;
   groupSelection?: boolean;
   motionPaths?: ReadonlyMap<number, MotionPath>;
@@ -167,21 +167,23 @@ export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], mot
       text.textContent = `${plateNumber ?? point.vehicleId} · ${vehicleTypeLabel(vehicleType)} · ${sourceLabel} · ${state} · ${speedLabel} km/h · ${timeLabel}`;
       if (marker.getTooltip()) marker.setTooltipContent(text); else marker.bindTooltip(text, { direction: 'top', opacity: .95 });
       marker.off('click').on('click', () => {
-        const anchor = map.latLngToContainerPoint([point.latitude,point.longitude]);
+        const displayed = marker.getLatLng();
+        const anchor = map.latLngToContainerPoint(displayed);
         const nearby = groupSelection ? positions.filter(candidate => candidate.source==='SIMULATOR'
-          && map.latLngToContainerPoint([candidate.latitude,candidate.longitude]).distanceTo(anchor)<36) : [];
+          && map.latLngToContainerPoint(markers.current.get(candidate.vehicleId)?.getLatLng()
+            ?? [candidate.latitude,candidate.longitude]).distanceTo(anchor)<36) : [];
         if (nearby.length > 1) {
           const content = document.createElement('div'); content.className='simulation-station-picker';
           const title = document.createElement('strong'); title.textContent=`${nearby.length} xe gần vị trí này`; content.append(title);
           for (const candidate of nearby) {
             const button=document.createElement('button');button.type='button';button.dataset.simulationVehicle=String(candidate.vehicleId);
             button.textContent=snapshot?.trips.find(item=>item.id===candidate.tripId)?.vehiclePlateNumber ?? `Xe ${candidate.vehicleId}`;
-            button.onclick=()=>{map.closePopup();onSelect(candidate.vehicleId);onFocus([candidate.latitude,candidate.longitude],16);};content.append(button);
+            button.onclick=()=>{map.closePopup();onSelect(candidate.vehicleId, candidate.tripId);onFocus(markers.current.get(candidate.vehicleId)?.getLatLng() ?? [candidate.latitude,candidate.longitude],16);};content.append(button);
           }
-          const popup=L.popup({maxWidth:260}).setLatLng([point.latitude,point.longitude]).setContent(content).openOn(map);
+          const popup=L.popup({maxWidth:260}).setLatLng(displayed).setContent(content).openOn(map);
           vehiclePicker.current=popup;
           popup.once('remove',()=>content.querySelectorAll('button').forEach(button=>{button.onclick=null;}));
-        } else { onSelect(point.vehicleId); onFocus([point.latitude,point.longitude],16); }
+        } else { onSelect(point.vehicleId, point.tripId); onFocus(displayed,16); }
       });
     }
     const selected = positions.find(point => point.vehicleId === selectedId);
