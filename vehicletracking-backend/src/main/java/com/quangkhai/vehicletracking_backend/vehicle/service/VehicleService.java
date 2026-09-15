@@ -32,7 +32,7 @@ public class VehicleService {
     public VehicleResponse create(VehicleUpsertRequest input) {
         String plate = normalizePlate(input.plateNumber());
         ensureUnique(plate, -1L);
-        return persist(new VehicleEntity(plate, input.name().trim(), normalizeDescription(input.description())));
+        return persist(new VehicleEntity(plate, input.name().trim(), normalizeDescription(input.description()), input.vehicleType()));
     }
     @Transactional
     public VehicleResponse update(long id, VehicleUpsertRequest input) {
@@ -40,7 +40,7 @@ public class VehicleService {
         if (!vehicle.isActive()) throw new ResponseStatusException(CONFLICT, "Xe đã ngừng sử dụng.");
         String plate = normalizePlate(input.plateNumber());
         ensureUnique(plate, id);
-        vehicle.updateDetails(plate, input.name().trim(), normalizeDescription(input.description()));
+        vehicle.updateDetails(plate, input.name().trim(), normalizeDescription(input.description()), input.vehicleType());
         return persist(vehicle);
     }
     @Transactional

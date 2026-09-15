@@ -62,16 +62,22 @@ try {
   assert.equal(await pages[0].getByRole('button',{name:'Bỏ theo xe',exact:true}).getAttribute('aria-pressed'),'true');
   await pages[0].screenshot({path:output+'simulator-desktop.png'});
   checks.push('Vehicle selection and follow');
+  const beforeReset=await fetch(api+'/telemetry/snapshot').then(r=>r.json());
+  const previousAttempt=beforeReset.trips.find(t=>t.id===tripId).attemptNumber??1;
   await pages[0].getByRole('button',{name:'Chạy lại',exact:true}).click();
-  await pages[0].getByRole('button',{name:'Tạo chuyến chạy lại',exact:true}).click();
-  await poll(async()=>Number(await pages[0].getByLabel('Chọn chuyến mô phỏng').inputValue())!==tripId,'Reset did not select new trip');
-  const previous=tripId;tripId=Number(await pages[0].getByLabel('Chọn chuyến mô phỏng').inputValue());
+  await pages[0].getByRole('button',{name:'Đặt lại chuyến',exact:true}).click();
+  await poll(async()=>{
+    const value=await fetch(api+'/telemetry/snapshot').then(r=>r.json());
+    return value.trips.find(t=>t.id===tripId)?.attemptNumber===previousAttempt+1;
+  },'Reset did not advance the same trip attempt');
+  assert.equal(Number(await pages[0].getByLabel('Chọn chuyến mô phỏng').inputValue()),tripId);
   await pages[0].getByTestId('simulation-elapsed').waitFor();assert.equal(await runValue(pages[0]),0);
   const resetSnapshot=await fetch(api+'/telemetry/snapshot').then(r=>r.json());
-  assert.equal(resetSnapshot.trips.find(t=>t.id===previous).status,'CANCELLED');
   assert.equal(resetSnapshot.trips.find(t=>t.id===tripId).status,'SCHEDULED');
+  assert.equal(resetSnapshot.trips.find(t=>t.id===tripId).attemptNumber,previousAttempt+1);
+  assert.equal(resetSnapshot.positions.some(p=>p.tripId===tripId),false);
   await pages[1].getByLabel('Chọn chuyến mô phỏng').selectOption(String(tripId));
-  checks.push('Reset creates new paused trip and retains terminal trip/run history');
+  checks.push('Reset keeps the trip, advances attempt and clears the current position');
   for(const width of [390,320]) {
     const page=pages[0];await page.setViewportSize({width,height:844});
     await page.getByRole('button',{name:'Mô phỏng',exact:true}).first().click();

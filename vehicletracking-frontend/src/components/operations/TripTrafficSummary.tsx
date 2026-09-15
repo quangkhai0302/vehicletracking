@@ -22,7 +22,7 @@ export function TripTrafficSummary({ tripId, run, stops = [], position, now, con
     || !!(view.observedAt ?? view.fetchedAt) && now - Date.parse((view.observedAt ?? view.fetchedAt)!) > 90_000 || !!eta.error;
   const stopName = view.stationName ?? stops.find(stop => stop.sequenceNumber === view.nextStopSequence)?.stationName
     ?? (view.nextStopSequence !== null ? `Trạm ${view.nextStopSequence}` : 'Chưa xác định trạm tiếp theo');
-  const sourceText = staleTraffic && view.source === 'HERE_LIVE' ? 'HERE · dữ liệu gần nhất' : trafficSourceLabel[view.source];
+  const sourceText = staleTraffic && view.source === 'HERE_LIVE' ? 'Ước tính theo dữ liệu giao thông gần nhất' : trafficSourceLabel[view.source];
   return <section className="trip-traffic-card" aria-label={context === 'simulation' ? 'Vị trí, vận tốc và ETA mô phỏng' : 'Vị trí, vận tốc và ETA xe'}>
     <div className="telemetry-grid">
       <div><span><Gauge size={13} /> {oldPosition || connection !== 'live' ? 'Vận tốc gần nhất' : 'Vận tốc xe'}</span>
@@ -33,7 +33,7 @@ export function TripTrafficSummary({ tripId, run, stops = [], position, now, con
     <div className="trip-traffic-next"><MapPin size={14} /><strong>{view.finished ? 'Chuyến đã kết thúc' : stopName}</strong></div>
     {view.etaAt && run?.status !== 'PAUSED' && <p>Dự kiến đến: {displayTripTime(view.etaAt)}</p>}
     {!sample && <p>Chưa có vị trí xe; bắt đầu chuyến để theo dõi.</p>}
-    <p className="trip-traffic-source" data-stale={staleTraffic || view.source === 'ROUTE_SNAPSHOT'}>{eta.loading && !eta.data && !run?.traffic ? 'Đang tính ETA theo giao thông…' : sourceText}</p>
+    {(staleTraffic || view.source !== 'HERE_LIVE' || (eta.loading && !eta.data)) && <p className="trip-traffic-source" data-stale={staleTraffic || view.source === 'ROUTE_SNAPSHOT'}>{eta.loading && !eta.data && !run?.traffic ? 'Đang tính giờ đến…' : sourceText}</p>}
     {view.blocked && <p className="trip-traffic-blocked" role="status">Đường phía trước bị chặn. Chưa thể xác định thời gian đến trạm.</p>}
     {view.impacts.length > 0 && <p className="trip-traffic-impacts">Ảnh hưởng trên phần tuyến còn lại: {view.impacts.join(' · ')}.</p>}
     {view.delay !== null && view.delay >= 60 && <p>Phần tuyến còn lại chậm hơn khoảng {remainingTime(Math.ceil(view.delay))} so với tuyến đã lưu.</p>}
@@ -43,7 +43,7 @@ export function TripTrafficSummary({ tripId, run, stops = [], position, now, con
     {eta.error && !view.finished && <p className="trip-traffic-impacts" role="status">Chưa làm mới được ETA. <button type="button" onClick={eta.retry}>Thử lại</button></p>}
     {(oldPosition || connection !== 'live') && !view.finished && <p>Vị trí chưa được cập nhật trực tiếp.</p>}
     {run?.status === 'PAUSED' && <p>Mô phỏng đang tạm dừng; thời gian tới trạm áp dụng khi tiếp tục chạy.</p>}
-    <details className="trip-traffic-details"><summary>Vị trí & thời điểm cập nhật</summary>
+    <details className="trip-traffic-details"><summary>Thông tin kỹ thuật</summary>
       {sample && <p className="trip-traffic-position">Vị trí: {sample.latitude.toFixed(5)}, {sample.longitude.toFixed(5)} · {context === 'simulation' || position?.source === 'SIMULATOR' ? 'GIẢ LẬP' : 'GPS'}</p>}
       {sampleAt && <p className="trip-traffic-update">Vị trí cập nhật: {displayTripTime(sampleAt)}</p>}
       {view.fetchedAt && <p className="trip-traffic-update">Giao thông cập nhật: {displayTripTime(view.observedAt ?? view.fetchedAt)} · ETA làm mới mỗi 10 giây.</p>}

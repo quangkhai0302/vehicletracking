@@ -5,6 +5,7 @@ import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
+import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
@@ -56,6 +57,16 @@ class TripServiceTest {
         station.updateDetails("Changed", null, station.getLatitude(), station.getLongitude(), 500);
         assertThat(result.stops().getFirst().stationName()).isEqualTo("A");
         assertThat(result.stops().getFirst().checkinRadiusMeters()).isEqualTo(50);
+    }
+    @Test void create_exposesVehicleTypeInTripSummary() {
+        vehicle = new VehicleEntity("59X112345", "Xe máy A", null, VehicleType.MOTORCYCLE);
+        ReflectionTestUtils.setField(vehicle, "id", 1L);
+        when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));
+        when(routes.findById(2L)).thenReturn(Optional.of(route));
+        when(trips.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+
+        var result = service.create(new TripCreateRequest(1L, 2L, departure));
+        assertThat(result.trip().vehicleType()).isEqualTo(VehicleType.MOTORCYCLE);
     }
     @Test void create_rejectsInactiveStation() {
         when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));

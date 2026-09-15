@@ -19,6 +19,17 @@ public class CheckInQueryService {
     private final TripRepository trips;
     private final TripCheckInStateRepository states;
     private final TripStopVisitRepository visits;
+    @Transactional(readOnly=true, isolation=Isolation.REPEATABLE_READ)
+    public TripCheckInsResponse findAttempt(long tripId, Integer attemptNumber) {
+        if (attemptNumber==null) return find(tripId);
+        var trip=trips.findById(tripId).orElseThrow(()->new ResponseStatusException(NOT_FOUND,"Không tìm thấy chuyến đi."));
+        if (attemptNumber<1 || attemptNumber>trip.getAttemptNumber())
+            throw new ResponseStatusException(NOT_FOUND,"Không tìm thấy lần chạy.");
+        if (attemptNumber==trip.getAttemptNumber()) return find(tripId);
+        var rows=visits.findAllByTripIdAndAttemptNumberOrderByStopSequenceAsc(tripId,attemptNumber).stream().map(StopVisitResponse::from).toList();
+        // Historical visits only, not a live detector checkpoint.
+        return new TripCheckInsResponse(tripId,rows.size(),null,false,rows);
+    }
 
     @Transactional(readOnly=true, isolation=Isolation.REPEATABLE_READ)
     public TripCheckInsResponse find(long tripId) {

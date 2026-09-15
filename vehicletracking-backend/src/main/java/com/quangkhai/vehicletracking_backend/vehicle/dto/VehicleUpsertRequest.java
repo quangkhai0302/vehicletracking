@@ -1,5 +1,6 @@
 package com.quangkhai.vehicletracking_backend.vehicle.dto;
 
+import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
 import jakarta.validation.constraints.*;
 
 public record VehicleUpsertRequest(
@@ -11,5 +12,14 @@ public record VehicleUpsertRequest(
     @Size(max = 100, message = "Tên xe tối đa 100 ký tự")
     String name,
     @Size(max = 255, message = "Mô tả tối đa 255 ký tự")
-    String description
-) {}
+    String description,
+    VehicleType vehicleType
+) {
+    public VehicleUpsertRequest {
+        vehicleType = vehicleType == null ? VehicleType.CAR : vehicleType;
+    }
+
+    public VehicleUpsertRequest(String plateNumber, String name, String description) {
+        this(plateNumber, name, description, VehicleType.CAR);
+    }
+}

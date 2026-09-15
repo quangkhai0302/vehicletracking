@@ -2,6 +2,7 @@ package com.quangkhai.vehicletracking_backend.vehicle.service;
 
 import com.quangkhai.vehicletracking_backend.vehicle.dto.VehicleUpsertRequest;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
+import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import org.junit.jupiter.api.*;
@@ -26,7 +27,18 @@ class VehicleServiceTest {
         assertThat(response.plateNumber()).isEqualTo("51B12345");
         assertThat(response.name()).isEqualTo("Xe A");
         assertThat(response.description()).isNull();
+        assertThat(response.vehicleType()).isEqualTo(VehicleType.CAR);
         verify(vehicles).existsByPlateNumberAndIdNot("51B12345", -1L);
+    }
+    @Test void createAndUpdate_preserveSelectedVehicleType() {
+        when(vehicles.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        var created = service.create(new VehicleUpsertRequest("59X112345", "Xe giao hàng", null, VehicleType.MOTORCYCLE));
+        assertThat(created.vehicleType()).isEqualTo(VehicleType.MOTORCYCLE);
+
+        var vehicle = new VehicleEntity("59X112345", "Xe giao hàng", null, VehicleType.MOTORCYCLE);
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        var updated = service.update(1L, new VehicleUpsertRequest("59X112345", "Xe giao hàng", null, VehicleType.CAR));
+        assertThat(updated.vehicleType()).isEqualTo(VehicleType.CAR);
     }
     @Test void duplicateIncludingInactive_isConflict() {
         when(vehicles.existsByPlateNumberAndIdNot("51B12345", -1L)).thenReturn(true);

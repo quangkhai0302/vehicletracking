@@ -13,6 +13,8 @@ public class TelemetrySampleEntity {
     @Column(name="event_id", nullable=false, unique=true) private UUID eventId;
     @Column(name="vehicle_id", nullable=false) private Long vehicleId;
     @Column(name="trip_id", nullable=false) private Long tripId;
+    @Column(name="attempt_number", nullable=false) private int attemptNumber = 1;
+    public void assignAttempt(int attemptNumber) { this.attemptNumber = attemptNumber; }
     @Column(name="recorded_at", nullable=false) private Instant recordedAt;
     @Column(name="received_at", nullable=false) private Instant receivedAt;
     @Column(name="simulated_at") private Instant simulatedAt;

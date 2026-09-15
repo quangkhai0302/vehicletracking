@@ -98,7 +98,7 @@ public class RerouteEvaluationService {
 
     private TripRouteRevisionEntity buildRevision(TripEntity trip, TripEtaResponse currentEta, boolean closure, Instant now) {
         var position = positions.findById(trip.getVehicle().getId()).map(p -> p.getSample()).orElse(null);
-        if (position == null || !trip.getId().equals(position.getTripId())) return null;
+        if (position == null || !trip.getId().equals(position.getTripId()) || position.getAttemptNumber()!=trip.getAttemptNumber()) return null;
         Set<Integer> checked = visits.findAllByTripIdOrderByStopSequenceAsc(trip.getId()).stream()
                 .map(v -> v.getStopSequence()).collect(Collectors.toSet());
         List<TripStopEntity> remaining = trip.getStops().stream().filter(s -> !checked.contains(s.getSequenceNumber()))

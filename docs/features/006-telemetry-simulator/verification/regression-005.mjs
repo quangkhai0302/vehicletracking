@@ -91,7 +91,7 @@ await context.route('**/api/**', async route=>{
   if(path.endsWith('/trips') && method==='POST') {
     createdTripInput=request.postDataJSON();
     const vehicle=vehicles.find(vehicle=>vehicle.id===createdTripInput.vehicleId);
-    const trip={...createdTripInput,id:nextId++,vehiclePlateNumber:vehicle.plateNumber,routeName:detail.name,status:'SCHEDULED',
+    const trip={...createdTripInput,id:nextId++,vehiclePlateNumber:vehicle.plateNumber,vehicleType:vehicle.vehicleType,routeName:detail.name,status:'SCHEDULED',
       plannedEndAt:new Date(Date.parse(createdTripInput.scheduledDepartureAt)+detail.estimatedTripDurationSeconds*1000).toISOString(),startedAt:null,endedAt:null,createdAt:stamp};
     trips.unshift(trip); return json(tripDetail(trip),201);
   }

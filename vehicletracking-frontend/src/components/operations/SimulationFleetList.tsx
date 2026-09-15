@@ -1,6 +1,7 @@
 import type { useSimulationFleet } from '../../hooks/useSimulationFleet';
 import type { OperationsSnapshot } from '../../types/operations';
 import { SIMULATION_LABELS } from '../../types/operations';
+import { vehicleTypeLabel } from '../../types/fleet';
 import { simulationRouteColor } from '../../utils/simulationFleet';
 
 export function SimulationFleetList({ fleet, snapshot, selectedTripId, disabled, onSelect, onFit, onManage }: {
@@ -26,7 +27,7 @@ export function SimulationFleetList({ fleet, snapshot, selectedTripId, disabled,
       return <button type="button" key={trip.id} data-simulation-trip={trip.id} disabled={disabled}
         aria-pressed={trip.id===selectedTripId} onClick={()=>onSelect(trip.id)}>
         <span><strong><i className="simulation-route-swatch" style={{background:simulationRouteColor(trip.vehicleId,trip.id===selectedTripId)}} aria-hidden="true" />{trip.vehiclePlateNumber}</strong><small>{run ? SIMULATION_LABELS[run.status] : 'Chờ xuất phát'}</small></span>
-        <span>{preview ? `Trạm đầu: ${preview.start.stationName}` : trip.routeName}</span>
+        <span>{vehicleTypeLabel(trip.vehicleType)} · {preview ? `Trạm đầu: ${preview.start.stationName}` : trip.routeName}</span>
       </button>;
     })}</div>
     {!snapshot && <p role="status">Đang tải đội xe…</p>}

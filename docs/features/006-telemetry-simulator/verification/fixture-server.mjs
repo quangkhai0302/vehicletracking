@@ -19,10 +19,10 @@ export async function startFixtureServer() {
       travelDurationFromPreviousSeconds:i?20:0,arrivalOffsetSeconds:[0,20,44][i],departureOffsetSeconds:[0,24,44][i]})),
     sections:[{sectionSequence:1,destinationStopSequence:2,encodedPolyline:polyline([[10.77,106.7],[10.771,106.701]]),distanceMeters:156,travelDurationSeconds:20,baseTravelDurationSeconds:20},
       {sectionSequence:2,destinationStopSequence:3,encodedPolyline:polyline([[10.771,106.701],[10.77,106.7]]),distanceMeters:156,travelDurationSeconds:20,baseTravelDurationSeconds:20}]};
-  const vehicle={id:1,plateNumber:'FIX006',name:'Xe fixture 006',description:null,active:true,createdAt:stamp,updatedAt:stamp};
+  const vehicle={id:1,plateNumber:'FIX006',name:'Xe fixture 006',description:null,vehicleType:'CAR',active:true,createdAt:stamp,updatedAt:stamp};
   let sequence=0,position=null;
   const trips=[],runs=[];
-  const addTrip=()=>{const time=new Date().toISOString();const trip={id:++sequence,vehicleId:1,vehiclePlateNumber:vehicle.plateNumber,routeId:1,routeName:route.name,status:'SCHEDULED',
+  const addTrip=()=>{const time=new Date().toISOString();const trip={id:++sequence,vehicleId:1,vehiclePlateNumber:vehicle.plateNumber,vehicleType:vehicle.vehicleType,routeId:1,routeName:route.name,status:'SCHEDULED',attemptNumber:1,
     scheduledDepartureAt:time,plannedEndAt:new Date(Date.parse(time)+44000).toISOString(),startedAt:null,endedAt:null,createdAt:time};trips.push(trip);return trip;};
   addTrip();
   function frame(elapsed,running=true) {
@@ -36,7 +36,7 @@ export async function startFixtureServer() {
   function update(run) {
     const trip=trips.find(t=>t.id===run.tripId),now=new Date().toISOString();
     run.frame=frame(run.elapsedSeconds,run.status==='RUNNING');run.updatedAt=now;run.simulatedAt=new Date(Date.parse(trip.scheduledDepartureAt)+run.elapsedSeconds*1000).toISOString();
-    position={id:Date.now(),eventId:randomUUID(),tripId:trip.id,vehicleId:trip.vehicleId,recordedAt:now,receivedAt:now,simulatedAt:run.simulatedAt,
+    position={id:Date.now(),eventId:randomUUID(),tripId:trip.id,vehicleId:trip.vehicleId,recordedAt:now,receivedAt:now,simulatedAt:run.simulatedAt,attemptNumber:trip.attemptNumber,
       latitude:run.frame.latitude,longitude:run.frame.longitude,heading:run.frame.heading,speedKmh:run.frame.speedKmh,accuracyMeters:0,source:'SIMULATOR'};
   }
   const push=()=>{const value=snapshot();for(const res of clients)res.write(`event: snapshot\nid: ${value.serverTime}\nretry: 1000\ndata: ${JSON.stringify(value)}\n\n`);};
@@ -74,20 +74,19 @@ export async function startFixtureServer() {
       const action=match[2];let run=runs.find(r=>r.tripId===trip.id);
       if(commandError)return json({detail:'Xe đang thực hiện chuyến khác (fixture).'},409);
       if(action==='play') {
-        if(!run){run={id:trip.id,tripId:trip.id,status:'PAUSED',multiplier:1,elapsedSeconds:0,durationSeconds:44,errorMessage:null,replacementTripId:null,updatedAt:stamp,simulatedAt:trip.scheduledDepartureAt,frame:frame(0,false)};runs.push(run);}
+        if(!run){run={id:trip.id,tripId:trip.id,status:'PAUSED',multiplier:1,elapsedSeconds:0,durationSeconds:44,errorMessage:null,replacementTripId:null,attemptNumber:trip.attemptNumber,updatedAt:stamp,simulatedAt:trip.scheduledDepartureAt,frame:frame(0,false)};runs.push(run);}
         run.status='RUNNING';trip.status='IN_PROGRESS';trip.startedAt??=new Date().toISOString();
       } else if(!run)return json({detail:'Chưa có phiên.'},404);
       else if(action==='pause')run.status='PAUSED';
       else if(action==='speed')run.multiplier=JSON.parse(raw).multiplier;
-      else if(action==='stop'||action==='reset'){
+      else if(action==='stop'){
         run.status='STOPPED';trip.status='CANCELLED';trip.endedAt=new Date().toISOString();
-        update(run);
-        if(action==='reset'){
-          if(run.replacementTripId)return json(runs.find(r=>r.tripId===run.replacementTripId));
-          const next=addTrip();run.replacementTripId=next.id;
-          const replacement={...run,id:next.id,tripId:next.id,status:'PAUSED',multiplier:1,elapsedSeconds:0,replacementTripId:null,frame:frame(0,false),simulatedAt:next.scheduledDepartureAt};
-          runs.push(replacement);push();return json(replacement);
-        }
+      } else if(action==='reset'){
+        if(!(trip.status==='SCHEDULED'&&run.status==='PAUSED'&&run.elapsedSeconds===0))trip.attemptNumber++;
+        trip.status='SCHEDULED';trip.startedAt=null;trip.endedAt=null;trip.scheduledDepartureAt=new Date().toISOString();
+        run.status='PAUSED';run.multiplier=1;run.elapsedSeconds=0;run.errorMessage=null;run.replacementTripId=null;run.attemptNumber=trip.attemptNumber;
+        run.frame=frame(0,false);run.updatedAt=new Date().toISOString();run.simulatedAt=trip.scheduledDepartureAt;position=null;
+        push();return json(run);
       }
       update(run);push();return json(run);
     }

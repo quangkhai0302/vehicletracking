@@ -142,3 +142,21 @@ Những việc bổ trợ chỉ đưa vào kế hoạch khi cần: route rename/
 - Full backend đạt 178 tests (0 failures/errors/skipped), gồm Flyway V1–V8, GPS/simulator check-in, geometry, GET check-ins và HTTP/SSE. Chưa đo production load và chưa chạy đủ edge/fault-injection matrix 007.
 - 008 đã test live HERE ở mức upstream spike; chưa xác minh browser → Spring → HERE, backend/database thật qua UI hay nguồn GPS. Ảnh browser dùng fixtures rõ tên, không chứng minh dữ liệu vận hành thật.
 - Tài liệu dưới `docs/` hiện untracked sau thay đổi `.gitignore` đồng thời được giữ nguyên (E12). `PROJECT_HANDOFF.md` lưu tóm tắt tiến độ/lộ trình; chưa commit/push.
+
+## 7. Feature 012 — chạy lại trên cùng chuyến, tách lịch sử theo lần
+
+Theo xác nhận của người dùng, **Chạy lại** hiện giữ nguyên `tripId`, `routeId` và simulation run ID. Backend tăng `attemptNumber`, đưa trip về `SCHEDULED`, run về `PAUSED`/0 giây/1×, đặt lịch từ thời điểm reset, reset checkpoint check-in và trạng thái cảnh báo, đồng thời supersede revision tuyến đang active. Không tạo thêm trip/route và không xóa dữ liệu cũ.
+
+Migration V9 thêm attempt vào trip, telemetry, visit, checkpoint và bảng archive `simulation_attempts`. Realtime/ETA/reroute chỉ dùng sample/visit attempt hiện hành; API check-in và telemetry history hỗ trợ `attemptNumber`, API simulation attempts trả metadata các lần đã lưu. Frontend dùng attempt để bỏ detail/ETA/check-in cũ và tải lại cùng chuyến.
+
+Verification ngày 2026-09-15: full backend 194/194 test đạt với PostgreSQL 17 Testcontainers và Flyway V1–V9; frontend lint (2 warning, 0 error), typecheck và build đạt. Browser chưa chạy lại do giới hạn quyền của môi trường. Chi tiết: [evidence 012](features/012-simulation-replay/evidence.md), [walkthrough 012](features/012-simulation-replay/walkthrough.md).
+
+### Sửa UI chọn vị trí trạm ngày 2026-09-15
+
+Đã sửa banner chọn vị trí bị kéo cao che bản đồ do xung đột `top`/`bottom`. Chế độ mới giữ Leaflet kéo/zoom được, có tâm ngắm cố định theo vùng bản đồ khả dụng và nút **Chọn vị trí này**. Desktop Chrome headless xác nhận kéo làm đổi tọa độ; lint/typecheck/build đạt. Mobile browser chưa chạy lại do giới hạn quyền môi trường. Xem [evidence sửa picker](features/004-operations-layout/station-picker-fix.md).
+
+## 8. Feature 013 — phân biệt ô tô và xe máy
+
+Đã triển khai metadata `CAR`/`MOTORCYCLE` xuyên suốt migration V10, JPA entity, API xe, trip summary và TypeScript. Form tạo/sửa xe có lựa chọn loại; danh sách đội xe, lựa chọn lập chuyến, marker realtime và marker chờ mô phỏng hiển thị nhãn/icon đúng loại. Xe và request cũ mặc định `CAR`. Thay đổi này chưa chọn travel mode riêng cho HERE.
+
+Backend compile và 31 test service/controller/trip mục tiêu đạt. Lượt full suite có 162 test đạt; 6 lớp integration bị chặn vì sandbox không truy cập Docker, nên V10 chưa được xác minh trên PostgreSQL trong lượt này. Frontend lint (2 warning cũ, 0 error), typecheck và build đạt. Xem [evidence 013](features/013-vehicle-types/evidence.md).

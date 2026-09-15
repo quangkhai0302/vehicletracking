@@ -163,7 +163,6 @@ export function StationDrawer({
               <h3 className="station-detail-name">{station.name}</h3>
               <div className="station-detail-sub">
                 <span className="active-status"><span /> Đang hoạt động</span>
-                <span className="station-detail-id">Mã hệ thống #{station.id}</span>
               </div>
             </div>
           </div>
@@ -174,6 +173,7 @@ export function StationDrawer({
               <p className="station-property-value">{station.address || 'Chưa có địa chỉ mô tả cụ thể'}</p>
             </div>
 
+            <details className="trip-traffic-details"><summary>Thông số nâng cao</summary>
             <div className="station-property-group">
               <span className="station-property-label">TỌA ĐỘ VỊ TRÍ</span>
               <p className="station-property-value tabular-numbers">
@@ -182,7 +182,7 @@ export function StationDrawer({
             </div>
 
             <div className="station-property-group">
-              <span className="station-property-label">BÁN KÍNH CHECK-IN (GEOFENCE)</span>
+              <span className="station-property-label">BÁN KÍNH CHECK-IN</span>
               <p className="station-property-value tabular-numbers">{station.checkinRadiusMeters} mét</p>
             </div>
 
@@ -192,6 +192,7 @@ export function StationDrawer({
                 {new Date(station.updatedAt).toLocaleString('vi-VN')}
               </p>
             </div>
+            </details>
           </div>
 
           <div className="drawer-actions">
@@ -220,13 +221,13 @@ export function StationDrawer({
           <div className={`location-picker-status ${pickingLocation ? 'picking' : ''}`}>
             <Crosshair size={18} />
             <div>
-              <strong>{pickingLocation ? 'Đang chờ bạn nhấp bản đồ' : 'Vị trí tọa độ trạm'}</strong>
+              <strong>{pickingLocation ? 'Chọn điểm trên bản đồ' : 'Vị trí trạm'}</strong>
               <span>
                 {pickingLocation
-                  ? 'Nhấp chuột lên bản đồ hoặc dùng nút "Lấy tâm bản đồ" ở góc dưới.'
+                  ? 'Kéo bản đồ để tìm vị trí, rồi xác nhận điểm nằm trong tâm ngắm.'
                   : form.latitude && form.longitude
-                    ? 'Có thể kéo thả trực tiếp marker trên bản đồ để tinh chỉnh.'
-                    : 'Chưa xác định tọa độ cho trạm.'}
+                    ? 'Đã chọn vị trí. Kéo dấu trạm để điều chỉnh.'
+                    : 'Bấm chọn vị trí, kéo bản đồ đến khu vực cần đặt trạm rồi xác nhận.'}
               </span>
             </div>
             <button
@@ -262,7 +263,8 @@ export function StationDrawer({
             />
           </label>
 
-          {/* Trường Tọa độ */}
+          <details className="trip-traffic-details" onInvalidCapture={event => { event.currentTarget.open = true; }}>
+          <summary>Nâng cao · tọa độ và vùng check-in</summary>
           <div className="station-field-row">
             <label className="station-field">
               <span>Vĩ độ (Latitude) *</span>
@@ -299,7 +301,7 @@ export function StationDrawer({
             <div className="radius-selector-header">
               <div className="radius-label-row">
                 <Sliders size={14} className="text-cyan" />
-                <span>BÁN KÍNH CHECK-IN (GEOFENCE) *</span>
+                <span>BÁN KÍNH CHECK-IN *</span>
               </div>
               <div className="radius-input-wrapper">
                 <input
@@ -365,6 +367,7 @@ export function StationDrawer({
           </div>
 
           {/* Nút hành động */}
+          </details>
           <div className="drawer-actions">
             <button
               type="button"

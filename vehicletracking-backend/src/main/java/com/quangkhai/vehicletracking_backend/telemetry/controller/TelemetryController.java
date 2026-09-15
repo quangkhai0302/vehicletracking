@@ -21,8 +21,10 @@ public class TelemetryController {
                                          @RequestParam(required = false) TelemetrySource source,
                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant from,
                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant to,
-                                         @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "100") int size) {
-        return history.find(tripId, vehicleId, source, from, to, page, size);
+                                         @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "100") int size,
+                                         @RequestParam(required=false) Integer attemptNumber) {
+        return attemptNumber==null ? history.find(tripId, vehicleId, source, from, to, page, size)
+            : history.find(tripId, vehicleId, source, from, to, page, size, attemptNumber);
     }
     @GetMapping("/snapshot") public OperationsSnapshot snapshot() { return snapshots.snapshot(); }
     @GetMapping(value="/stream",produces=MediaType.TEXT_EVENT_STREAM_VALUE)

@@ -4,6 +4,7 @@ import type { TrafficSource, TrafficStatus } from './traffic';
 import type { NotificationItem } from './notifications';
 
 export interface TelemetryPosition {
+  attemptNumber?: number;
   id: number; eventId: string; vehicleId: number; tripId: number;
   recordedAt: string; receivedAt: string; simulatedAt: string | null;
   latitude: number; longitude: number; speedKmh: number; heading: number; accuracyMeters: number;
@@ -15,6 +16,7 @@ export interface SimulationFrame {
   nextStopSequence: number; nextStopEtaSeconds: number; dwelling: boolean; finished: boolean;
 }
 export interface SimulationRun {
+  attemptNumber?: number;
   id: number; tripId: number; status: SimulationStatus; multiplier: 1 | 5 | 10;
   elapsedSeconds: number; durationSeconds: number; simulatedAt: string; updatedAt: string;
   errorMessage: string | null; replacementTripId: number | null; frame: SimulationFrame | null;

@@ -1,5 +1,7 @@
 # 006 — Triển khai và kết quả kiểm tra
 
+> Cập nhật contract 2026-09-15: phần mô tả reset tạo trip thay thế bên dưới là evidence lịch sử của 006 và đã được feature 012 thay thế. Contract hiện tại giữ nguyên trip/route/run, tăng `attemptNumber` và tách lịch sử theo lần chạy; xem `docs/features/012-simulation-replay/`.
+
 Cập nhật 2026-09-14. **Source backend/frontend đã được nối; chưa đủ điều kiện nghiệm thu toàn bộ** vì còn test HTTP/SSE với Spring, browser nối PostgreSQL thật và full Maven suite chưa chạy được. Bộ duyệt quyền tự động từ chối Maven/Docker bổ sung do hạn mức tài khoản; không dùng lệnh gián tiếp để vượt từ chối.
 
 ## Implementation và evidence
@@ -11,7 +13,7 @@ Cập nhật 2026-09-14. **Source backend/frontend đã được nối; chưa đ
 | HTTP GPS + ingestion chung | `telemetry/controller/TelemetryController.ingest`, `telemetry/service/TelemetryService.ingestGps/ingestSimulator`: validation, eventId idempotency, timestamp cũ/bằng bị 409, GPS không được trộn với simulator; recordedAt và receivedAt riêng. |
 | Persistence | `telemetry/entity/TelemetrySampleEntity`, `VehiclePositionEntity`; `telemetry/repository/TelemetryRepository`, `VehiclePositionRepository`. V5 `V5__create_telemetry_and_simulation.sql`: history/latest/run, unique, FK và CHECK. V1–V4 không sửa. |
 | Geometry/clock | `simulation/motion/FlexiblePolyline.decode`, `RouteMotion.at`: khoảng cách segment trên từng section, dwell theo stop occurrence, next stop và progress theo tuyến vòng; từ chối geometry không đủ hoặc thời lượng sai. `simulation/service/SimulationService`: clock wall time × multiplier, simulatedAt riêng, tốc độ vật lý không nhân 5/10. |
-| Lifecycle | `SimulationService.play/pause/speed/stop/reset/tick/recover`: khóa trip → vehicle theo thứ tự 005; tick/play cùng trip được tuần tự hóa; reset giữ history và trả cùng replacement trip khi retry. `SimulationScheduler.start/tick/close`: khởi động lại chuyển running thành paused, scheduler riêng backend, lỗi có trạng thái FAILED. |
+| Lifecycle | `SimulationService.play/pause/speed/stop/reset/tick/recover`: khóa trip → vehicle theo thứ tự 005; tick/play cùng trip được tuần tự hóa. Evidence reset tạo replacement tại mốc 006 đã được feature 012 thay bằng reset cùng trip và attempt idempotent. `SimulationScheduler.start/tick/close`: khởi động lại chuyển running thành paused, scheduler riêng backend, lỗi có trạng thái FAILED. |
 | SSE | `telemetry/service/OperationsSnapshotService.snapshot` dùng transaction read-only REPEATABLE_READ để đọc snapshot nhất quán đã commit. `OperationsStreamService.subscribe/broadcast/stop`: snapshot lúc mở và mỗi giây, timeout 10 phút, cleanup, một write đang chờ/client, không tích hàng đợi vô hạn. Scheduler phát stream tách khỏi simulator. |
 | UI | `hooks/useLiveOperations`, `services/operations`, `types/operations`: snapshot ban đầu, EventSource resync, reconnect, timer freshness. `hooks/useSimulator`: selection, abort detail, busyRef, command response + stream state. `components/operations/SimulatorPanel` và `simulator.css`: điều khiển, confirmation, telemetry và đồng hồ. |
 | Map/Fleet | `hooks/useVehicleMarkers`: giữ marker DOM, cập nhật vị trí/heading/tooltip, nguồn GPS/GIẢ LẬP, stale/offline; follow chỉ dịch camera khi tọa độ đổi. `MapComponent` dùng nguồn chung và route simulator riêng khi ở mode simulation. `FleetWorkspace/useFleetWorkspace` hợp nhất status chuyến từ snapshot, bảo toàn draft và baseline; nút mở simulator từ chi tiết chuyến. |
@@ -29,7 +31,7 @@ Cập nhật 2026-09-14. **Source backend/frontend đã được nối; chưa đ
 | POST | `/api/v1/trips/{tripId}/simulation/pause` | Chốt tiến độ tới thời điểm pause, tốc độ 0 |
 | POST | `/api/v1/trips/{tripId}/simulation/speed` | `{multiplier:1\|5\|10}` |
 | POST | `/api/v1/trips/{tripId}/simulation/stop` | Dừng run và hủy trip còn mở, giữ history |
-| POST | `/api/v1/trips/{tripId}/simulation/reset` | Kết thúc run hiện tại, tạo trip mới + run paused; response.tripId là trip mới |
+| POST | `/api/v1/trips/{tripId}/simulation/reset` | Feature 012: giữ cùng trip/run, tăng attempt và đưa run về paused/0/1×; lịch sử cũ được giữ theo attempt |
 
 HTTP client gửi source SIMULATOR bị 400. Tọa độ, speed 0–500 km/h, heading [0,360), accuracy 0–10000 m, timestamp từ năm 2000 và không vượt server time +30 giây được validate; active trip/vehicle/source conflicts trả 409. Timestamp normalized microsecond để khớp PostgreSQL; trùng eventId cùng nội dung trả mẫu cũ, không ghi lặp. Mẫu GPS bằng/cũ hơn latest bị từ chối và không thay latest.
 

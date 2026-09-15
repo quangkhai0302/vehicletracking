@@ -2,23 +2,25 @@ import { useEffect, useRef, type RefObject } from 'react';
 import L from 'leaflet';
 import type { OperationsSnapshot } from '../types/operations';
 import { positionFreshness } from '../types/operations';
+import type { VehicleType } from '../types/fleet';
+import { vehicleTypeLabel } from '../types/fleet';
+import { vehicleMarkerGlyph } from '../utils/vehiclePresentation';
 
-// Top-down car: its front points north at heading 0, matching telemetry bearings.
-const vehicleGlyph = `<svg class="live-vehicle-glyph" viewBox="0 0 32 40" aria-hidden="true" focusable="false">
-  <path d="m13 4 3-3 3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="5" y="13" width="4" height="7" rx="1.5" fill="#0f172a"/>
-  <rect x="23" y="13" width="4" height="7" rx="1.5" fill="#0f172a"/>
-  <rect x="5" y="27" width="4" height="6" rx="1.5" fill="#0f172a"/>
-  <rect x="23" y="27" width="4" height="6" rx="1.5" fill="#0f172a"/>
-  <rect x="8" y="7" width="16" height="30" rx="6" fill="currentColor" stroke="#fff" stroke-width="1.5"/>
-  <path d="m11 14 1 6h8l1-6c-3-2-7-2-10 0Z" fill="#0c4a6e"/>
-  <path d="m12 29-1 4h10l-1-4Z" fill="#0c4a6e"/>
-  <path d="M11 10h2m6 0h2" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
-  <path d="M11 35h2m6 0h2" stroke="#fb7185" stroke-width="2" stroke-linecap="round"/>
-</svg>`;
+/** A newly scheduled trip has no telemetry yet, but still has a meaningful map position. */
+export interface VehicleMarkerAnchor {
+  vehicleId: number;
+  tripId: number;
+  vehiclePlateNumber: string;
+  vehicleType: VehicleType;
+  latitude: number;
+  longitude: number;
+}
 
-export function useVehicleMarkers({ mapRef, snapshot, now, visible, selectedId, following, onSelect, onFocus, groupSelection = false }: {
+type MarkerPosition = OperationsSnapshot['positions'][number] | VehicleMarkerAnchor & { source: 'PLANNED' };
+
+export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], now, visible, selectedId, following, onSelect, onFocus, groupSelection = false }: {
   mapRef: RefObject<L.Map | null>; snapshot: OperationsSnapshot | null; now: number; visible: boolean;
+  plannedPositions?: readonly VehicleMarkerAnchor[];
   selectedId: number | null; following: boolean; onSelect: (id: number) => void;
   onFocus: (point: L.LatLngExpression, zoom?: number) => void;
   groupSelection?: boolean;
@@ -35,26 +37,42 @@ export function useVehicleMarkers({ mapRef, snapshot, now, visible, selectedId, 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const positions = visible ? snapshot?.positions ?? [] : [];
+    const actualPositions = visible ? snapshot?.positions ?? [] : [];
+    const plannedByVehicle = new Map<number, VehicleMarkerAnchor>();
+    if (visible) plannedPositions.forEach(anchor => plannedByVehicle.set(anchor.vehicleId, anchor));
+    const anchors = [...plannedByVehicle.values()].map(anchor => ({ ...anchor, source: 'PLANNED' as const }));
+    // Keep one marker per vehicle. Until the new trip emits telemetry, its planned
+    // start position takes precedence over an old position from a previous trip.
+    const positions: MarkerPosition[] = [
+      ...actualPositions.filter(point => !plannedByVehicle.has(point.vehicleId)
+        || anchors.some(anchor => anchor.vehicleId === point.vehicleId && anchor.tripId === point.tripId)),
+      ...anchors.filter(anchor => !actualPositions.some(point => point.vehicleId === anchor.vehicleId && point.tripId === anchor.tripId)),
+    ];
     const ids = new Set(positions.map(point => point.vehicleId));
     markers.current.forEach((marker,id) => { if (!ids.has(id)) { marker.off(); marker.remove(); markers.current.delete(id); } });
     for (const point of positions) {
       if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) || Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180) continue;
+      const isPlanned = point.source === 'PLANNED';
       const trip = snapshot?.trips.find(trip => trip.id === point.tripId);
       const run = snapshot?.simulations.find(run => run.tripId === point.tripId);
-      const freshness = positionFreshness(point, now);
-      const state = trip?.status === 'COMPLETED' || trip?.status === 'CANCELLED' ? 'Chuyến đã kết thúc' :
+      const freshness = isPlanned ? 'stale' : positionFreshness(point, now);
+      const state = isPlanned ? 'Chưa khởi hành' : trip?.status === 'COMPLETED' || trip?.status === 'CANCELLED' ? 'Chuyến đã kết thúc' :
         run?.status === 'PAUSED' ? 'Tạm dừng' : freshness === 'offline' ? 'Mất tín hiệu' : freshness === 'stale' ? 'Vị trí cũ' : 'Đang cập nhật';
-      const stationary = run?.status !== undefined && run.status !== 'RUNNING';
+      const stationary = isPlanned || (run?.status !== undefined && run.status !== 'RUNNING');
       const stale = freshness !== 'fresh' || stationary;
+      const vehicleType = trip?.vehicleType ?? (isPlanned ? point.vehicleType : 'CAR');
+      const plateNumber = trip?.vehiclePlateNumber ?? (isPlanned ? point.vehiclePlateNumber : undefined);
+      const heading = isPlanned ? 0 : point.heading;
       const icon = L.divIcon({
         className: 'live-vehicle-icon', iconSize: [44,44], iconAnchor: [22,22], tooltipAnchor: [0,-26],
-        html: `<div class="live-vehicle-marker ${stale ? 'muted' : ''} ${point.vehicleId === selectedId ? 'selected' : ''}" data-vehicle-id="${Number(point.vehicleId)}" style="--heading:${Number.isFinite(point.heading) ? point.heading : 0}deg">${vehicleGlyph}</div>`,
+        html: `<div class="live-vehicle-marker ${stale ? 'muted' : ''} ${isPlanned ? 'planned' : ''} ${point.vehicleId === selectedId ? 'selected' : ''}" data-vehicle-id="${Number(point.vehicleId)}" data-vehicle-type="${vehicleType}" style="--heading:${Number.isFinite(heading) ? heading : 0}deg">${vehicleMarkerGlyph(vehicleType)}</div>`,
       });
       let marker = markers.current.get(point.vehicleId);
       if (!marker) {
-        marker = L.marker([point.latitude,point.longitude], { icon, keyboard: true, title: `Xe ${trip?.vehiclePlateNumber ?? point.vehicleId}` }).addTo(map);
+        marker = L.marker([point.latitude,point.longitude], { icon, keyboard: true, title: `Xe ${plateNumber ?? point.vehicleId}` }).addTo(map);
         markers.current.set(point.vehicleId,marker);
+      } else if (marker.getElement()?.querySelector<HTMLElement>('.live-vehicle-marker')?.dataset.vehicleType !== vehicleType) {
+        marker.setIcon(icon);
       }
       const previous = marker.getLatLng();
       if (previous.lat !== point.latitude || previous.lng !== point.longitude) marker.setLatLng([point.latitude,point.longitude]);
@@ -62,10 +80,14 @@ export function useVehicleMarkers({ mapRef, snapshot, now, visible, selectedId, 
       const body = marker.getElement()?.querySelector<HTMLElement>('.live-vehicle-marker');
       if (body) {
         body.classList.toggle('muted',stale); body.classList.toggle('selected',point.vehicleId === selectedId);
-        body.style.setProperty('--heading', `${Number.isFinite(point.heading) ? point.heading : 0}deg`);
+        body.classList.toggle('planned', isPlanned);
+        body.style.setProperty('--heading', `${Number.isFinite(heading) ? heading : 0}deg`);
       }
       const text = document.createElement('span');
-      text.textContent = `${trip?.vehiclePlateNumber ?? point.vehicleId} · ${point.source === 'SIMULATOR' ? 'GIẢ LẬP' : 'GPS'} · ${state} · ${stationary ? 0 : point.speedKmh.toFixed(1)} km/h · ${new Date(point.recordedAt).toLocaleTimeString('vi-VN')}`;
+      const sourceLabel = isPlanned ? 'KẾ HOẠCH' : point.source === 'SIMULATOR' ? 'GIẢ LẬP' : 'GPS';
+      const speedLabel = stationary ? '0' : point.speedKmh.toFixed(1);
+      const timeLabel = isPlanned ? 'chưa khởi hành' : new Date(point.recordedAt).toLocaleTimeString('vi-VN');
+      text.textContent = `${plateNumber ?? point.vehicleId} · ${vehicleTypeLabel(vehicleType)} · ${sourceLabel} · ${state} · ${speedLabel} km/h · ${timeLabel}`;
       if (marker.getTooltip()) marker.setTooltipContent(text); else marker.bindTooltip(text, { direction: 'top', opacity: .95 });
       marker.off('click').on('click', () => {
         const anchor = map.latLngToContainerPoint([point.latitude,point.longitude]);
@@ -89,5 +111,5 @@ export function useVehicleMarkers({ mapRef, snapshot, now, visible, selectedId, 
     const key = following && selected ? `${selected.vehicleId}:${selected.latitude}:${selected.longitude}` : null;
     if (key && key !== followedPoint.current && selected) onFocus([selected.latitude,selected.longitude]);
     followedPoint.current = key;
-  }, [mapRef,snapshot,now,visible,selectedId,following,onSelect,onFocus,groupSelection]);
+  }, [mapRef,snapshot,plannedPositions,now,visible,selectedId,following,onSelect,onFocus,groupSelection]);
 }

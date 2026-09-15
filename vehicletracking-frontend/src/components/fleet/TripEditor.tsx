@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft, CalendarPlus, RefreshCw } from 'lucide-react';
 import type { FleetVehicle, TripInput } from '../../types/fleet';
+import { vehicleTypeLabel } from '../../types/fleet';
 import type { RouteSummary } from '../../types/route';
 import { fetchRoutes } from '../../services/routes';
 import { displayTripTime, toLocalDateTimeInput } from '../../utils/tripTime';
@@ -46,7 +47,7 @@ export function TripEditor({ vehicles, initialVehicleId, busy, error, onSave, on
     <form id="trip-form" className="fleet-form-body" onSubmit={submit}><fieldset disabled={busy}>
       {error && <p className="fleet-error" role="alert">{error}</p>}
       <label>Xe thực hiện *<select aria-label="Xe thực hiện *" value={vehicleId} required onChange={e => setVehicleId(e.target.value)}>
-        <option value="">Chọn xe</option>{vehicles.filter(vehicle => vehicle.active).map(vehicle => <option key={vehicle.id} value={vehicle.id}>{vehicle.plateNumber} · {vehicle.name}</option>)}
+        <option value="">Chọn xe</option>{vehicles.filter(vehicle => vehicle.active).map(vehicle => <option key={vehicle.id} value={vehicle.id}>{vehicle.plateNumber} · {vehicleTypeLabel(vehicle.vehicleType)} · {vehicle.name}</option>)}
       </select></label>
       <label>Tuyến đường *<select aria-label="Tuyến đường *" value={routeId} required onChange={e => setRouteId(e.target.value)} disabled={loading || !!routeError}>
         <option value="">{loading ? 'Đang tải tuyến…' : 'Chọn tuyến đã lưu'}</option>

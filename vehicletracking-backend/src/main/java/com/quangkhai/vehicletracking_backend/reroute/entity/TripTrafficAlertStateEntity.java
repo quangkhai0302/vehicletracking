@@ -73,4 +73,8 @@ public class TripTrafficAlertStateEntity {
         this.lastTriggerAt = now;
         this.updatedAt = now;
     }
+    public void replay(Instant now) {
+        lastTrafficFetchedAt=null; breachFingerprint=null; breachCount=0;
+        lastTriggeredFingerprint=null; lastTriggerAt=null; updatedAt=now;
+    }
 }

@@ -187,6 +187,7 @@ public class TrafficEtaService {
             return Optional.empty();
         }
         var sample = position.getSample();
+        if (sample.getAttemptNumber() != trip.getAttemptNumber()) return Optional.empty();
         return positionMatcher.project(sections, sample.getLatitude(), sample.getLongitude(), firstRemainingSection,
                 properties.getCorridorRadiusMeters());
     }

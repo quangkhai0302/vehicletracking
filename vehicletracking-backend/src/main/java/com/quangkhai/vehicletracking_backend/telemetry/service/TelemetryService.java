@@ -60,6 +60,7 @@ public class TelemetryService {
             throw new ResponseStatusException(CONFLICT,"Bản tin cũ hoặc trùng thời điểm; vị trí mới nhất được giữ nguyên.");
         var sample=new TelemetrySampleEntity(input,operationsClock.instant().truncatedTo(ChronoUnit.MICROS),
             simulatedAt==null?null:simulatedAt.truncatedTo(ChronoUnit.MICROS));
+        sample.assignAttempt(trip.getAttemptNumber());
         try { samples.saveAndFlush(sample); }
         catch(DataIntegrityViolationException ex) { throw new ResponseStatusException(CONFLICT,"eventId đã được dùng bởi bản tin khác.",ex); }
         checkIns.process(trip, latest.map(p -> p.getSample()).orElse(null), sample);

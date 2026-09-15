@@ -123,6 +123,18 @@ public class RouteEntity {
     public void deactivate() { active = false; }
 
     public void replaceDefinition(RouteEntity replacement) {
+        replaceDefinitionMetadata(replacement);
+        clearDefinitionChildren();
+        appendDefinitionChildren(replacement);
+    }
+
+    /**
+     * Copies the scalar route snapshot fields without touching the child
+     * collections.  Updates use this as the first phase of a two-phase
+     * replacement so orphan removal can be flushed before new rows reuse the
+     * same route/sequence keys.
+     */
+    public void replaceDefinitionMetadata(RouteEntity replacement) {
         this.name = replacement.name;
         this.transportMode = replacement.transportMode;
         this.routingProvider = replacement.routingProvider;
@@ -133,8 +145,21 @@ public class RouteEntity {
         this.estimatedTripDurationSeconds = replacement.estimatedTripDurationSeconds;
         this.estimatedDepartureAt = replacement.estimatedDepartureAt;
         this.calculatedAt = replacement.calculatedAt;
+    }
+
+    /**
+     * Removes the old stop and section snapshots.  The owning service must
+     * flush after this call before appending replacement children.
+     */
+    public void clearDefinitionChildren() {
         this.stops.clear();
         this.sections.clear();
+    }
+
+    /**
+     * Attaches replacement stop and section snapshots to this route.
+     */
+    public void appendDefinitionChildren(RouteEntity replacement) {
         replacement.stops.forEach(this::addStop);
         replacement.sections.forEach(this::addSection);
     }

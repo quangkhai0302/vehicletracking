@@ -512,3 +512,19 @@ Mục 17 phía trên là mốc triển khai ban đầu. Người dùng xác nh�
 Kiểm tra lượt sửa: `011/verification/routes-browser.mjs` 10 nhóm pass (hai xe đồng thời trên hai tuyến rẽ khác hướng, shared segment picker, selection/fit/keyboard/cache/reload/toggle/errors/retry/mobile/complete cleanup); browser011 cũ 9 nhóm + policy7 + traffic010 12 nhóm pass. Lint/tsc/build exit0; main501.00 kB có warning vượt500, lazy routes2.80 kB. Xem [evidence](features/011-multi-vehicle-simulator/verification.md), [ảnh hai tuyến](features/011-multi-vehicle-simulator/artifacts/routes/two-running-routes.png). Không chạy Maven tests; không sửa backend/schema/.env/commit/push.
 
 Vite5173/backend8080 cũ dừng giữa lượt; đã khởi động lại. Wrapper Maven lỗi NullArray, Maven cài sẵn dùng được; JVM cần `-Duser.timezone=UTC` để tránh PostgreSQL từ chối Asia/Saigon. GET-only cuối lượt: #3 COMPLETED, #2 IN_PROGRESS/run PAUSED, một route và một marker, không có lỗi JS/POST từ smoke. Không tự play/reset hay tạo chuyến trong DB để kiểm chứng hai xe; muốn thấy hai chuyến hoạt động lại cần Tiếp tục #2 và dùng Chạy lại/tạo chuyến mới cho xe #3. Artifact live-readonly đã cập nhật theo dữ liệu mới, không còn là bằng chứng của con số 0 xe ở mốc ban đầu. Tile nền ngoài chưa được xác minh trong sandbox.
+
+## 18. Feature 012 — reset cùng trip và lịch sử theo attempt
+
+Yêu cầu cuối đã được chốt: Chạy lại giữ nguyên mã chuyến, mã tuyến và simulation run; lịch sử telemetry/check-in tách theo mỗi lần chạy. Source dùng `attemptNumber`, migration V9 và archive `simulation_attempts`; reset về SCHEDULED + PAUSED/0/1×. Snapshot, ETA và reroute loại dữ liệu attempt cũ. Frontend xóa trạng thái dẫn xuất cũ và tải lại detail khi attempt thay đổi.
+
+Kết quả mới nhất: Maven full suite 194/194 đạt với PostgreSQL 17 Testcontainers/Flyway V1–V9; frontend lint có 2 warning nhưng 0 error, typecheck/build đạt. Browser smoke chưa chạy lại do giới hạn quyền môi trường. Không commit/push, không áp migration vào DB phát triển. Bắt đầu tại [feature 012](features/012-simulation-replay/) và đặc biệt [evidence](features/012-simulation-replay/evidence.md).
+
+Sau 012 có một bugfix frontend cho chọn vị trí trạm: banner cũ nhận cả `top` và `bottom`, phủ vùng bản đồ và chặn drag. `MapComponent`, `useMapCamera`, `StationDrawer`, `index.css`, `workspace.css` đã đổi sang picker theo tâm ngắm; desktop browser kéo map/ghi tọa độ đạt, mobile browser còn chờ chạy lại. Chi tiết tại [station-picker-fix](features/004-operations-layout/station-picker-fix.md).
+
+## 19. Feature 013 — loại phương tiện và icon
+
+Xe hiện có `vehicleType` gồm `CAR`/`MOTORCYCLE`. Migration V10 thêm cột có default CAR và check constraint; API xe và trip summary trả loại. Request cũ thiếu trường vẫn thành CAR. Frontend form tạo/sửa có hai lựa chọn; danh sách xe, danh sách lập chuyến, marker realtime và marker chờ mô phỏng dùng nhãn/glyph tương ứng. SVG dùng chung ở `src/utils/vehiclePresentation.ts`; marker đang chạy xoay theo heading và thay icon khi snapshot đổi type.
+
+Kiểm tra: backend compile đạt; ba suite mục tiêu 31/31 (`VehicleServiceTest`, `FleetControllerTest`, `TripServiceTest`); full suite 162 test không Docker đạt nhưng 6 lớp Testcontainers không khởi động do sandbox không truy cập Docker. Frontend lint/typecheck/build đạt, lint còn 2 warning cũ. Chưa chạy browser smoke và chưa xác minh V10 bằng PostgreSQL trong lượt 013. Không commit/push hay áp migration lên DB dev. Xem [feature 013](features/013-vehicle-types/), nhất là [evidence](features/013-vehicle-types/evidence.md).
+
+Lưu ý: `vehicleType` hiện chỉ phục vụ nhận diện/UI. HERE routing vẫn dùng transport mode hiện có; nếu cần đường hợp lệ riêng cho xe máy, phải lập feature routing policy tiếp theo.

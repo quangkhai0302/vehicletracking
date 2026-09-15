@@ -30,6 +30,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -112,6 +113,32 @@ class RouteControllerTest {
                 .andExpect(jsonPath("$.name").value("Tuyến Quận 1 - Thủ Đức"));
 
         verify(routeService).create(any(RouteCreateRequest.class));
+    }
+
+    @Test
+    void update_validPayload_returns200AndKeepsRouteId() throws Exception {
+        when(routeService.update(org.mockito.ArgumentMatchers.eq(10L), any(RouteCreateRequest.class)))
+                .thenReturn(sampleDetail());
+
+        String validPayload = """
+                {
+                  "name": "Tuyến Quận 1 - Thủ Đức (đã cập nhật)",
+                  "stops": [
+                    { "stationId": 1, "dwellDurationSeconds": 0 },
+                    { "stationId": 2, "dwellDurationSeconds": 0 }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(put("/api/v1/routes/10")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validPayload))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(10))
+                .andExpect(jsonPath("$.name").value("Tuyến Quận 1 - Thủ Đức"));
+
+        verify(routeService).update(org.mockito.ArgumentMatchers.eq(10L), any(RouteCreateRequest.class));
     }
 
     @Test

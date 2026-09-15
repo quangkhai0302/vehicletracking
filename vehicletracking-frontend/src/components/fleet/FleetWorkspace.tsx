@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
-import { BusFront, CalendarDays, Edit3, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
-import type { FleetVehicle, TripStatus } from '../../types/fleet';
-import { TRIP_STATUS_LABELS } from '../../types/fleet';
-import type { RouteDetail } from '../../types/route';
+import { useState } from 'react';
+import { BusFront, CalendarDays, CarFront, Edit3, Plus, RefreshCw, Scooter, Search, Trash2 } from 'lucide-react';
+import type { FleetVehicle, TripDetail, TripStatus } from '../../types/fleet';
+import { TRIP_STATUS_LABELS, vehicleTypeLabel } from '../../types/fleet';
 import { useFleetWorkspace } from '../../hooks/useFleetWorkspace';
 import { displayTripTime } from '../../utils/tripTime';
 import { VehicleEditor } from './VehicleEditor';
@@ -12,22 +11,19 @@ import { FleetConfirmDialog } from './FleetConfirmDialog';
 import './fleet.css';
 import type { OperationsSnapshot } from '../../types/operations';
 
-export function FleetWorkspace({ onToast, onTripRoute, onFocusStop, onManageRoutes, onManageStations, liveSnapshot, onSimulateTrip, onFocusVehicle }: {
+export function FleetWorkspace({ onToast, onFocusStop, onManageRoutes, onManageStations, liveSnapshot, onSimulateTrip, onFocusVehicle, tripSelection, onTripCreated }: {
   onToast: (message: string) => void;
-  onTripRoute: (route: RouteDetail | null | undefined) => void;
   onFocusStop: (position: [number, number], zoom?: number) => void;
   onManageRoutes: () => void; onManageStations: () => void;
   liveSnapshot?: OperationsSnapshot | null; onSimulateTrip?: (id: number) => void; onFocusVehicle?: (id: number) => void;
+  tripSelection?: { tripId: number | null } | null; onTripCreated?: (detail: TripDetail) => void;
 }) {
-  const fleet = useFleetWorkspace(onToast, liveSnapshot);
+  const fleet = useFleetWorkspace(onToast, liveSnapshot, tripSelection, onTripCreated);
   const [query, setQuery] = useState('');
   const [vehicleStatus, setVehicleStatus] = useState<'active' | 'inactive' | 'all'>('active');
   const [tripStatus, setTripStatus] = useState<TripStatus | ''>('');
   const [deactivate, setDeactivate] = useState<FleetVehicle | null>(null);
-  const { screen, detail } = fleet;
-  useEffect(() => {
-    onTripRoute(screen.kind === 'trip-detail' ? detail?.route ?? null : undefined);
-  }, [screen.kind, detail?.route, onTripRoute]);
+  const { screen } = fleet;
   const q = query.trim().toLocaleLowerCase('vi');
   const vehicles = fleet.vehicles.filter(vehicle => (vehicleStatus === 'all' || vehicle.active === (vehicleStatus === 'active')) &&
     (!q || `${vehicle.plateNumber} ${vehicle.name}`.toLocaleLowerCase('vi').includes(q)));
@@ -61,8 +57,8 @@ export function FleetWorkspace({ onToast, onTripRoute, onFocusStop, onManageRout
           {vehicles.length === 0 && <div className="fleet-empty"><BusFront size={30} /><h3>{fleet.vehicles.length ? 'Không tìm thấy xe phù hợp' : 'Chưa có xe trong danh mục'}</h3><p>Thêm xe, sau đó tạo chuyến từ tuyến đã lưu.</p><button className="fleet-text-button" onClick={onManageStations}>Thiết lập trạm</button></div>}
           {vehicles.map(vehicle => <article key={vehicle.id} className="fleet-vehicle-card">
             <div className="fleet-card-main"><button className="fleet-vehicle-select" onClick={() => { setQuery(''); fleet.showVehicleTrips(vehicle.id); }}>
-              <span className="fleet-plate"><BusFront size={16} />{vehicle.plateNumber}</span><strong>{vehicle.name}</strong>
-              <span className="fleet-help">{vehicle.active ? 'Đang sử dụng' : 'Đã ngừng sử dụng'} · {liveSnapshot?.positions.some(point => point.vehicleId === vehicle.id) ? 'Đã nhận vị trí' : 'Chưa có vị trí xe'}</span>
+              <span className="fleet-plate">{vehicle.vehicleType === 'MOTORCYCLE' ? <Scooter size={16} /> : <CarFront size={16} />}{vehicle.plateNumber}</span><strong>{vehicle.name}</strong>
+              <span className="fleet-help">{vehicleTypeLabel(vehicle.vehicleType)} · {vehicle.active ? 'Đang sử dụng' : 'Đã ngừng sử dụng'} · {liveSnapshot?.positions.some(point => point.vehicleId === vehicle.id) ? 'Đã nhận vị trí' : 'Chưa có vị trí xe'}</span>
             </button>
             {vehicle.active && <div className="fleet-card-actions"><button className="fleet-icon-button" aria-label={`Sửa xe ${vehicle.plateNumber}`} onClick={() => fleet.openVehicleForm(vehicle)}><Edit3 size={15} /></button>
               <button className="fleet-icon-button danger" aria-label={`Ngừng sử dụng xe ${vehicle.plateNumber}`} onClick={() => setDeactivate(vehicle)}><Trash2 size={15} /></button></div>}</div>
@@ -89,7 +85,7 @@ export function FleetWorkspace({ onToast, onTripRoute, onFocusStop, onManageRout
     {screen.kind === 'vehicle-form' && <VehicleEditor key={screen.vehicle?.id ?? 'new'} vehicle={screen.vehicle} busy={fleet.busy} error={fleet.error}
       onSave={async (input, id) => { const saved = await fleet.saveVehicle(input, id); if (saved) { setQuery(''); setVehicleStatus('active'); } return saved; }} onClose={fleet.close} />}
     {screen.kind === 'trip-form' && <TripEditor vehicles={fleet.vehicles} initialVehicleId={screen.vehicleId} busy={fleet.busy} error={fleet.error} onSave={fleet.saveTrip} onClose={fleet.close} onManageRoutes={onManageRoutes} />}
-    {screen.kind === 'trip-detail' && <TripDetailPanel key={screen.id} detail={fleet.detail} loading={fleet.loadingDetail} busy={fleet.busy} error={fleet.error} onClose={fleet.close}
+    {screen.kind === 'trip-detail' && <TripDetailPanel key={`${screen.id}:${fleet.detail?.trip.attemptNumber ?? 'loading'}`} detail={fleet.detail} loading={fleet.loadingDetail} busy={fleet.busy} error={fleet.error} onClose={fleet.close}
       onRetry={() => void fleet.selectTrip(screen.id)} onAction={fleet.transition} onUpdateSchedule={fleet.updateTripSchedule} onDeleteTrip={fleet.removeTrip} onFocusStop={onFocusStop} onSimulate={onSimulateTrip} liveSnapshot={liveSnapshot} />}
     {deactivate && <FleetConfirmDialog title={`Ngừng sử dụng xe ${deactivate.plateNumber}?`} message="Các chuyến chưa kết thúc phải được hoàn thành hoặc hủy trước. Lịch sử xe và chuyến đi vẫn được lưu."
       confirmLabel="Xác nhận ngừng sử dụng xe" busy={fleet.busy} error={fleet.error} onClose={() => setDeactivate(null)}

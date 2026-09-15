@@ -1,10 +1,14 @@
 package com.quangkhai.vehicletracking_backend.simulation.service;
 
+import com.quangkhai.vehicletracking_backend.checkin.repository.TripCheckInStateRepository;
+import com.quangkhai.vehicletracking_backend.reroute.entity.RouteRevisionStatus;
+import com.quangkhai.vehicletracking_backend.reroute.repository.TripRouteRevisionRepository;
+import com.quangkhai.vehicletracking_backend.reroute.repository.TripTrafficAlertStateRepository;
 import com.quangkhai.vehicletracking_backend.simulation.dto.*;
 import com.quangkhai.vehicletracking_backend.simulation.entity.*;
 import com.quangkhai.vehicletracking_backend.simulation.motion.RouteMotion;
+import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationAttemptRepository;
 import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository;
-import com.quangkhai.vehicletracking_backend.trip.dto.TripCreateRequest;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import com.quangkhai.vehicletracking_backend.trip.service.TripService;
@@ -38,6 +42,10 @@ public class SimulationService {
     private final VehiclePositionRepository positions;
     private final Clock operationsClock;
     private final TrafficEtaService trafficEta;
+    private final SimulationAttemptRepository attempts;
+    private final TripCheckInStateRepository checkInStates;
+    private final TripTrafficAlertStateRepository alertStates;
+    private final TripRouteRevisionRepository revisions;
     // Routes are immutable. Bound the decoded geometry cache for repeated scheduler/SSE reads.
     private final Map<Long,RouteMotion> motions=Collections.synchronizedMap(new LinkedHashMap<>(16,0.75f,true) {
         @Override protected boolean removeEldestEntry(Map.Entry<Long,RouteMotion> eldest) { return size()>100; }
@@ -48,7 +56,7 @@ public class SimulationService {
         var trip=lockTrip(tripId);
         var run=runs.findByTripId(tripId).orElse(null);
         if(run!=null && run.getStatus()==SimulationStatus.RUNNING && trip.getStatus()==TripStatus.IN_PROGRESS) return describe(trip,run);
-        if(run!=null && run.getStatus()!=SimulationStatus.PAUSED) throw conflict("Phiên đã kết thúc. Dùng Chạy lại để tạo chuyến mới.");
+        if(run!=null && run.getStatus()!=SimulationStatus.PAUSED) throw conflict("Phiên đã kết thúc. Dùng Chạy lại để bắt đầu lần mô phỏng mới.");
         if(trip.getStatus()!=TripStatus.SCHEDULED && trip.getStatus()!=TripStatus.IN_PROGRESS) throw conflict("Chuyến đã kết thúc.");
         if(samples.existsByTripIdAndSource(tripId,TelemetrySource.GPS)) throw conflict("Chuyến đã nhận GPS; hãy tạo chuyến khác để mô phỏng.");
         motion(trip); // Validate before modifying trip lifecycle.
@@ -86,16 +94,28 @@ public class SimulationService {
     @Transactional
     public SimulationResponse reset(long tripId) {
         var trip=lockTrip(tripId); var run=requireRun(tripId);
-        if(run.getReplacementTripId()!=null) {
-            var replacement=trips.findById(run.getReplacementTripId()).orElseThrow();
-            return describe(replacement,requireRun(replacement.getId()));
-        }
+        if (!trip.getVehicle().isActive()) throw conflict("Xe đã ngừng sử dụng.");
+        if (samples.existsByTripIdAndSource(tripId,TelemetrySource.GPS)) throw conflict("Không thể chạy lại mô phỏng trên chuyến đã nhận GPS.");
+        if (trips.findAllByVehicleIdOrderByScheduledDepartureAtDescIdDesc(trip.getVehicle().getId()).stream()
+                .anyMatch(other -> !other.getId().equals(tripId) && other.getStatus()==TripStatus.IN_PROGRESS))
+            throw conflict("Xe đang thực hiện chuyến khác. Hãy kết thúc chuyến đó trước.");
         motion(trip);
-        stop(trip,run);
-        var replacement=tripService.create(new TripCreateRequest(trip.getVehicle().getId(),trip.getRoute().getId(),now()));
-        var next=runs.saveAndFlush(new SimulationRunEntity(replacement.trip().id(),now()));
-        run.replaceWith(next.getTripId(),now());
-        return describe(trips.findById(next.getTripId()).orElseThrow(),next);
+        if (trip.getStatus()==TripStatus.SCHEDULED && run.getStatus()==SimulationStatus.PAUSED && run.getElapsedSeconds()==0)
+            return describe(trip,run); // Repeated reset before play is idempotent.
+        var now=now();
+        attempts.saveAndFlush(new SimulationAttemptEntity(trip,run,now));
+        trip.replay(now); run.replay(now);
+        checkInStates.findById(tripId).ifPresent(state -> state.replay(trip.getAttemptNumber()));
+        alertStates.findById(tripId).ifPresent(state -> state.replay(now));
+        revisions.findTopByTripIdAndStatusOrderByRevisionNumberDesc(tripId,RouteRevisionStatus.ACTIVE)
+            .ifPresent(revision -> revision.supersede(now));
+        trips.flush();
+        return describe(trip,run);
+    }
+    @Transactional(readOnly=true)
+    public List<SimulationAttemptResponse> attempts(long tripId) {
+        if (!trips.existsById(tripId)) throw new ResponseStatusException(NOT_FOUND,"Không tìm thấy chuyến.");
+        return attempts.findAllByTripIdOrderByAttemptNumberDesc(tripId).stream().map(SimulationAttemptResponse::from).toList();
     }
     @Transactional
     public void tick(long tripId) {
@@ -113,7 +133,7 @@ public class SimulationService {
     public void fail(long tripId) {
         var trip=lockTrip(tripId); var run=requireRun(tripId);
         if(run.getStatus()==SimulationStatus.RUNNING || run.getStatus()==SimulationStatus.PAUSED)
-            run.fail("Mô phỏng gặp lỗi. Dừng phiên hoặc tạo chuyến mới sau khi kiểm tra tuyến.",now());
+            run.fail("Mô phỏng gặp lỗi. Kiểm tra tuyến rồi chọn Chạy lại.",now());
     }
     @Transactional(readOnly=true)
     public List<Long> activeTripIds() {
@@ -187,7 +207,7 @@ public class SimulationService {
                 frame.nextStopSequence(),frame.nextStopEtaSeconds(),frame.dwelling(),frame.finished());
         return new SimulationResponse(run.getId(),trip.getId(),run.getStatus(),run.getMultiplier(),run.getElapsedSeconds(),
             trip.getRoute().getEstimatedTripDurationSeconds(),simulatedAt(trip,run),run.getUpdatedAt(),run.getErrorMessage(),run.getReplacementTripId(),frame,
-            trafficMetadata(trip));
+            trafficMetadata(trip),trip.getAttemptNumber());
     }
     private SimulationTrafficMetadata trafficMetadata(TripEntity trip) {
         try {

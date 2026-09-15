@@ -21,4 +21,8 @@ public class SimulationRunEntity {
     public void changeMultiplier(int value, Instant now) { multiplier=value; lastTickAt=now; updatedAt=now; }
     public void fail(String message, Instant now) { changeStatus(SimulationStatus.FAILED,now); errorMessage=message; }
     public void replaceWith(long tripId, Instant now) { replacementTripId=tripId; updatedAt=now; }
+    public void replay(Instant now) {
+        elapsedSeconds=0; multiplier=1; errorMessage=null; replacementTripId=null;
+        changeStatus(SimulationStatus.PAUSED,now);
+    }
 }

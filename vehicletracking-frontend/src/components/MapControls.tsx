@@ -1,6 +1,6 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef } from 'react';
 import type { MapTheme } from '../types/map';
-import { Compass, Layers, Minus, Navigation, Plus, Scan } from 'lucide-react';
+import { Layers, Minus, Navigation, Plus, Scan } from 'lucide-react';
 
 interface MapControlsProps {
   theme: MapTheme;
@@ -19,7 +19,6 @@ interface MapControlsProps {
   trafficMessage: string;
   trafficCanRetry: boolean;
   onRetryTraffic: () => void;
-  coordRef: RefObject<HTMLSpanElement | null>;
 }
 
 export function MapControls({
@@ -39,7 +38,6 @@ export function MapControls({
   trafficMessage,
   trafficCanRetry,
   onRetryTraffic,
-  coordRef,
 }: MapControlsProps) {
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
 
@@ -226,11 +224,6 @@ export function MapControls({
         </button>
       </div>
 
-      {/* Subtle Google Maps coordinate badge */}
-      <div className={`gm-coord-badge ${theme === 'google-dark' ? 'dark' : 'light'}`}>
-        <Compass size={11} />
-        <span ref={coordRef}>Di chuột trên bản đồ để xem tọa độ</span>
-      </div>
     </>
   );
 }

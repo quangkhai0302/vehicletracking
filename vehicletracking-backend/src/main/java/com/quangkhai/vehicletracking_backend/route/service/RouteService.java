@@ -66,7 +66,18 @@ public class RouteService {
                 "Không thể sửa tuyến đã ngừng sử dụng.");
         if (tripRepository.existsByRouteId(id)) throw new RouteOperationException(HttpStatus.CONFLICT, RouteErrorCode.ROUTE_VALIDATION_FAILED,
                 "Không thể sửa tuyến đã được dùng bởi chuyến; hãy tạo tuyến revision mới.");
-        current.replaceDefinition(buildRoute(request));
+        /*
+         * Build everything before mutating the managed route.  Child rows use
+         * unique (route_id, sequence) keys; replacing the collections in one
+         * flush can make Hibernate insert the new rows before orphan removal
+         * deletes the old rows, resulting in a 23505/HTTP 500.  Flush the
+         * orphan removals first, then attach the freshly calculated snapshot.
+         */
+        RouteEntity replacement = buildRoute(request);
+        current.replaceDefinitionMetadata(replacement);
+        current.clearDefinitionChildren();
+        routeRepository.flush();
+        current.appendDefinitionChildren(replacement);
         return RouteDetailResponse.from(routeRepository.saveAndFlush(current));
     }
 

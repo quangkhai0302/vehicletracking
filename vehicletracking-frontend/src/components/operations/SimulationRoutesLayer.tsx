@@ -18,8 +18,8 @@ export function SimulationRoutesLayer({ mapRef, mapReady, visible, routes, selec
     plate:trip.vehiclePlateNumber,name:trip.routeName,segments})));
   useEffect(()=>{
     const map=mapRef.current;
-    if (!map || !mapReady || !visible) return;
-    const rows=JSON.parse(signature) as RouteRow[];
+    if (!map || !mapReady || !visible || selectedTripId === null) return;
+    const rows=(JSON.parse(signature) as RouteRow[]).filter(row => row.tripId === selectedTripId);
     const pane=map.getPane('simulationRoutesPane') ?? map.createPane('simulationRoutesPane');
     pane.style.zIndex='455'; pane.style.pointerEvents='none';
     const renderer=L.svg({pane:'simulationRoutesPane'});
@@ -49,7 +49,7 @@ export function SimulationRoutesLayer({ mapRef, mapReady, visible, routes, selec
       picker=L.popup({className:'simulation-station-popup',maxWidth:260}).setLatLng(point).setContent(content).openOn(map);
       picker.on('remove',clearButtons);
     };
-    // Selected route is last, with a stronger casing; other routes remain visible.
+    // Only the selected vehicle's trip is allowed to contribute route geometry.
     rows.sort((a,b)=>Number(a.tripId===selectedTripId)-Number(b.tripId===selectedTripId));
     for (const row of rows) {
       const selected=row.tripId===selectedTripId;

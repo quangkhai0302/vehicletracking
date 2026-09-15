@@ -89,7 +89,18 @@ class OperationsHttpIntegrationTest {
         assertThat(post("/trips/"+id+"/simulation/pause","{}").statusCode()).isEqualTo(200);
         assertThat(post("/trips/"+id+"/simulation/stop","{}").statusCode()).isEqualTo(200);
         assertThat(post("/trips/"+id+"/simulation/play","{}").statusCode()).isEqualTo(409);
-        assertThat(post("/trips/"+id+"/simulation/reset","{}").statusCode()).isEqualTo(200);
+        var reset=post("/trips/"+id+"/simulation/reset","{}");
+        assertThat(reset.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(reset.body()).get("tripId").asLong()).isEqualTo(id);
+        assertThat(json.readTree(reset.body()).get("attemptNumber").asInt()).isEqualTo(2);
+        var attempts=get("/trips/"+id+"/simulation/attempts");
+        assertThat(attempts.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(attempts.body())).singleElement().satisfies(attempt -> {
+            assertThat(attempt.get("attemptNumber").asInt()).isEqualTo(1);
+            assertThat(attempt.get("tripId").asLong()).isEqualTo(id);
+        });
+        assertThat(get("/trips/"+id+"/check-ins?attemptNumber=1").statusCode()).isEqualTo(200);
+        assertThat(get("/telemetry/history?tripId="+id+"&attemptNumber=1").statusCode()).isEqualTo(200);
     }
     private InputStream connect(String lastId) throws Exception {
         var builder=HttpRequest.newBuilder(URI.create(base()+"/telemetry/stream")).header("Origin","http://127.0.0.1:5173");

@@ -1050,8 +1050,11 @@ h3 {
 }
 
 .station-picking {
-  cursor: crosshair !important;
+  cursor: grab !important;
 }
+
+.station-picking.leaflet-drag-target,
+.station-picking:active { cursor: grabbing !important; }
 
 .map-picking-banner {
   position: absolute;

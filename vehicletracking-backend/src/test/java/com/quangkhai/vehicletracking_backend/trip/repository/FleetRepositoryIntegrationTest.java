@@ -6,6 +6,7 @@ import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.trip.service.TripService;
 import com.quangkhai.vehicletracking_backend.vehicle.dto.VehicleUpsertRequest;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
+import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.service.VehicleService;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
@@ -54,6 +55,18 @@ class FleetRepositoryIntegrationTest {
     }
     private TripDetailResponse create(Fixture f) {
         return service.create(new TripCreateRequest(f.vehicle().getId(), f.route().getId(), departure));
+    }
+    @Test void persistsMotorcycleTypeAndExposesItThroughTripSummary() {
+        var response = vehicleService.create(new VehicleUpsertRequest("59X1" + sequence.incrementAndGet(),
+                "Xe máy thử", null, VehicleType.MOTORCYCLE));
+        assertThat(response.vehicleType()).isEqualTo(VehicleType.MOTORCYCLE);
+        assertThat(vehicles.findById(response.id()).orElseThrow().getVehicleType()).isEqualTo(VehicleType.MOTORCYCLE);
+
+        var a = stations.saveAndFlush(TripFixtures.station("Moto A"));
+        var b = stations.saveAndFlush(TripFixtures.station("Moto B"));
+        var route = routes.saveAndFlush(TripFixtures.route(a, b));
+        var trip = service.create(new TripCreateRequest(response.id(), route.getId(), departure));
+        assertThat(trip.trip().vehicleType()).isEqualTo(VehicleType.MOTORCYCLE);
     }
     @Test void persistsImmutableStopScheduleRadiusAndPlateAfterStationAndVehicleUpdates() {
         var f = fixture(); var created = create(f); var id = created.trip().id();

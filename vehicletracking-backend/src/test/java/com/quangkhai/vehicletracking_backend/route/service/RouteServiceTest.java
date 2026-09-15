@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -34,6 +35,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -304,6 +306,80 @@ class RouteServiceTest {
                 });
 
         verify(routePersistenceService, never()).persistRoute(any());
+    }
+
+    @Test
+    void update_flushesOrphanedChildrenBeforeAttachingReplacementSnapshot() {
+        StationEntity oldStart = createStation(1L, "Trạm cũ 1", "10.80", "106.70");
+        StationEntity oldEnd = createStation(2L, "Trạm cũ 2", "10.81", "106.71");
+        StationEntity newEnd = createStation(3L, "Trạm mới 3", "10.82", "106.72");
+
+        RouteEntity current = new RouteEntity(
+                "Tuyến cũ", RouteTransportMode.CAR, RoutingProviderName.HERE,
+                1000L, 100L, 90L, 0L, 100L, Instant.now(), Instant.now()
+        );
+        ReflectionTestUtils.setField(current, "id", 7L);
+        current.addStop(new com.quangkhai.vehicletracking_backend.route.entity.RouteStopEntity(
+                oldStart, 1, oldStart.getName(), oldStart.getLatitude(), oldStart.getLongitude(), 0));
+        current.addStop(new com.quangkhai.vehicletracking_backend.route.entity.RouteStopEntity(
+                oldEnd, 2, oldEnd.getName(), oldEnd.getLatitude(), oldEnd.getLongitude(), 0));
+        current.addSection(new com.quangkhai.vehicletracking_backend.route.entity.RouteSectionEntity(
+                1, 2, "old-polyline", 1000L, 100L, 90L));
+
+        when(routeRepository.findLockedById(7L)).thenReturn(Optional.of(current));
+        when(tripRepository.existsByRouteId(7L)).thenReturn(false);
+        when(stationRepository.findAllByIdInAndActiveTrue(Set.of(1L, 3L)))
+                .thenReturn(List.of(oldStart, newEnd));
+        when(routingProvider.calculate(any())).thenReturn(new CalculatedRoute(Instant.now(), List.of(
+                new CalculatedSection(1, 2, "new-polyline", 2200L, 240L, 210L)
+        )));
+        when(routeRepository.saveAndFlush(current)).thenReturn(current);
+
+        RouteDetailResponse response = routeService.update(7L, new RouteCreateRequest(
+                "Tuyến mới",
+                List.of(
+                        new RouteCreateRequest.RouteStopInput(1L, 0),
+                        new RouteCreateRequest.RouteStopInput(3L, 0)
+                )
+        ));
+
+        assertThat(response.id()).isEqualTo(7L);
+        assertThat(response.name()).isEqualTo("Tuyến mới");
+        assertThat(response.stops()).extracting(RouteDetailResponse.RouteStopResponse::stationId)
+                .containsExactly(1L, 3L);
+        assertThat(response.sections()).extracting(RouteDetailResponse.RouteSectionResponse::encodedPolyline)
+                .containsExactly("new-polyline");
+
+        InOrder order = inOrder(routeRepository);
+        order.verify(routeRepository).flush();
+        order.verify(routeRepository).saveAndFlush(current);
+    }
+
+    @Test
+    void update_whenRouteAlreadyUsedByTrip_returnsConflictWithoutCallingHere() {
+        RouteEntity current = new RouteEntity(
+                "Tuyến đang dùng", RouteTransportMode.CAR, RoutingProviderName.HERE,
+                1000L, 100L, 90L, 0L, 100L, Instant.now(), Instant.now()
+        );
+        ReflectionTestUtils.setField(current, "id", 8L);
+        when(routeRepository.findLockedById(8L)).thenReturn(Optional.of(current));
+        when(tripRepository.existsByRouteId(8L)).thenReturn(true);
+
+        assertThatThrownBy(() -> routeService.update(8L, new RouteCreateRequest(
+                "Tuyến sửa", List.of(
+                        new RouteCreateRequest.RouteStopInput(1L, 0),
+                        new RouteCreateRequest.RouteStopInput(2L, 0)
+                )
+        )))
+                .isInstanceOf(RouteOperationException.class)
+                .satisfies(ex -> {
+                    RouteOperationException roe = (RouteOperationException) ex;
+                    assertThat(roe.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(roe.getErrorCode()).isEqualTo(RouteErrorCode.ROUTE_VALIDATION_FAILED);
+                });
+
+        verify(routingProvider, never()).calculate(any());
+        verify(routeRepository, never()).flush();
     }
 
     @Test

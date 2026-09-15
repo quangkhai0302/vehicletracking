@@ -21,9 +21,18 @@ public class TelemetryHistoryService {
     @Transactional(readOnly = true)
     public TelemetryPageResponse find(Long tripId, Long vehicleId, TelemetrySource source,
                                       Instant from, Instant to, int page, int size) {
+        return find(tripId,vehicleId,source,from,to,page,size,null);
+    }
+    @Transactional(readOnly=true)
+    public TelemetryPageResponse find(Long tripId, Long vehicleId, TelemetrySource source,
+                                      Instant from, Instant to, int page, int size, Integer attemptNumber) {
         if (page < 0 || size < 1 || size > 500) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page phải >= 0 và size trong khoảng 1–500.");
         if (from != null && to != null && from.isAfter(to)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "from không được sau to.");
         Specification<TelemetrySampleEntity> spec = (root, query, cb) -> cb.conjunction();
+        if (attemptNumber!=null) {
+            if (attemptNumber<1 || tripId==null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"attemptNumber cần tripId và phải >= 1.");
+            spec=spec.and((root,q,cb)->cb.equal(root.get("attemptNumber"),attemptNumber));
+        }
         if (tripId != null) { if (tripId <= 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tripId phải là số dương."); spec = spec.and((root, q, cb) -> cb.equal(root.get("tripId"), tripId)); }
         if (vehicleId != null) { if (vehicleId <= 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "vehicleId phải là số dương."); spec = spec.and((root, q, cb) -> cb.equal(root.get("vehicleId"), vehicleId)); }
         if (source != null) spec = spec.and((root, q, cb) -> cb.equal(root.get("source"), source));

@@ -40,6 +40,7 @@
 }
 .live-vehicle-glyph { width: 30px; height: 36px; transform: rotate(var(--heading)); transform-origin: center; }
 .live-vehicle-marker.muted { color: #64748b; background: #e2e8f0; }
+.live-vehicle-marker.planned { border-style: dashed; color: #0369a1; background: #e0f2fe; }
 .live-vehicle-marker.selected { outline: 3px solid #0284c7; outline-offset: 3px; box-shadow: 0 2px 8px rgba(15, 23, 42, .4), 0 0 0 8px rgba(14, 165, 233, .18); }
 .live-vehicle-icon:focus-visible .live-vehicle-marker { outline: 3px solid #0f172a; outline-offset: 3px; }
 
@@ -94,7 +95,10 @@
 .simulation-fleet-rows small { color: #8fe1ba; font-size: 10px; }
 .simulation-ready { padding: 10px; margin: 10px 0; border: 1px solid #365268; border-radius: 8px; font-size: 11px; line-height: 1.5; color: #bdd9e8; }
 .simulation-ready strong { color: #91e0ff; }
-.simulation-waiting-marker { position: relative; width: 44px; height: 44px; display: grid; place-items: center; border: 2px dashed #60a5fa; border-radius: 50%; background: #eff6ff; font-size: 26px; box-shadow: 0 3px 10px #0005; }
+.simulation-waiting-marker { position: relative; width: 44px; height: 44px; display: flex; align-items:center; justify-content:center; border: 2px dashed #60a5fa; border-radius: 50%; background: #eff6ff; color:#0284c7; box-shadow: 0 3px 10px #0005; }
+.simulation-waiting-marker .live-vehicle-glyph { width:27px; height:33px; transform:none; }
+.simulation-waiting-marker[data-vehicle-types="CAR MOTORCYCLE"] .live-vehicle-glyph { width:20px; height:27px; margin:0 -3px; }
+.simulation-waiting-marker[data-vehicle-types="MOTORCYCLE CAR"] .live-vehicle-glyph { width:20px; height:27px; margin:0 -3px; }
 .simulation-waiting-marker b { position: absolute; top: -6px; right: -8px; min-width: 20px; height: 20px; padding: 1px 4px; border-radius: 12px; color: #fff; background: #0369a1; font: bold 12px/20px system-ui; text-align: center; }
 .simulation-station-picker { font-size: 12px; min-width: 190px; }
 .simulation-station-picker p { margin: 6px 0; }

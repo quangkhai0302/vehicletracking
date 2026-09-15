@@ -3,7 +3,7 @@ import type { SimulationRun } from '../types/operations';
 import type { TrafficSource } from '../types/traffic';
 
 export const trafficSourceLabel: Record<TrafficSource, string> = {
-  HERE_LIVE: 'HERE Traffic', HERE_LAST_KNOWN: 'HERE · dữ liệu gần nhất',
+  HERE_LIVE: 'Ước tính theo giao thông', HERE_LAST_KNOWN: 'Ước tính theo dữ liệu giao thông gần nhất',
   ROUTE_SNAPSHOT: 'Ước tính theo tuyến đã lưu', UNAVAILABLE: 'Chưa có dữ liệu giao thông',
 };
 const seconds = (value: number | null | undefined) => value != null && Number.isFinite(value) && value >= 0 ? Math.ceil(value) : null;

@@ -6,6 +6,7 @@ import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.vehicle.controller.VehicleController;
 import com.quangkhai.vehicletracking_backend.vehicle.dto.VehicleResponse;
+import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
 import com.quangkhai.vehicletracking_backend.vehicle.service.VehicleService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +41,17 @@ class FleetControllerTest {
         mvc.perform(post("/api/v1/vehicles").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"plateNumber\":\"<script>\",\"name\":\"\"}")).andExpect(status().isBadRequest());
         verifyNoInteractions(vehicles);
+    }
+    @Test void createVehicle_acceptsMotorcycleAndRejectsUnknownType() throws Exception {
+        when(vehicles.create(any())).thenReturn(new VehicleResponse(5L, "59X112345", "Xe máy A", null,
+                true, Instant.now(), Instant.now(), VehicleType.MOTORCYCLE));
+        mvc.perform(post("/api/v1/vehicles").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"plateNumber\":\"59X1-12345\",\"name\":\"Xe máy A\",\"vehicleType\":\"MOTORCYCLE\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.vehicleType").value("MOTORCYCLE"));
+
+        mvc.perform(post("/api/v1/vehicles").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"plateNumber\":\"59X1-99999\",\"name\":\"Sai loại\",\"vehicleType\":\"AIRPLANE\"}"))
+                .andExpect(status().isBadRequest());
     }
     @Test void tripRequiresPositiveIdsAndTimestamp() throws Exception {
         mvc.perform(post("/api/v1/trips").contentType(MediaType.APPLICATION_JSON)

@@ -1,12 +1,15 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FC } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react';
 import L from 'leaflet';
 import { decodeFlexiblePolyline } from '../services/polyline';
 import type { MapTheme } from '../types/map';
+import type { TripDetail } from '../types/fleet';
 import type { RouteDetail, RouteDraftStop, RouteStopRole } from '../types/route';
 import { useLiveOperations } from '../hooks/useLiveOperations';
 import { useSimulator } from '../hooks/useSimulator';
 import { useSimulationFleet } from '../hooks/useSimulationFleet';
-import { useVehicleMarkers } from '../hooks/useVehicleMarkers';
+import { usePlannedVehicleAnchors } from '../hooks/usePlannedVehicleAnchors';
+import { useVehicleMarkers, type VehicleMarkerAnchor } from '../hooks/useVehicleMarkers';
+import { useSelectedVehicleRoute } from '../hooks/useSelectedVehicleRoute';
 import type { WorkspaceMode } from '../types/workspace';
 import { MapControls } from './MapControls';
 import { StationDrawer } from './StationDrawer';
@@ -86,22 +89,22 @@ export const MapComponent: FC = () => {
   const plannedRouteLayerRef = useRef<L.LayerGroup | null>(null);
   const plannedRouteBoundsRef = useRef<L.LatLngBounds | null>(null);
   const stationMarkerRef = useRef<Map<number, L.Marker>>(new Map());
-  const coordRef = useRef<HTMLSpanElement>(null);
 
   const [theme, setTheme] = useState<MapTheme>('google-roadmap');
   const [toast, setToast] = useState<string | null>(null);
   const live = useLiveOperations();
   const simulator = useSimulator(live.snapshot, setToast);
   const simulationFleet = useSimulationFleet(live.snapshot, workspace === 'simulation');
+  const persistedVehicleAnchors = usePlannedVehicleAnchors(live.snapshot);
   const traffic = useTraffic(mapInstanceRef, showTraffic, mapReady);
   const trafficStatus = traffic.incidents?.status;
   const trafficMessage = traffic.loading
-    ? 'Đang tải dữ liệu HERE Traffic…'
-    : traffic.error ?? (trafficStatus === 'STALE' ? 'Đang dùng dữ liệu HERE gần nhất.'
-      : trafficStatus === 'UNAVAILABLE' ? 'HERE Traffic chưa khả dụng.'
-        : showTraffic ? 'Chọn xe hoặc chuyến để xem vận tốc và ETA theo giao thông.'
-          : 'Bật để xem giao thông và sự cố trên bản đồ.');
-  const connectionLabel = live.connection === 'live' ? 'Realtime đã kết nối' : live.connection === 'connecting' ? 'Đang kết nối realtime…' : 'Realtime đang kết nối lại';
+    ? 'Đang tải giao thông…'
+    : traffic.error ? 'Chưa tải được giao thông. Thử lại trong lớp bản đồ.' : (trafficStatus === 'STALE' ? 'Đang dùng dữ liệu gần nhất.'
+      : trafficStatus === 'UNAVAILABLE' ? 'Giao thông chưa khả dụng.'
+        : showTraffic ? 'Đang hiển thị'
+          : 'Tạm tắt');
+  const connectionLabel = live.connection === 'live' ? 'Đang cập nhật trực tiếp' : live.connection === 'connecting' ? 'Đang kết nối…' : 'Mất kết nối · Đang thử lại';
   const { focusLocation, fitBounds, getVisibleCenter, releaseFocus } = useMapCamera(rootRef, mapInstanceRef);
   const stationWorkspace = useStationWorkspace({
     focusLocation, onToast: setToast,
@@ -135,12 +138,39 @@ export const MapComponent: FC = () => {
 
   // Route Planning Display State (Data flow managed by RouteWorkspace)
   const [editorRoute, setPlannedRoute] = useState<RouteDetail | null>(null);
-  const [tripRoute, setTripRoute] = useState<RouteDetail | null | undefined>(undefined);
-  const plannedRoute = workspace === 'simulation' ? simulator.detail?.route ?? null :
-    workspace === 'tracking' && tripRoute !== undefined ? tripRoute : editorRoute;
+  const [createdVehicleAnchors, setCreatedVehicleAnchors] = useState<VehicleMarkerAnchor[]>([]);
+  const handleTripCreated = useCallback((detail: TripDetail) => {
+    const start = [...detail.stops].sort((a, b) => a.sequenceNumber - b.sequenceNumber)[0];
+    if (!start || !Number.isFinite(start.latitude) || !Number.isFinite(start.longitude)) {
+      setToast('Chuyến đã tạo nhưng chưa có tọa độ trạm đầu để hiển thị xe.');
+      return;
+    }
+    setCreatedVehicleAnchors(current => [
+      ...current.filter(anchor => anchor.vehicleId !== detail.trip.vehicleId && anchor.tripId !== detail.trip.id),
+      {
+        vehicleId: detail.trip.vehicleId,
+        tripId: detail.trip.id,
+        vehiclePlateNumber: detail.trip.vehiclePlateNumber,
+        vehicleType: detail.trip.vehicleType,
+        latitude: start.latitude,
+        longitude: start.longitude,
+      },
+    ]);
+    focusLocation([start.latitude, start.longitude], 16);
+  }, [focusLocation]);
 
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
+  const [tripSelection, setTripSelection] = useState<{ tripId: number | null } | null>(null);
   const [followingVehicle, setFollowingVehicle] = useState(false);
+  const plannedVehicleAnchors = useMemo(() => {
+    const byVehicle = new Map<number, VehicleMarkerAnchor>();
+    persistedVehicleAnchors.forEach(anchor => byVehicle.set(anchor.vehicleId, anchor));
+    createdVehicleAnchors.forEach(anchor => {
+      const trip = live.snapshot?.trips.find(item => item.id === anchor.tripId);
+      if (!trip || (trip.status !== 'COMPLETED' && trip.status !== 'CANCELLED')) byVehicle.set(anchor.vehicleId, anchor);
+    });
+    return [...byVehicle.values()];
+  }, [persistedVehicleAnchors, createdVehicleAnchors, live.snapshot]);
   const mapSnapshot = useMemo(() => {
     if (!live.snapshot || workspace !== 'simulation') return live.snapshot;
     const waitingIds = new Set(simulationFleet.previews.map(item=>item.trip.vehicleId));
@@ -152,35 +182,71 @@ export const MapComponent: FC = () => {
     () => mapSnapshot?.positions.find(point => point.vehicleId === selectedVehicleId) ?? null,
     [selectedVehicleId, mapSnapshot]
   );
+  const markerAnchors = useMemo(
+    () => workspace === 'simulation'
+      ? plannedVehicleAnchors.filter(anchor => !simulationFleet.previews.some(item => item.trip.id === anchor.tripId))
+      : plannedVehicleAnchors,
+    [workspace, plannedVehicleAnchors, simulationFleet.previews]
+  );
+  const selectedPlannedVehicle = plannedVehicleAnchors.find(anchor => anchor.vehicleId === selectedVehicleId) ?? null;
+  const selectedWaitingVehicle = simulationFleet.previews.find(item => item.trip.vehicleId === selectedVehicleId);
+  const selectedTripId = selectedVehicle?.tripId
+    ?? (selectedVehicleId === null ? null : selectedPlannedVehicle?.tripId ?? selectedWaitingVehicle?.trip.id
+      ?? (simulator.trip?.vehicleId === selectedVehicleId ? simulator.trip.id : null));
+  const vehicleRoute = useSelectedVehicleRoute(selectedTripId, setToast);
+  const plannedRoute = workspace === 'routes' ? editorRoute : workspace === 'stations' ? null : vehicleRoute;
+  const selectedSimulationRoutes = simulationFleet.routes.filter(item => item.trip.id === selectedTripId);
+  const hasSimulationRoute = workspace === 'simulation' && selectedSimulationRoutes.length > 0;
+  const selectVehicleTrip = (vehicleId: number, tripId: number) => {
+    if (simulator.busy) return;
+    setSelectedVehicleId(vehicleId);
+    setTripSelection({ tripId });
+    simulator.select(tripId);
+    setFollowingVehicle(false);
+    if (workspace === 'routes' || workspace === 'stations') {
+      setWorkspace('tracking'); setPickingLocation(false);
+    }
+    setDrawerOpen(true); setSimulatorExpanded(true);
+    setActivePanel('context');
+  };
+  const clearVehicleSelection = () => {
+    if (simulator.busy) return;
+    setSelectedVehicleId(null); setFollowingVehicle(false);
+    setTripSelection({ tripId: null }); simulator.select(null);
+  };
   useVehicleMarkers({ mapRef: mapInstanceRef, snapshot: mapSnapshot, now: live.now,
-    visible: true, selectedId: selectedVehicleId, groupSelection: workspace==='simulation',
+    plannedPositions: markerAnchors, visible: true, selectedId: selectedVehicleId, groupSelection: workspace==='simulation',
     following: followingVehicle, onSelect: id => {
-      if (simulator.busy) return;
-      setSelectedVehicleId(id);
-      const point = live.snapshot?.positions.find(item=>item.vehicleId===id);
-      if (workspace==='simulation' && point?.source==='SIMULATOR') {
-        simulator.select(point.tripId); setSimulatorExpanded(true); setActivePanel('simulator');
-      }
+      const point = mapSnapshot?.positions.find(item=>item.vehicleId===id) ?? plannedVehicleAnchors.find(item=>item.vehicleId===id);
+      if (point) selectVehicleTrip(id, point.tripId);
     }, onFocus: focusLocation });
 
   const focusVehicle = (id: number) => {
-    const point = live.snapshot?.positions.find(item => item.vehicleId === id);
-    if (point) { setSelectedVehicleId(id); focusLocation([point.latitude,point.longitude],16); }
-  };
-  const openSimulation = (id: number) => { simulator.select(id); selectMode('simulation'); };
-  const selectSimulationVehicle = (tripId: number) => {
-    if (simulator.busy) return;
-    simulator.select(tripId); setWorkspace('simulation'); setSimulatorExpanded(true); setActivePanel('simulator');
-    setFollowingVehicle(false);
-    const preview = simulationFleet.previews.find(item=>item.trip.id===tripId);
-    if (preview) { setSelectedVehicleId(preview.trip.vehicleId); focusLocation([preview.start.latitude,preview.start.longitude],16); }
-    else {
-      const trip = live.snapshot?.trips.find(item=>item.id===tripId);
-      if (trip) focusVehicle(trip.vehicleId);
+    const point = mapSnapshot?.positions.find(item => item.vehicleId === id) ?? plannedVehicleAnchors.find(item => item.vehicleId === id);
+    if (point && !simulator.busy) {
+      selectVehicleTrip(id, point.tripId); focusLocation([point.latitude,point.longitude],16);
     }
   };
+  const openSimulation = (id: number) => {
+    const trip = live.snapshot?.trips.find(item => item.id === id);
+    if (simulator.busy) return;
+    if (trip) selectVehicleTrip(trip.vehicleId, id);
+    else { setSelectedVehicleId(null); setTripSelection({ tripId: id }); simulator.select(id); }
+    selectMode('simulation');
+  };
+  const selectSimulationVehicle = (tripId: number) => {
+    if (simulator.busy) return;
+    const preview = simulationFleet.previews.find(item=>item.trip.id===tripId);
+    const trip = preview?.trip ?? live.snapshot?.trips.find(item=>item.id===tripId);
+    if (!trip) return;
+    selectVehicleTrip(trip.vehicleId, tripId);
+    setWorkspace('simulation'); setActivePanel('simulator');
+    const point = live.snapshot?.positions.find(item => item.tripId === tripId);
+    if (preview) focusLocation([preview.start.latitude,preview.start.longitude],16);
+    else if (point) focusLocation([point.latitude,point.longitude],16);
+  };
   const fleetPoints: [number,number][] = [
-    ...(showRoutes ? simulationFleet.routes.flatMap(item=>item.segments.flat()) : []),
+    ...(showRoutes ? selectedSimulationRoutes.flatMap(item=>item.segments.flat()) : []),
     ...simulationFleet.previews.map(item=>[item.start.latitude,item.start.longitude] as [number,number]),
     ...(mapSnapshot?.positions.filter(point=>simulationFleet.trips.some(trip=>trip.id===point.tripId))
       .map(point=>[point.latitude,point.longitude] as [number,number]) ?? []),
@@ -232,42 +298,17 @@ export const MapComponent: FC = () => {
     stationLayerRef.current = L.layerGroup().addTo(map);
     draftLayerRef.current = L.layerGroup().addTo(map);
 
-    let rafId: number | null = null;
-    let pendingCoords: { lat: number; lng: number } | null = null;
-
-    const onMouseMove = (event: L.LeafletMouseEvent) => {
-      pendingCoords = { lat: event.latlng.lat, lng: event.latlng.lng };
-      if (rafId) return;
-      rafId = requestAnimationFrame(() => {
-        if (coordRef.current && pendingCoords) {
-          coordRef.current.textContent = `Tọa độ: ${pendingCoords.lat.toFixed(5)}, ${pendingCoords.lng.toFixed(5)}`;
-        }
-        rafId = null;
-      });
-    };
-
-    const onMouseOut = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = null;
-      if (coordRef.current) coordRef.current.textContent = 'Di chuột trên bản đồ để xem tọa độ';
-    };
-
     // User drag starts -> Stop following vehicle
     const onDragStart = () => {
       setFollowingVehicle(false);
       releaseFocus();
     };
 
-    map.on('mousemove', onMouseMove);
-    map.on('mouseout', onMouseOut);
     map.on('dragstart', onDragStart);
     mapInstanceRef.current = map;
     setMapReady(true);
 
     return () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      map.off('mousemove', onMouseMove);
-      map.off('mouseout', onMouseOut);
       map.off('dragstart', onDragStart);
       map.remove();
       mapInstanceRef.current = null;
@@ -478,6 +519,7 @@ export const MapComponent: FC = () => {
     let toastTimer: number | null = null;
     let hasDecodeError = false;
     const allCoords: [number, number][] = [];
+    const decodedSections: [number, number][][] = [];
 
     // M2-04: Decode polyline for each section. If ANY section fails or returns empty coordinates, fail the whole route!
     for (const section of plannedRoute.sections) {
@@ -487,6 +529,7 @@ export const MapComponent: FC = () => {
           hasDecodeError = true;
           break;
         }
+        decodedSections.push(coords);
         allCoords.push(...coords);
       } catch {
         hasDecodeError = true;
@@ -505,39 +548,48 @@ export const MapComponent: FC = () => {
       };
     }
 
-    if (allCoords.length > 0 && workspace !== 'simulation') {
-      // 1. Google Maps ambient glow (giúp nổi bật trên nền bản đồ tối hoặc vệ tinh)
-      L.polyline(allCoords, {
-        pane: 'routePane',
-        color: '#0b57d0',
-        weight: 12,
-        opacity: 0.42,
-        lineCap: 'round',
-        lineJoin: 'round',
-        interactive: false,
-      }).addTo(layer);
+    if (allCoords.length > 0 && !hasSimulationRoute) {
+      /*
+       * Keep each HERE section as its own Leaflet path.  Concatenating
+       * sections into one array creates a straight connector whenever HERE
+       * rounds a via endpoint differently in adjacent sections; that
+       * connector can visibly cut across buildings instead of following a
+       * road.
+       */
+      for (const sectionCoords of decodedSections) {
+        // 1. Google Maps ambient glow (giúp nổi bật trên nền bản đồ tối hoặc vệ tinh)
+        L.polyline(sectionCoords, {
+          pane: 'routePane',
+          color: '#0b57d0',
+          weight: 12,
+          opacity: 0.42,
+          lineCap: 'round',
+          lineJoin: 'round',
+          interactive: false,
+        }).addTo(layer);
 
-      // 2. Google Maps outer casing (viền xanh đậm định hình đường đi chuẩn Google Maps)
-      L.polyline(allCoords, {
-        pane: 'routePane',
-        color: '#0842a0',
-        weight: 8,
-        opacity: 1,
-        lineCap: 'round',
-        lineJoin: 'round',
-        interactive: false,
-      }).addTo(layer);
+        // 2. Google Maps outer casing (viền xanh đậm định hình đường đi chuẩn Google Maps)
+        L.polyline(sectionCoords, {
+          pane: 'routePane',
+          color: '#0842a0',
+          weight: 8,
+          opacity: 1,
+          lineCap: 'round',
+          lineJoin: 'round',
+          interactive: false,
+        }).addTo(layer);
 
-      // 3. Google Maps inner core (lớp lõi xanh dương đặc trưng Google Maps #4285f4)
-      L.polyline(allCoords, {
-        pane: 'routePane',
-        color: '#1a73e8',
-        weight: 5.5,
-        opacity: 1.0,
-        lineCap: 'round',
-        lineJoin: 'round',
-        interactive: false,
-      }).addTo(layer);
+        // 3. Google Maps inner core (lớp lõi xanh dương đặc trưng Google Maps #4285f4)
+        L.polyline(sectionCoords, {
+          pane: 'routePane',
+          color: '#1a73e8',
+          weight: 5.5,
+          opacity: 1.0,
+          lineCap: 'round',
+          lineJoin: 'round',
+          interactive: false,
+        }).addTo(layer);
+      }
     }
 
     // Draw numbered stop markers
@@ -575,7 +627,7 @@ export const MapComponent: FC = () => {
     return () => {
       if (toastTimer !== null) window.clearTimeout(toastTimer);
     };
-  }, [plannedRoute, showRoutes, fitBounds, workspace]);
+  }, [plannedRoute, showRoutes, fitBounds, workspace, hasSimulationRoute]);
 
   // Draft markers communicate order only; the POST response supplies road geometry.
   useEffect(() => {
@@ -683,20 +735,28 @@ export const MapComponent: FC = () => {
       {workspace==='simulation' && <Suspense fallback={null}><SimulationFleetLayer mapRef={mapInstanceRef} mapReady={mapReady} visible
         vehicles={simulationFleet.previews} onSelect={selectSimulationVehicle} />
         <SimulationRoutesLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showRoutes}
-          routes={simulationFleet.routes} selectedTripId={simulator.tripId} onSelect={selectSimulationVehicle} /></Suspense>}
+          routes={selectedSimulationRoutes} selectedTripId={selectedTripId} onSelect={selectSimulationVehicle} /></Suspense>}
       {plannedRoute && <Suspense fallback={null}>
         <RouteInspectionLayer mapRef={mapInstanceRef} mapReady={mapReady} route={plannedRoute}
           visible={showRoutes && !pickingLocation && workspace !== 'simulation'} trafficEnabled={showTraffic} />
       </Suspense>}
       <ModeBar mode={workspace} onChange={selectMode} connectionLabel={connectionLabel} />
-      <div className="live-follow glass-panel" data-map-edge="top" hidden={!selectedVehicle}>
+      <div className="live-follow glass-panel" data-map-edge="top" hidden={!selectedVehicle && !selectedWaitingVehicle && !selectedPlannedVehicle}>
+        {!selectedVehicle && selectedWaitingVehicle && <div className="live-follow-actions">
+          <span>{selectedWaitingVehicle.trip.vehiclePlateNumber} · Chờ mô phỏng</span>
+          <button aria-label="Bỏ chọn xe" disabled={simulator.busy} onClick={clearVehicleSelection}>×</button>
+        </div>}
+        {!selectedVehicle && !selectedWaitingVehicle && selectedPlannedVehicle && <div className="live-follow-actions">
+          <span>{selectedPlannedVehicle.vehiclePlateNumber} · Chưa khởi hành</span>
+          <button aria-label="Bỏ chọn xe" disabled={simulator.busy} onClick={clearVehicleSelection}>×</button>
+        </div>}
         {selectedVehicle && <>
         <div className="live-follow-actions">
           <span>{live.snapshot?.trips.find(trip => trip.id === selectedVehicle.tripId)?.vehiclePlateNumber ?? selectedVehicle.vehicleId} · {selectedVehicle.source === 'SIMULATOR' ? 'Giả lập' : 'GPS'}</span>
-          <button aria-pressed={followingVehicle} onClick={() => { setFollowingVehicle(value => !value); if (!followingVehicle) focusVehicle(selectedVehicle.vehicleId); }}>{followingVehicle ? 'Bỏ theo xe' : 'Theo xe'}</button>
-          <button aria-label="Bỏ chọn xe" onClick={() => { setSelectedVehicleId(null); setFollowingVehicle(false); }}>×</button>
+          <button aria-pressed={followingVehicle} onClick={() => { setFollowingVehicle(value => !value); if (!followingVehicle) focusLocation([selectedVehicle.latitude, selectedVehicle.longitude], 16); }}>{followingVehicle ? 'Bỏ theo xe' : 'Theo xe'}</button>
+          <button aria-label="Bỏ chọn xe" disabled={simulator.busy} onClick={clearVehicleSelection}>×</button>
         </div>
-        <TripTrafficSummary context="vehicle" tripId={selectedVehicle.tripId} position={selectedVehicle}
+        <TripTrafficSummary key={`${selectedVehicle.tripId}:${selectedVehicle.attemptNumber ?? 1}`} context="vehicle" tripId={selectedVehicle.tripId} position={selectedVehicle}
           run={selectedVehicle.source === 'SIMULATOR' ? live.snapshot?.simulations.find(run => run.tripId === selectedVehicle.tripId) ?? null : null}
           now={live.now} connection={live.connection} />
         </>}
@@ -715,7 +775,7 @@ export const MapComponent: FC = () => {
           <button aria-pressed={workspace === 'stations'} onClick={() => setWorkspace('stations')}>Trạm dừng <span>{stations.length}</span></button>
         </div>
         <div className="context-content" hidden={workspace !== 'tracking' && workspace !== 'simulation'}>
-          <FleetWorkspace liveSnapshot={live.snapshot} onSimulateTrip={openSimulation} onFocusVehicle={focusVehicle} onToast={setToast} onTripRoute={setTripRoute} onFocusStop={focusLocation} onManageRoutes={() => selectMode('routes')} onManageStations={() => selectMode('stations')} />
+          <FleetWorkspace liveSnapshot={live.snapshot} tripSelection={tripSelection} onTripCreated={handleTripCreated} onSimulateTrip={openSimulation} onFocusVehicle={focusVehicle} onToast={setToast} onFocusStop={focusLocation} onManageRoutes={() => selectMode('routes')} onManageStations={() => selectMode('stations')} />
         </div>
         <div className="context-content station-workspace" hidden={workspace !== 'stations'}>
           <div className="panel-list-slot" hidden={formMode !== 'closed' || selectedStation !== null}>
@@ -729,7 +789,7 @@ export const MapComponent: FC = () => {
           <RouteWorkspace stations={stations} loadingStations={loadingStations} onPlannedRouteDisplay={setPlannedRoute} onShowToast={setToast}
             onDraftStopsChange={setDraftStops} selectedDraftStopId={selectedDraftStopId} onFocusDraftStop={focusDraftStop} onFocusStop={focusLocation} />
         </div>
-        <div className="context-footer"><span className="status-dot" />{workspace === 'stations' ? 'Danh sách trạm đã lưu' : workspace === 'routes' ? 'Lộ trình tính qua HERE' : connectionLabel}</div>
+        {(workspace === 'stations' || workspace === 'routes') && <div className="context-footer"><span className="status-dot" />{workspace === 'stations' ? 'Danh sách trạm đã lưu' : 'Quản lý tuyến đường'}</div>}
       </aside>
 
       <div className="operations-dock" data-map-edge="right" hidden={compact && activePanel !== 'simulator' && activePanel !== 'alerts'}>
@@ -739,7 +799,7 @@ export const MapComponent: FC = () => {
             <button aria-label={simulatorExpanded ? 'Thu bảng mô phỏng' : 'Mở bảng mô phỏng'} aria-expanded={simulatorExpanded}
               onClick={() => { if (compact) setActivePanel(null); else setSimulatorExpanded(value => !value); }}><ChevronDown size={16} /></button>
           </div></div>
-          <div className="floating-panel-body" hidden={!simulatorExpanded}><SimulatorPanel simulator={simulator} snapshot={live.snapshot} now={live.now} connection={live.connection} connectionError={live.error} onReconnect={live.reconnect}
+          <div className="floating-panel-body" hidden={!simulatorExpanded}><SimulatorPanel key={`${simulator.tripId ?? 'none'}:${simulator.run?.attemptNumber ?? 1}`} simulator={simulator} snapshot={live.snapshot} now={live.now} connection={live.connection} connectionError={live.error} onReconnect={live.reconnect}
             fleet={workspace==='simulation' ? simulationFleet : undefined} onSelectVehicle={selectSimulationVehicle} onFitFleet={fitSimulationFleet}
             onManageFleet={()=>{setWorkspace('tracking');setDrawerOpen(true);setActivePanel('context');}}
             onShowRoute={() => {
@@ -768,12 +828,15 @@ export const MapComponent: FC = () => {
       </div>
 
       <div className="map-picking-banner" role="status" hidden={!pickingLocation || workspace !== 'stations'}>
-        <Crosshair size={17} /><span>Chọn vị trí trạm trên bản đồ</span>
-        <button className="picking-center-btn" onClick={handlePickMapCenter}>Lấy tâm bản đồ</button>
+        <Crosshair size={17} /><span>Kéo bản đồ để đưa vị trí trạm vào tâm ngắm</span>
+        <button className="picking-center-btn" onClick={handlePickMapCenter}>Chọn vị trí này</button>
         <button className="picking-cancel-btn" onClick={() => { setPickingLocation(false); openPanel('context'); }} aria-label="Hủy chế độ chọn vị trí"><X size={16} /></button>
       </div>
+      <div className="station-center-target" hidden={!pickingLocation || workspace !== 'stations'} aria-hidden="true">
+        <span />
+      </div>
 
-      <MapControls theme={theme} onThemeChange={setTheme} coordRef={coordRef}
+      <MapControls theme={theme} onThemeChange={setTheme}
         onResetCenter={() => focusLocation(HCMC_CENTER, 13)}
         onZoomIn={() => mapInstanceRef.current?.zoomIn()} onZoomOut={() => mapInstanceRef.current?.zoomOut()}
         onFit={handleFit} canFit={(workspace==='simulation' && fleetPoints.length>0) || (showStations && stations.length > 0) || (showRoutes && (plannedRoute !== null || draftStops.length > 0))}

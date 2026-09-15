@@ -51,6 +51,20 @@
 .fleet-form-body { padding-top:5px; }
 .fleet-form-body fieldset { display:flex; flex-direction:column; gap:15px; }
 .fleet-form-body label { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--text-secondary); }
+.fleet-form-body .vehicle-type-field { gap:7px; margin:0; padding:0; border:0; }
+.vehicle-type-field legend { margin-bottom:7px; font-size:12px; color:var(--text-secondary); }
+.vehicle-type-options { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.vehicle-type-options label {
+  position:relative; display:flex; flex-direction:row; align-items:center; gap:9px; min-width:0; padding:10px;
+  border:1px solid rgba(255,255,255,.12); border-radius:9px; background:rgba(8,14,24,.75); cursor:pointer;
+}
+.vehicle-type-options label[data-selected=true] { border-color:#22d3ee; background:rgba(8,145,178,.13); box-shadow:0 0 0 2px rgba(34,211,238,.12); }
+.vehicle-type-options input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+.vehicle-type-options svg { flex-shrink:0; color:#38bdf8; }
+.vehicle-type-options span { display:flex; flex-direction:column; min-width:0; }
+.vehicle-type-options strong { color:#eaf8ff; font-size:12px; }
+.vehicle-type-options small { margin-top:2px; color:var(--text-muted); font-size:9px; line-height:1.35; }
+.vehicle-type-options label:focus-within { outline:2px solid #67e8f9; outline-offset:2px; }
 .fleet-form-body textarea { resize:vertical; min-height:70px; }
 .fleet-form-body .fleet-help { margin-top:-8px; }
 .fleet-help { display:block; font-size:10px; line-height:1.7; color:var(--text-muted); }

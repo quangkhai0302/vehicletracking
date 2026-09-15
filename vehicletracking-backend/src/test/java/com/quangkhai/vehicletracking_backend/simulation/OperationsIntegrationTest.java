@@ -45,6 +45,9 @@ class OperationsIntegrationTest {
     @Autowired SimulationRepository runs;
     @Autowired OperationsSnapshotService snapshots;
     @Autowired CheckInQueryService checkIns;
+    @Autowired com.quangkhai.vehicletracking_backend.checkin.repository.TripStopVisitRepository visits;
+    @Autowired com.quangkhai.vehicletracking_backend.trip.repository.TripRepository tripRepository;
+    @Autowired TelemetryHistoryService history;
     @Autowired TripService trips;
     @Autowired StationRepository stations;
     @Autowired RouteRepository routes;
@@ -161,17 +164,45 @@ class OperationsIntegrationTest {
         assertThat(result.visits().get(1).fromSampleId()).isNotNull();
     }
     @Test void resetRetainsHistoryAndIsIdempotent() {
-        var trip=create();long id=trip.trip().id();simulator.play(id);seconds(3);simulator.tick(id);
+        var trip=createAligned();long id=trip.trip().id();var first=simulator.play(id);seconds(3);simulator.tick(id);
         var count=samples.countByTripId(id);
-        var replacement=simulator.reset(id);
-        assertThat(replacement.tripId()).isNotEqualTo(id);assertThat(replacement.status()).isEqualTo(SimulationStatus.PAUSED);
-        assertThat(simulator.reset(id).tripId()).isEqualTo(replacement.tripId());
-        assertThat(trips.findById(id).trip().status()).isEqualTo(TripStatus.CANCELLED);
-        assertThat(samples.countByTripId(id)).isGreaterThanOrEqualTo(count);
-        assertThat(trips.findById(replacement.tripId()).trip().status()).isEqualTo(TripStatus.SCHEDULED);
-        assertThat(trips.findById(replacement.tripId()).trip().routeId()).isEqualTo(trip.trip().routeId());
-        simulator.play(replacement.tripId());
-        conflict(()->simulator.play(id));
+        var oldVisits=checkIns.find(id).visits();
+        var revision=checkIns.find(id).revision();
+        long routeCount=routes.count(), tripCount=tripRepository.count();
+        var replay=simulator.reset(id);
+        assertThat(replay.tripId()).isEqualTo(id); assertThat(replay.id()).isEqualTo(first.id());
+        assertThat(replay.attemptNumber()).isEqualTo(2); assertThat(replay.elapsedSeconds()).isZero();
+        assertThat(replay.status()).isEqualTo(SimulationStatus.PAUSED);
+        assertThat(simulator.reset(id).attemptNumber()).isEqualTo(2);
+        assertThat(simulator.attempts(id)).hasSize(1);
+        assertThat(trips.findById(id).trip().status()).isEqualTo(TripStatus.SCHEDULED);
+        assertThat(trips.findById(id).trip().startedAt()).isNull();
+        assertThat(trips.findById(id).trip().endedAt()).isNull();
+        assertThat(trips.findById(id).trip().routeId()).isEqualTo(trip.trip().routeId());
+        assertThat(routes.count()).isEqualTo(routeCount); assertThat(tripRepository.count()).isEqualTo(tripCount);
+        assertThat(samples.countByTripId(id)).isEqualTo(count);
+        assertThat(checkIns.find(id).visits()).isEmpty();
+        assertThat(checkIns.find(id).revision()).isGreaterThan(revision);
+        assertThat(checkIns.findAttempt(id,1).visits()).isEqualTo(oldVisits).isNotEmpty();
+        assertThat(snapshots.snapshot().positions()).noneMatch(p -> p.tripId()==id);
+        assertThat(history.find(id,null,null,null,null,0,100,1).totalElements()).isEqualTo(count);
+        simulator.play(id);
+        assertThat(checkIns.find(id).visits()).singleElement().satisfies(v -> {
+            assertThat(v.stopSequence()).isEqualTo(1); assertThat(v.attemptNumber()).isEqualTo(2);
+            assertThat(v.fromSampleId()).isNull();
+        });
+        assertThat(checkIns.findAttempt(id,1).visits()).isEqualTo(oldVisits);
+        assertThat(history.find(id,null,null,null,null,0,100,2).totalElements()).isEqualTo(1);
+        assertThat(snapshots.snapshot().positions()).filteredOn(p->p.tripId()==id).singleElement()
+            .satisfies(p->assertThat(p.attemptNumber()).isEqualTo(2));
+    }
+    @Test void resetRejectsAnotherRunningTripWithoutArchiving() {
+        var trip=create(); long id=trip.trip().id(); simulator.play(id); simulator.stop(id);
+        var other=trips.create(new TripCreateRequest(trip.trip().vehicleId(),trip.trip().routeId(),time.get()));
+        trips.start(other.trip().id());
+        conflict(()->simulator.reset(id));
+        assertThat(simulator.attempts(id)).isEmpty();
+        assertThat(trips.findById(id).trip().attemptNumber()).isEqualTo(1);
     }
     @Test void restartPausesWithoutAdvancingAcrossDowntime() {
         var trip=create();long id=trip.trip().id();simulator.play(id);seconds(2);simulator.tick(id);

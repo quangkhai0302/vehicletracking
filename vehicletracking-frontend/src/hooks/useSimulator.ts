@@ -14,6 +14,8 @@ export function useSimulator(snapshot: OperationsSnapshot | null, onToast: (mess
   const [attempt, setAttempt] = useState(0);
   const busyRef = useRef(false);
   const mounted = useRef(false);
+  const replayNumber = Math.max(snapshot?.trips.find(trip => trip.id === tripId)?.attemptNumber ?? 1,
+    localRun?.tripId === tripId ? localRun.attemptNumber ?? 1 : 1);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     if (tripId === null) return;
@@ -24,16 +26,18 @@ export function useSimulator(snapshot: OperationsSnapshot | null, onToast: (mess
       if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Không tải được tuyến chuyến.');
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [tripId, attempt]);
+  }, [tripId, attempt, replayNumber]);
   const select = (id: number | null) => {
     if (busyRef.current) return;
     setTripId(id); setLoadedDetail(null); setLocalRun(null); setError(null); setLoading(id !== null); setAttempt(value => value + 1);
   };
   const retry = () => { if (!busyRef.current) { setLoading(true); setError(null); setAttempt(value => value + 1); } };
   const remoteRun = snapshot?.simulations.find(run => run.tripId === tripId) ?? null;
-  const run = localRun?.tripId === tripId && (!remoteRun || Date.parse(localRun.updatedAt) > Date.parse(remoteRun.updatedAt)) ? localRun : remoteRun;
-  const detail = loadedDetail?.trip.id === tripId ? loadedDetail : null;
-  const trip = snapshot?.trips.find(item => item.id === tripId) ?? detail?.trip ?? null;
+  const run = localRun?.tripId === tripId && (!remoteRun || (localRun.attemptNumber ?? 1) > (remoteRun.attemptNumber ?? 1)
+    || ((localRun.attemptNumber ?? 1) === (remoteRun.attemptNumber ?? 1) && Date.parse(localRun.updatedAt) > Date.parse(remoteRun.updatedAt))) ? localRun : remoteRun;
+  const detail = loadedDetail?.trip.id === tripId && (loadedDetail.trip.attemptNumber ?? 1) === replayNumber ? loadedDetail : null;
+  const remoteTrip = snapshot?.trips.find(item => item.id === tripId);
+  const trip = remoteTrip && (remoteTrip.attemptNumber ?? 1) === replayNumber ? remoteTrip : detail?.trip ?? null;
   const command = async (action: SimulationAction, multiplier?: 1 | 5 | 10) => {
     if (!tripId || busyRef.current) return false;
     busyRef.current = true; setBusy(true); setError(null);
@@ -42,7 +46,8 @@ export function useSimulator(snapshot: OperationsSnapshot | null, onToast: (mess
       if (!mounted.current) return true;
       setLocalRun(response);
       if (response.tripId !== tripId) { setTripId(response.tripId); setLoadedDetail(null); setLoading(true); }
-      onToast(action === 'reset' ? `Đã tạo chuyến mô phỏng mới #${response.tripId}. Lịch sử cũ được giữ.` :
+      if (action === 'reset') { setLoadedDetail(null); setLoading(true); setAttempt(value => value + 1); }
+      onToast(action === 'reset' ? `Đã đặt lại chuyến #${response.tripId}. Bấm Bắt đầu để chạy lại; lịch sử cũ được giữ.` :
         action === 'stop' ? 'Đã dừng mô phỏng và hủy chuyến.' : action === 'pause' ? 'Đã tạm dừng mô phỏng.' :
         action === 'play' ? 'Đang mô phỏng theo tuyến đã lưu.' : `Tốc độ phát ${multiplier}×.`);
       return true;

@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as fleet from '../services/fleet';
 import type { FleetVehicle, VehicleInput, TripSummary, TripDetail, TripInput, TripAction } from '../types/fleet';
 import type { OperationsSnapshot } from '../types/operations';
 
 function newerTrip(local: TripSummary, remote?: TripSummary): TripSummary {
   if (!remote) return local;
+  if ((remote.attemptNumber ?? 1) !== (local.attemptNumber ?? 1))
+    return (remote.attemptNumber ?? 1) > (local.attemptNumber ?? 1) ? remote : local;
   if (local.status === 'COMPLETED' || local.status === 'CANCELLED') return local;
   if (local.status === 'IN_PROGRESS' && remote.status === 'SCHEDULED') return local;
   return remote;
@@ -13,7 +15,8 @@ function newerTrip(local: TripSummary, remote?: TripSummary): TripSummary {
 export type FleetScreen = { kind: 'list' } | { kind: 'vehicle-form'; vehicle: FleetVehicle | null }
   | { kind: 'trip-form'; vehicleId: number | null } | { kind: 'trip-detail'; id: number };
 
-export function useFleetWorkspace(onToast: (message: string) => void, liveSnapshot?: OperationsSnapshot | null) {
+export function useFleetWorkspace(onToast: (message: string) => void, liveSnapshot?: OperationsSnapshot | null,
+  tripSelection?: { tripId: number | null } | null, onTripCreated?: (detail: TripDetail) => void) {
   const [vehicles, setVehicles] = useState<FleetVehicle[]>([]);
   const [trips, setTrips] = useState<TripSummary[]>([]);
   const [tab, setTab] = useState<'vehicles' | 'trips'>('vehicles');
@@ -52,9 +55,9 @@ export function useFleetWorkspace(onToast: (message: string) => void, liveSnapsh
     setLoadAttempt(value => value + 1);
   };
 
-  const clearSelection = () => {
+  const clearSelection = useCallback(() => {
     detailId.current++; detailAbort.current?.abort(); setDetail(null); setLoadingDetail(false); setError(null);
-  };
+  }, []);
   const close = () => { if (busyRef.current) return; clearSelection(); setScreen({ kind: 'list' }); };
   const openVehicleForm = (vehicle: FleetVehicle | null) => {
     if (busyRef.current) return;
@@ -64,7 +67,7 @@ export function useFleetWorkspace(onToast: (message: string) => void, liveSnapsh
     if (busyRef.current) return;
     clearSelection(); setScreen({ kind: 'trip-form', vehicleId: vehicleFilter });
   };
-  const selectTrip = async (id: number) => {
+  const selectTrip = useCallback(async (id: number) => {
     if (busyRef.current) return;
     clearSelection();
     const token = detailId.current;
@@ -78,7 +81,25 @@ export function useFleetWorkspace(onToast: (message: string) => void, liveSnapsh
     } catch (err) {
       if (mounted.current && token === detailId.current && !controller.signal.aborted) setError(err instanceof Error ? err.message : 'Không thể tải chuyến.');
     } finally { if (mounted.current && token === detailId.current && !controller.signal.aborted) setLoadingDetail(false); }
-  };
+  }, [clearSelection]);
+  const appliedSelection = useRef<typeof tripSelection>(undefined);
+  useEffect(() => {
+    // Selection is an explicit UI request, not a lock: the user can still go back to the list.
+    // If a mutation is in flight, apply only the latest request after it finishes.
+    if (!tripSelection || busy || appliedSelection.current === tripSelection) return;
+    appliedSelection.current = tripSelection;
+    setTab('trips'); setVehicleFilter(null);
+    if (tripSelection.tripId === null) {
+      clearSelection(); setScreen({ kind: 'list' });
+    } else {
+      void selectTrip(tripSelection.tripId);
+    }
+  }, [tripSelection, busy, selectTrip, clearSelection]);
+  const replayNumber = screen.kind === 'trip-detail'
+    ? liveSnapshot?.trips.find(trip => trip.id === screen.id)?.attemptNumber ?? 1 : 1;
+  useEffect(() => {
+    if (!busy && detail && replayNumber > (detail.trip.attemptNumber ?? 1)) void selectTrip(detail.trip.id);
+  }, [replayNumber, detail, busy, selectTrip]);
   const mutate = async (operation: () => Promise<void>) => {
     if (busyRef.current) return false;
     busyRef.current = true; listAbort.current?.abort(); setLoading(false);
@@ -104,6 +125,7 @@ export function useFleetWorkspace(onToast: (message: string) => void, liveSnapsh
     if (!mounted.current) return;
     setTrips(current => [saved.trip, ...current.filter(item => item.id !== saved.trip.id)]);
     setDetail(saved); setTab('trips'); setVehicleFilter(null); setScreen({ kind: 'trip-detail', id: saved.trip.id });
+    onTripCreated?.(saved);
     onToast('Đã tạo chuyến đi và lưu lịch trình.');
   });
   const transition = (action: TripAction) => {
@@ -135,7 +157,8 @@ export function useFleetWorkspace(onToast: (message: string) => void, liveSnapsh
   const mergedTrips = trips.map(trip => newerTrip(trip, remoteTrips.find(item => item.id === trip.id)));
   mergedTrips.push(...remoteTrips.filter(trip => !trips.some(item => item.id === trip.id)));
   mergedTrips.sort((a,b) => Date.parse(b.scheduledDepartureAt) - Date.parse(a.scheduledDepartureAt) || b.id - a.id);
-  const visibleDetail = detail ? { ...detail, trip: newerTrip(detail.trip, remoteTrips.find(item => item.id === detail.trip.id)) } : null;
+  const visibleDetail = detail && replayNumber <= (detail.trip.attemptNumber ?? 1)
+    ? { ...detail, trip: newerTrip(detail.trip, remoteTrips.find(item => item.id === detail.trip.id)) } : null;
   return { vehicles, trips: mergedTrips, tab, setTab, vehicleFilter, setVehicleFilter, screen, detail: visibleDetail, loading,
     loadingDetail, busy, error, reload, close, openVehicleForm, openTripForm, selectTrip,
     saveVehicle, removeVehicle, saveTrip, transition, updateTripSchedule, removeTrip, showVehicleTrips };

@@ -30,6 +30,7 @@ public class TripEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private TripStatus status = TripStatus.SCHEDULED;
+    @Column(name = "attempt_number", nullable = false) private int attemptNumber = 1;
     @Column(name = "started_at") private Instant startedAt;
     @Column(name = "ended_at") private Instant endedAt;
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -48,6 +49,11 @@ public class TripEntity {
     public void start(Instant now) { status = TripStatus.IN_PROGRESS; startedAt = now; }
     public void complete(Instant now) { status = TripStatus.COMPLETED; endedAt = now; }
     public void cancel(Instant now) { status = TripStatus.CANCELLED; endedAt = now; }
+    public void replay(Instant departure) {
+        attemptNumber = Math.incrementExact(attemptNumber);
+        status = TripStatus.SCHEDULED; startedAt = null; endedAt = null;
+        reschedule(departure);
+    }
     public void reschedule(Instant departure) {
         scheduledDepartureAt = departure;
         stops.forEach(stop -> stop.reschedule(departure));

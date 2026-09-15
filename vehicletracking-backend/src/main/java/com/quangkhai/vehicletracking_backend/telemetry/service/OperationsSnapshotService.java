@@ -25,7 +25,9 @@ public class OperationsSnapshotService {
     public OperationsSnapshot snapshot() {
         var tripList=trips.findAllByOrderByScheduledDepartureAtDescIdDesc();
         var byId=tripList.stream().collect(Collectors.toMap(t->t.getId(),t->t));
-        var locationList=positions.findAllByOrderByVehicleIdAsc().stream().map(p->TelemetryResponse.from(p.getSample())).toList();
+        var locationList=positions.findAllByOrderByVehicleIdAsc().stream()
+            .filter(p -> byId.containsKey(p.getSample().getTripId()) && p.getSample().getAttemptNumber()==byId.get(p.getSample().getTripId()).getAttemptNumber())
+            .map(p->TelemetryResponse.from(p.getSample())).toList();
         var simulations=runs.findAllByOrderByIdAsc().stream().map(run->simulation.describe(byId.get(run.getTripId()),run)).toList();
         var tripSummaries=tripList.stream().map(TripSummaryResponse::from).toList();
         var checkInList=checkIns.findAll(tripList.stream().map(t->t.getId()).toList());

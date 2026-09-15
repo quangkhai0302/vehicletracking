@@ -1,21 +1,29 @@
 import type { RouteDetail } from './route';
 
+export type VehicleType = 'CAR' | 'MOTORCYCLE';
+export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
+  CAR: 'Ô tô',
+  MOTORCYCLE: 'Xe máy',
+};
+export const vehicleTypeLabel = (type: VehicleType | undefined) => VEHICLE_TYPE_LABELS[type ?? 'CAR'];
 export interface FleetVehicle {
   id: number;
   plateNumber: string;
   name: string;
   description: string | null;
+  vehicleType: VehicleType;
   active: boolean;
   createdAt: string;
   updatedAt: string;
 }
-export interface VehicleInput { plateNumber: string; name: string; description: string | null }
+export interface VehicleInput { plateNumber: string; name: string; description: string | null; vehicleType: VehicleType }
 export type TripStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 export type TripAction = 'start' | 'complete' | 'cancel';
 export interface TripInput { vehicleId: number; routeId: number; scheduledDepartureAt: string }
 export interface TripUpdateInput { scheduledDepartureAt: string }
 export interface TripSummary {
-  id: number; vehicleId: number; vehiclePlateNumber: string; routeId: number; routeName: string;
+  attemptNumber?: number;
+  id: number; vehicleId: number; vehiclePlateNumber: string; vehicleType: VehicleType; routeId: number; routeName: string;
   status: TripStatus; scheduledDepartureAt: string; plannedEndAt: string;
   startedAt: string | null; endedAt: string | null; createdAt: string;
 }

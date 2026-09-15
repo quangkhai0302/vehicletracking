@@ -1,6 +1,7 @@
 export type CheckInSource = 'GPS' | 'SIMULATOR';
 export type CheckInEvidenceKind = 'POINT' | 'SEGMENT' | 'ROUTE_TRACE';
 export interface StopVisit {
+  attemptNumber?: number;
   id: number; tripId: number; stopSequence: number; source: CheckInSource; evidenceKind: CheckInEvidenceKind;
   actualArrivalAt: string; simulatedArrivalAt: string | null; detectedAt: string;
   fromSampleId: number | null; toSampleId: number; evidenceFraction: number;

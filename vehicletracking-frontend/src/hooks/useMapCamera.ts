@@ -27,6 +27,7 @@ export function useMapCamera(rootRef: RefObject<HTMLElement | null>, mapRef: Ref
     if (sheet) padding.top = Math.max(padding.top, 150);
     const center = L.point((padding.left + width - padding.right) / 2, (padding.top + height - padding.bottom) / 2);
     root?.style.setProperty('--safe-center-x', `${center.x}px`);
+    root?.style.setProperty('--safe-center-y', `${center.y}px`);
     return { ...padding, width, height, center };
   }, [rootRef]);
 

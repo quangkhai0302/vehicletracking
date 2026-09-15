@@ -24,13 +24,18 @@ public class TripCheckInStateEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "last_sample_id", nullable = false) private TelemetrySampleEntity lastSample;
     @Column(nullable = false) private long revision;
+    @Column(name = "attempt_number", nullable = false) private int attemptNumber = 1;
 
     public TripCheckInStateEntity(TripEntity trip, Integer nextStopSequence, boolean awaitingExit,
                                   TelemetrySampleEntity lastSample, long revision) {
         this.trip = trip; this.tripId = trip.getId(); this.nextStopSequence = nextStopSequence;
+        this.attemptNumber = trip.getAttemptNumber();
         this.awaitingExit = awaitingExit; this.lastSample = lastSample; this.revision = revision;
     }
     public void update(TelemetrySampleEntity sample, Integer next, boolean exit, long nextRevision) {
         this.lastSample = sample; this.nextStopSequence = next; this.awaitingExit = exit; this.revision = nextRevision;
+    }
+    public void replay(int attemptNumber) {
+        this.attemptNumber=attemptNumber; nextStopSequence=1; awaitingExit=false; revision++;
     }
 }

@@ -53,6 +53,7 @@ public class CheckInService {
     private TelemetrySampleEntity usablePrevious(TripEntity trip, TelemetrySampleEntity candidate, TelemetrySampleEntity checkpoint) {
         if (candidate==null || checkpoint==null || !candidate.getId().equals(checkpoint.getId())) return null;
         if (!candidate.getTripId().equals(trip.getId())) return null;
+        if (candidate.getAttemptNumber()!=trip.getAttemptNumber()) return null;
         return candidate;
     }
 
