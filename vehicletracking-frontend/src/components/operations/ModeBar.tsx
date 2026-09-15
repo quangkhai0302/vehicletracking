@@ -12,7 +12,7 @@ export function ModeBar({ mode, onChange, connectionLabel = 'Chưa có vị trí
       <button aria-pressed={mode === 'routes' || mode === 'stations'} onClick={() => onChange('routes')}><Route size={16} /><span>Tuyến & trạm</span></button>
       <button aria-pressed={mode === 'simulation'} onClick={() => onChange('simulation')}><Play size={16} /><span>Mô phỏng</span></button>
     </nav>
-    <a className="guide-link" href="/huong-dan/" target="_blank" rel="noreferrer" aria-label="Mở hướng dẫn sử dụng" title="Hướng dẫn sử dụng"><BookOpen size={15} /><span>Hướng dẫn</span></a>
+    <a className="guide-link" href="/huong-dan/index.html" target="_blank" rel="noreferrer" aria-label="Mở hướng dẫn sử dụng" title="Hướng dẫn sử dụng"><BookOpen size={15} /><span>Hướng dẫn</span></a>
     <span className="connection-state"><span className="live-beacon-dot" aria-hidden="true" /><Radio size={13} /> <span>{connectionLabel}</span></span>
   </header>;
 }
