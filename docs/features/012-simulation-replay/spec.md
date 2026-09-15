@@ -1,0 +1,5 @@
+# Spec
+
+Giữ tripId/routeId/runId. Thêm attempt_number (mặc định 1) vào trip, samples, visits, checkpoint; archive simulation_attempts trước reset. Giữ toàn bộ sample/visit cũ. Unique check-in theo trip+attempt+stop; FK ràng buộc evidence cùng attempt. Reset về PAUSED/0/1x, SCHEDULED và ngày xuất phát mới; reset checkpoint, cooldown; supersede revision đang active, không xóa lịch sử. Không thay route.active. Kiểm tra xe hoạt động, GPS, geometry và chuyến khác IN_PROGRESS trước ghi. Reset liên tiếp khi lần mới chưa có mẫu là no-op.
+
+POST /trips/{id}/simulation/reset trả cùng tripId. Thêm attemptNumber vào trip summary, telemetry, visit và simulation response. GET /trips/{id}/check-ins?attemptNumber=N đọc lịch sử visits; mặc định lần hiện tại. GET /trips/{id}/simulation/attempts trả các lần đã lưu trữ. GET telemetry/history thêm attemptNumber để lọc. SSE mặc định chỉ vị trí/check-in lần hiện tại. Giữ revision checkpoint tăng đơn điệu. Frontend tải lại detail khi attempt đổi, xóa ETA cũ; không hiển thị lại bảng lịch sử vị trí.

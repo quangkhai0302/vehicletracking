@@ -1,7 +1,10 @@
 package com.quangkhai.vehicletracking_backend.traffic.eta;
 
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
+import com.quangkhai.vehicletracking_backend.route.entity.RoutingProviderName;
+import com.quangkhai.vehicletracking_backend.route.provider.RoutingWaypoint;
 import com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline;
+import com.quangkhai.vehicletracking_backend.simulation.motion.RoutePolylineCodec;
 import com.quangkhai.vehicletracking_backend.simulation.motion.RouteMotion;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
@@ -14,17 +17,17 @@ import com.quangkhai.vehicletracking_backend.traffic.*;
 import com.quangkhai.vehicletracking_backend.traffic.matching.RoutePositionMatcher;
 import com.quangkhai.vehicletracking_backend.traffic.matching.TrafficRouteMatcher;
 import com.quangkhai.vehicletracking_backend.traffic.service.TrafficQueryService;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.*;
 
 @Service
-@RequiredArgsConstructor
 public class TrafficEtaService {
     /** A zero HERE speed is treated as crawling traffic, rather than silently restoring free-flow timing. */
     private static final double MINIMUM_OPEN_FLOW_SPEED_KMH = 1d;
@@ -35,14 +38,32 @@ public class TrafficEtaService {
     private final HereTrafficProperties properties;
     private final Clock operationsClock;
     private final com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry;
+    private final GoogleEtaCoordinator googleEta;
     private final TrafficRouteMatcher matcher = new TrafficRouteMatcher();
     private final RoutePositionMatcher positionMatcher = new RoutePositionMatcher();
+
+    @Autowired
+    public TrafficEtaService(TripRepository trips, TripStopVisitRepository visits, VehiclePositionRepository positions,
+                             TrafficQueryService traffic, HereTrafficProperties properties, Clock operationsClock,
+                             com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry,
+                             GoogleEtaCoordinator googleEta) {
+        this.trips = trips; this.visits = visits; this.positions = positions; this.traffic = traffic;
+        this.properties = properties; this.operationsClock = operationsClock; this.geometry = geometry; this.googleEta = googleEta;
+    }
+
+    /** Compatibility constructor for isolated HERE unit tests. */
+    public TrafficEtaService(TripRepository trips, TripStopVisitRepository visits, VehiclePositionRepository positions,
+                             TrafficQueryService traffic, HereTrafficProperties properties, Clock operationsClock,
+                             com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry) {
+        this(trips, visits, positions, traffic, properties, operationsClock, geometry, null);
+    }
 
     @Transactional(readOnly = true)
     public TripEtaResponse calculate(long tripId) {
         TripEntity trip = trips.findById(tripId).orElseThrow(() -> new TrafficOperationException(
                 HttpStatus.NOT_FOUND, TrafficErrorCode.TRIP_NOT_FOUND, "Không tìm thấy chuyến đi."));
         RouteDetailResponse route = geometry.route(trip);
+        Long routeRevisionId = geometry.appliedRevisionId(trip);
         if (route.stops().size() < 2 || route.sections().isEmpty()) {
             throw new TrafficOperationException(HttpStatus.CONFLICT, TrafficErrorCode.ETA_UNAVAILABLE,
                     "Chuyến chưa có đủ geometry tuyến để tính ETA.");
@@ -69,6 +90,10 @@ public class TrafficEtaService {
             incidents = traffic.incidentsForEta(bounds);
         }
 
+        boolean googleRoute = route.routingProvider() == RoutingProviderName.GOOGLE;
+        GoogleTiming googleTiming = googleRoute && positionAvailable
+                ? googleTiming(trip, route, routeRevisionId, nextStop, calculatedAt, position.get()) : null;
+
         List<TripEtaResponse.AffectedSegment> affected = new ArrayList<>();
         Map<Integer, Double> etaByStop = new LinkedHashMap<>();
         double cumulative = 0;
@@ -92,22 +117,36 @@ public class TrafficEtaService {
             for (FlowMatch match : matchingFlows) {
                 TrafficFlowSegment matchingFlow = match.flow();
                 affected.add(new TripEtaResponse.AffectedSegment(section.sectionSequence(), section.destinationStopSequence(),
-                        "FLOW", matchingFlow.id(), matchingFlow.jamFactor(), matchingFlow.traversability()));
+                        "FLOW", matchingFlow.id(), matchingFlow.jamFactor(), matchingFlow.traversability(),
+                        matchingFlow.points(), List.of()));
                 if (isClosed(matchingFlow.traversability())) blocked = true;
             }
             if (matchingIncident != null) {
                 affected.add(new TripEtaResponse.AffectedSegment(section.sectionSequence(), section.destinationStopSequence(),
-                        "INCIDENT", matchingIncident.id(), 0, matchingIncident.type()));
+                        "INCIDENT", matchingIncident.id(), 0, matchingIncident.type(),
+                        matchingIncident.points(), matchingIncident.center()));
                 if (isClosure(matchingIncident)) blocked = true;
             }
 
-            double duration = trafficDuration(section, matchingFlows, remainingFraction, remainingDistanceMeters);
-            baselineCumulative += baselineDuration(section, remainingDistanceMeters);
+            boolean finalSectionForStop = sectionIndex == sections.size() - 1
+                    || sections.get(sectionIndex + 1).destinationStopSequence() != section.destinationStopSequence();
+            double duration;
+            double baselineDuration;
+            if (googleRoute) {
+                duration = finalSectionForStop
+                        ? timingFor(googleTiming == null ? null : googleTiming.travelByStop(), section.destinationStopSequence(),
+                        section.travelDurationSeconds() * remainingFraction) : 0;
+                baselineDuration = finalSectionForStop
+                        ? timingFor(googleTiming == null ? null : googleTiming.staticByStop(), section.destinationStopSequence(),
+                        section.baseTravelDurationSeconds() * remainingFraction) : 0;
+            } else {
+                duration = trafficDuration(section, matchingFlows, remainingFraction, remainingDistanceMeters);
+                baselineDuration = baselineDuration(section, remainingDistanceMeters);
+            }
+            baselineCumulative += baselineDuration;
             if (blocked) duration = 0;
             cumulative += duration;
             etaByStop.merge(section.destinationStopSequence(), cumulative, Math::max);
-            boolean finalSectionForStop = sectionIndex == sections.size() - 1
-                    || sections.get(sectionIndex + 1).destinationStopSequence() != section.destinationStopSequence();
             if (!blocked && finalSectionForStop) {
                 var stop = route.stops().stream().filter(item -> item.sequenceNumber() == section.destinationStopSequence()).findFirst().orElse(null);
                 if (stop != null) cumulative += stop.dwellDurationSeconds();
@@ -118,7 +157,9 @@ public class TrafficEtaService {
             }
         }
 
-        TrafficSource etaSource = source(positionAvailable, flow, incidents);
+        TrafficSource etaSource = googleRoute
+                ? (googleTiming == null ? TrafficSource.ROUTE_SNAPSHOT : TrafficSource.GOOGLE_LIVE)
+                : source(positionAvailable, flow, incidents);
         List<TripEtaResponse.EtaStop> rows = new ArrayList<>();
         for (var stop : route.stops()) {
             if (checkedIn.contains(stop.sequenceNumber())) {
@@ -138,13 +179,65 @@ public class TrafficEtaService {
         TrafficStatus trafficStatus = status(flow, incidents);
         String trafficWarning = warning(flow, incidents);
         TrafficStatus status = !positionAvailable ? TrafficStatus.AVAILABLE
-                : blocked ? TrafficStatus.BLOCKED : trafficStatus;
+                : blocked ? TrafficStatus.BLOCKED
+                : googleRoute && googleTiming != null ? TrafficStatus.AVAILABLE : trafficStatus;
         String warning = !positionAvailable ? "VEHICLE_POSITION_UNAVAILABLE; using route snapshot"
-                : blocked ? "TRAFFIC_BLOCKED" : trafficWarning;
+                : blocked ? "TRAFFIC_BLOCKED"
+                : googleRoute && googleTiming == null ? "GOOGLE_ETA_UNAVAILABLE; using stored Google route snapshot"
+                : trafficWarning;
         return new TripEtaResponse(tripId, trip.getRoute().getId(), calculatedAt, source, status,
-                latestObservedAt(flow, incidents), latestFetchedAt(flow, incidents), nextStop < 0 ? null : nextStop,
-                Math.max(0, Math.round(baselineCumulative)), blocked ? 0 : Math.max(0, Math.round(cumulative)), rows, affected, warning);
+                latestObservedAt(flow, incidents), googleTiming == null ? latestFetchedAt(flow, incidents) : googleTiming.fetchedAt(), nextStop < 0 ? null : nextStop,
+                Math.max(0, Math.round(baselineCumulative)), blocked ? 0 : Math.max(0, Math.round(cumulative)), rows, affected, warning,
+                route.geometryVersion(), trip.getAttemptNumber(), routeRevisionId);
     }
+
+    private double timingFor(Map<Integer, Long> values, int stopSequence, double fallback) {
+        if (values == null) return Math.max(0, fallback);
+        return Math.max(0, values.getOrDefault(stopSequence, Math.max(0, Math.round(fallback))));
+    }
+
+    private GoogleTiming googleTiming(TripEntity trip, RouteDetailResponse route, Long routeRevisionId,
+                                      int nextStop, Instant now,
+                                      RoutePositionMatcher.Projection activeProjection) {
+        if (googleEta == null || nextStop < 0) return null;
+        VehiclePositionEntity position = positions.findById(trip.getVehicle().getId()).orElse(null);
+        if (position == null || position.getSample() == null) return null;
+        var sample = position.getSample();
+        if (!trip.getId().equals(sample.getTripId()) || sample.getAttemptNumber() != trip.getAttemptNumber()) return null;
+        List<RouteDetailResponse.RouteStopResponse> remaining = route.stops().stream()
+                .filter(stop -> stop.sequenceNumber() >= nextStop).toList();
+        if (remaining.isEmpty()) return null;
+        List<RoutingWaypoint> waypoints = new ArrayList<>();
+        waypoints.add(new RoutingWaypoint(null, "Current vehicle position", BigDecimal.valueOf(sample.getLatitude()),
+                BigDecimal.valueOf(sample.getLongitude()), 1, 0));
+        for (int index = 0; index < remaining.size(); index++) {
+            var stop = remaining.get(index);
+            waypoints.add(new RoutingWaypoint(stop.stationId(), stop.stationName(), stop.latitude(), stop.longitude(),
+                    index + 2, stop.dwellDurationSeconds()));
+        }
+        String key = trip.getId() + ":" + trip.getAttemptNumber() + ":" + route.geometryVersion()
+                + ":" + (routeRevisionId == null ? 0 : routeRevisionId) + ":" + nextStop;
+        try {
+            var snapshot = googleEta.calculate(key, waypoints, route.transportMode(), now);
+            if (!RouteGeometryCompatibility.equivalent(snapshot.route().sections(), route.sections(),
+                    activeProjection.sectionIndex(), sample.getLatitude(), sample.getLongitude())) return null;
+            Map<Integer, Long> travel = new LinkedHashMap<>();
+            Map<Integer, Long> baseline = new LinkedHashMap<>();
+            for (var section : snapshot.route().sections()) {
+                int remainingIndex = section.destinationStopSequence() - 2;
+                if (remainingIndex < 0 || remainingIndex >= remaining.size()) return null;
+                int originalSequence = remaining.get(remainingIndex).sequenceNumber();
+                travel.merge(originalSequence, section.travelDurationSeconds(), Long::sum);
+                baseline.merge(originalSequence, section.baseTravelDurationSeconds(), Long::sum);
+            }
+            if (travel.size() != remaining.size()) return null;
+            return new GoogleTiming(travel, baseline, snapshot.fetchedAt());
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private record GoogleTiming(Map<Integer, Long> travelByStop, Map<Integer, Long> staticByStop, Instant fetchedAt) {}
 
     /**
      * Returns the fraction of baseline simulator progress that can be advanced
@@ -209,6 +302,12 @@ public class TrafficEtaService {
         TrafficIncident incident = bestMatchingIncident(section, incidents, operationsClock.instant());
         if (incident != null && isClosure(incident)) return 0d;
 
+        if (route.routingProvider() == RoutingProviderName.GOOGLE) {
+            // RouteMotion already distributes Google's traffic-aware duration over this section.
+            // HERE is consulted above only as an independent closure veto.
+            return 1d;
+        }
+
         VehiclePositionEntity current = positions.findById(trip.getVehicle().getId()).orElse(null);
         if (current == null || current.getSample() == null) return 1d;
         TrafficFlowSegment matchingFlow = bestMatchingFlowAtPosition(matchingFlows(section, flow),
@@ -272,7 +371,7 @@ public class TrafficEtaService {
         for (var section : route.sections()) {
             if (nextStop < 0 || section.destinationStopSequence() < nextStop) continue;
             try {
-                geometry.addAll(FlexiblePolyline.decode(section.encodedPolyline()));
+                geometry.addAll(RoutePolylineCodec.decode(section.encodedPolyline(), section.polylineEncoding()));
             } catch (RuntimeException ignored) {
                 // The normal route validator already rejects malformed geometry; use stop snapshots as a safe fallback.
             }
@@ -316,7 +415,7 @@ public class TrafficEtaService {
         if (flow == null || flow.results().isEmpty()) return List.of();
         return flow.results().stream()
                 .map(candidate -> new FlowMatch(candidate, matcher.matchDistanceMeters(
-                        section.encodedPolyline(), candidate, properties.getCorridorRadiusMeters())))
+                        section.encodedPolyline(), section.polylineEncoding(), candidate, properties.getCorridorRadiusMeters())))
                 .filter(match -> Double.isFinite(match.distanceMeters()))
                 .sorted(Comparator.comparingDouble(FlowMatch::distanceMeters))
                 .toList();
@@ -337,7 +436,7 @@ public class TrafficEtaService {
         if (matches.isEmpty() || remainingDistanceMeters <= 0) return baselineDuration(section, remainingDistanceMeters);
         List<FlexiblePolyline.Point> points;
         try {
-            points = FlexiblePolyline.decode(section.encodedPolyline());
+            points = RoutePolylineCodec.decode(section.encodedPolyline(), section.polylineEncoding());
         } catch (RuntimeException ignored) {
             return dynamicDuration(section, matches.getFirst().flow(), remainingDistanceMeters);
         }
@@ -411,7 +510,7 @@ public class TrafficEtaService {
         if (incident.points().isEmpty()) return false;
         TrafficFlowSegment shape = new TrafficFlowSegment(incident.id(), incident.description(), 0, incident.points(),
                 0, 0, 0, "unknown", null);
-        return matcher.matches(section.encodedPolyline(), shape, properties.getCorridorRadiusMeters());
+        return matcher.matches(section.encodedPolyline(), section.polylineEncoding(), shape, properties.getCorridorRadiusMeters());
     }
 
     private boolean isClosed(String traversability) {

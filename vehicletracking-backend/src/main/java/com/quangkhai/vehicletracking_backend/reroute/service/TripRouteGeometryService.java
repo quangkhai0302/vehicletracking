@@ -23,6 +23,13 @@ public class TripRouteGeometryService {
             .anyMatch(r -> r.getSimulationStartElapsed()!=null && Objects.equals(r.getSimulationAttemptNumber(),trip.getAttemptNumber()));
         return applied?resolve(trip).route():RouteDetailResponse.from(trip.getRoute());
     }
+    public Long appliedRevisionId(TripEntity trip) {
+        return revisions.findAllByTripIdOrderByRevisionNumberDesc(trip.getId()).stream()
+                .filter(r -> r.getSimulationStartElapsed()!=null
+                        && Objects.equals(r.getSimulationAttemptNumber(),trip.getAttemptNumber()))
+                .max(Comparator.comparingInt(TripRouteRevisionEntity::getRevisionNumber))
+                .map(TripRouteRevisionEntity::getId).orElse(null);
+    }
     public Plan resolve(TripEntity trip) {
         var applied=revisions.findAllByTripIdOrderByRevisionNumberDesc(trip.getId()).stream()
             .filter(r -> r.getSimulationStartElapsed()!=null && Objects.equals(r.getSimulationAttemptNumber(),trip.getAttemptNumber()))
@@ -53,6 +60,7 @@ public class TripRouteGeometryService {
     }
     private List<RouteDetailResponse.RouteSectionResponse> sections(TripRouteRevisionEntity revision) {
         return revision.getSections().stream().map(s -> new RouteDetailResponse.RouteSectionResponse(s.getSectionSequence(),
-            s.getDestinationStopSequence(),s.getEncodedPolyline(),s.getDistanceMeters(),s.getTravelDurationSeconds(),s.getBaseTravelDurationSeconds())).toList();
+            s.getDestinationStopSequence(),s.getEncodedPolyline(),s.getPolylineEncoding(),s.getDistanceMeters(),
+            s.getTravelDurationSeconds(),s.getBaseTravelDurationSeconds(),s.getTrafficIntervals())).toList();
     }
 }

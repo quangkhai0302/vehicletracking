@@ -47,6 +47,12 @@ public class TripService {
         requireActive(vehicle);
         var route = routes.findById(input.routeId()).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy tuyến đường."));
         if (!route.isActive()) throw new ResponseStatusException(CONFLICT, "Tuyến đã ngừng sử dụng.");
+        if (!route.getTransportMode().name().equals(vehicle.getVehicleType().name())) {
+            throw new ResponseStatusException(CONFLICT, "Loại phương tiện không phù hợp với chế độ của tuyến.");
+        }
+        if (route.getProviderContentExpiresAt() != null && !route.getProviderContentExpiresAt().isAfter(operationsClock.instant())) {
+            throw new ResponseStatusException(CONFLICT, "Dữ liệu tuyến từ nhà cung cấp đã hết hạn; hãy tính lại tuyến trước khi tạo chuyến.");
+        }
         if (route.getStops().size() < 2) throw new ResponseStatusException(CONFLICT, "Tuyến chưa có đủ điểm dừng.");
         if (route.getStops().stream().anyMatch(stop -> !stop.getStation().isActive()))
             throw new ResponseStatusException(CONFLICT, "Tuyến có trạm đã ngừng sử dụng. Hãy tạo tuyến khác từ các trạm đang hoạt động.");

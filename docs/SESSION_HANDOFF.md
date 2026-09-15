@@ -1,5 +1,7 @@
 # Báo cáo bàn giao session — Vehicle Tracking
 
+> **Mốc mới 2026-09-15 — Feature 018:** source đã kết hợp Google Routes/Map Tiles với HERE Flow/Incidents. Tuyến pin provider/mode/encoding; ETA và profile simulator của tuyến Google không bị nhân thêm HERE; reroute gọi provider ngoài transaction và bỏ response cũ theo attempt/revision/telemetry; candidate còn cắt closure HERE bị loại. `./mvnw -Dtest='!**/*IntegrationTest' test` bằng Java 26 đạt **203/203**; TypeScript và lint đạt (2 warning cũ). Google vẫn mặc định tắt. Trước production còn phải chạy V12/PostgreSQL integration bằng Docker, build/browser bằng Node 24, live canary có billing/quota và xác nhận quyền lưu. Hồ sơ nguồn: [Feature 018 evidence](features/018-google-routes-here-traffic/evidence.md), [walkthrough](features/018-google-routes-here-traffic/walkthrough.md), [self-review](features/018-google-routes-here-traffic/review.md).
+
 **Mốc chốt: 2026-09-14, múi giờ Asia/Saigon. Workspace hiện tại:** `/home/khainq/Code/vehicletracking`**, bash. Working tree có source 004–008 chưa commit.**
 
 Đây là báo cáo tổng hợp để tiếp tục ở session mới mà không cần đọc lại hội thoại. Nội dung được đối chiếu với source, cấu hình và log đang có trên máy. Các kết quả test bên dưới ghi rõ lệnh và phạm vi; full suite/browser end-to-end vẫn chưa chạy trong môi trường hiện tại.

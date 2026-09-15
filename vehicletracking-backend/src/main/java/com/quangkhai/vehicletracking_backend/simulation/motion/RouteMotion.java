@@ -9,6 +9,7 @@ public final class RouteMotion {
     public record Frame(double latitude,double longitude,double heading,double speedKmh,double progressPercent,
             int nextStopSequence,double nextStopEtaSeconds,boolean dwelling,boolean finished) {}
     private record Leg(double start,double end,int destination,List<Point> points,double[] distances,double length,double distanceBefore) {}
+    private record AppendResult(double elapsed,double distance,Point lastPoint) {}
     private final List<Leg> legs=new ArrayList<>();
     private final RouteDetailResponse route;
     /**
@@ -34,16 +35,16 @@ public final class RouteMotion {
             int count=0;
             while(sectionIndex<route.sections().size() && route.sections().get(sectionIndex).destinationStopSequence()==destination) {
                 var section=route.sections().get(sectionIndex++); count++;
-                var points=FlexiblePolyline.decode(section.encodedPolyline());
+                var points=RoutePolylineCodec.decode(section.encodedPolyline(),section.polylineEncoding());
                 if(previous!=null && distance(previous,points.getFirst())>100) throw invalid();
                 double[] distances=new double[points.size()];
                 for(int i=1;i<points.size();i++) distances[i]=distances[i-1]+distance(points.get(i-1),points.get(i));
                 double length=distances[distances.length-1];
-                double duration=freeFlowDuration(section);
+                double duration=motionDuration(section);
                 if(duration<0 || (length>0 && duration==0) || (section.distanceMeters()>0 && length==0)
                     || (duration>0 && length/duration*3.6>500)) throw invalid();
-                legs.add(new Leg(elapsed,elapsed+duration,destination,points,distances,length,totalDistance));
-                totalDistance+=length; elapsed+=duration; previous=points.getLast();
+                var appended=appendSection(legs,section,points,elapsed,totalDistance,duration);
+                totalDistance=appended.distance();elapsed=appended.elapsed();previous=appended.lastPoint();
             }
             if(count==0) throw invalid();
             var stopDefinition=route.stops().get(stop);
@@ -63,6 +64,48 @@ public final class RouteMotion {
         if (base<=0 && section.travelDurationSeconds()>0) base=section.travelDurationSeconds();
         return base;
     }
+    private static double motionDuration(RouteDetailResponse.RouteSectionResponse section) {
+        if (section.polylineEncoding()==com.quangkhai.vehicletracking_backend.route.entity.PolylineEncoding.GOOGLE_ENCODED_POLYLINE
+                && section.travelDurationSeconds()>0) return section.travelDurationSeconds();
+        return freeFlowDuration(section);
+    }
+
+    /** Distributes Google's leg duration over its traffic categories without changing the total leg duration. */
+    private static AppendResult appendSection(List<Leg> target,RouteDetailResponse.RouteSectionResponse section,
+                                               List<Point> points,double elapsed,double travelled,double duration) {
+        double[] cumulative=distances(points);double length=cumulative[cumulative.length-1];
+        var intervals=section.trafficIntervals();
+        if (section.polylineEncoding()!=com.quangkhai.vehicletracking_backend.route.entity.PolylineEncoding.GOOGLE_ENCODED_POLYLINE
+                || intervals==null || intervals.isEmpty() || points.size()<2) {
+            target.add(new Leg(elapsed,elapsed+duration,section.destinationStopSequence(),points,cumulative,length,travelled));
+            return new AppendResult(elapsed+duration,travelled+length,points.getLast());
+        }
+        double[] weights=new double[points.size()-1];Arrays.fill(weights,1d);
+        for(var interval:intervals) {
+            double weight=switch(interval.category()) {
+                case NORMAL -> 1d; case SLOW -> 2d; case TRAFFIC_JAM -> 4d; case UNKNOWN -> 1d;
+            };
+            int start=Math.max(0,interval.startPolylinePointIndex());
+            int end=Math.min(weights.length,interval.endPolylinePointIndex());
+            for(int segment=start;segment<end;segment++) weights[segment]=weight;
+        }
+        double weightedTotal=0;
+        for(int i=0;i<weights.length;i++) weightedTotal+=(cumulative[i+1]-cumulative[i])*weights[i];
+        if (!(weightedTotal>0) || !Double.isFinite(weightedTotal)) {
+            target.add(new Leg(elapsed,elapsed+duration,section.destinationStopSequence(),points,cumulative,length,travelled));
+            return new AppendResult(elapsed+duration,travelled+length,points.getLast());
+        }
+        int groupStart=0;
+        for(int segment=1;segment<=weights.length;segment++) {
+            if(segment<weights.length && weights[segment]==weights[groupStart]) continue;
+            List<Point> group=List.copyOf(points.subList(groupStart,segment+1));
+            double[] groupDistances=distances(group);double groupLength=groupDistances[groupDistances.length-1];
+            double groupDuration=duration*(groupLength*weights[groupStart])/weightedTotal;
+            target.add(new Leg(elapsed,elapsed+groupDuration,section.destinationStopSequence(),group,groupDistances,groupLength,travelled));
+            elapsed+=groupDuration;travelled+=groupLength;groupStart=segment;
+        }
+        return new AppendResult(elapsed,travelled,points.getLast());
+    }
     public double duration() { return simulationDuration; }
 
     /** Retains the travelled prefix, then appends the replacement from the current position. */
@@ -78,7 +121,7 @@ public final class RouteMotion {
                 destinations.add(section.destinationStopSequence());
         }
         if (!destinations.equals(expected)) throw invalid();
-        var first=FlexiblePolyline.decode(sections.getFirst().encodedPolyline()).getFirst();
+        var first=RoutePolylineCodec.decode(sections.getFirst().encodedPolyline(),sections.getFirst().polylineEncoding()).getFirst();
         if (distance(new Point(current.latitude(),current.longitude()),first)>100) throw invalid();
         List<Leg> replacement=new ArrayList<>();
         double travelled=0;
@@ -96,13 +139,13 @@ public final class RouteMotion {
         double elapsed=atElapsed;
         var arrivals=new HashMap<>(arrivalOffsets);var departures=new HashMap<>(departureOffsets);
         for(int index=0;index<sections.size();index++) {
-            var section=sections.get(index);var points=FlexiblePolyline.decode(section.encodedPolyline());
+            var section=sections.get(index);var points=RoutePolylineCodec.decode(section.encodedPolyline(),section.polylineEncoding());
             if (index>0 && distance(replacement.getLast().points().getLast(),points.getFirst())>100) throw invalid();
             double[] distances=distances(points);double length=distances[distances.length-1];
-            double duration=freeFlowDuration(section);
+            double duration=motionDuration(section);
             if(duration<0 || (length>0 && duration==0) || (duration>0 && length/duration*3.6>500)) throw invalid();
-            replacement.add(new Leg(elapsed,elapsed+duration,section.destinationStopSequence(),points,distances,length,travelled));
-            travelled+=length;elapsed+=duration;
+            var appended=appendSection(replacement,section,points,elapsed,travelled,duration);
+            travelled=appended.distance();elapsed=appended.elapsed();
             if(index==sections.size()-1 || sections.get(index+1).destinationStopSequence()!=section.destinationStopSequence()) {
                 var stop=route.stops().stream().filter(s->s.sequenceNumber()==section.destinationStopSequence()).findFirst().orElseThrow(RouteMotion::invalid);
                 arrivals.put(stop.sequenceNumber(),elapsed);elapsed+=stop.dwellDurationSeconds();departures.put(stop.sequenceNumber(),elapsed);
@@ -130,7 +173,8 @@ public final class RouteMotion {
             Math.round(arrivalOffsets.get(s.sequenceNumber())),Math.round(departureOffsets.get(s.sequenceNumber())))).toList();
         long travel=sections.stream().mapToLong(RouteDetailResponse.RouteSectionResponse::baseTravelDurationSeconds).sum();
         return new RouteDetailResponse(route.id(),route.name(),route.transportMode(),route.routingProvider(),Math.round(totalDistance),travel,travel,
-            route.totalDwellDurationSeconds(),Math.round(duration()),route.estimatedDepartureAt(),route.calculatedAt(),route.createdAt(),stops,sections,route.shapingPoints());
+            route.totalDwellDurationSeconds(),Math.round(duration()),route.estimatedDepartureAt(),route.calculatedAt(),route.createdAt(),
+            route.geometryVersion(),route.providerContentExpiresAt(),stops,sections,route.shapingPoints());
     }
 
     /**

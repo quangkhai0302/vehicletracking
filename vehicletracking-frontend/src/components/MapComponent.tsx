@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react';
 import L from 'leaflet';
-import { decodeFlexiblePolyline } from '../services/polyline';
+import { decodeRoutePolyline } from '../services/polyline';
+import { googleMapTileUrl, officialGoogleTilesEnabled } from '../services/mapTiles';
 import type { MapTheme } from '../types/map';
 import type { TripDetail } from '../types/fleet';
 import type { RouteDetail, RouteDraftStop, RouteStopRole } from '../types/route';
@@ -103,7 +104,7 @@ export const MapComponent: FC = () => {
     ? 'Đang tải giao thông…'
     : traffic.error ? 'Chưa tải được giao thông. Thử lại trong lớp bản đồ.' : (trafficStatus === 'STALE' ? 'Đang dùng dữ liệu gần nhất.'
       : trafficStatus === 'UNAVAILABLE' ? 'Giao thông chưa khả dụng.'
-        : showTraffic ? 'Đang hiển thị'
+        : showTraffic ? 'Đang hiển thị dữ liệu theo nguồn của tuyến/khu vực'
           : 'Tạm tắt');
   const connectionLabel = live.connection === 'live' ? 'Đang cập nhật trực tiếp' : live.connection === 'connecting' ? 'Đang kết nối…' : 'Mất kết nối · Đang thử lại';
   const { focusLocation, fitBounds, getVisibleCenter, releaseFocus } = useMapCamera(rootRef, mapInstanceRef);
@@ -205,7 +206,7 @@ export const MapComponent: FC = () => {
     const paths = new Map<number, MotionPath>();
     for (const item of simulationFleet.routes) paths.set(item.trip.id, makeMotionPath(item.segments));
     if (selectedTripId !== null && vehicleRoute) {
-      try { paths.set(selectedTripId, makeMotionPath(vehicleRoute.sections.map(section => decodeFlexiblePolyline(section.encodedPolyline)))); }
+      try { paths.set(selectedTripId, makeMotionPath(vehicleRoute.sections.map(section => decodeRoutePolyline(section.encodedPolyline, section.polylineEncoding)))); }
       catch { /* Invalid geometry cannot be used for presentation interpolation. */ }
     }
     return paths;
@@ -476,9 +477,11 @@ export const MapComponent: FC = () => {
       tileLayerRef.current = null;
     }
     const baseType = theme === 'google-satellite' ? 'y' : 'm';
-    const layerType = showTraffic ? `${baseType},traffic` : baseType;
+    const tileUrl = officialGoogleTilesEnabled
+      ? googleMapTileUrl(theme)
+      : `https://{s}.google.com/vt/lyrs=${baseType}&hl=vi&gl=VN&x={x}&y={y}&z={z}`;
     const newTileLayer = L.tileLayer(
-      `https://{s}.google.com/vt/lyrs=${layerType}&hl=vi&gl=VN&x={x}&y={y}&z={z}`,
+      tileUrl,
       {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -513,7 +516,7 @@ export const MapComponent: FC = () => {
         tileLayerRef.current = null;
       }
     };
-  }, [theme, showTraffic, mapReady]);
+  }, [theme, mapReady]);
 
   // Render Planned Route (Polyline & Stop markers)
   useEffect(() => {
@@ -531,17 +534,17 @@ export const MapComponent: FC = () => {
     let toastTimer: number | null = null;
     let hasDecodeError = false;
     const allCoords: [number, number][] = [];
-    const decodedSections: [number, number][][] = [];
+    const decodedSections: { coords: [number, number][]; section: RouteDetail['sections'][number] }[] = [];
 
     // M2-04: Decode polyline for each section. If ANY section fails or returns empty coordinates, fail the whole route!
     for (const section of plannedRoute.sections) {
       try {
-        const coords = decodeFlexiblePolyline(section.encodedPolyline);
+        const coords = decodeRoutePolyline(section.encodedPolyline, section.polylineEncoding);
         if (coords.length === 0) {
           hasDecodeError = true;
           break;
         }
-        decodedSections.push(coords);
+        decodedSections.push({ coords, section });
         allCoords.push(...coords);
       } catch {
         hasDecodeError = true;
@@ -568,7 +571,7 @@ export const MapComponent: FC = () => {
        * connector can visibly cut across buildings instead of following a
        * road.
        */
-      for (const sectionCoords of decodedSections) {
+      for (const { coords: sectionCoords, section } of decodedSections) {
         // 1. Google Maps subtle route shadow (đổ bóng mỏng nhẹ giúp tách biệt trên mọi nền bản đồ)
         L.polyline(sectionCoords, {
           pane: 'routePane',
@@ -601,6 +604,21 @@ export const MapComponent: FC = () => {
           lineJoin: 'round',
           interactive: false,
         }).addTo(layer);
+
+        // Google traffic intervals must be painted after the blue route core;
+        // otherwise the core hides every green/orange/red segment.
+        if (plannedRoute.routingProvider === 'GOOGLE' && showTraffic && section.trafficIntervals?.length) {
+          const colors = { NORMAL: '#16a34a', SLOW: '#f59e0b', TRAFFIC_JAM: '#dc2626', UNKNOWN: '#64748b' } as const;
+          for (const interval of section.trafficIntervals) {
+            const start = Math.max(0, Math.floor(interval.startPolylinePointIndex));
+            const end = Math.min(sectionCoords.length - 1, Math.floor(interval.endPolylinePointIndex));
+            if (end <= start) continue;
+            L.polyline(sectionCoords.slice(start, end + 1), {
+              pane: 'routePane', color: colors[interval.category] ?? colors.UNKNOWN,
+              weight: 5.5, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false,
+            }).addTo(layer);
+          }
+        }
       }
     }
 
@@ -639,7 +657,7 @@ export const MapComponent: FC = () => {
     return () => {
       if (toastTimer !== null) window.clearTimeout(toastTimer);
     };
-  }, [plannedRoute, showRoutes, fitBounds, workspace, hasSimulationRoute]);
+  }, [plannedRoute, showRoutes, showTraffic, fitBounds, workspace, hasSimulationRoute]);
 
   // Draft markers communicate order only; the POST response supplies road geometry.
   useEffect(() => {
@@ -743,7 +761,8 @@ export const MapComponent: FC = () => {
   return (
     <main ref={rootRef} className="map-first" data-workspace={workspace} data-sheet-expanded={sheetExpanded} data-drawer-open={contextVisible}>
       <div id="main-map" ref={mapContainerRef} className="map-canvas" aria-label="Bản đồ tương tác" tabIndex={-1} />
-      <TrafficLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showTraffic} incidents={traffic.incidents} />
+      <TrafficLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showTraffic}
+        showAreaFlow={plannedRoute?.routingProvider !== 'GOOGLE'} incidents={traffic.incidents} />
       {workspace==='simulation' && <Suspense fallback={null}><SimulationFleetLayer mapRef={mapInstanceRef} mapReady={mapReady} visible
         vehicles={simulationFleet.previews} onSelect={selectSimulationVehicle} />
         <SimulationRoutesLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showRoutes}

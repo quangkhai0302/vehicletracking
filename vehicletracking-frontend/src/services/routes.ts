@@ -1,4 +1,4 @@
-import type { RouteCreateInput, RouteDetail, RouteSummary, RouteShapePoint } from '../types/route';
+import type { RouteCreateInput, RouteDetail, RouteSummary, RouteShapePoint, RoutingProviderName } from '../types/route';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
 const ROUTES_URL = `${API_BASE_URL}/api/v1/routes`;
@@ -48,8 +48,9 @@ export function updateRoute(id: number, input: RouteCreateInput): Promise<RouteD
 export function deactivateRoute(id: number): Promise<void> {
   return request<void>(`${ROUTES_URL}/${id}`, { method: 'DELETE' }).then(() => undefined);
 }
-export function shapeRoute(id: number, points: RouteShapePoint[], action: 'preview' | 'save' | 'copy', signal?: AbortSignal) {
+export function shapeRoute(id: number, points: RouteShapePoint[], action: 'preview' | 'save' | 'copy', signal?: AbortSignal,
+  targetProvider?: RoutingProviderName) {
   return request<RouteDetail>(`${ROUTES_URL}/${id}/shape${action === 'save' ? '' : `/${action}`}`, {
-    method: action === 'save' ? 'PUT' : 'POST', body: JSON.stringify({points}), signal,
+    method: action === 'save' ? 'PUT' : 'POST', body: JSON.stringify({points, targetProvider}), signal,
   });
 }

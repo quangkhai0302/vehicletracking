@@ -720,3 +720,33 @@
 .route-shape-points li { margin: 10px 0; }
 .route-shape-points button { margin-left: 12px; }
 .route-shape-copy { display: flex; align-items: center; gap: 8px; margin: 18px 0; }
+.route-mode-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.route-mode-picker button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid rgba(148, 163, 184, .2);
+  border-radius: 8px;
+  background: rgba(8, 18, 30, .78);
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.route-mode-picker button.active {
+  border-color: rgba(34, 211, 238, .65);
+  background: rgba(8, 145, 178, .18);
+  color: #67e8f9;
+}
+
+.route-provider-note {
+  display: block;
+  margin-top: 7px;
+  color: var(--color-text-muted);
+}

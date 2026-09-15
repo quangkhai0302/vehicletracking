@@ -1,13 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Bike,
   Car,
   CheckCircle2,
   Plus,
   RefreshCw,
   X,
 } from 'lucide-react';
-import type { RouteCreateInput, RouteDetail, RouteDraftStop } from '../../types/route';
+import type { RouteCreateInput, RouteDetail, RouteDraftStop, RouteTransportMode } from '../../types/route';
 import type { Station } from '../../types/station';
 import { SortableStopList } from './SortableStopList';
 import { formatDuration } from '../../utils/format';
@@ -64,6 +65,7 @@ function RouteCreateContent({
 }: RouteCreateContentProps) {
   const nameInputId = useId();
   const [name, setName] = useState(initialRoute?.name ?? '');
+  const [transportMode, setTransportMode] = useState<RouteTransportMode>(initialRoute?.transportMode ?? 'CAR');
   const [localError, setLocalError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
@@ -87,7 +89,8 @@ function RouteCreateContent({
   useEffect(() => () => onDraftStopsChange([]), [onDraftStopsChange]);
   const safeClose = () => {
     if (saving) return;
-    if (name !== (initialRoute?.name ?? '') || JSON.stringify(formStops) !== JSON.stringify(initialStopsRef.current)) setConfirmDiscard(true);
+    if (name !== (initialRoute?.name ?? '') || transportMode !== (initialRoute?.transportMode ?? 'CAR')
+      || JSON.stringify(formStops) !== JSON.stringify(initialStopsRef.current)) setConfirmDiscard(true);
     else onClose();
   };
   const activeStations = stations.filter((s) => s.active);
@@ -152,6 +155,7 @@ function RouteCreateContent({
 
     onSaveRoute({
       name: trimmedName,
+      transportMode,
       stops: normalized.map((s) => ({
         stationId: s.stationId,
         dwellDurationSeconds: s.dwellDurationSeconds,
@@ -213,25 +217,20 @@ function RouteCreateContent({
           </div>
 
           <div className="form-field" style={{ marginTop: '14px' }}>
-            <span className="form-label">Phương tiện vận chuyển</span>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '9px 12px',
-                background: 'linear-gradient(145deg, rgba(20, 32, 48, 0.7) 0%, rgba(10, 18, 28, 0.85) 100%)',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
-                borderRadius: '8px',
-                fontSize: '12px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Car size={16} className="text-cyan" />
-                <span style={{ fontWeight: 500, color: '#f1f5f9' }}>Ô tô / Xe buýt</span>
-              </div>
-              <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', background: 'rgba(34, 211, 238, 0.15)', color: '#38bdf8', border: '1px solid rgba(34, 211, 238, 0.35)' }}>HERE CAR</span>
+            <label htmlFor="route-transport-mode" className="form-label">Phương tiện vận chuyển</label>
+            <div className="route-mode-picker">
+              <button type="button" className={transportMode === 'CAR' ? 'active' : ''}
+                aria-pressed={transportMode === 'CAR'} onClick={() => setTransportMode('CAR')}>
+                <Car size={16} /><span>Ô tô / Xe buýt</span>
+              </button>
+              <button type="button" className={transportMode === 'MOTORCYCLE' ? 'active' : ''}
+                aria-pressed={transportMode === 'MOTORCYCLE'} onClick={() => setTransportMode('MOTORCYCLE')}>
+                <Bike size={16} /><span>Xe máy</span>
+              </button>
             </div>
+            <small className="route-provider-note">
+              {initialRoute ? `Giữ nhà cung cấp ${initialRoute.routingProvider}` : 'Nhà cung cấp theo cấu hình backend (HERE hoặc Google)'}
+            </small>
           </div>
 
           <div style={{ marginTop: '18px' }}>
@@ -257,7 +256,7 @@ function RouteCreateContent({
               <Plus size={14} /> Thêm điểm dừng đón/trả
             </button>
           </div>
-          <p className="route-draft-note">{initialRoute ? 'Tính lại lộ trình HERE và cập nhật tuyến hiện tại. Chỉ sửa được tuyến chưa từng được dùng bởi chuyến đi.' : 'Bản nháp · Chưa tính lộ trình hoặc ETA. Tính & lưu sẽ tạo một tuyến mới theo thứ tự trên.'}</p>
+          <p className="route-draft-note">{initialRoute ? `Tính lại bằng ${initialRoute.routingProvider} và cập nhật tuyến hiện tại. Chỉ sửa được tuyến chưa từng được dùng bởi chuyến đi.` : 'Bản nháp · Chưa tính lộ trình hoặc ETA. Tính & lưu sẽ dùng provider đang cấu hình ở backend.'}</p>
           {!hasNoConsecutiveDuplicates && formStops.length >= 2 && <p role="alert" className="inline-error">Hai điểm liền nhau phải là hai trạm khác nhau.</p>}
           {!allStationsActive && <p role="alert" className="inline-error">Có trạm đã ngừng hoạt động. Chọn lại trạm trước khi lưu.</p>}
           {formStops.length < 2 && <p className="availability-note">Cần ít nhất hai điểm dừng. Bạn có thể thêm trạm ở tab Trạm dừng rồi quay lại.</p>}
@@ -277,7 +276,7 @@ function RouteCreateContent({
           {saving ? (
             <>
               <RefreshCw size={14} className="animate-spin" />
-              <span>Đang tính toán lộ trình HERE...</span>
+              <span>Đang tính toán lộ trình...</span>
             </>
           ) : (
             <>

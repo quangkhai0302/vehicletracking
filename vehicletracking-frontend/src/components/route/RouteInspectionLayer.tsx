@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import L from 'leaflet';
 import type { RouteDetail, RouteSection } from '../../types/route';
-import { decodeFlexiblePolyline } from '../../services/polyline';
+import { decodeRoutePolyline } from '../../services/polyline';
 import { useRouteTraffic } from '../../hooks/useRouteTraffic';
 import { matchFlow, project, trafficCell, usableTraffic, validLine, type Coordinate } from '../../utils/routeInspection';
 import { MapInspectionCard, NearbyTrafficIncidents, TrafficFlowDetails, TrafficSourceLine } from '../traffic/TrafficInspectionCard';
@@ -21,7 +21,7 @@ export function RouteInspectionLayer({ mapRef, mapReady, route, visible, traffic
   }, []);
   const prepared = useMemo(() => {
     try {
-      const sections = route?.sections.map(section => ({ section, points: decodeFlexiblePolyline(section.encodedPolyline) })) ?? [];
+      const sections = route?.sections.map(section => ({ section, points: decodeRoutePolyline(section.encodedPolyline, section.polylineEncoding) })) ?? [];
       return sections.every(item => validLine(item.points)) ? sections : [];
     } catch { return []; }
   }, [route]);

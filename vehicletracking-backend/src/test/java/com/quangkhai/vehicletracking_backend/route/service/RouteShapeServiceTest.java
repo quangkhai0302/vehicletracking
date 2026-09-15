@@ -16,7 +16,7 @@ import static org.mockito.Mockito.*;
 
 class RouteShapeServiceTest {
     RouteRepository routes=mock(RouteRepository.class);TripRepository trips=mock(TripRepository.class);
-    RoutingProvider provider=mock(RoutingProvider.class);
+    RoutingProviderRegistry provider=mock(RoutingProviderRegistry.class);
     RouteShapeService service=new RouteShapeService(routes,trips,provider);
     private com.quangkhai.vehicletracking_backend.route.entity.RouteEntity source() {
         var a=TripFixtures.station("A");var b=TripFixtures.station("B");
@@ -28,8 +28,8 @@ class RouteShapeServiceTest {
     private RouteShapeRequest input() { return new RouteShapeRequest(List.of(new RouteShapeRequest.ShapePoint(2,new BigDecimal("10.771"),new BigDecimal("106.702")))); }
     @Test void previewRemapsShapingWaypointsToOriginalStopsAndDoesNotWrite() {
         var source=source();
-        when(provider.calculate(any())).thenAnswer(call -> {
-            List<RoutingWaypoint> points=call.getArgument(0);
+        when(provider.calculate(any(),any())).thenAnswer(call -> {
+            RoutingRequest request=call.getArgument(1);List<RoutingWaypoint> points=request.waypoints();
             assertThat(points).hasSize(4);assertThat(points.get(1).stationId()).isNull();assertThat(points.get(1).dwellDurationSeconds()).isZero();
             return new CalculatedRoute(Instant.now(),List.of(new CalculatedSection(1,2,"first",10,10,10),
                 new CalculatedSection(2,3,"second",20,20,20),new CalculatedSection(3,4,"third",30,30,30)));
@@ -51,14 +51,14 @@ class RouteShapeServiceTest {
     }
     @Test void providerFailureLeavesExistingGeometryAndPointsIntact() {
         var source=source();var section=source.getSections().getFirst();
-        when(provider.calculate(any())).thenThrow(new IllegalStateException("provider unavailable"));
+        when(provider.calculate(any(),any())).thenThrow(new IllegalStateException("provider unavailable"));
         assertThatThrownBy(() -> service.save(3,input(),false)).isInstanceOf(IllegalStateException.class);
         assertThat(source.getSections().getFirst()).isSameAs(section);verify(routes,never()).flush();
     }
     @Test void copyOfUsedRouteLeavesOriginalUntouchedAndKeepsShapingPoints() {
         var source=source();var originalSection=source.getSections().getFirst();
         when(trips.existsByRouteId(3L)).thenReturn(true);
-        when(provider.calculate(any())).thenReturn(new CalculatedRoute(Instant.now(),List.of(
+        when(provider.calculate(any(),any())).thenReturn(new CalculatedRoute(Instant.now(),List.of(
             new CalculatedSection(1,2,"first",10,10,10),new CalculatedSection(2,3,"second",20,20,20),
             new CalculatedSection(3,4,"third",30,30,30))));
         when(routes.saveAndFlush(any())).thenAnswer(call -> {

@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.quangkhai.vehicletracking_backend.route.error.RouteErrorCode;
 import com.quangkhai.vehicletracking_backend.route.error.RouteOperationException;
+import com.quangkhai.vehicletracking_backend.route.entity.PolylineEncoding;
+import com.quangkhai.vehicletracking_backend.route.entity.RouteTransportMode;
+import com.quangkhai.vehicletracking_backend.route.entity.RoutingProviderName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -37,12 +40,31 @@ public class HereRoutingProvider implements RoutingProvider {
     }
 
     @Override
+    public RoutingProviderName name() {
+        return RoutingProviderName.HERE;
+    }
+
+    /** Compatibility helper for focused provider tests and older internal callers. */
     public CalculatedRoute calculate(List<RoutingWaypoint> waypoints) {
+        return calculate(RoutingRequest.standard(waypoints, RouteTransportMode.CAR));
+    }
+
+    @Override
+    public CalculatedRoute calculate(RoutingRequest request) {
+        List<RoutingWaypoint> waypoints = request.waypoints();
         if (!properties.isEnabled() || properties.getApiKey() == null || properties.getApiKey().isBlank()) {
             throw new RouteOperationException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     RouteErrorCode.ROUTING_UNAVAILABLE,
                     "Routing service is currently disabled or unconfigured"
+            );
+        }
+
+        if (request.transportMode() != RouteTransportMode.CAR) {
+            throw new RouteOperationException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    RouteErrorCode.ROUTE_VALIDATION_FAILED,
+                    "HERE routing currently supports CAR routes only"
             );
         }
 
@@ -232,6 +254,7 @@ public class HereRoutingProvider implements RoutingProvider {
                     sectionSeq,
                     currentDestSequence,
                     sec.polyline(),
+                    PolylineEncoding.HERE_FLEXIBLE_POLYLINE,
                     distance,
                     travelDuration,
                     baseTravelDuration

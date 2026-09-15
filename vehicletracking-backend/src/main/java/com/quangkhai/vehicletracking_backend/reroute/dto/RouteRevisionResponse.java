@@ -30,10 +30,14 @@ public record RouteRevisionResponse(long id, long tripId, long sourceRouteId, in
         }
     }
     public record RevisionSection(int sectionSequence, int destinationStopSequence, String encodedPolyline,
-                                  long distanceMeters, long travelDurationSeconds, long baseTravelDurationSeconds) {
+                                  com.quangkhai.vehicletracking_backend.route.entity.PolylineEncoding polylineEncoding,
+                                  long distanceMeters, long travelDurationSeconds, long baseTravelDurationSeconds,
+                                  List<com.quangkhai.vehicletracking_backend.route.entity.RouteTrafficInterval> trafficIntervals) {
         static RevisionSection from(TripRouteRevisionSectionEntity item) {
             return new RevisionSection(item.getSectionSequence(), item.getDestinationStopSequence(), item.getEncodedPolyline(),
-                    item.getDistanceMeters(), item.getTravelDurationSeconds(), item.getBaseTravelDurationSeconds());
+                    item.getPolylineEncoding(),
+                    item.getDistanceMeters(), item.getTravelDurationSeconds(), item.getBaseTravelDurationSeconds(),
+                    item.getTrafficIntervals());
         }
     }
 }

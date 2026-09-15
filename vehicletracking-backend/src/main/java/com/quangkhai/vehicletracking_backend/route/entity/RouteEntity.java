@@ -63,6 +63,12 @@ public class RouteEntity {
     @Column(name = "calculated_at", nullable = false)
     private Instant calculatedAt;
 
+    @Column(name = "geometry_version", nullable = false)
+    private Long geometryVersion = 1L;
+
+    @Column(name = "provider_content_expires_at")
+    private Instant providerContentExpiresAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -107,6 +113,8 @@ public class RouteEntity {
         this.estimatedTripDurationSeconds = estimatedTripDurationSeconds;
         this.estimatedDepartureAt = estimatedDepartureAt;
         this.calculatedAt = calculatedAt;
+        this.providerContentExpiresAt = routingProvider == RoutingProviderName.GOOGLE
+                ? calculatedAt.plusSeconds(30L * 24 * 60 * 60) : null;
     }
 
     @PrePersist
@@ -151,6 +159,8 @@ public class RouteEntity {
         this.estimatedTripDurationSeconds = replacement.estimatedTripDurationSeconds;
         this.estimatedDepartureAt = replacement.estimatedDepartureAt;
         this.calculatedAt = replacement.calculatedAt;
+        this.geometryVersion = Math.max(1L, this.geometryVersion == null ? 1L : this.geometryVersion + 1L);
+        this.providerContentExpiresAt = replacement.providerContentExpiresAt;
     }
 
     /**

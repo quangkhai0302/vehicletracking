@@ -4,6 +4,7 @@ import type { TrafficSource } from '../types/traffic';
 
 export const trafficSourceLabel: Record<TrafficSource, string> = {
   HERE_LIVE: 'Ước tính theo giao thông', HERE_LAST_KNOWN: 'Ước tính theo dữ liệu giao thông gần nhất',
+  GOOGLE_LIVE: 'ETA giao thông trực tiếp từ Google', GOOGLE_LAST_KNOWN: 'ETA Google gần nhất đã lưu',
   ROUTE_SNAPSHOT: 'Ước tính theo tuyến đã lưu', UNAVAILABLE: 'Chưa có dữ liệu giao thông',
 };
 const seconds = (value: number | null | undefined) => value != null && Number.isFinite(value) && value >= 0 ? Math.ceil(value) : null;

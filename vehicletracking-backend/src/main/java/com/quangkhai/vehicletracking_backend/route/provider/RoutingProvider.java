@@ -1,8 +1,10 @@
 package com.quangkhai.vehicletracking_backend.route.provider;
 
-import java.util.List;
+import com.quangkhai.vehicletracking_backend.route.entity.RoutingProviderName;
 
 public interface RoutingProvider {
 
-    CalculatedRoute calculate(List<RoutingWaypoint> waypoints);
+    RoutingProviderName name();
+
+    CalculatedRoute calculate(RoutingRequest request);
 }

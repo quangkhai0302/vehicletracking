@@ -1,0 +1,6 @@
+{
+  "name": "vehicletracking-browser-verification",
+  "private": true,
+  "type": "module",
+  "devDependencies": { "playwright": "1.63.0" }
+}

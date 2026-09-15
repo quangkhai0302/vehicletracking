@@ -107,3 +107,42 @@ export function decodeFlexiblePolyline(encoded: string | null | undefined): [num
     return [];
   }
 }
+
+export function decodeGooglePolyline(encoded: string | null | undefined): [number, number][] {
+  if (!encoded || encoded.length > 2_000_000) throw new Error('Google polyline không hợp lệ');
+  const points: [number, number][] = [];
+  let index = 0;
+  let latitude = 0;
+  let longitude = 0;
+  const read = () => {
+    let result = 0;
+    let shift = 0;
+    while (index < encoded.length && shift <= 30) {
+      const value = encoded.charCodeAt(index++) - 63;
+      if (value < 0 || value > 63) throw new Error('Google polyline không hợp lệ');
+      result |= (value & 0x1f) << shift;
+      if (value < 0x20) return (result & 1) ? ~(result >>> 1) : result >>> 1;
+      shift += 5;
+    }
+    throw new Error('Google polyline không hợp lệ');
+  };
+  while (index < encoded.length) {
+    latitude += read();
+    longitude += read();
+    const point: [number, number] = [latitude / 100_000, longitude / 100_000];
+    if (!Number.isFinite(point[0]) || !Number.isFinite(point[1])
+      || Math.abs(point[0]) > 90 || Math.abs(point[1]) > 180) throw new Error('Google polyline không hợp lệ');
+    points.push(point);
+  }
+  if (!points.length) throw new Error('Google polyline không hợp lệ');
+  return points;
+}
+
+export function decodeRoutePolyline(
+  encoded: string | null | undefined,
+  encoding: 'HERE_FLEXIBLE_POLYLINE' | 'GOOGLE_ENCODED_POLYLINE' | null | undefined,
+): [number, number][] {
+  return encoding === 'GOOGLE_ENCODED_POLYLINE'
+    ? decodeGooglePolyline(encoded)
+    : decodeFlexiblePolyline(encoded);
+}

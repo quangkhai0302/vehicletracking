@@ -1,6 +1,6 @@
 import type { TrafficFlowSegment, TrafficIncident } from './map';
 
-export type TrafficSource = 'HERE_LIVE' | 'HERE_LAST_KNOWN' | 'ROUTE_SNAPSHOT' | 'UNAVAILABLE';
+export type TrafficSource = 'HERE_LIVE' | 'HERE_LAST_KNOWN' | 'GOOGLE_LIVE' | 'GOOGLE_LAST_KNOWN' | 'ROUTE_SNAPSHOT' | 'UNAVAILABLE';
 export type TrafficStatus = 'AVAILABLE' | 'STALE' | 'BLOCKED' | 'UNAVAILABLE';
 
 export interface TrafficEnvelope<T> {

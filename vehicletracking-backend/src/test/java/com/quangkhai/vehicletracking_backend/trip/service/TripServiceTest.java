@@ -9,6 +9,7 @@ import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
+import com.quangkhai.vehicletracking_backend.route.entity.RouteTransportMode;
 import com.quangkhai.vehicletracking_backend.station.entity.StationEntity;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,12 +62,22 @@ class TripServiceTest {
     @Test void create_exposesVehicleTypeInTripSummary() {
         vehicle = new VehicleEntity("59X112345", "Xe máy A", null, VehicleType.MOTORCYCLE);
         ReflectionTestUtils.setField(vehicle, "id", 1L);
+        ReflectionTestUtils.setField(route, "transportMode", RouteTransportMode.MOTORCYCLE);
         when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));
         when(routes.findById(2L)).thenReturn(Optional.of(route));
         when(trips.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
 
         var result = service.create(new TripCreateRequest(1L, 2L, departure));
         assertThat(result.trip().vehicleType()).isEqualTo(VehicleType.MOTORCYCLE);
+    }
+    @Test void create_rejectsVehicleWhoseTypeDoesNotMatchRouteMode() {
+        vehicle = new VehicleEntity("59X112345", "Xe máy A", null, VehicleType.MOTORCYCLE);
+        ReflectionTestUtils.setField(vehicle, "id", 1L);
+        when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));
+        when(routes.findById(2L)).thenReturn(Optional.of(route));
+
+        assertConflict(() -> service.create(new TripCreateRequest(1L, 2L, departure)));
+        verify(trips, never()).saveAndFlush(any());
     }
     @Test void create_rejectsInactiveStation() {
         when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));

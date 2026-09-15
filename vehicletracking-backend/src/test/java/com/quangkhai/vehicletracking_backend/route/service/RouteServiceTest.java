@@ -10,7 +10,8 @@ import com.quangkhai.vehicletracking_backend.route.error.RouteErrorCode;
 import com.quangkhai.vehicletracking_backend.route.error.RouteOperationException;
 import com.quangkhai.vehicletracking_backend.route.provider.CalculatedRoute;
 import com.quangkhai.vehicletracking_backend.route.provider.CalculatedSection;
-import com.quangkhai.vehicletracking_backend.route.provider.RoutingProvider;
+import com.quangkhai.vehicletracking_backend.route.provider.RoutingProviderRegistry;
+import com.quangkhai.vehicletracking_backend.route.provider.RoutingRequest;
 import com.quangkhai.vehicletracking_backend.route.provider.RoutingWaypoint;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.station.entity.StationEntity;
@@ -36,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,7 +52,7 @@ class RouteServiceTest {
     private StationRepository stationRepository;
 
     @Mock
-    private RoutingProvider routingProvider;
+    private RoutingProviderRegistry routingProviders;
 
     @Mock
     private RoutePersistenceService routePersistenceService;
@@ -65,10 +67,11 @@ class RouteServiceTest {
         routeService = new RouteService(
                 routeRepository,
                 stationRepository,
-                routingProvider,
+                routingProviders,
                 routePersistenceService,
                 tripRepository
         );
+        lenient().when(routingProviders.defaultProvider()).thenReturn(RoutingProviderName.HERE);
     }
 
     @Test
@@ -85,7 +88,7 @@ class RouteServiceTest {
                 new CalculatedSection(1, 2, "poly1", 2000L, 300L, 250L),
                 new CalculatedSection(2, 3, "poly2", 3000L, 400L, 350L)
         ));
-        when(routingProvider.calculate(any())).thenReturn(calculatedRoute);
+        when(routingProviders.calculate(any(), any(RoutingRequest.class))).thenReturn(calculatedRoute);
 
         when(routePersistenceService.persistRoute(any())).thenAnswer(inv -> {
             RouteEntity entity = inv.getArgument(0);
@@ -154,7 +157,7 @@ class RouteServiceTest {
                 new CalculatedSection(1, 2, "poly1", 1000L, 100L, 90L),
                 new CalculatedSection(2, 3, "poly2", 1000L, 100L, 90L)
         ));
-        when(routingProvider.calculate(any())).thenReturn(calculatedRoute);
+        when(routingProviders.calculate(any(), any(RoutingRequest.class))).thenReturn(calculatedRoute);
         when(routePersistenceService.persistRoute(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RouteCreateRequest request = new RouteCreateRequest(
@@ -193,7 +196,7 @@ class RouteServiceTest {
                     assertThat(roe.getErrorCode()).isEqualTo(RouteErrorCode.ROUTE_VALIDATION_FAILED);
                 });
 
-        verify(routingProvider, never()).calculate(any());
+        verify(routingProviders, never()).calculate(any(), any(RoutingRequest.class));
         verify(routePersistenceService, never()).persistRoute(any());
     }
 
@@ -239,7 +242,7 @@ class RouteServiceTest {
                     assertThat(roe.getMessage()).contains("99");
                 });
 
-        verify(routingProvider, never()).calculate(any());
+        verify(routingProviders, never()).calculate(any(), any(RoutingRequest.class));
         verify(routePersistenceService, never()).persistRoute(any());
     }
 
@@ -251,7 +254,7 @@ class RouteServiceTest {
         when(stationRepository.findAllByIdInAndActiveTrue(Set.of(1L, 2L)))
                 .thenReturn(List.of(s1, s2));
 
-        when(routingProvider.calculate(any())).thenThrow(new RouteOperationException(
+        when(routingProviders.calculate(any(), any(RoutingRequest.class))).thenThrow(new RouteOperationException(
                 HttpStatus.GATEWAY_TIMEOUT,
                 RouteErrorCode.ROUTING_PROVIDER_TIMEOUT,
                 "Timeout"
@@ -283,7 +286,7 @@ class RouteServiceTest {
         when(stationRepository.findAllByIdInAndActiveTrue(Set.of(1L, 2L)))
                 .thenReturn(List.of(s1, s2));
 
-        when(routingProvider.calculate(any())).thenThrow(new RouteOperationException(
+        when(routingProviders.calculate(any(), any(RoutingRequest.class))).thenThrow(new RouteOperationException(
                 HttpStatus.BAD_GATEWAY,
                 RouteErrorCode.ROUTING_PROVIDER_INVALID_RESPONSE,
                 "Malformed response"
@@ -315,7 +318,7 @@ class RouteServiceTest {
         StationEntity newEnd = createStation(3L, "Trạm mới 3", "10.82", "106.72");
 
         RouteEntity current = new RouteEntity(
-                "Tuyến cũ", RouteTransportMode.CAR, RoutingProviderName.HERE,
+                "Tuyến cũ", RouteTransportMode.MOTORCYCLE, RoutingProviderName.HERE,
                 1000L, 100L, 90L, 0L, 100L, Instant.now(), Instant.now()
         );
         ReflectionTestUtils.setField(current, "id", 7L);
@@ -330,7 +333,7 @@ class RouteServiceTest {
         when(tripRepository.existsByRouteId(7L)).thenReturn(false);
         when(stationRepository.findAllByIdInAndActiveTrue(Set.of(1L, 3L)))
                 .thenReturn(List.of(oldStart, newEnd));
-        when(routingProvider.calculate(any())).thenReturn(new CalculatedRoute(Instant.now(), List.of(
+        when(routingProviders.calculate(any(), any(RoutingRequest.class))).thenReturn(new CalculatedRoute(Instant.now(), List.of(
                 new CalculatedSection(1, 2, "new-polyline", 2200L, 240L, 210L)
         )));
         when(routeRepository.saveAndFlush(current)).thenReturn(current);
@@ -345,6 +348,7 @@ class RouteServiceTest {
 
         assertThat(response.id()).isEqualTo(7L);
         assertThat(response.name()).isEqualTo("Tuyến mới");
+        assertThat(response.transportMode()).isEqualTo(RouteTransportMode.MOTORCYCLE);
         assertThat(response.stops()).extracting(RouteDetailResponse.RouteStopResponse::stationId)
                 .containsExactly(1L, 3L);
         assertThat(response.sections()).extracting(RouteDetailResponse.RouteSectionResponse::encodedPolyline)
@@ -353,6 +357,9 @@ class RouteServiceTest {
         InOrder order = inOrder(routeRepository);
         order.verify(routeRepository).flush();
         order.verify(routeRepository).saveAndFlush(current);
+        ArgumentCaptor<RoutingRequest> requestCaptor = ArgumentCaptor.forClass(RoutingRequest.class);
+        verify(routingProviders).calculate(org.mockito.ArgumentMatchers.eq(RoutingProviderName.HERE), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().transportMode()).isEqualTo(RouteTransportMode.MOTORCYCLE);
     }
 
     @Test
@@ -378,7 +385,7 @@ class RouteServiceTest {
                     assertThat(roe.getErrorCode()).isEqualTo(RouteErrorCode.ROUTE_VALIDATION_FAILED);
                 });
 
-        verify(routingProvider, never()).calculate(any());
+        verify(routingProviders, never()).calculate(any(), any(RoutingRequest.class));
         verify(routeRepository, never()).flush();
     }
 

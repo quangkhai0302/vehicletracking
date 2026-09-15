@@ -2,6 +2,7 @@ import { useEffect, type RefObject } from 'react';
 import L from 'leaflet';
 import type { TrafficIncident } from '../../types/map';
 import type { TrafficIncidentsResponse } from '../../types/traffic';
+import { TRAFFIC_TILE_URL } from '../../services/hereTraffic';
 import './traffic.css';
 
 function createTrafficIncidentIcon(incident: TrafficIncident): L.DivIcon {
@@ -89,15 +90,34 @@ export function TrafficLayer({
   mapRef,
   mapReady,
   visible,
+  showAreaFlow,
   incidents,
 }: {
   mapRef: RefObject<L.Map | null>;
   mapReady: boolean;
   visible: boolean;
+  showAreaFlow: boolean;
   incidents: TrafficIncidentsResponse | null;
 }) {
 
-
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !visible || !showAreaFlow) return;
+    if (!map.getPane('trafficPane')) {
+      const pane = map.createPane('trafficPane');
+      pane.style.zIndex = '350';
+    }
+    const layer = L.tileLayer(TRAFFIC_TILE_URL, {
+      pane: 'trafficPane',
+      opacity: 0.9,
+      maxZoom: 20,
+      updateWhenZooming: false,
+      updateWhenIdle: true,
+      keepBuffer: 3,
+      attribution: '&copy; HERE Traffic',
+    }).addTo(map);
+    return () => { layer.off(); map.removeLayer(layer); };
+  }, [mapReady, mapRef, showAreaFlow, visible]);
 
   useEffect(() => {
     const map = mapRef.current;
