@@ -16,6 +16,7 @@ export interface SimulationFrame {
   nextStopSequence: number; nextStopEtaSeconds: number; dwelling: boolean; finished: boolean;
 }
 export interface SimulationRun {
+  routeRevisionId?: number | null;
   attemptNumber?: number;
   id: number; tripId: number; status: SimulationStatus; multiplier: 1 | 5 | 10;
   elapsedSeconds: number; durationSeconds: number; simulatedAt: string; updatedAt: string;

@@ -32,6 +32,8 @@ here:
     enabled: ${HERE_TRAFFIC_ENABLED:false}
     base-url: ${HERE_TRAFFIC_BASE_URL:https://data.traffic.hereapi.com}
     tile-base-url: ${HERE_TRAFFIC_TILE_BASE_URL:https://traffic.maps.hereapi.com}
+    map-tile-base-url: ${HERE_MAP_TILE_BASE_URL:https://maps.hereapi.com}
+    vector-style-base-url: ${HERE_VECTOR_STYLE_BASE_URL:https://assets.vector.hereapi.com/styles/berlin/base/mapbox/tilezen}
     api-key: ${HERE_API_KEY:}
     connect-timeout-ms: ${HERE_CONNECT_TIMEOUT_MS:${HERE_TRAFFIC_CONNECT_TIMEOUT_MS:2000}}
     read-timeout-ms: ${HERE_READ_TIMEOUT_MS:${HERE_TRAFFIC_READ_TIMEOUT_MS:5000}}

@@ -14,6 +14,7 @@ import { formatDuration } from '../../utils/format';
 import { FleetConfirmDialog } from '../fleet/FleetConfirmDialog';
 
 interface RouteDrawerProps {
+  onShape: () => void;
   onFocusStop: (position: [number, number], zoom?: number) => void;
   mode: 'closed' | 'create' | 'edit' | 'view';
   routeDetail: RouteDetail | null;
@@ -178,6 +179,10 @@ function RouteCreateContent({
       </div>
 
       <div className="route-drawer-body">
+        {!!initialRoute?.shapingPoints?.length && <p className="panel-help">
+          Sửa thông tin hoặc trạm bằng biểu mẫu này sẽ tính lại đường đi và bỏ các điểm kéo chỉnh đã lưu.
+          Để giữ trạm và chỉ đổi đường đi, hãy dùng “Kéo chỉnh đường đi”.
+        </p>}
         {confirmDiscard && <div className="discard-confirm" role="alert">
           <strong>Bỏ bản nháp tuyến đường?</strong><p>Tên và thứ tự điểm dừng chưa lưu sẽ bị xóa.</p>
           <div><button type="button" className="btn-secondary" onClick={() => setConfirmDiscard(false)}>Tiếp tục chỉnh sửa</button><button type="button" className="danger-action" onClick={onClose}>Bỏ bản nháp</button></div>
@@ -287,6 +292,7 @@ function RouteCreateContent({
 }
 
 interface RouteViewContentProps {
+  onShape: () => void;
   saving: boolean;
   onEdit: () => void;
   onDeactivate: () => Promise<boolean>;
@@ -298,6 +304,7 @@ interface RouteViewContentProps {
 }
 
 function RouteViewContent({
+  onShape,
   saving, onEdit, onDeactivate,
   routeDetail,
   loadingDetail,
@@ -442,6 +449,7 @@ function RouteViewContent({
           Đóng
         </button>
         {!loadingDetail && routeDetail && <>
+          <button type="button" className="btn-primary" disabled={saving} onClick={onShape}>Kéo chỉnh đường đi</button>
           <button type="button" className="btn-secondary" disabled={saving} onClick={onEdit}>Sửa tuyến</button>
           <button type="button" className="danger-action" disabled={saving} onClick={() => setConfirm(true)}>Ngừng sử dụng</button>
         </>}
@@ -453,6 +461,7 @@ function RouteViewContent({
 }
 
 export function RouteDrawer({
+  onShape,
   onEdit, onDeactivate,
   mode,
   routeDetail,
@@ -488,6 +497,7 @@ export function RouteDrawer({
       )}
       {mode === 'view' && (
         <RouteViewContent
+          onShape={onShape}
           saving={saving} onEdit={onEdit} onDeactivate={onDeactivate}
           key={routeDetail?.id ?? 'view'}
           onFocusStop={onFocusStop}

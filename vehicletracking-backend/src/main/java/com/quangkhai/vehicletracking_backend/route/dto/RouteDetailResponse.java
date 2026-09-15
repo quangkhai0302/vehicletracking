@@ -27,8 +27,14 @@ public record RouteDetailResponse(
         Instant calculatedAt,
         Instant createdAt,
         List<RouteStopResponse> stops,
-        List<RouteSectionResponse> sections
+        List<RouteSectionResponse> sections,
+        List<RouteShapeRequest.ShapePoint> shapingPoints
 ) {
+    public RouteDetailResponse(Long id,String name,RouteTransportMode mode,RoutingProviderName provider,
+            long distance,long travel,long base,long dwell,long total,Instant departure,Instant calculated,Instant created,
+            List<RouteStopResponse> stops,List<RouteSectionResponse> sections) {
+        this(id,name,mode,provider,distance,travel,base,dwell,total,departure,calculated,created,stops,sections,List.of());
+    }
     public record RouteStopResponse(
             int sequenceNumber,
             String role,
@@ -135,7 +141,9 @@ public record RouteDetailResponse(
                 entity.getCalculatedAt(),
                 entity.getCreatedAt(),
                 stopResponses,
-                sectionResponses
+                sectionResponses,
+                entity.getShapingPoints().stream().map(p -> new RouteShapeRequest.ShapePoint(
+                    p.getDestinationStopSequence(),p.getLatitude(),p.getLongitude())).toList()
         );
     }
 }

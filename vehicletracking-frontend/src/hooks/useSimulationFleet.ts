@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchTrip } from '../services/fleet';
+import { fetchTrip, fetchTripRoute } from '../services/fleet';
 import { decodeFlexiblePolyline } from '../services/polyline';
 import type { TripDetail, TripStop, TripSummary } from '../types/fleet';
 import type { RouteDetail } from '../types/route';
@@ -24,7 +24,11 @@ function prepareDetail(detail: TripDetail) {
 export function useSimulationFleet(snapshot: OperationsSnapshot | null, enabled: boolean) {
   const trips = useMemo(() => simulationFleetTrips(snapshot), [snapshot]);
   const waiting = useMemo(() => waitingSimulationTrips(snapshot, trips), [snapshot, trips]);
-  const key = enabled ? trips.map(trip => `${trip.id}:${trip.routeId}`).sort().join(',') : '';
+  const tripKey = (trip: TripSummary) => {
+    const run = snapshot?.simulations.find(item => item.tripId === trip.id);
+    return `${trip.id}:${trip.routeId}:${run?.attemptNumber ?? 1}:${run?.routeRevisionId ?? 0}`;
+  };
+  const key = enabled ? trips.map(tripKey).sort().join(',') : '';
   const [details, setDetails] = useState<Record<string, ReturnType<typeof prepareDetail>>>({});
   const [errors, setErrors] = useState<Record<number, string>>({});
   const cache = useRef(new Map<string, ReturnType<typeof prepareDetail>>());
@@ -43,6 +47,7 @@ export function useSimulationFleet(snapshot: OperationsSnapshot | null, enabled:
         if (cache.current.has(itemKey)) continue;
         try {
           const detail = await fetchTrip(id, controller.signal);
+          if (itemKey.split(':')[3] !== '0') detail.route = await fetchTripRoute(id, controller.signal);
           if (controller.signal.aborted) return;
           cache.current.set(itemKey, prepareDetail(detail));
           setDetails(Object.fromEntries(cache.current));
@@ -55,7 +60,7 @@ export function useSimulationFleet(snapshot: OperationsSnapshot | null, enabled:
     void Promise.all(Array.from({length: Math.min(4, keys.length)}, worker));
     return () => controller.abort();
   }, [key, attempt]);
-  const loaded = (trip: TripSummary) => details[`${trip.id}:${trip.routeId}`];
+  const loaded = (trip: TripSummary) => details[tripKey(trip)];
   const previews: WaitingSimulationVehicle[] = enabled ? waiting.flatMap(trip => {
     const start = loaded(trip)?.start;
     return start ? [{trip,start}] : [];

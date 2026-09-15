@@ -10,6 +10,7 @@ import { useSimulationFleet } from '../hooks/useSimulationFleet';
 import { usePlannedVehicleAnchors } from '../hooks/usePlannedVehicleAnchors';
 import { useVehicleMarkers, type VehicleMarkerAnchor } from '../hooks/useVehicleMarkers';
 import { useSelectedVehicleRoute } from '../hooks/useSelectedVehicleRoute';
+import { makeMotionPath, type MotionPath } from '../utils/vehicleMotion';
 import type { WorkspaceMode } from '../types/workspace';
 import { MapControls } from './MapControls';
 import { StationDrawer } from './StationDrawer';
@@ -193,9 +194,19 @@ export const MapComponent: FC = () => {
   const selectedTripId = selectedVehicle?.tripId
     ?? (selectedVehicleId === null ? null : selectedPlannedVehicle?.tripId ?? selectedWaitingVehicle?.trip.id
       ?? (simulator.trip?.vehicleId === selectedVehicleId ? simulator.trip.id : null));
-  const vehicleRoute = useSelectedVehicleRoute(selectedTripId, setToast);
+  const selectedRun = live.snapshot?.simulations.find(run => run.tripId === selectedTripId);
+  const vehicleRoute = useSelectedVehicleRoute(selectedTripId, setToast, `${selectedRun?.attemptNumber ?? 1}:${selectedRun?.routeRevisionId ?? 0}`);
   const plannedRoute = workspace === 'routes' ? editorRoute : workspace === 'stations' ? null : vehicleRoute;
   const selectedSimulationRoutes = simulationFleet.routes.filter(item => item.trip.id === selectedTripId);
+  const motionPaths = useMemo(() => {
+    const paths = new Map<number, MotionPath>();
+    for (const item of simulationFleet.routes) paths.set(item.trip.id, makeMotionPath(item.segments));
+    if (selectedTripId !== null && vehicleRoute) {
+      try { paths.set(selectedTripId, makeMotionPath(vehicleRoute.sections.map(section => decodeFlexiblePolyline(section.encodedPolyline)))); }
+      catch { /* Invalid geometry cannot be used for presentation interpolation. */ }
+    }
+    return paths;
+  }, [simulationFleet.routes, selectedTripId, vehicleRoute]);
   const hasSimulationRoute = workspace === 'simulation' && selectedSimulationRoutes.length > 0;
   const selectVehicleTrip = (vehicleId: number, tripId: number) => {
     if (simulator.busy) return;
@@ -215,6 +226,7 @@ export const MapComponent: FC = () => {
     setTripSelection({ tripId: null }); simulator.select(null);
   };
   useVehicleMarkers({ mapRef: mapInstanceRef, snapshot: mapSnapshot, now: live.now,
+    motionPaths,
     plannedPositions: markerAnchors, visible: true, selectedId: selectedVehicleId, groupSelection: workspace==='simulation',
     following: followingVehicle, onSelect: id => {
       const point = mapSnapshot?.positions.find(item=>item.vehicleId===id) ?? plannedVehicleAnchors.find(item=>item.vehicleId===id);
@@ -451,9 +463,7 @@ export const MapComponent: FC = () => {
     marker.addTo(layer);
   }, [formMode, stationForm, workspace, setStationForm, setPickingLocation]);
 
-  // Base map tile layer. Traffic is rendered separately by TrafficLayer
-  // through the backend HERE Raster Tile proxy, so the Google base layer
-  // must never add its own `traffic` overlay.
+  // Google base map with native Google Maps traffic layer.
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !mapReady) return;
@@ -462,7 +472,6 @@ export const MapComponent: FC = () => {
       map.removeLayer(tileLayerRef.current);
       tileLayerRef.current = null;
     }
-
     const baseType = theme === 'google-satellite' ? 'y' : 'm';
     const layerType = showTraffic ? `${baseType},traffic` : baseType;
     const newTileLayer = L.tileLayer(
@@ -557,33 +566,33 @@ export const MapComponent: FC = () => {
        * road.
        */
       for (const sectionCoords of decodedSections) {
-        // 1. Google Maps ambient glow (giúp nổi bật trên nền bản đồ tối hoặc vệ tinh)
+        // 1. Google Maps subtle route shadow (đổ bóng mỏng nhẹ giúp tách biệt trên mọi nền bản đồ)
         L.polyline(sectionCoords, {
           pane: 'routePane',
-          color: '#0b57d0',
-          weight: 12,
-          opacity: 0.42,
-          lineCap: 'round',
-          lineJoin: 'round',
-          interactive: false,
-        }).addTo(layer);
-
-        // 2. Google Maps outer casing (viền xanh đậm định hình đường đi chuẩn Google Maps)
-        L.polyline(sectionCoords, {
-          pane: 'routePane',
-          color: '#0842a0',
-          weight: 8,
+          color: 'rgba(24, 90, 188, 0.24)',
+          weight: 10,
           opacity: 1,
           lineCap: 'round',
           lineJoin: 'round',
           interactive: false,
         }).addTo(layer);
 
-        // 3. Google Maps inner core (lớp lõi xanh dương đặc trưng Google Maps #4285f4)
+        // 2. Google Maps outer casing (viền xanh đậm Google Blue 700 định hình đường đi sắc nét)
         L.polyline(sectionCoords, {
           pane: 'routePane',
-          color: '#1a73e8',
-          weight: 5.5,
+          color: '#1967d2',
+          weight: 7.5,
+          opacity: 0.96,
+          lineCap: 'round',
+          lineJoin: 'round',
+          interactive: false,
+        }).addTo(layer);
+
+        // 3. Google Maps inner core (lõi xanh Google Primary Blue rực rỡ đặc trưng của Google Maps)
+        L.polyline(sectionCoords, {
+          pane: 'routePane',
+          color: '#4285f4',
+          weight: 5,
           opacity: 1.0,
           lineCap: 'round',
           lineJoin: 'round',
@@ -646,12 +655,12 @@ export const MapComponent: FC = () => {
     });
 
     if (draftCoords.length >= 2) {
-      // Draft Casing
+      // Draft Casing - Google Maps Style
       L.polyline(draftCoords, {
         pane: 'routePane',
-        color: '#0842a0',
+        color: '#1967d2',
         weight: 6,
-        opacity: 0.95,
+        opacity: 0.92,
         dashArray: '6, 8',
         lineCap: 'round',
         lineJoin: 'round',
@@ -661,7 +670,7 @@ export const MapComponent: FC = () => {
       // Draft Inner Google Blue
       L.polyline(draftCoords, {
         pane: 'routePane',
-        color: '#1a73e8',
+        color: '#4285f4',
         weight: 4,
         opacity: 1.0,
         dashArray: '6, 8',
@@ -786,7 +795,7 @@ export const MapComponent: FC = () => {
             onFieldChange={handleFieldChange} onSave={handleSaveStation} onRequestDeactivate={() => selectedStation && setDeleteCandidate(selectedStation)} />
         </div>
         <div className="context-content" hidden={workspace !== 'routes'}>
-          <RouteWorkspace stations={stations} loadingStations={loadingStations} onPlannedRouteDisplay={setPlannedRoute} onShowToast={setToast}
+          <RouteWorkspace mapRef={mapInstanceRef} stations={stations} loadingStations={loadingStations} onPlannedRouteDisplay={setPlannedRoute} onShowToast={setToast}
             onDraftStopsChange={setDraftStops} selectedDraftStopId={selectedDraftStopId} onFocusDraftStop={focusDraftStop} onFocusStop={focusLocation} />
         </div>
         {(workspace === 'stations' || workspace === 'routes') && <div className="context-footer"><span className="status-dot" />{workspace === 'stations' ? 'Danh sách trạm đã lưu' : 'Quản lý tuyến đường'}</div>}

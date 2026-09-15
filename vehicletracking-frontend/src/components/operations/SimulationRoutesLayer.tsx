@@ -54,9 +54,9 @@ export function SimulationRoutesLayer({ mapRef, mapReady, visible, routes, selec
     for (const row of rows) {
       const selected=row.tripId===selectedTripId;
       const options={pane:'simulationRoutesPane',renderer,bubblingMouseEvents:false};
-      L.polyline(row.segments,{...options,color:'#102a43',weight:selected?10:7,opacity:.85,interactive:false}).addTo(layer);
+      L.polyline(row.segments,{...options,color:selected?'#1967d2':'#3c4043',weight:selected?8:5.5,opacity:selected?0.96:0.8,interactive:false}).addTo(layer);
       const path=L.polyline(row.segments,{...options,color:simulationRouteColor(row.vehicleId,selected),
-        weight:selected?6:4,opacity:1,className:'simulation-route-path',interactive:true}).addTo(layer);
+        weight:selected?5:3.5,opacity:1,className:'simulation-route-path',interactive:true}).addTo(layer);
       const label=document.createElement('span');
       label.textContent=`${row.plate} · Chuyến #${row.tripId} · ${row.name}${selected?' · Đang chọn':''}`;
       path.bindTooltip(label,{sticky:true});

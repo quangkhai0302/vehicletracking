@@ -1,10 +1,11 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import L from 'leaflet';
 import type { OperationsSnapshot } from '../types/operations';
 import { positionFreshness } from '../types/operations';
 import type { VehicleType } from '../types/fleet';
 import { vehicleTypeLabel } from '../types/fleet';
 import { vehicleMarkerGlyph } from '../utils/vehiclePresentation';
+import { PLAYBACK_DELAY_MS, pointOnMotionPath, sampleMotion, type MotionPath, type MotionSample } from '../utils/vehicleMotion';
 
 /** A newly scheduled trip has no telemetry yet, but still has a meaningful map position. */
 export interface VehicleMarkerAnchor {
@@ -17,23 +18,70 @@ export interface VehicleMarkerAnchor {
 }
 
 type MarkerPosition = OperationsSnapshot['positions'][number] | VehicleMarkerAnchor & { source: 'PLANNED' };
+type VehicleAnimation = {
+  samples: MotionSample[];
+  identity: string;
+  eventId: string;
+  path?: MotionPath;
+};
 
-export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], now, visible, selectedId, following, onSelect, onFocus, groupSelection = false }: {
+export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], motionPaths, now, visible, selectedId, following, onSelect, onFocus, groupSelection = false }: {
   mapRef: RefObject<L.Map | null>; snapshot: OperationsSnapshot | null; now: number; visible: boolean;
   plannedPositions?: readonly VehicleMarkerAnchor[];
   selectedId: number | null; following: boolean; onSelect: (id: number) => void;
   onFocus: (point: L.LatLngExpression, zoom?: number) => void;
   groupSelection?: boolean;
+  motionPaths?: ReadonlyMap<number, MotionPath>;
 }) {
   const markers = useRef(new Map<number, L.Marker>());
+  const markerTripIds = useRef(new Map<number, number>());
+  const animations = useRef(new Map<number, VehicleAnimation>());
+  const animationFrame = useRef<number | null>(null);
   const followedPoint = useRef<string | null>(null);
+  const followingRef = useRef({ following, selectedId, onFocus });
+  useEffect(() => { followingRef.current = { following, selectedId, onFocus }; }, [following, selectedId, onFocus]);
   const vehiclePicker = useRef<L.Popup | null>(null);
   useEffect(() => () => { vehiclePicker.current?.remove(); vehiclePicker.current=null; }, [groupSelection]);
+  const cancelAnimations = useCallback(() => {
+    if (animationFrame.current !== null && typeof window !== 'undefined') window.cancelAnimationFrame(animationFrame.current);
+    animationFrame.current = null;
+    animations.current.clear();
+    markerTripIds.current.clear();
+  }, []);
+  const scheduleAnimations = useCallback(() => {
+    if (animationFrame.current !== null || typeof window === 'undefined') return;
+    const tick = (timestamp: number) => {
+      let active = false;
+      animations.current.forEach((animation, vehicleId) => {
+        const marker = markers.current.get(vehicleId);
+        if (!marker) {
+          animations.current.delete(vehicleId);
+          return;
+        }
+        const renderAt = timestamp - PLAYBACK_DELAY_MS;
+        const point = sampleMotion(animation.samples, renderAt, animation.path);
+        if (!point) return;
+        marker.setLatLng([point.latitude, point.longitude]);
+        marker.getElement()?.querySelector<HTMLElement>('.live-vehicle-marker')
+          ?.style.setProperty('--heading', `${point.heading}deg`);
+        const follow = followingRef.current;
+        if (follow.following && follow.selectedId === vehicleId) follow.onFocus([point.latitude, point.longitude]);
+        while (animation.samples.length > 2 && animation.samples[1].time < renderAt) animation.samples.shift();
+        if (renderAt < animation.samples[animation.samples.length - 1].time) active = true;
+      });
+      animationFrame.current = active ? window.requestAnimationFrame(tick) : null;
+    };
+    animationFrame.current = window.requestAnimationFrame(tick);
+  }, []);
   useEffect(() => {
     const map = mapRef.current;
     const current = markers.current;
-    return () => { current.forEach(marker => { marker.off(); if (map?.hasLayer(marker)) marker.remove(); }); current.clear(); };
-  }, [mapRef]);
+    return () => {
+      cancelAnimations();
+      current.forEach(marker => { marker.off(); if (map?.hasLayer(marker)) marker.remove(); });
+      current.clear();
+    };
+  }, [cancelAnimations, mapRef]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -49,7 +97,12 @@ export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], now
       ...anchors.filter(anchor => !actualPositions.some(point => point.vehicleId === anchor.vehicleId && point.tripId === anchor.tripId)),
     ];
     const ids = new Set(positions.map(point => point.vehicleId));
-    markers.current.forEach((marker,id) => { if (!ids.has(id)) { marker.off(); marker.remove(); markers.current.delete(id); } });
+    markers.current.forEach((marker,id) => {
+      if (!ids.has(id)) {
+        marker.off(); marker.remove(); markers.current.delete(id);
+        markerTripIds.current.delete(id); animations.current.delete(id);
+      }
+    });
     for (const point of positions) {
       if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) || Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180) continue;
       const isPlanned = point.source === 'PLANNED';
@@ -75,13 +128,37 @@ export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], now
         marker.setIcon(icon);
       }
       const previous = marker.getLatLng();
-      if (previous.lat !== point.latitude || previous.lng !== point.longitude) marker.setLatLng([point.latitude,point.longitude]);
+      const target = L.latLng(point.latitude, point.longitude);
+      const currentAnimation = animations.current.get(point.vehicleId);
+      const identity = `${point.tripId}:${isPlanned ? 'planned' : point.attemptNumber ?? run?.attemptNumber ?? 1}:${run?.routeRevisionId ?? 0}`;
+      const sample: MotionSample = { time: performance.now(), latitude: point.latitude, longitude: point.longitude,
+        heading, progress: !isPlanned && point.source === 'SIMULATOR' ? run?.frame?.progressPercent : undefined };
+      const path = motionPaths?.get(point.tripId);
+      const projected = path && sample.progress !== undefined ? pointOnMotionPath(path, sample.progress) : null;
+      if (!projected || map.distance(target, projected) > 30) sample.progress = undefined;
+      if (stationary || freshness !== 'fresh') {
+        animations.current.delete(point.vehicleId);
+        marker.setLatLng(target);
+      } else if (!currentAnimation || currentAnimation.identity !== identity || map.distance(previous, target) > 5000) {
+        marker.setLatLng(target);
+        animations.current.set(point.vehicleId, { identity, samples: [sample], eventId: point.eventId,
+          path: motionPaths?.get(point.tripId) });
+      } else if (currentAnimation.eventId !== point.eventId) {
+        // Keep the two sides of each interpolation across snapshot arrivals.
+        // Equal/duplicate snapshots never restart or shorten the animation.
+        currentAnimation.eventId = point.eventId;
+        currentAnimation.samples.push(sample);
+        if (currentAnimation.samples.length > 12) currentAnimation.samples.splice(0, currentAnimation.samples.length - 12);
+        currentAnimation.path = motionPaths?.get(point.tripId);
+        scheduleAnimations();
+      }
+      markerTripIds.current.set(point.vehicleId, point.tripId);
       marker.setZIndexOffset(point.vehicleId === selectedId ? 1000 : 800);
       const body = marker.getElement()?.querySelector<HTMLElement>('.live-vehicle-marker');
       if (body) {
         body.classList.toggle('muted',stale); body.classList.toggle('selected',point.vehicleId === selectedId);
         body.classList.toggle('planned', isPlanned);
-        body.style.setProperty('--heading', `${Number.isFinite(heading) ? heading : 0}deg`);
+        if (!animations.current.has(point.vehicleId)) body.style.setProperty('--heading', `${Number.isFinite(heading) ? heading : 0}deg`);
       }
       const text = document.createElement('span');
       const sourceLabel = isPlanned ? 'KẾ HOẠCH' : point.source === 'SIMULATOR' ? 'GIẢ LẬP' : 'GPS';
@@ -109,7 +186,7 @@ export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], now
     }
     const selected = positions.find(point => point.vehicleId === selectedId);
     const key = following && selected ? `${selected.vehicleId}:${selected.latitude}:${selected.longitude}` : null;
-    if (key && key !== followedPoint.current && selected) onFocus([selected.latitude,selected.longitude]);
+    if (key && key !== followedPoint.current && selected && !animations.current.has(selected.vehicleId)) onFocus([selected.latitude,selected.longitude]);
     followedPoint.current = key;
-  }, [mapRef,snapshot,plannedPositions,now,visible,selectedId,following,onSelect,onFocus,groupSelection]);
+  }, [mapRef,snapshot,plannedPositions,motionPaths,now,visible,selectedId,following,onSelect,onFocus,groupSelection,scheduleAnimations]);
 }

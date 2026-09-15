@@ -12,7 +12,6 @@ import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRep
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import com.quangkhai.vehicletracking_backend.trip.service.TripService;
-import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
 import com.quangkhai.vehicletracking_backend.telemetry.dto.TelemetryRequest;
 import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource;
 import com.quangkhai.vehicletracking_backend.telemetry.repository.*;
@@ -46,10 +45,7 @@ public class SimulationService {
     private final TripCheckInStateRepository checkInStates;
     private final TripTrafficAlertStateRepository alertStates;
     private final TripRouteRevisionRepository revisions;
-    // Routes are immutable. Bound the decoded geometry cache for repeated scheduler/SSE reads.
-    private final Map<Long,RouteMotion> motions=Collections.synchronizedMap(new LinkedHashMap<>(16,0.75f,true) {
-        @Override protected boolean removeEldestEntry(Map.Entry<Long,RouteMotion> eldest) { return size()>100; }
-    });
+    private final com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry;
 
     @Transactional
     public SimulationResponse play(long tripId) {
@@ -147,9 +143,12 @@ public class SimulationService {
         if(run.getStatus()!=SimulationStatus.RUNNING) return;
         double delta=Math.max(0,Duration.between(run.getLastTickAt(),now).toNanos()/1_000_000_000d);
         if(delta==0) return;
+        try { geometry.applyActive(trip,run.getElapsedSeconds()); }
+        catch (IllegalArgumentException ex) { /* A disconnected replacement must not teleport or fail the running vehicle. */ }
         var motion=motion(trip);
         double baselineRemaining = Math.max(0, motion.duration() - run.getElapsedSeconds());
-        double trafficRate = trafficEta.simulationRate(trip.getId(), baselineRemaining);
+        double trafficRate = motion.at(run.getElapsedSeconds()).dwelling() ? 1d
+            : trafficEta.simulationRate(trip.getId(), baselineRemaining);
         double progressDelta = delta * run.getMultiplier() * trafficRate;
         run.advance(Math.min(motion.duration(),run.getElapsedSeconds()+progressDelta),now);
         emit(trip,run,false,trafficRate);
@@ -171,7 +170,7 @@ public class SimulationService {
         var frame=motion(trip).at(run.getElapsedSeconds());
         if (!stationary && frame.speedKmh() > 0 && Double.isFinite(trafficRate)) {
             frame = new RouteMotion.Frame(frame.latitude(), frame.longitude(), frame.heading(),
-                frame.speedKmh() * Math.max(0, Math.min(1.5d, trafficRate)), frame.progressPercent(),
+                frame.speedKmh() * Math.max(0, trafficRate), frame.progressPercent(),
                 frame.nextStopSequence(), frame.nextStopEtaSeconds(), frame.dwelling(), frame.finished());
         }
         Instant recorded=now();
@@ -189,8 +188,9 @@ public class SimulationService {
     }
     public SimulationResponse describe(TripEntity trip,SimulationRunEntity run) {
         RouteMotion.Frame frame=null;
+        double duration=trip.getRoute().getEstimatedTripDurationSeconds();
         if(run.getStatus()!=SimulationStatus.FAILED) {
-            try { frame=motion(trip).at(run.getElapsedSeconds()); }
+            try { var motion=motion(trip); duration=motion.duration(); frame=motion.at(run.getElapsedSeconds()); }
             catch(ResponseStatusException ignored) { /* Historical malformed geometry remains inspectable. */ }
         }
         if (frame != null && run.getStatus() == SimulationStatus.RUNNING) {
@@ -198,7 +198,7 @@ public class SimulationService {
             double trafficRate = trafficEta.simulationRate(trip.getId(), baselineRemaining);
             if (frame.speedKmh() > 0 && Double.isFinite(trafficRate)) {
                 frame = new RouteMotion.Frame(frame.latitude(), frame.longitude(), frame.heading(),
-                    frame.speedKmh() * Math.max(0, Math.min(1.5d, trafficRate)), frame.progressPercent(),
+                    frame.speedKmh() * Math.max(0, trafficRate), frame.progressPercent(),
                     frame.nextStopSequence(), frame.nextStopEtaSeconds(), frame.dwelling(), frame.finished());
             }
         }
@@ -206,8 +206,8 @@ public class SimulationService {
             frame=new RouteMotion.Frame(frame.latitude(),frame.longitude(),frame.heading(),0,frame.progressPercent(),
                 frame.nextStopSequence(),frame.nextStopEtaSeconds(),frame.dwelling(),frame.finished());
         return new SimulationResponse(run.getId(),trip.getId(),run.getStatus(),run.getMultiplier(),run.getElapsedSeconds(),
-            trip.getRoute().getEstimatedTripDurationSeconds(),simulatedAt(trip,run),run.getUpdatedAt(),run.getErrorMessage(),run.getReplacementTripId(),frame,
-            trafficMetadata(trip),trip.getAttemptNumber());
+            duration,simulatedAt(trip,run),run.getUpdatedAt(),run.getErrorMessage(),run.getReplacementTripId(),frame,
+            trafficMetadata(trip),trip.getAttemptNumber(),frame==null?null:geometry.resolve(trip).revisionId());
     }
     private SimulationTrafficMetadata trafficMetadata(TripEntity trip) {
         try {
@@ -225,7 +225,7 @@ public class SimulationService {
         }
     }
     private RouteMotion motion(TripEntity trip) {
-        try { return motions.computeIfAbsent(trip.getRoute().getId(),id->new RouteMotion(RouteDetailResponse.from(trip.getRoute()))); }
+        try { return geometry.resolve(trip).motion(); }
         catch(IllegalArgumentException|ArithmeticException ex) { throw conflict("Geometry hoặc thời lượng tuyến không hợp lệ để mô phỏng. Hãy tính lại tuyến."); }
     }
     private Instant simulatedAt(TripEntity trip,SimulationRunEntity run) { return trip.getScheduledDepartureAt().plusMillis((long)(run.getElapsedSeconds()*1000)); }

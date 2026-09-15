@@ -30,6 +30,7 @@ public class RerouteEvaluationService {
     private final TripTrafficAlertStateRepository states;
     private final TripNotificationRepository notifications;
     private final TrafficEtaService trafficEta;
+    private final TripRouteGeometryService geometry;
     private final Clock operationsClock;
     private final RerouteProperties properties;
 
@@ -52,6 +53,9 @@ public class RerouteEvaluationService {
         ReroutePolicy.Decision decision = ReroutePolicy.observe(currentEta, state.getLastTrafficFetchedAt(),
                 state.getBreachFingerprint(), state.getBreachCount(), state.getLastTriggeredFingerprint(),
                 state.getLastTriggerAt(), fingerprint, now, properties);
+        // Scheduler/ETA reads reuse a cached HERE observation. Do not erase the
+        // consecutive breach count between two genuine provider refreshes.
+        if ("TRAFFIC_NOT_REFRESHED".equals(decision.reason())) return;
         if (!decision.breach()) {
             state.clear(currentEta.trafficFetchedAt(), now);
             states.save(state);
@@ -101,7 +105,19 @@ public class RerouteEvaluationService {
         if (position == null || !trip.getId().equals(position.getTripId()) || position.getAttemptNumber()!=trip.getAttemptNumber()) return null;
         Set<Integer> checked = visits.findAllByTripIdOrderByStopSequenceAsc(trip.getId()).stream()
                 .map(v -> v.getStopSequence()).collect(Collectors.toSet());
-        List<TripStopEntity> remaining = trip.getStops().stream().filter(s -> !checked.contains(s.getSequenceNumber()))
+        Integer simulationNext=null;
+        if (position.getSource()==com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR
+                && position.getSimulatedAt()!=null) {
+            double elapsed=Duration.between(trip.getScheduledDepartureAt(),position.getSimulatedAt()).toNanos()/1_000_000_000d;
+            var frame=geometry.resolve(trip).motion().at(elapsed);
+            if (frame.dwelling() || frame.finished()) return null;
+            // Check-in occurs at the geofence edge, before the vehicle reaches
+            // the actual stop. Do not remove that still-upcoming stop from the path.
+            simulationNext=frame.nextStopSequence();
+        }
+        final Integer next=simulationNext;
+        List<TripStopEntity> remaining = trip.getStops().stream().filter(s -> next==null
+                ? !checked.contains(s.getSequenceNumber()) : s.getSequenceNumber()>=next)
                 .sorted(Comparator.comparing(TripStopEntity::getSequenceNumber)).toList();
         if (remaining.isEmpty()) return null;
         List<RoutingWaypoint> waypoints = new ArrayList<>();

@@ -37,4 +37,40 @@ public class TrafficController {
                 .cacheControl(org.springframework.http.CacheControl.maxAge(60, java.util.concurrent.TimeUnit.SECONDS).cachePublic())
                 .body(image);
     }
+
+    @GetMapping("/map-tiles/{style}/{z}/{x}/{y}")
+    public org.springframework.http.ResponseEntity<byte[]> mapTile(
+            @org.springframework.web.bind.annotation.PathVariable HereMapStyle style,
+            @org.springframework.web.bind.annotation.PathVariable int z,
+            @org.springframework.web.bind.annotation.PathVariable int x,
+            @org.springframework.web.bind.annotation.PathVariable int y
+    ) {
+        TrafficProvider.RasterTile tile = traffic.mapTile(style, z, x, y);
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType(tile.contentType()))
+                .cacheControl(org.springframework.http.CacheControl.maxAge(1, java.util.concurrent.TimeUnit.DAYS).cachePublic())
+                .body(tile.data());
+    }
+
+    @GetMapping("/vector-styles/{style}")
+    public org.springframework.http.ResponseEntity<byte[]> vectorStyle(
+            @org.springframework.web.bind.annotation.PathVariable HereVectorStyle style
+    ) {
+        return vectorResponse(traffic.vectorStyle(style));
+    }
+
+    @GetMapping("/vector-resources")
+    public org.springframework.http.ResponseEntity<byte[]> vectorResource(
+            @RequestParam String url
+    ) {
+        return vectorResponse(traffic.vectorResource(url));
+    }
+
+    private org.springframework.http.ResponseEntity<byte[]> vectorResponse(TrafficProvider.RasterTile resource) {
+        if (resource.data().length == 0) return org.springframework.http.ResponseEntity.notFound().build();
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType(resource.contentType()))
+                .cacheControl(org.springframework.http.CacheControl.maxAge(1, java.util.concurrent.TimeUnit.DAYS).cachePublic())
+                .body(resource.data());
+    }
 }

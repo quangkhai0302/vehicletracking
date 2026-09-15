@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
-import { fetchTrip } from '../services/fleet';
-import type { TripDetail } from '../types/fleet';
+import { fetchTripRoute } from '../services/fleet';
+import type { RouteDetail } from '../types/route';
 
 /** Route ownership follows the selected vehicle's trip, not the open detail panel. */
-export function useSelectedVehicleRoute(tripId: number | null, onError: (message: string) => void) {
-  const [detail, setDetail] = useState<TripDetail | null>(null);
+export function useSelectedVehicleRoute(tripId: number | null, onError: (message: string) => void, revisionKey = '') {
+  const [detail, setDetail] = useState<{tripId: number; route: RouteDetail; revisionKey: string} | null>(null);
 
   useEffect(() => {
     if (tripId === null) return;
     const controller = new AbortController();
-    fetchTrip(tripId, controller.signal).then(result => {
-      if (!controller.signal.aborted) setDetail(result);
+    fetchTripRoute(tripId, controller.signal).then(result => {
+      if (!controller.signal.aborted) setDetail({tripId, route: result, revisionKey});
     }).catch((error: unknown) => {
       if (!controller.signal.aborted) {
         setDetail(null);
@@ -18,8 +18,8 @@ export function useSelectedVehicleRoute(tripId: number | null, onError: (message
       }
     });
     return () => controller.abort();
-  }, [tripId, onError]);
+  }, [tripId, onError, revisionKey]);
 
   // Hide the previous trip immediately while another selection is loading.
-  return tripId !== null && detail?.trip.id === tripId ? detail.route : null;
+  return tripId !== null && detail?.tripId === tripId && detail.revisionKey === revisionKey ? detail.route : null;
 }

@@ -133,6 +133,55 @@ class HereTrafficProviderTest {
         mockServer.verify();
     }
 
+    @Test
+    void fetchMapTile_usesHereBaseRasterTileEndpoint() {
+        byte[] png = new byte[]{(byte) 137, 80, 78, 71};
+        mockServer.expect(requestTo(org.hamcrest.Matchers.startsWith("https://maps.hereapi.com/v3/base/mc/12/3261/1916/png")))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(queryParam("style", "explore.day"))
+                .andExpect(queryParam("size", "512"))
+                .andExpect(queryParam("lang", "vi"))
+                .andExpect(queryParam("apiKey", "test-key"))
+                .andRespond(withSuccess(png, MediaType.IMAGE_PNG));
+
+        TrafficProvider.RasterTile tile = provider.fetchMapTile(HereMapStyle.ROADMAP, 12, 3261, 1916);
+
+        assertThat(tile.data()).containsExactly(png);
+        assertThat(tile.contentType()).isEqualTo(MediaType.IMAGE_PNG_VALUE);
+        mockServer.verify();
+    }
+
+    @Test
+    void fetchVectorStyle_usesHereStyleEndpointAndRedactsCredential() {
+        String style = "{\"version\":8,\"sources\":{\"base\":{\"tiles\":[\"https://vector.hereapi.com/tile?apikey=test-key\"]}}}";
+        mockServer.expect(requestTo(org.hamcrest.Matchers.startsWith("https://assets.vector.hereapi.com/styles/berlin/base/mapbox/tilezen")))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(queryParam("apikey", "test-key"))
+                .andRespond(withSuccess(style, MediaType.APPLICATION_JSON));
+
+        TrafficProvider.RasterTile result = provider.fetchVectorStyle(HereVectorStyle.ROADMAP);
+
+        assertThat(new String(result.data(), java.nio.charset.StandardCharsets.UTF_8)).doesNotContain("test-key");
+        assertThat(result.contentType()).isEqualTo(MediaType.APPLICATION_JSON_VALUE);
+        mockServer.verify();
+    }
+
+    @Test
+    void fetchVectorResource_onlyProxiesAllowedHereHosts() {
+        byte[] vectorTile = new byte[]{1, 2, 3};
+        mockServer.expect(requestTo(org.hamcrest.Matchers.startsWith("https://vector.hereapi.com/v2/vectortiles/base/mc/12/3261/1916/omv")))
+                .andExpect(queryParam("apikey", "test-key"))
+                .andRespond(withSuccess(vectorTile, MediaType.parseMediaType("application/vnd.mapbox-vector-tile")));
+
+        TrafficProvider.RasterTile result = provider.fetchVectorResource(
+                "https://vector.hereapi.com/v2/vectortiles/base/mc/12/3261/1916/omv?apikey=");
+
+        assertThat(result.data()).containsExactly(vectorTile);
+        assertThat(result.contentType()).isEqualTo("application/vnd.mapbox-vector-tile");
+        assertThat(provider.fetchVectorResource("https://untrusted.example/tile").data()).isEmpty();
+        mockServer.verify();
+    }
+
     private static final class HereTrafficPropertiesFixture {
         private final com.quangkhai.vehicletracking_backend.config.HereTrafficProperties properties = properties();
 

@@ -72,7 +72,7 @@ export function FleetWorkspace({ onToast, onFocusStop, onManageRoutes, onManageS
           {trips.map(trip => <button key={trip.id} className="fleet-trip-card" onClick={() => void fleet.selectTrip(trip.id)}>
             <span className="fleet-trip-title"><strong>#{trip.id} · {trip.vehiclePlateNumber}</strong><span className={`trip-status ${trip.status.toLowerCase()}`}>{TRIP_STATUS_LABELS[trip.status]}</span></span>
             <span className="fleet-trip-route">{trip.routeName}</span><span className="fleet-help">Xuất phát {displayTripTime(trip.scheduledDepartureAt)}</span>
-            <span className="fleet-help">Dự kiến đến {displayTripTime(trip.plannedEndAt)}</span>
+            <span className="fleet-help">Theo lịch: {displayTripTime(trip.plannedEndAt)}</span>
           </button>)}
         </>}
       </div>

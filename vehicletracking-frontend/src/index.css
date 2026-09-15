@@ -15,8 +15,8 @@
   --color-border-subtle: rgba(255, 255, 255, 0.06);
 
   --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
 
   --color-primary: #0284c7;
   --color-primary-hover: #0369a1;
@@ -64,6 +64,8 @@ body {
   font-size: 13px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -113,6 +115,16 @@ h3 {
 
 .dark-map-tiles {
   filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(92%);
+}
+
+/* HERE Traffic flow lines adjustment to align with Google Maps Traffic palette:
+   - Green (fast): shifts pale mint green to Google Green (#0F9D58)
+   - Orange (moderate): shifts to warm Google Amber (#F9AB00)
+   - Red (slow): shifts to vivid Google Red (#EA4335)
+   - Dark Red (severe): deep burgundy (#8B0000) */
+.leaflet-container img.leaflet-tile.here-traffic-tiles,
+.leaflet-container .leaflet-pane.leaflet-hereTrafficTilePane-pane img {
+  filter: hue-rotate(-14deg) saturate(1.55) contrast(1.22) brightness(0.96);
 }
 
 .leaflet-container img.leaflet-tile {
@@ -621,9 +633,9 @@ h3 {
 
 .station-card-name {
   overflow: hidden;
-  font-size: 0.82rem;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: #f8fafc;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -719,18 +731,25 @@ h3 {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 0.67rem;
+  font-size: 11px;
   color: var(--text-muted);
+  margin-top: 4px;
 }
 
 .station-meta-coords {
-  color: var(--text-secondary);
-  font-family: monospace;
+  color: #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
 }
 
 .station-meta-radius {
-  color: var(--color-accent);
-  font-weight: 500;
+  color: #38bdf8;
+  font-weight: 600;
+  font-size: 10.5px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 4px;
+  padding: 1px 6px;
 }
 
 .station-empty {
@@ -2387,12 +2406,14 @@ h3 {
 }
 
 .station-card-address {
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  line-height: 1.35;
+  font-size: 11.5px;
+  color: #cbd5e1;
+  line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-left: 15px;
+  margin-top: 2px;
 }
 
 /* Dialog details */

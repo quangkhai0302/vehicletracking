@@ -43,7 +43,7 @@ export function TripDetailPanel({ detail, loading, busy, error, onClose, onRetry
         <details className="trip-traffic-details"><summary>Lịch trình dự kiến và thực tế</summary>
         <dl className="trip-times">
           <div><dt>Xuất phát kế hoạch</dt><dd>{displayTripTime(trip.scheduledDepartureAt)}</dd></div>
-          <div><dt>Hoàn thành dự kiến</dt><dd>{displayTripTime(trip.plannedEndAt)}</dd></div>
+          <div><dt>Hoàn thành theo lịch</dt><dd>{displayTripTime(trip.plannedEndAt)}</dd></div>
           <div><dt>Khởi hành thực tế</dt><dd>{displayTripTime(trip.startedAt)}</dd></div>
           <div><dt>{trip.status === 'CANCELLED' ? 'Hủy lúc' : 'Kết thúc thực tế'}</dt><dd>{displayTripTime(trip.endedAt)}</dd></div>
         </dl>

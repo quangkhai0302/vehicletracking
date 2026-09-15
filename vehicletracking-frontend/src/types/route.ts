@@ -58,6 +58,7 @@ export interface RouteSummary {
 }
 
 export interface RouteDetail {
+  shapingPoints?: RouteShapePoint[];
   id: number;
   name: string;
   transportMode: RouteTransportMode;
@@ -73,3 +74,5 @@ export interface RouteDetail {
   stops: RouteStop[];
   sections: RouteSection[];
 }
+
+export interface RouteShapePoint { destinationStopSequence: number; latitude: number; longitude: number }

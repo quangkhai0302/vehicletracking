@@ -1,9 +1,10 @@
 import type { TripSummary } from '../types/fleet';
 import type { OperationsSnapshot } from '../types/operations';
 
-// Stable by vehicle, independent of list order and current playback state.
+// Google Maps Palette: Selected route is primary Google Blue #4285f4.
+// Other vehicle routes use Google transit route colors.
 export function simulationRouteColor(vehicleId: number, selected = false) {
-  return selected ? '#22d3ee' : ['#2563eb', '#a855f7', '#0d9488', '#6366f1'][Math.abs(vehicleId) % 4];
+  return selected ? '#4285f4' : ['#1a73e8', '#0f9d58', '#f9ab00', '#8e24aa'][Math.abs(vehicleId) % 4];
 }
 
 // One visible assignment per vehicle: an active trip blocks all waiting trips,

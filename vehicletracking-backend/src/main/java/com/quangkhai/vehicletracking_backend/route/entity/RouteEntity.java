@@ -79,6 +79,12 @@ public class RouteEntity {
     @BatchSize(size = 50)
     private List<RouteSectionEntity> sections = new ArrayList<>();
 
+    @OneToMany(mappedBy="route",cascade=CascadeType.ALL,orphanRemoval=true)
+    @OrderBy("pointOrder ASC")
+    private List<RouteShapePointEntity> shapingPoints = new ArrayList<>();
+
+    public void addShapingPoint(RouteShapePointEntity point) { shapingPoints.add(point); point.setRoute(this); }
+
     public RouteEntity(
             String name,
             RouteTransportMode transportMode,
@@ -154,6 +160,7 @@ public class RouteEntity {
     public void clearDefinitionChildren() {
         this.stops.clear();
         this.sections.clear();
+        this.shapingPoints.clear();
     }
 
     /**
@@ -162,5 +169,6 @@ public class RouteEntity {
     public void appendDefinitionChildren(RouteEntity replacement) {
         replacement.stops.forEach(this::addStop);
         replacement.sections.forEach(this::addSection);
+        replacement.shapingPoints.forEach(this::addShapingPoint);
     }
 }

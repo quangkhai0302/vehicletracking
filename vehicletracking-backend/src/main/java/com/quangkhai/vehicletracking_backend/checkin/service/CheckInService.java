@@ -27,6 +27,7 @@ public class CheckInService {
     static final double MAX_ACCURACY_METERS = 30d;
     private final TripCheckInStateRepository states;
     private final TripStopVisitRepository visits;
+    private final com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry;
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -126,7 +127,7 @@ public class CheckInService {
             double toElapsed=Duration.between(trip.getScheduledDepartureAt(),current.getSimulatedAt()).toNanos()/1_000_000_000d;
             if (toElapsed<=fromElapsed) return GeofenceCrossing.inside(now,stop.getLatitude().doubleValue(),stop.getLongitude().doubleValue(),radius)
                 ? Optional.of(new Evidence(1,current.getLatitude(),current.getLongitude(),CheckInEvidenceKind.POINT)) : Optional.empty();
-            var crossing=new RouteMotion(RouteDetailResponse.from(trip.getRoute())).firstEntryBetween(fromElapsed,toElapsed,
+            var crossing=geometry.resolve(trip).motion().firstEntryBetween(fromElapsed,toElapsed,
                 stop.getLatitude().doubleValue(),stop.getLongitude().doubleValue(),radius,minimumFraction);
             if(crossing==null) return Optional.empty();
             return Optional.of(new Evidence(crossing.fraction(),crossing.latitude(),crossing.longitude(),CheckInEvidenceKind.ROUTE_TRACE));

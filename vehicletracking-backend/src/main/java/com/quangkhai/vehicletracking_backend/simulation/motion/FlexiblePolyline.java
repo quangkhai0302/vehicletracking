@@ -5,6 +5,20 @@ public final class FlexiblePolyline {
     public record Point(double latitude,double longitude) {}
     private static final String ALPHABET="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     private FlexiblePolyline() {}
+    /** Encodes persisted route-prefix cuts with the same precision as HERE fixtures. */
+    public static String encode(List<Point> points) {
+        if (points==null || points.isEmpty()) throw invalid();
+        var out=new StringBuilder("BF");long lat=0,lng=0;
+        for(var p:points) {
+            long a=Math.round(p.latitude()*100000),b=Math.round(p.longitude()*100000);
+            append(out,(a-lat)<<1 ^ (a-lat)>>63);append(out,(b-lng)<<1 ^ (b-lng)>>63);lat=a;lng=b;
+        }
+        return out.toString();
+    }
+    private static void append(StringBuilder out,long value) {
+        while(value>=32) { out.append(ALPHABET.charAt((int)(value&31)|32));value>>>=5; }
+        out.append(ALPHABET.charAt((int)value));
+    }
     public static List<Point> decode(String encoded) {
         if (encoded==null || encoded.isBlank() || encoded.length()>2_000_000) throw invalid();
         var reader=new Reader(encoded);

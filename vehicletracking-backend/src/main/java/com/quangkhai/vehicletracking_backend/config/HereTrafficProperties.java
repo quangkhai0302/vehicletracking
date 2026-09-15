@@ -19,6 +19,12 @@ public class HereTrafficProperties {
     @NotBlank
     private String tileBaseUrl = "https://traffic.maps.hereapi.com";
 
+    @NotBlank
+    private String mapTileBaseUrl = "https://maps.hereapi.com";
+
+    @NotBlank
+    private String vectorStyleBaseUrl = "https://assets.vector.hereapi.com/styles/berlin/base/mapbox/tilezen";
+
     private String apiKey = "";
 
     @Positive
@@ -61,6 +67,22 @@ public class HereTrafficProperties {
 
     public void setTileBaseUrl(String tileBaseUrl) {
         this.tileBaseUrl = tileBaseUrl;
+    }
+
+    public String getMapTileBaseUrl() {
+        return mapTileBaseUrl;
+    }
+
+    public void setMapTileBaseUrl(String mapTileBaseUrl) {
+        this.mapTileBaseUrl = mapTileBaseUrl;
+    }
+
+    public String getVectorStyleBaseUrl() {
+        return vectorStyleBaseUrl;
+    }
+
+    public void setVectorStyleBaseUrl(String vectorStyleBaseUrl) {
+        this.vectorStyleBaseUrl = vectorStyleBaseUrl;
     }
 
     public String getApiKey() {
@@ -129,6 +151,14 @@ public class HereTrafficProperties {
         return tileBaseUrl == null ? "" : tileBaseUrl.trim().replaceAll("/+$", "");
     }
 
+    public String getMapTileApiBaseUrl() {
+        return mapTileBaseUrl == null ? "" : mapTileBaseUrl.trim().replaceAll("/+$", "");
+    }
+
+    public String getVectorStyleApiBaseUrl() {
+        return vectorStyleBaseUrl == null ? "" : vectorStyleBaseUrl.trim().replaceAll("/+$", "");
+    }
+
     @AssertTrue(message = "HERE API key không được để trống khi here.traffic.enabled=true")
     public boolean isApiKeyValidWhenEnabled() {
         return !enabled || (apiKey != null && !apiKey.trim().isEmpty());
@@ -139,6 +169,8 @@ public class HereTrafficProperties {
         return "HereTrafficProperties{" +
                 "baseUrl='" + baseUrl + '\'' +
                 ", tileBaseUrl='" + tileBaseUrl + '\'' +
+                ", mapTileBaseUrl='" + mapTileBaseUrl + '\'' +
+                ", vectorStyleBaseUrl='" + vectorStyleBaseUrl + '\'' +
                 ", apiKey='[REDACTED]'" +
                 ", connectTimeoutMs=" + connectTimeoutMs +
                 ", readTimeoutMs=" + readTimeoutMs +

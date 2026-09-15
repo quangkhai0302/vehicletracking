@@ -72,4 +72,16 @@ class TrafficControllerTest {
                 .andExpect(content().contentType(MediaType.IMAGE_PNG))
                 .andExpect(content().bytes(fakePng));
     }
+
+    @Test
+    void mapTile_returnsStyleContentType() throws Exception {
+        byte[] fakeJpeg = new byte[]{1, 2, 3};
+        when(traffic.mapTile(HereMapStyle.SATELLITE, 12, 3261, 1916))
+                .thenReturn(new TrafficProvider.RasterTile(fakeJpeg, MediaType.IMAGE_JPEG_VALUE));
+
+        mockMvc.perform(get("/api/v1/traffic/map-tiles/SATELLITE/12/3261/1916"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_JPEG))
+                .andExpect(content().bytes(fakeJpeg));
+    }
 }

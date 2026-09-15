@@ -44,6 +44,25 @@ class RouteRepositoryIntegrationTest {
     private EntityManager entityManager;
 
     @Test
+    void shapingPointsPersistAndCanBeReplacedWithoutSequenceConflict() {
+        var a=stationRepository.saveAndFlush(new StationEntity("A",null,new BigDecimal("10.77"),new BigDecimal("106.7"),50));
+        var b=stationRepository.saveAndFlush(new StationEntity("B",null,new BigDecimal("10.771"),new BigDecimal("106.701"),50));
+        var route=com.quangkhai.vehicletracking_backend.simulation.SimulationFixtures.route(a,b);
+        route.addShapingPoint(new com.quangkhai.vehicletracking_backend.route.entity.RouteShapePointEntity(1,2,
+            new BigDecimal("10.770500"),new BigDecimal("106.702000")));
+        long id=routeRepository.saveAndFlush(route).getId();entityManager.clear();
+        var found=routeRepository.findById(id).orElseThrow();
+        assertThat(found.getShapingPoints()).hasSize(1);
+        assertThat(found.getShapingPoints().getFirst().getDestinationStopSequence()).isEqualTo(2);
+        found.getShapingPoints().clear();routeRepository.flush();
+        found.addShapingPoint(new com.quangkhai.vehicletracking_backend.route.entity.RouteShapePointEntity(1,2,
+            new BigDecimal("10.770600"),new BigDecimal("106.703000")));
+        routeRepository.saveAndFlush(found);entityManager.clear();
+        assertThat(routeRepository.findById(id).orElseThrow().getShapingPoints().getFirst().getLongitude())
+            .isEqualByComparingTo("106.703000");
+    }
+
+    @Test
     void persistRouteWithStopsAndSections_persistsAndRetrievesGraphCorrectly() {
         StationEntity s1 = stationRepository.saveAndFlush(new StationEntity(
                 "Bến xe Miền Đông", "292 Đinh Bộ Lĩnh", new BigDecimal("10.801234"), new BigDecimal("106.710123"), 50));
@@ -285,4 +304,3 @@ class RouteRepositoryIntegrationTest {
         assertThat(sectionCountAfter.longValue()).isZero();
     }
 }
-

@@ -64,6 +64,13 @@ public class TripRouteRevisionEntity {
     @Column(name = "superseded_at")
     private Instant supersededAt;
 
+    @Column(name="simulation_start_elapsed") private Double simulationStartElapsed;
+    @Column(name="simulation_attempt_number") private Integer simulationAttemptNumber;
+    public void applyToSimulation(double elapsed,int attempt) {
+        if (!Double.isFinite(elapsed) || elapsed<0 || attempt<1) throw new IllegalArgumentException("Invalid simulation revision anchor");
+        simulationStartElapsed=elapsed;simulationAttemptNumber=attempt;
+    }
+
     @OneToMany(mappedBy = "revision", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sequenceNumber ASC")
     private List<TripRouteRevisionStopEntity> stops = new ArrayList<>();

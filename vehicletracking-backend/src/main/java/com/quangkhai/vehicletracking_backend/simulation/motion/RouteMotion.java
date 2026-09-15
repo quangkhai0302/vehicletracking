@@ -11,10 +11,22 @@ public final class RouteMotion {
     private record Leg(double start,double end,int destination,List<Point> points,double[] distances,double length,double distanceBefore) {}
     private final List<Leg> legs=new ArrayList<>();
     private final RouteDetailResponse route;
+    /**
+     * Simulator time is based on free-flow geometry.  The route snapshot may
+     * already contain HERE's traffic-aware duration; using that value here
+     * and applying live traffic again would slow the vehicle twice.
+     */
+    private final Map<Integer,Double> arrivalOffsets=new HashMap<>();
+    private final Map<Integer,Double> departureOffsets=new HashMap<>();
+    private double simulationDuration;
     private double totalDistance;
     public RouteMotion(RouteDetailResponse route) {
         this.route=route;
         double elapsed=0;
+        if (!route.stops().isEmpty()) {
+            arrivalOffsets.put(route.stops().getFirst().sequenceNumber(), 0d);
+            departureOffsets.put(route.stops().getFirst().sequenceNumber(), 0d);
+        }
         int sectionIndex=0;
         Point previous=null;
         for(int stop=1;stop<route.stops().size();stop++) {
@@ -27,19 +39,99 @@ public final class RouteMotion {
                 double[] distances=new double[points.size()];
                 for(int i=1;i<points.size();i++) distances[i]=distances[i-1]+distance(points.get(i-1),points.get(i));
                 double length=distances[distances.length-1];
-                double duration=section.travelDurationSeconds();
+                double duration=freeFlowDuration(section);
                 if(duration<0 || (length>0 && duration==0) || (section.distanceMeters()>0 && length==0)
                     || (duration>0 && length/duration*3.6>500)) throw invalid();
                 legs.add(new Leg(elapsed,elapsed+duration,destination,points,distances,length,totalDistance));
                 totalDistance+=length; elapsed+=duration; previous=points.getLast();
             }
             if(count==0) throw invalid();
-            elapsed+=route.stops().get(stop).dwellDurationSeconds();
+            var stopDefinition=route.stops().get(stop);
+            arrivalOffsets.put(destination, elapsed);
+            elapsed+=stopDefinition.dwellDurationSeconds();
+            departureOffsets.put(destination, elapsed);
         }
         if(legs.isEmpty() || totalDistance<=0 || sectionIndex!=route.sections().size()
-            || elapsed!=route.estimatedTripDurationSeconds() || !Double.isFinite(elapsed)) throw invalid();
+            || !Double.isFinite(elapsed)) throw invalid();
+        simulationDuration=elapsed;
     }
-    public double duration() { return route.estimatedTripDurationSeconds(); }
+    private static double freeFlowDuration(RouteDetailResponse.RouteSectionResponse section) {
+        // Routes created before baseDuration was persisted can have zero here;
+        // retain their original snapshot duration instead of making geometry
+        // impossible to simulate.
+        long base=section.baseTravelDurationSeconds();
+        if (base<=0 && section.travelDurationSeconds()>0) base=section.travelDurationSeconds();
+        return base;
+    }
+    public double duration() { return simulationDuration; }
+
+    /** Retains the travelled prefix, then appends the replacement from the current position. */
+    public void revise(List<RouteDetailResponse.RouteSectionResponse> sections,double atElapsed) {
+        if (sections.isEmpty() || !Double.isFinite(atElapsed) || atElapsed<0 || atElapsed>=duration()) throw invalid();
+        var current=at(atElapsed);
+        if (current.dwelling()) throw invalid();
+        var expected=route.stops().stream().map(RouteDetailResponse.RouteStopResponse::sequenceNumber)
+            .filter(sequence -> sequence>=current.nextStopSequence()).toList();
+        List<Integer> destinations=new ArrayList<>();
+        for(var section:sections) {
+            if(destinations.isEmpty() || destinations.getLast()!=section.destinationStopSequence())
+                destinations.add(section.destinationStopSequence());
+        }
+        if (!destinations.equals(expected)) throw invalid();
+        var first=FlexiblePolyline.decode(sections.getFirst().encodedPolyline()).getFirst();
+        if (distance(new Point(current.latitude(),current.longitude()),first)>100) throw invalid();
+        List<Leg> replacement=new ArrayList<>();
+        double travelled=0;
+        for (var leg:legs) {
+            if (leg.start()>=atElapsed) break;
+            if (leg.end()<=atElapsed) { replacement.add(leg);travelled+=leg.length();continue; }
+            var points=new ArrayList<Point>();points.add(leg.points().getFirst());
+            double length=leg.length()*(atElapsed-leg.start())/(leg.end()-leg.start());
+            for(int i=1;i<leg.points().size();i++) if(leg.distances()[i]<length) points.add(leg.points().get(i));
+            points.add(pointAt(leg,atElapsed));
+            double[] distances=distances(points);
+            replacement.add(new Leg(leg.start(),atElapsed,leg.destination(),points,distances,length,travelled));
+            travelled+=length;
+        }
+        double elapsed=atElapsed;
+        var arrivals=new HashMap<>(arrivalOffsets);var departures=new HashMap<>(departureOffsets);
+        for(int index=0;index<sections.size();index++) {
+            var section=sections.get(index);var points=FlexiblePolyline.decode(section.encodedPolyline());
+            if (index>0 && distance(replacement.getLast().points().getLast(),points.getFirst())>100) throw invalid();
+            double[] distances=distances(points);double length=distances[distances.length-1];
+            double duration=freeFlowDuration(section);
+            if(duration<0 || (length>0 && duration==0) || (duration>0 && length/duration*3.6>500)) throw invalid();
+            replacement.add(new Leg(elapsed,elapsed+duration,section.destinationStopSequence(),points,distances,length,travelled));
+            travelled+=length;elapsed+=duration;
+            if(index==sections.size()-1 || sections.get(index+1).destinationStopSequence()!=section.destinationStopSequence()) {
+                var stop=route.stops().stream().filter(s->s.sequenceNumber()==section.destinationStopSequence()).findFirst().orElseThrow(RouteMotion::invalid);
+                arrivals.put(stop.sequenceNumber(),elapsed);elapsed+=stop.dwellDurationSeconds();departures.put(stop.sequenceNumber(),elapsed);
+            }
+        }
+        if (!Double.isFinite(elapsed) || travelled<=0) throw invalid();
+        legs.clear();legs.addAll(replacement);totalDistance=travelled;simulationDuration=elapsed;
+        arrivalOffsets.clear();arrivalOffsets.putAll(arrivals);departureOffsets.clear();departureOffsets.putAll(departures);
+    }
+
+    private static double[] distances(List<Point> points) {
+        var result=new double[points.size()];
+        for(int i=1;i<points.size();i++) result[i]=result[i-1]+distance(points.get(i-1),points.get(i));
+        return result;
+    }
+
+    public RouteDetailResponse snapshot() {
+        List<RouteDetailResponse.RouteSectionResponse> sections=new ArrayList<>();
+        for(var leg:legs) sections.add(new RouteDetailResponse.RouteSectionResponse(sections.size()+1,leg.destination(),
+            FlexiblePolyline.encode(leg.points()),Math.round(leg.length()),Math.max(1,Math.round(leg.end()-leg.start())),Math.max(1,Math.round(leg.end()-leg.start()))));
+        var stops=route.stops().stream().map(s -> new RouteDetailResponse.RouteStopResponse(s.sequenceNumber(),s.role(),s.stationId(),s.stationName(),
+            s.latitude(),s.longitude(),s.dwellDurationSeconds(),
+            sections.stream().filter(section -> section.destinationStopSequence()==s.sequenceNumber()).mapToLong(RouteDetailResponse.RouteSectionResponse::distanceMeters).sum(),
+            sections.stream().filter(section -> section.destinationStopSequence()==s.sequenceNumber()).mapToLong(RouteDetailResponse.RouteSectionResponse::travelDurationSeconds).sum(),
+            Math.round(arrivalOffsets.get(s.sequenceNumber())),Math.round(departureOffsets.get(s.sequenceNumber())))).toList();
+        long travel=sections.stream().mapToLong(RouteDetailResponse.RouteSectionResponse::baseTravelDurationSeconds).sum();
+        return new RouteDetailResponse(route.id(),route.name(),route.transportMode(),route.routingProvider(),Math.round(totalDistance),travel,travel,
+            route.totalDwellDurationSeconds(),Math.round(duration()),route.estimatedDepartureAt(),route.calculatedAt(),route.createdAt(),stops,sections,route.shapingPoints());
+    }
 
     /**
      * Finds the first outside-to-inside crossing of a stop along the actual
@@ -127,15 +219,17 @@ public final class RouteMotion {
                 double lon=((a.longitude()+deltaLon*ratio+540)%360)-180;
                 return new Frame(a.latitude()+(b.latitude()-a.latitude())*ratio,lon,bearing(a,b),
                     leg.length()/(leg.end()-leg.start())*3.6,(leg.distanceBefore()+target)/totalDistance*100,
-                    leg.destination(),Math.max(0,route.stops().get(leg.destination()-1).arrivalOffsetSeconds()-elapsed),false,false);
+                    leg.destination(),Math.max(0,arrivalOffsets.getOrDefault(leg.destination(), elapsed)-elapsed),false,false);
             }
             // A dwell belongs to the final section of this stop, not intermediate sections.
-            var stop=route.stops().get(leg.destination()-1);
-            if(elapsed>=stop.arrivalOffsetSeconds() && elapsed<stop.departureOffsetSeconds() && leg.end()==stop.arrivalOffsetSeconds()) {
+            var stop=route.stops().stream().filter(item -> item.sequenceNumber()==leg.destination()).findFirst().orElseThrow();
+            double arrival=arrivalOffsets.getOrDefault(stop.sequenceNumber(), leg.end());
+            double departure=departureOffsets.getOrDefault(stop.sequenceNumber(), arrival+stop.dwellDurationSeconds());
+            if(elapsed>=arrival && elapsed<departure && Math.abs(leg.end()-arrival)<1e-9) {
                 var p=leg.points().getLast();
                 int next=Math.min(stop.sequenceNumber()+1,route.stops().size());
                 return new Frame(p.latitude(),p.longitude(),0,0,(leg.distanceBefore()+leg.length())/totalDistance*100,next,
-                    Math.max(0,route.stops().get(next-1).arrivalOffsetSeconds()-elapsed),true,false);
+                    Math.max(0,arrivalOffsets.getOrDefault(next, elapsed)-elapsed),true,false);
             }
         }
         throw invalid();

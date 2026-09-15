@@ -138,14 +138,14 @@
 }
 
 .route-card-name {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--color-text-primary, #f8fafc);
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #ffffff;
 }
 
 .route-card-endpoints {
   font-size: 12px;
-  color: var(--color-text-secondary, #94a3b8);
+  color: #cbd5e1;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -156,17 +156,22 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 11px;
-  color: var(--color-text-muted, #64748b);
-  border-top: 1px solid var(--color-border-subtle, rgba(255, 255, 255, 0.05));
+  font-size: 11.5px;
+  color: #94a3b8;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 6px;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .route-metric-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  color: #cbd5e1;
+}
+
+.route-metric-item svg {
+  color: #38bdf8;
 }
 
 /* --- Route Drawer (Right Sidebar) --- */
@@ -417,6 +422,7 @@
 .route-drawer-footer {
   padding: 16px 20px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
   border-top: 1px solid var(--color-border-subtle, rgba(255, 255, 255, 0.06));
@@ -709,3 +715,8 @@
     flex: 1;
   }
 }
+.route-shape-handle span { display: grid; place-items: center; width: 28px; height: 28px; background: #fff; color: #174ea6; border: 3px solid #1967d2; border-radius: 50%; font-weight: 700; cursor: grab; box-shadow: 0 2px 6px #0005; }
+.route-shape-points { padding-left: 20px; }
+.route-shape-points li { margin: 10px 0; }
+.route-shape-points button { margin-left: 12px; }
+.route-shape-copy { display: flex; align-items: center; gap: 8px; margin: 18px 0; }

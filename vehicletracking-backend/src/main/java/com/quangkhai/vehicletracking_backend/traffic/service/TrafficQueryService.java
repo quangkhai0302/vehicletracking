@@ -65,12 +65,14 @@ public class TrafficQueryService {
     }
 
     private final Map<String, TileCacheEntry> tileCache = new ConcurrentHashMap<>();
+    private final Map<String, MapTileCacheEntry> mapTileCache = new ConcurrentHashMap<>();
+    private final Map<String, MapTileCacheEntry> vectorCache = new ConcurrentHashMap<>();
 
     private record TileCacheEntry(byte[] data, Instant expiresAt) {}
+    private record MapTileCacheEntry(TrafficProvider.RasterTile tile, Instant expiresAt) {}
 
     public byte[] tile(int z, int x, int y) {
-        long tileCount = z >= 0 && z <= 20 ? 1L << z : 0;
-        if (tileCount == 0 || x < 0 || y < 0 || x >= tileCount || y >= tileCount) {
+        if (!validTileCoordinates(z, x, y)) {
             return HereTrafficProvider.EMPTY_TILE;
         }
         String key = z + "/" + x + "/" + y;
@@ -87,6 +89,56 @@ public class TrafficQueryService {
             tileCache.put(key, new TileCacheEntry(tile, now.plus(Duration.ofSeconds(properties.getCacheTtlSeconds()))));
         }
         return tile != null ? tile : HereTrafficProvider.EMPTY_TILE;
+    }
+
+    public TrafficProvider.RasterTile mapTile(HereMapStyle style, int z, int x, int y) {
+        if (style == null || !validTileCoordinates(z, x, y)) {
+            return new TrafficProvider.RasterTile(HereTrafficProvider.EMPTY_TILE, "image/png");
+        }
+        String key = style.name() + ":" + z + "/" + x + "/" + y;
+        Instant now = now();
+        MapTileCacheEntry entry = mapTileCache.get(key);
+        if (entry != null && entry.expiresAt().isAfter(now)) {
+            return entry.tile();
+        }
+        TrafficProvider.RasterTile tile = provider.fetchMapTile(style, z, x, y);
+        if (tile == null || tile.data().length == 0) {
+            tile = new TrafficProvider.RasterTile(HereTrafficProvider.EMPTY_TILE, "image/png");
+        }
+        if (mapTileCache.size() > 5000) {
+            mapTileCache.clear();
+        }
+        mapTileCache.put(key, new MapTileCacheEntry(tile, now.plus(Duration.ofHours(24))));
+        return tile;
+    }
+
+    public TrafficProvider.RasterTile vectorStyle(HereVectorStyle style) {
+        if (style == null) return new TrafficProvider.RasterTile(new byte[0], "application/json");
+        return cachedVector("style:" + style.name(), () -> provider.fetchVectorStyle(style));
+    }
+
+    public TrafficProvider.RasterTile vectorResource(String upstreamUrl) {
+        if (upstreamUrl == null || upstreamUrl.isBlank() || upstreamUrl.length() > 4_096) {
+            return new TrafficProvider.RasterTile(new byte[0], "application/octet-stream");
+        }
+        return cachedVector("resource:" + upstreamUrl, () -> provider.fetchVectorResource(upstreamUrl));
+    }
+
+    private TrafficProvider.RasterTile cachedVector(String key, Supplier<TrafficProvider.RasterTile> loader) {
+        Instant now = now();
+        MapTileCacheEntry entry = vectorCache.get(key);
+        if (entry != null && entry.expiresAt().isAfter(now)) return entry.tile();
+        TrafficProvider.RasterTile tile = loader.get();
+        if (tile == null || tile.data().length == 0) return tile == null
+                ? new TrafficProvider.RasterTile(new byte[0], "application/octet-stream") : tile;
+        if (vectorCache.size() > 5_000) vectorCache.clear();
+        vectorCache.put(key, new MapTileCacheEntry(tile, now.plus(Duration.ofHours(24))));
+        return tile;
+    }
+
+    private boolean validTileCoordinates(int z, int x, int y) {
+        long tileCount = z >= 0 && z <= 20 ? 1L << z : 0;
+        return tileCount != 0 && x >= 0 && y >= 0 && x < tileCount && y < tileCount;
     }
 
     private <T> TrafficEnvelope<T> query(String key, Supplier<TrafficProvider.TrafficPayload<T>> loader) {

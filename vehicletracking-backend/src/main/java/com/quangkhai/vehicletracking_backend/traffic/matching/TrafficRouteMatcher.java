@@ -8,38 +8,60 @@ import java.util.List;
 
 public class TrafficRouteMatcher {
     public boolean matches(String encodedRoutePolyline, TrafficFlowSegment flow, double radiusMeters) {
-        if (encodedRoutePolyline == null || flow == null || flow.points().isEmpty()) return false;
+        return Double.isFinite(matchDistanceMeters(encodedRoutePolyline, flow, radiusMeters));
+    }
+
+    /**
+     * Returns the closest geometry distance for a compatible flow segment.
+     * {@link Double#POSITIVE_INFINITY} means the segment is not on this route
+     * corridor or is travelling in the opposite direction.
+     */
+    public double matchDistanceMeters(String encodedRoutePolyline, TrafficFlowSegment flow, double radiusMeters) {
+        if (encodedRoutePolyline == null || flow == null || flow.points().isEmpty()) return Double.POSITIVE_INFINITY;
         List<FlexiblePolyline.Point> route;
         try {
             route = FlexiblePolyline.decode(encodedRoutePolyline);
         } catch (RuntimeException ex) {
-            return false;
+            return Double.POSITIVE_INFINITY;
         }
-        if (route.isEmpty()) return false;
-        boolean spatial = false;
+        if (route.isEmpty() || !Double.isFinite(radiusMeters) || radiusMeters < 0) return Double.POSITIVE_INFINITY;
+        double closest = Double.POSITIVE_INFINITY;
         for (var point : flow.points()) {
             if (point == null || point.size() < 2) continue;
-            var candidate = new FlexiblePolyline.Point(point.get(0), point.get(1));
-            if (distanceToPolyline(candidate, route) <= radiusMeters) {
-                spatial = true;
-                break;
+            try {
+                closest = Math.min(closest, distanceToPolyline(new FlexiblePolyline.Point(point.get(0), point.get(1)), route));
+            } catch (RuntimeException ignored) {
+                // Invalid upstream point cannot make a route match.
             }
         }
-        if (!spatial) {
+        if (closest > radiusMeters) {
             for (var point : route) {
-                var candidate = new FlexiblePolyline.Point(point.latitude(), point.longitude());
-                if (distanceToPolyline(candidate, flow.points()) <= radiusMeters) {
-                    spatial = true;
-                    break;
-                }
+                closest = Math.min(closest, distanceToPolyline(point, flow.points()));
             }
         }
-        if (!spatial || flow.points().size() < 2 || route.size() < 2) return spatial;
-        var routeStart = route.getFirst();
-        var routeEnd = route.getLast();
-        var flowStart = new FlexiblePolyline.Point(flow.points().getFirst().get(0), flow.points().getFirst().get(1));
-        var flowEnd = new FlexiblePolyline.Point(flow.points().getLast().get(0), flow.points().getLast().get(1));
-        return angleDifference(bearing(routeStart, routeEnd), bearing(flowStart, flowEnd)) <= 120;
+        if (!Double.isFinite(closest) || closest > radiusMeters) return Double.POSITIVE_INFINITY;
+        if (flow.points().size() < 2 || route.size() < 2) return closest;
+        try {
+            var flowStart = new FlexiblePolyline.Point(flow.points().getFirst().get(0), flow.points().getFirst().get(1));
+            var flowEnd = new FlexiblePolyline.Point(flow.points().getLast().get(0), flow.points().getLast().get(1));
+            double routeBearing = closestSegmentBearing(flowStart, route);
+            return !Double.isFinite(routeBearing) || angleDifference(routeBearing, bearing(flowStart, flowEnd)) <= 120
+                    ? closest : Double.POSITIVE_INFINITY;
+        } catch (RuntimeException ignored) {
+            return Double.POSITIVE_INFINITY;
+        }
+    }
+
+    /** Distance from a vehicle position to a HERE flow shape. */
+    public double distanceToFlowMeters(double latitude, double longitude, TrafficFlowSegment flow) {
+        if (flow == null || flow.points().isEmpty() || !Double.isFinite(latitude) || !Double.isFinite(longitude)) {
+            return Double.POSITIVE_INFINITY;
+        }
+        try {
+            return distanceToPolyline(new FlexiblePolyline.Point(latitude, longitude), flow.points());
+        } catch (RuntimeException ignored) {
+            return Double.POSITIVE_INFINITY;
+        }
     }
 
     private double distanceToPolyline(FlexiblePolyline.Point point, List<?> polyline) {
@@ -61,6 +83,21 @@ public class TrafficRouteMatcher {
             }
         }
         return best;
+    }
+
+    private double closestSegmentBearing(FlexiblePolyline.Point point, List<FlexiblePolyline.Point> polyline) {
+        double best = Double.POSITIVE_INFINITY;
+        double result = Double.NaN;
+        for (int index = 1; index < polyline.size(); index++) {
+            FlexiblePolyline.Point from = polyline.get(index - 1);
+            FlexiblePolyline.Point to = polyline.get(index);
+            double distance = distanceToSegment(point, from, to);
+            if (distance < best && RouteMotion.distance(from, to) > 0.01d) {
+                best = distance;
+                result = bearing(from, to);
+            }
+        }
+        return result;
     }
 
     private FlexiblePolyline.Point toPoint(Object value) {

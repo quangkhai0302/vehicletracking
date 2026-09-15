@@ -34,7 +34,8 @@ class CheckInReplayTest {
         current.assignAttempt(trip.getAttemptNumber());
         var states=mock(TripCheckInStateRepository.class); var visits=mock(TripStopVisitRepository.class);
         when(states.findLockedByTripId(5L)).thenReturn(Optional.of(state));
-        var service=new CheckInService(states,visits);
+        var service=new CheckInService(states,visits,new com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService(
+            mock(com.quangkhai.vehicletracking_backend.reroute.repository.TripRouteRevisionRepository.class)));
         ReflectionTestUtils.setField(service,"entityManager",mock(EntityManager.class));
 
         service.process(trip,old,current);

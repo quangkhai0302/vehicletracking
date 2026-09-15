@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import type L from 'leaflet';
+import { RouteShapeEditor } from './RouteShapeEditor';
 import type { RouteCreateInput, RouteDetail, RouteDraftStop, RouteSummary } from '../../types/route';
 import type { Station } from '../../types/station';
 import { createRoute, updateRoute, deactivateRoute, fetchRouteById, fetchRoutes } from '../../services/routes';
@@ -6,6 +8,7 @@ import { RoutePanel } from './RoutePanel';
 import { RouteDrawer } from './RouteDrawer';
 
 interface RouteWorkspaceProps {
+  mapRef: RefObject<L.Map | null>;
   stations: Station[];
   loadingStations: boolean;
   onDraftStopsChange: (stops: RouteDraftStop[]) => void;
@@ -17,6 +20,7 @@ interface RouteWorkspaceProps {
 }
 
 export function RouteWorkspace({
+  mapRef,
   stations, loadingStations, onDraftStopsChange, selectedDraftStopId, onFocusDraftStop, onFocusStop,
   onPlannedRouteDisplay,
   onShowToast,
@@ -30,6 +34,7 @@ export function RouteWorkspace({
   const [routeDrawerMode, setRouteDrawerMode] = useState<'closed' | 'create' | 'edit' | 'view'>('closed');
   const [savingRoute, setSavingRoute] = useState(false);
   const mutationRef = useRef(false);
+  const [shaping, setShaping] = useState(false);
 
   // M-04: Request token & AbortController to prevent race condition on consecutive route selections
   const detailAbortRef = useRef<AbortController | null>(null);
@@ -258,7 +263,12 @@ export function RouteWorkspace({
         onRetry={handleRetry}
       />
       </div>
-      <RouteDrawer
+      {shaping && routeDetail ? <RouteShapeEditor key={routeDetail.id} route={routeDetail} mapRef={mapRef}
+        onClose={() => { setShaping(false); onPlannedRouteDisplayRef.current(routeDetail); }}
+        onSaved={detail => {
+          setShaping(false); setRouteDetail(detail); setSelectedRouteId(detail.id); setRouteDrawerMode('view');
+          onPlannedRouteDisplayRef.current(detail); handleRetry(); onShowToast('Đã lưu đường đi được chỉnh trên bản đồ.');
+        }} /> : <RouteDrawer
         mode={routeDrawerMode}
         routeDetail={routeDetail}
         stations={stations}
@@ -271,7 +281,8 @@ export function RouteWorkspace({
         onSaveRoute={handleSaveRoute}
         onEdit={() => { if (!mutationRef.current && routeDetail) { setRouteError(null); setRouteDrawerMode('edit'); onPlannedRouteDisplayRef.current(null); } }}
         onDeactivate={handleDeactivate}
-      />
+        onShape={() => { setShaping(true); onPlannedRouteDisplayRef.current(null); }}
+      />}
     </>
   );
 }

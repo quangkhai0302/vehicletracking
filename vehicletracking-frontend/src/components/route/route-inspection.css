@@ -13,9 +13,9 @@
 .route-inspection-leg, .route-inspection-note { color: #afc5d3; }
 .route-inspection-baseline { margin: 9px 0; padding: 8px; border-radius: 7px; background: #1b3240; }
 .route-inspection-baseline span, .route-inspection-source span { display: block; font-size: 10px; color: #a6bbca; }
-.route-inspection-card .route-inspection-status { color: #72e0ad; font-weight: 700; }
-.route-inspection-status[data-tone="warning"] { color: #ffd174; }
-.route-inspection-status[data-tone="danger"] { color: #ff9a9a; }
+.route-inspection-card .route-inspection-status { color: #0f9d58; font-weight: 700; }
+.route-inspection-status[data-tone="warning"] { color: #f9ab00; }
+.route-inspection-status[data-tone="danger"] { color: #ea4335; }
 .route-inspection-metrics { margin: 8px 0; }
 .route-inspection-metrics > div { display: flex; justify-content: space-between; gap: 10px; margin: 5px 0; }
 .route-inspection-metrics dt { color: #b6cbd9; flex: 1; }

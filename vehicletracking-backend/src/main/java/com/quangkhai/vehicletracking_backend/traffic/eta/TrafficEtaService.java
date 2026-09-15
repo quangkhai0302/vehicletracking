@@ -2,6 +2,7 @@ package com.quangkhai.vehicletracking_backend.traffic.eta;
 
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
 import com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline;
+import com.quangkhai.vehicletracking_backend.simulation.motion.RouteMotion;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import com.quangkhai.vehicletracking_backend.checkin.entity.TripStopVisitEntity;
@@ -25,12 +26,15 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class TrafficEtaService {
+    /** A zero HERE speed is treated as crawling traffic, rather than silently restoring free-flow timing. */
+    private static final double MINIMUM_OPEN_FLOW_SPEED_KMH = 1d;
     private final TripRepository trips;
     private final TripStopVisitRepository visits;
     private final VehiclePositionRepository positions;
     private final TrafficQueryService traffic;
     private final HereTrafficProperties properties;
     private final Clock operationsClock;
+    private final com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry;
     private final TrafficRouteMatcher matcher = new TrafficRouteMatcher();
     private final RoutePositionMatcher positionMatcher = new RoutePositionMatcher();
 
@@ -38,7 +42,7 @@ public class TrafficEtaService {
     public TripEtaResponse calculate(long tripId) {
         TripEntity trip = trips.findById(tripId).orElseThrow(() -> new TrafficOperationException(
                 HttpStatus.NOT_FOUND, TrafficErrorCode.TRIP_NOT_FOUND, "Không tìm thấy chuyến đi."));
-        RouteDetailResponse route = RouteDetailResponse.from(trip.getRoute());
+        RouteDetailResponse route = geometry.route(trip);
         if (route.stops().size() < 2 || route.sections().isEmpty()) {
             throw new TrafficOperationException(HttpStatus.CONFLICT, TrafficErrorCode.ETA_UNAVAILABLE,
                     "Chuyến chưa có đủ geometry tuyến để tính ETA.");
@@ -75,21 +79,18 @@ public class TrafficEtaService {
             if (nextStop < 0 || section.destinationStopSequence() < nextStop) continue;
             if (positionAvailable && sectionIndex < position.get().sectionIndex()) continue;
 
+            double remainingFraction = 1d;
             double remainingDistanceMeters = section.distanceMeters();
             if (positionAvailable && sectionIndex == position.get().sectionIndex()) {
-                remainingDistanceMeters *= position.get().remainingFraction();
+                remainingFraction = position.get().remainingFraction();
+                remainingDistanceMeters *= remainingFraction;
             }
 
-            TrafficFlowSegment matchingFlow = flow == null ? null : flow.results().stream()
-                    .filter(item -> matcher.matches(section.encodedPolyline(), item, properties.getCorridorRadiusMeters()))
-                    .findFirst().orElse(null);
-            TrafficIncident matchingIncident = incidents == null ? null : incidents.results().stream()
-                    .filter(item -> !"EXPIRED".equalsIgnoreCase(item.status()))
-                    .filter(item -> item.startTime() == null || !item.startTime().isAfter(calculatedAt))
-                    .filter(item -> incidentAffects(section, item))
-                    .findFirst().orElse(null);
+            List<FlowMatch> matchingFlows = matchingFlows(section, flow);
+            TrafficIncident matchingIncident = bestMatchingIncident(section, incidents, calculatedAt);
 
-            if (matchingFlow != null) {
+            for (FlowMatch match : matchingFlows) {
+                TrafficFlowSegment matchingFlow = match.flow();
                 affected.add(new TripEtaResponse.AffectedSegment(section.sectionSequence(), section.destinationStopSequence(),
                         "FLOW", matchingFlow.id(), matchingFlow.jamFactor(), matchingFlow.traversability()));
                 if (isClosed(matchingFlow.traversability())) blocked = true;
@@ -100,7 +101,7 @@ public class TrafficEtaService {
                 if (isClosure(matchingIncident)) blocked = true;
             }
 
-            double duration = dynamicDuration(section, matchingFlow, remainingDistanceMeters);
+            double duration = trafficDuration(section, matchingFlows, remainingFraction, remainingDistanceMeters);
             baselineCumulative += baselineDuration(section, remainingDistanceMeters);
             if (blocked) duration = 0;
             cumulative += duration;
@@ -153,8 +154,7 @@ public class TrafficEtaService {
     public double simulationRate(long tripId, double baselineRemainingSeconds) {
         if (!Double.isFinite(baselineRemainingSeconds) || baselineRemainingSeconds <= 0) return 1d;
         try {
-            TripEtaResponse eta = calculate(tripId);
-            return rateFor(eta, baselineRemainingSeconds);
+            return currentSectionRate(tripId);
         } catch (RuntimeException ignored) {
             return 1d;
         }
@@ -167,7 +167,74 @@ public class TrafficEtaService {
                 || eta.totalRemainingSeconds() <= 0) return 1d;
         double rate = baselineRemainingSeconds / eta.totalRemainingSeconds();
         if (!Double.isFinite(rate)) return 1d;
-        return Math.max(0.1d, Math.min(1.5d, rate));
+        return clampRate(rate);
+    }
+
+    /**
+     * Simulation progresses with the speed of the section under the vehicle,
+     * not with an average factor derived from every remaining section.
+     */
+    private double currentSectionRate(long tripId) {
+        TripEntity trip = trips.findById(tripId).orElseThrow(() -> new TrafficOperationException(
+                HttpStatus.NOT_FOUND, TrafficErrorCode.TRIP_NOT_FOUND, "Không tìm thấy chuyến đi."));
+        RouteDetailResponse route = geometry.route(trip);
+        List<RouteDetailResponse.RouteSectionResponse> sections = route.sections();
+        if (sections.isEmpty()) return 1d;
+
+        int nextStop = nextStop(tripId, route);
+        var latest = positions.findById(trip.getVehicle().getId()).orElse(null);
+        if (latest != null && latest.getSample() != null) {
+            var sample = latest.getSample();
+            if (sample.getSource() == com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR
+                    && trip.getId().equals(sample.getTripId()) && sample.getAttemptNumber() == trip.getAttemptNumber()
+                    && sample.getSimulatedAt() != null) {
+                double elapsed = java.time.Duration.between(trip.getScheduledDepartureAt(), sample.getSimulatedAt()).toNanos() / 1_000_000_000d;
+                var frame = geometry.resolve(trip).motion().at(elapsed);
+                if (frame.dwelling() || frame.finished()) return 1d;
+                // Check-in at the edge of a station must not switch the speed
+                // lookup to the next road while the vehicle is still approaching.
+                nextStop = frame.nextStopSequence();
+            }
+        }
+        int firstRemainingSection = firstRemainingSection(sections, nextStop);
+        var position = currentPosition(trip, sections, firstRemainingSection);
+        if (position.isEmpty()) return 1d;
+
+        TrafficBounds bounds = bounds(route, nextStop);
+        TrafficEnvelope<TrafficFlowSegment> flow = traffic.flowForEta(bounds);
+        TrafficEnvelope<TrafficIncident> incidents = traffic.incidentsForEta(bounds);
+        if (!isUsableTraffic(flow) && !isUsableTraffic(incidents)) return 1d;
+
+        RouteDetailResponse.RouteSectionResponse section = sections.get(position.get().sectionIndex());
+        TrafficIncident incident = bestMatchingIncident(section, incidents, operationsClock.instant());
+        if (incident != null && isClosure(incident)) return 0d;
+
+        VehiclePositionEntity current = positions.findById(trip.getVehicle().getId()).orElse(null);
+        if (current == null || current.getSample() == null) return 1d;
+        TrafficFlowSegment matchingFlow = bestMatchingFlowAtPosition(matchingFlows(section, flow),
+                current.getSample().getLatitude(), current.getSample().getLongitude());
+        if (matchingFlow == null) return 1d;
+        if (isClosed(matchingFlow.traversability())) return 0d;
+
+        // RouteMotion moves along decoded geometry. Match that distance basis,
+        // including at the end of a section, so the resulting speed equals HERE's
+        // local flow speed rather than a capped multiple of a route-wide average.
+        double speed = matchingFlow.speedKmh();
+        if (!Double.isFinite(speed) || speed < 0 || speed > 500) return 1d;
+        double seconds = position.get().geometryLengthMeters()
+                / (Math.max(MINIMUM_OPEN_FLOW_SPEED_KMH, speed) / 3.6d);
+        return rateForSection(freeFlowDurationSeconds(section), seconds);
+    }
+
+    static double rateForSection(double baselineDurationSeconds, double trafficDurationSeconds) {
+        if (!Double.isFinite(baselineDurationSeconds) || baselineDurationSeconds <= 0
+                || !Double.isFinite(trafficDurationSeconds) || trafficDurationSeconds <= 0) return 1d;
+        return clampRate(baselineDurationSeconds / trafficDurationSeconds);
+    }
+
+    private static double clampRate(double rate) {
+        if (!Double.isFinite(rate)) return 1d;
+        return rate > 0 ? rate : 1d;
     }
 
     private int firstRemainingSection(List<RouteDetailResponse.RouteSectionResponse> sections, int nextStop) {
@@ -176,6 +243,14 @@ public class TrafficEtaService {
             if (sections.get(i).destinationStopSequence() >= nextStop) return i;
         }
         return sections.size();
+    }
+
+    private int nextStop(long tripId, RouteDetailResponse route) {
+        Set<Integer> checkedIn = visits.findAllByTripIdOrderByStopSequenceAsc(tripId).stream()
+                .map(TripStopVisitEntity::getStopSequence)
+                .collect(java.util.stream.Collectors.toSet());
+        return route.stops().stream().filter(stop -> !checkedIn.contains(stop.sequenceNumber()))
+                .mapToInt(RouteDetailResponse.RouteStopResponse::sequenceNumber).findFirst().orElse(-1);
     }
 
     private Optional<RoutePositionMatcher.Projection> currentPosition(TripEntity trip,
@@ -229,16 +304,107 @@ public class TrafficEtaService {
                                    double remainingDistanceMeters) {
         double baseline = baselineDuration(section, remainingDistanceMeters);
         if (remainingDistanceMeters <= 0) return 0;
-        if (flow == null || flow.speedKmh() <= 0 || !Double.isFinite(flow.speedKmh())) return baseline;
-        double seconds = remainingDistanceMeters / (flow.speedKmh() / 3.6);
+        if (flow == null || !Double.isFinite(flow.speedKmh()) || flow.speedKmh() < 0) return baseline;
+        double speedKmh = Math.max(MINIMUM_OPEN_FLOW_SPEED_KMH, flow.speedKmh());
+        double seconds = remainingDistanceMeters / (speedKmh / 3.6);
         if (!Double.isFinite(seconds) || seconds < 0) return baseline;
         return Math.max(0, seconds);
     }
 
+    private List<FlowMatch> matchingFlows(RouteDetailResponse.RouteSectionResponse section,
+                                          TrafficEnvelope<TrafficFlowSegment> flow) {
+        if (flow == null || flow.results().isEmpty()) return List.of();
+        return flow.results().stream()
+                .map(candidate -> new FlowMatch(candidate, matcher.matchDistanceMeters(
+                        section.encodedPolyline(), candidate, properties.getCorridorRadiusMeters())))
+                .filter(match -> Double.isFinite(match.distanceMeters()))
+                .sorted(Comparator.comparingDouble(FlowMatch::distanceMeters))
+                .toList();
+    }
+
+    private TrafficFlowSegment bestMatchingFlowAtPosition(List<FlowMatch> matches, double latitude, double longitude) {
+        return matches.stream()
+                .map(match -> new PositionedFlowMatch(match.flow(),
+                        matcher.distanceToFlowMeters(latitude, longitude, match.flow())))
+                .filter(match -> Double.isFinite(match.distanceMeters())
+                        && match.distanceMeters() <= properties.getCorridorRadiusMeters())
+                .min(Comparator.comparingDouble(PositionedFlowMatch::distanceMeters))
+                .map(PositionedFlowMatch::flow).orElse(null);
+    }
+
+    private double trafficDuration(RouteDetailResponse.RouteSectionResponse section, List<FlowMatch> matches,
+                                   double remainingFraction, double remainingDistanceMeters) {
+        if (matches.isEmpty() || remainingDistanceMeters <= 0) return baselineDuration(section, remainingDistanceMeters);
+        List<FlexiblePolyline.Point> points;
+        try {
+            points = FlexiblePolyline.decode(section.encodedPolyline());
+        } catch (RuntimeException ignored) {
+            return dynamicDuration(section, matches.getFirst().flow(), remainingDistanceMeters);
+        }
+        if (points.size() < 2) return dynamicDuration(section, matches.getFirst().flow(), remainingDistanceMeters);
+
+        double[] distances = new double[points.size()];
+        for (int index = 1; index < points.size(); index++) {
+            distances[index] = distances[index - 1] + RouteMotion.distance(points.get(index - 1), points.get(index));
+        }
+        double geometryLength = distances[distances.length - 1];
+        if (geometryLength <= 0 || !Double.isFinite(geometryLength)) {
+            return dynamicDuration(section, matches.getFirst().flow(), remainingDistanceMeters);
+        }
+
+        double startAt = geometryLength * Math.max(0d, Math.min(1d, 1d - remainingFraction));
+        double scale = section.distanceMeters() <= 0 ? 1d : section.distanceMeters() / geometryLength;
+        long freeFlowSeconds = freeFlowDurationSeconds(section);
+        double baselineSpeedKmh = freeFlowSeconds <= 0 ? 0d
+                : section.distanceMeters() / (double) freeFlowSeconds * 3.6d;
+        double result = 0d;
+        for (int index = 1; index < points.size(); index++) {
+            double from = Math.max(startAt, distances[index - 1]);
+            double to = distances[index];
+            if (to <= from) continue;
+            double ratio = ((from + to) / 2d - distances[index - 1]) / (distances[index] - distances[index - 1]);
+            FlexiblePolyline.Point midpoint = interpolate(points.get(index - 1), points.get(index), ratio);
+            TrafficFlowSegment flow = bestMatchingFlowAtPosition(matches, midpoint.latitude(), midpoint.longitude());
+            double speedKmh = flow == null ? baselineSpeedKmh : Math.max(MINIMUM_OPEN_FLOW_SPEED_KMH, flow.speedKmh());
+            if (!Double.isFinite(speedKmh) || speedKmh <= 0) return baselineDuration(section, remainingDistanceMeters);
+            result += ((to - from) * scale) / (speedKmh / 3.6d);
+        }
+        return Double.isFinite(result) && result >= 0 ? result : baselineDuration(section, remainingDistanceMeters);
+    }
+
+    private FlexiblePolyline.Point interpolate(FlexiblePolyline.Point from, FlexiblePolyline.Point to, double ratio) {
+        double fraction = Math.max(0d, Math.min(1d, ratio));
+        double deltaLon = ((to.longitude() - from.longitude() + 540d) % 360d) - 180d;
+        return new FlexiblePolyline.Point(from.latitude() + (to.latitude() - from.latitude()) * fraction,
+                ((from.longitude() + deltaLon * fraction + 540d) % 360d) - 180d);
+    }
+
+    private TrafficIncident bestMatchingIncident(RouteDetailResponse.RouteSectionResponse section,
+                                                  TrafficEnvelope<TrafficIncident> incidents, Instant calculatedAt) {
+        if (incidents == null) return null;
+        return incidents.results().stream()
+                .filter(item -> !"EXPIRED".equalsIgnoreCase(item.status()))
+                .filter(item -> item.startTime() == null || !item.startTime().isAfter(calculatedAt))
+                .filter(item -> incidentAffects(section, item))
+                .findFirst().orElse(null);
+    }
+
+    private record FlowMatch(TrafficFlowSegment flow, double distanceMeters) {}
+    private record PositionedFlowMatch(TrafficFlowSegment flow, double distanceMeters) {}
+
     private double baselineDuration(RouteDetailResponse.RouteSectionResponse section, double remainingDistanceMeters) {
-        if (section.distanceMeters() <= 0) return Math.max(0, section.travelDurationSeconds());
+        long freeFlowSeconds = freeFlowDurationSeconds(section);
+        if (section.distanceMeters() <= 0) return Math.max(0, freeFlowSeconds);
         double fraction = Math.max(0, Math.min(1, remainingDistanceMeters / (double) section.distanceMeters()));
-        return Math.max(0, section.travelDurationSeconds() * fraction);
+        return Math.max(0, freeFlowSeconds * fraction);
+    }
+
+    private long freeFlowDurationSeconds(RouteDetailResponse.RouteSectionResponse section) {
+        long base = section.baseTravelDurationSeconds();
+        // Keep routes created before baseDuration was persisted usable. New
+        // HERE routes always provide this field, so live traffic is applied
+        // exactly once on top of the free-flow duration.
+        return base > 0 ? base : Math.max(0, section.travelDurationSeconds());
     }
 
     private boolean incidentAffects(RouteDetailResponse.RouteSectionResponse section, TrafficIncident incident) {

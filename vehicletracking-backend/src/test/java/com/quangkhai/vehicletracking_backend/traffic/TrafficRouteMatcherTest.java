@@ -4,6 +4,7 @@ import com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline;
 import com.quangkhai.vehicletracking_backend.traffic.matching.TrafficRouteMatcher;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,5 +32,27 @@ class TrafficRouteMatcherTest {
 
         assertThat(matcher.matches("not-a-polyline", distant, 100)).isFalse();
         assertThat(matcher.matches(POLYLINE, distant, 100)).isFalse();
+    }
+
+    @Test
+    void exposesDistanceSoCallersCanChooseTheFlowNearestTheVehicle() {
+        List<FlexiblePolyline.Point> route = FlexiblePolyline.decode(POLYLINE);
+        TrafficFlowSegment flow = new TrafficFlowSegment("flow", "Route", 100,
+                route.stream().map(point -> List.of(point.latitude(), point.longitude())).toList(),
+                20, 40, 6, "open", 1.0);
+
+        assertThat(new TrafficRouteMatcher().distanceToFlowMeters(
+                route.getFirst().latitude(), route.getFirst().longitude(), flow)).isZero();
+    }
+
+    @Test
+    void rejectsOppositeDirectionFlowOnTheSameGeometry() {
+        List<FlexiblePolyline.Point> reversed = new ArrayList<>(FlexiblePolyline.decode(POLYLINE));
+        java.util.Collections.reverse(reversed);
+        TrafficFlowSegment flow = new TrafficFlowSegment("opposite", "Opposite", 100,
+                reversed.stream().map(point -> List.of(point.latitude(), point.longitude())).toList(),
+                20, 40, 6, "open", 1.0);
+
+        assertThat(new TrafficRouteMatcher().matches(POLYLINE, flow, 100)).isFalse();
     }
 }

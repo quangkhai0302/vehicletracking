@@ -62,7 +62,30 @@ class SimulationReplayTest {
         when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
         when(runs.findByTripId(5L)).thenReturn(Optional.of(run));
         service=new SimulationService(runs,trips,vehicles,tripService,telemetry,samples,positions,Clock.fixed(now,ZoneOffset.UTC),eta,
-            attempts,checkpoints,alerts,revisions);
+            attempts,checkpoints,alerts,revisions,new com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService(revisions));
+    }
+
+    @Test void liveFlowSpeedIsNotClampedInFrameOrTelemetry() {
+        var route=trip.getRoute();
+        for (var section:route.getSections()) ReflectionTestUtils.setField(section,"baseTravelDurationSeconds",56L);
+        var motion=new com.quangkhai.vehicletracking_backend.simulation.motion.RouteMotion(
+            com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse.from(route));
+        double rate=37d/motion.at(0).speedKmh();
+        assertThat(rate).isGreaterThan(1.5d);
+        when(eta.simulationRate(eq(5L),anyDouble())).thenReturn(rate);
+        run.advance(0,now.minusSeconds(1)); run.changeMultiplier(1,now.minusSeconds(1));
+        service.tick(5L);
+        var request=ArgumentCaptor.forClass(com.quangkhai.vehicletracking_backend.telemetry.dto.TelemetryRequest.class);
+        verify(telemetry).ingestSimulator(request.capture(),any());
+        assertThat(request.getValue().speedKmh()).isCloseTo(37d,within(1e-8));
+        assertThat(service.describe(trip,run).frame().speedKmh()).isCloseTo(37d,within(1e-8));
+        assertThat(run.getElapsedSeconds()).isCloseTo(rate,within(1e-8));
+    }
+
+    @Test void failedMalformedRouteStillHasInspectableResponse() {
+        run.fail("Invalid route",now);
+        ReflectionTestUtils.setField(trip.getRoute().getSections().getFirst(),"encodedPolyline","broken");
+        assertThat(service.describe(trip,run).status()).isEqualTo(SimulationStatus.FAILED);
     }
 
     @ParameterizedTest @EnumSource(SimulationStatus.class)

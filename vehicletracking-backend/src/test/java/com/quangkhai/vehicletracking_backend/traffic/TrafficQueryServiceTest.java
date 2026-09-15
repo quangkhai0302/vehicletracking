@@ -154,6 +154,27 @@ class TrafficQueryServiceTest {
         assertThat(calls).hasValue(1);
     }
 
+    @Test
+    void mapTile_reusesFreshCacheByStyle() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-09T08:00:00Z"));
+        AtomicInteger calls = new AtomicInteger();
+        byte[] png = new byte[]{(byte) 137, 80, 78, 71};
+        TrafficProvider provider = new TrafficProvider() {
+            @Override public TrafficPayload<TrafficFlowSegment> fetchFlow(TrafficBounds bounds) { return new TrafficPayload<>(clock.instant(), List.of()); }
+            @Override public TrafficPayload<TrafficIncident> fetchIncidents(TrafficBounds bounds) { return new TrafficPayload<>(clock.instant(), List.of()); }
+            @Override public RasterTile fetchMapTile(HereMapStyle style, int z, int x, int y) {
+                calls.incrementAndGet();
+                return new RasterTile(png, "image/png");
+            }
+        };
+        TrafficQueryService service = new TrafficQueryService(provider, properties(), clock);
+
+        assertThat(service.mapTile(HereMapStyle.ROADMAP, 12, 3261, 1916).data()).containsExactly(png);
+        assertThat(service.mapTile(HereMapStyle.ROADMAP, 12, 3261, 1916).data()).containsExactly(png);
+        assertThat(service.mapTile(HereMapStyle.DARK, 12, 3261, 1916).data()).containsExactly(png);
+        assertThat(calls).hasValue(2);
+    }
+
     private HereTrafficProperties properties() {
         var properties = new HereTrafficProperties();
         properties.setEnabled(true);

@@ -19,6 +19,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -91,6 +92,95 @@ public class HereTrafficProvider implements TrafficProvider {
         } catch (Exception ex) {
             return EMPTY_TILE;
         }
+    }
+
+    @Override
+    public RasterTile fetchMapTile(HereMapStyle style, int z, int x, int y) {
+        if (!properties.isEnabled() || properties.getApiKey() == null || properties.getApiKey().isBlank()) {
+            return emptyMapTile();
+        }
+        try {
+            URI uri = UriComponentsBuilder.fromUriString(properties.getMapTileApiBaseUrl())
+                    .path("/v3/base/mc/" + z + "/" + x + "/" + y + "/" + style.format())
+                    .queryParam("style", style.hereStyle())
+                    // Render a higher-density image while Leaflet displays it in
+                    // its normal 256px tile slot. This avoids browser upscaling
+                    // on high-DPI displays and makes zoom transitions crisper.
+                    .queryParam("size", 512)
+                    .queryParam("lang", "vi")
+                    .queryParam("apiKey", properties.getApiKey())
+                    .build()
+                    .encode()
+                    .toUri();
+            byte[] tile = client.get().uri(uri).retrieve().body(byte[].class);
+            return tile != null && tile.length > 0
+                    ? new RasterTile(tile, style.contentType())
+                    : emptyMapTile();
+        } catch (Exception ex) {
+            return emptyMapTile();
+        }
+    }
+
+    private RasterTile emptyMapTile() {
+        return new RasterTile(EMPTY_TILE, "image/png");
+    }
+
+    @Override
+    public RasterTile fetchVectorStyle(HereVectorStyle style) {
+        if (!isConfigured()) return new RasterTile(new byte[0], "application/json");
+        try {
+            URI uri = UriComponentsBuilder.fromUriString(properties.getVectorStyleApiBaseUrl())
+                    .queryParam("apikey", properties.getApiKey())
+                    .build()
+                    .encode()
+                    .toUri();
+            byte[] body = client.get().uri(uri).retrieve().body(byte[].class);
+            if (body == null || body.length == 0) return new RasterTile(new byte[0], "application/json");
+            // The upstream style may include the credential in source URLs. MapLibre
+            // rewrites every HERE request to our guarded vector-resource proxy.
+            String sanitized = new String(body, StandardCharsets.UTF_8).replace(properties.getApiKey(), "");
+            return new RasterTile(sanitized.getBytes(StandardCharsets.UTF_8), "application/json");
+        } catch (Exception ex) {
+            return new RasterTile(new byte[0], "application/json");
+        }
+    }
+
+    @Override
+    public RasterTile fetchVectorResource(String upstreamUrl) {
+        if (!isConfigured()) return new RasterTile(new byte[0], "application/octet-stream");
+        try {
+            URI source = URI.create(upstreamUrl);
+            if (!"https".equalsIgnoreCase(source.getScheme()) || source.getHost() == null
+                    || !Set.of("vector.hereapi.com", "assets.vector.hereapi.com").contains(source.getHost().toLowerCase(Locale.ROOT))) {
+                return new RasterTile(new byte[0], "application/octet-stream");
+            }
+            URI uri = UriComponentsBuilder.fromUri(source)
+                    .replaceQueryParam("apiKey")
+                    .replaceQueryParam("apikey")
+                    .queryParam("apikey", properties.getApiKey())
+                    .build()
+                    .encode()
+                    .toUri();
+            org.springframework.http.ResponseEntity<byte[]> response = client.get().uri(uri).retrieve().toEntity(byte[].class);
+            byte[] body = response.getBody();
+            String contentType = response.getHeaders().getContentType() == null
+                    ? vectorContentType(source.getPath())
+                    : response.getHeaders().getContentType().toString();
+            return new RasterTile(body, contentType);
+        } catch (Exception ex) {
+            return new RasterTile(new byte[0], "application/octet-stream");
+        }
+    }
+
+    private boolean isConfigured() {
+        return properties.isEnabled() && properties.getApiKey() != null && !properties.getApiKey().isBlank();
+    }
+
+    private String vectorContentType(String path) {
+        if (path != null && path.endsWith(".json")) return "application/json";
+        if (path != null && path.endsWith(".png")) return "image/png";
+        if (path != null && path.endsWith(".pbf")) return "application/x-protobuf";
+        return "application/vnd.mapbox-vector-tile";
     }
 
     private <T> T execute(String endpoint, TrafficBounds bounds, Class<T> type) {
