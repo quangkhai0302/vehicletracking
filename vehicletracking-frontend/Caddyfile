@@ -1,0 +1,19 @@
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	@api path /api/*
+	handle @api {
+		reverse_proxy backend:8080 {
+			flush_interval -1
+		}
+	}
+
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

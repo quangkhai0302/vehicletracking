@@ -1,6 +1,7 @@
 .env
 .env.local
 *.env
+.env.production
 .idea/
 .vscode/
 target/
