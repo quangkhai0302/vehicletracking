@@ -117,16 +117,6 @@ h3 {
   filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(92%);
 }
 
-/* HERE Traffic flow lines adjustment to align with Google Maps Traffic palette:
-   - Green (fast): shifts pale mint green to Google Green (#0F9D58)
-   - Orange (moderate): shifts to warm Google Amber (#F9AB00)
-   - Red (slow): shifts to vivid Google Red (#EA4335)
-   - Dark Red (severe): deep burgundy (#8B0000) */
-.leaflet-container img.leaflet-tile.here-traffic-tiles,
-.leaflet-container .leaflet-pane.leaflet-hereTrafficTilePane-pane img {
-  filter: hue-rotate(-14deg) saturate(1.55) contrast(1.22) brightness(0.96);
-}
-
 .leaflet-container img.leaflet-tile {
   max-width: none !important;
   border: 0;

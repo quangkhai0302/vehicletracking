@@ -98,7 +98,7 @@ export const MapComponent: FC = () => {
   const simulationFleet = useSimulationFleet(live.snapshot, workspace === 'simulation');
   const persistedVehicleAnchors = usePlannedVehicleAnchors(live.snapshot);
   const traffic = useTraffic(mapInstanceRef, showTraffic, mapReady);
-  const trafficStatus = traffic.incidents?.status;
+  const trafficStatus = traffic.flow?.status ?? traffic.incidents?.status;
   const trafficMessage = traffic.loading
     ? 'Đang tải giao thông…'
     : traffic.error ? 'Chưa tải được giao thông. Thử lại trong lớp bản đồ.' : (trafficStatus === 'STALE' ? 'Đang dùng dữ liệu gần nhất.'
@@ -750,7 +750,7 @@ export const MapComponent: FC = () => {
     <main ref={rootRef} className="map-first" data-workspace={workspace} data-sheet-expanded={sheetExpanded} data-drawer-open={contextVisible}>
       <div id="main-map" ref={mapContainerRef} className="map-canvas" aria-label="Bản đồ tương tác" tabIndex={-1} />
       <TrafficLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showTraffic}
-        incidents={traffic.incidents} />
+        flow={traffic.flow} incidents={traffic.incidents} />
       {workspace==='simulation' && <Suspense fallback={null}><SimulationFleetLayer mapRef={mapInstanceRef} mapReady={mapReady} visible
         vehicles={simulationFleet.previews} onSelect={selectSimulationVehicle} />
         <SimulationRoutesLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showRoutes}

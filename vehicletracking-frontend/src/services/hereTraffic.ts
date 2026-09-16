@@ -3,9 +3,6 @@ import type { TrafficFlowResponse, TrafficIncidentsResponse } from '../types/tra
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 
-/** HERE flow tiles are proxied by the backend so the HERE API key stays server-side. */
-export const TRAFFIC_TILE_URL = `${API_BASE_URL}/api/v1/traffic/tiles/{z}/{x}/{y}.png`;
-
 // Mặc định Bounding Box khu vực trung tâm TP. Hồ Chí Minh
 // west (minLng), south (minLat), east (maxLng), north (maxLat)
 export const DEFAULT_HCMC_BBOX = '106.64,10.74,106.74,10.84';

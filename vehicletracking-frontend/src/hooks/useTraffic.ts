@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, type RefObject } from 'react';
 import L from 'leaflet';
-import { fetchHereIncidents } from '../services/hereTraffic';
-import type { TrafficIncidentsResponse } from '../types/traffic';
+import { fetchHereIncidents, fetchHereTrafficFlow } from '../services/hereTraffic';
+import type { TrafficFlowResponse, TrafficIncidentsResponse } from '../types/traffic';
 
 // Snap coordinates to a 0.02-degree grid (~2 km) to reuse nearby viewport responses.
 function snap(val: number): number {
@@ -9,6 +9,7 @@ function snap(val: number): number {
 }
 
 export function useTraffic(mapRef: RefObject<L.Map | null>, enabled: boolean, mapReady: boolean) {
+  const [flow, setFlow] = useState<TrafficFlowResponse | null>(null);
   const [incidents, setIncidents] = useState<TrafficIncidentsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export function useTraffic(mapRef: RefObject<L.Map | null>, enabled: boolean, ma
       const east = Math.min(180, snap(currentBounds.getEast() + 0.03));
       const north = Math.min(90, snap(currentBounds.getNorth() + 0.03));
       if (west >= east || south >= north || east - west > 1 || north - south > 1) {
-        setIncidents(null); setLoading(false);
+        setFlow(null); setIncidents(null); setLoading(false);
         setError('Phóng to bản đồ để xem sự cố giao thông.');
         lastFetchedBboxRef.current = null; lastFetchedBoundsRef.current = null;
         return;
@@ -56,14 +57,28 @@ export function useTraffic(mapRef: RefObject<L.Map | null>, enabled: boolean, ma
       }
 
       setLoading(true);
-      fetchHereIncidents(bbox, controller.signal).then(result => {
+      Promise.allSettled([
+        fetchHereTrafficFlow(bbox, controller.signal),
+        fetchHereIncidents(bbox, controller.signal),
+      ]).then(([flowResult, incidentResult]) => {
         if (!alive || currentRequest !== requestId) return;
-        setIncidents(result);
-        lastFetchedBboxRef.current = bbox;
-        lastFetchedBoundsRef.current = L.latLngBounds([south, west], [north, east]);
-        setError(null);
+        const flowFailed = flowResult.status === 'rejected';
+        const incidentsFailed = incidentResult.status === 'rejected';
+        setFlow(flowResult.status === 'fulfilled' ? flowResult.value : null);
+        setIncidents(incidentResult.status === 'fulfilled' ? incidentResult.value : null);
+        if (flowFailed || incidentsFailed) {
+          lastFetchedBboxRef.current = null;
+          lastFetchedBoundsRef.current = null;
+        } else {
+          lastFetchedBboxRef.current = bbox;
+          lastFetchedBoundsRef.current = L.latLngBounds([south, west], [north, east]);
+        }
+        setError(flowFailed && incidentsFailed ? 'Không tải được dữ liệu giao thông.'
+          : flowFailed ? 'Không tải được luồng giao thông.'
+            : incidentsFailed ? 'Không tải được sự cố giao thông.' : null);
       }).catch(reason => {
         if (alive && currentRequest === requestId && reason?.name !== 'AbortError') {
+          setFlow(null);
           setIncidents(null);
           lastFetchedBboxRef.current = null; lastFetchedBoundsRef.current = null;
           setError('Không tải được dữ liệu sự cố giao thông.');
@@ -93,6 +108,7 @@ export function useTraffic(mapRef: RefObject<L.Map | null>, enabled: boolean, ma
   }, [attempt, enabled, mapReady, mapRef]);
 
   return {
+    flow: enabled && mapReady ? flow : null,
     incidents: enabled && mapReady ? incidents : null,
     loading: enabled && mapReady && loading,
     error: enabled && mapReady ? error : null,
