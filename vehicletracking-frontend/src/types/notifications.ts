@@ -10,12 +10,8 @@ export interface RouteRevisionStop {
   latitude: number; longitude: number; dwellDurationSeconds: number;
   baselineArrivalAt: string; baselineDepartureAt: string; revisedArrivalAt: string; revisedDepartureAt: string;
 }
-import type { PolylineEncoding } from './route';
-
 export interface RouteRevisionSection {
   sectionSequence: number; destinationStopSequence: number; encodedPolyline: string;
-  polylineEncoding: PolylineEncoding;
-  trafficIntervals?: import('./route').RouteTrafficInterval[];
   distanceMeters: number; travelDurationSeconds: number; baseTravelDurationSeconds: number;
 }
 export interface RouteRevision {

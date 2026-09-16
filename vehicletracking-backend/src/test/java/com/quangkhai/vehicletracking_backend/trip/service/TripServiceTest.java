@@ -4,12 +4,12 @@ import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
+import com.quangkhai.vehicletracking_backend.trip.event.TripStartedEvent;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
-import com.quangkhai.vehicletracking_backend.route.entity.RouteTransportMode;
 import com.quangkhai.vehicletracking_backend.station.entity.StationEntity;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
@@ -30,6 +31,7 @@ class TripServiceTest {
     @Mock TripRepository trips;
     @Mock VehicleRepository vehicles;
     @Mock RouteRepository routes;
+    @Mock ApplicationEventPublisher events;
     @InjectMocks TripService service;
     final Instant departure = Instant.parse("2026-09-13T16:58:00Z");
     VehicleEntity vehicle;
@@ -62,22 +64,12 @@ class TripServiceTest {
     @Test void create_exposesVehicleTypeInTripSummary() {
         vehicle = new VehicleEntity("59X112345", "Xe máy A", null, VehicleType.MOTORCYCLE);
         ReflectionTestUtils.setField(vehicle, "id", 1L);
-        ReflectionTestUtils.setField(route, "transportMode", RouteTransportMode.MOTORCYCLE);
         when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));
         when(routes.findById(2L)).thenReturn(Optional.of(route));
         when(trips.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
 
         var result = service.create(new TripCreateRequest(1L, 2L, departure));
         assertThat(result.trip().vehicleType()).isEqualTo(VehicleType.MOTORCYCLE);
-    }
-    @Test void create_rejectsVehicleWhoseTypeDoesNotMatchRouteMode() {
-        vehicle = new VehicleEntity("59X112345", "Xe máy A", null, VehicleType.MOTORCYCLE);
-        ReflectionTestUtils.setField(vehicle, "id", 1L);
-        when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));
-        when(routes.findById(2L)).thenReturn(Optional.of(route));
-
-        assertConflict(() -> service.create(new TripCreateRequest(1L, 2L, departure)));
-        verify(trips, never()).saveAndFlush(any());
     }
     @Test void create_rejectsInactiveStation() {
         when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));
@@ -114,6 +106,7 @@ class TripServiceTest {
         assertThat(second.trip().startedAt()).isEqualTo(first.trip().startedAt());
         assertThat(trip.getScheduledDepartureAt()).isEqualTo(departure);
         verify(trips, times(1)).flush();
+        verify(events).publishEvent(new TripStartedEvent(3L));
     }
     @ParameterizedTest
     @CsvSource({"SCHEDULED,complete", "COMPLETED,start", "COMPLETED,cancel", "CANCELLED,start", "CANCELLED,complete"})

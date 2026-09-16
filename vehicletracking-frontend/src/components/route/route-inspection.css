@@ -11,8 +11,15 @@
 .route-inspection-name { display: block; margin-top: 4px; font-size: 14px; }
 .route-inspection-card p { margin: 6px 0; }
 .route-inspection-leg, .route-inspection-note { color: #afc5d3; }
-.route-inspection-baseline { margin: 9px 0; padding: 8px; border-radius: 7px; background: #1b3240; }
-.route-inspection-baseline span, .route-inspection-source span { display: block; font-size: 10px; color: #a6bbca; }
+.route-inspection-leg span, .route-inspection-status-row > span, .route-inspection-road > span {
+  display: block; color: #8faaba; font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+}
+.route-inspection-status-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 9px 0 5px; }
+.route-inspection-status-row > span { flex: 1; }
+.route-inspection-status-row .route-inspection-status { margin: 0; text-align: right; }
+.route-inspection-road { margin: 7px 0; color: #e1edf3; }
+.route-inspection-road strong { display: block; margin-top: 2px; font-weight: 500; }
+.route-inspection-source span { display: block; font-size: 10px; color: #a6bbca; }
 .route-inspection-card .route-inspection-status { color: #0f9d58; font-weight: 700; }
 .route-inspection-status[data-tone="warning"] { color: #f9ab00; }
 .route-inspection-status[data-tone="danger"] { color: #ea4335; }

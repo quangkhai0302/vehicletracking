@@ -90,25 +90,25 @@ export function TrafficLayer({
   mapRef,
   mapReady,
   visible,
-  showAreaFlow,
   incidents,
 }: {
   mapRef: RefObject<L.Map | null>;
   mapReady: boolean;
   visible: boolean;
-  showAreaFlow: boolean;
   incidents: TrafficIncidentsResponse | null;
 }) {
-
   useEffect(() => {
     const map = mapRef.current;
-    if (!mapReady || !map || !visible || !showAreaFlow) return;
+    if (!mapReady || !map || !visible) return;
+
     if (!map.getPane('trafficPane')) {
       const pane = map.createPane('trafficPane');
       pane.style.zIndex = '350';
     }
+
     const layer = L.tileLayer(TRAFFIC_TILE_URL, {
       pane: 'trafficPane',
+      className: 'here-traffic-tiles',
       opacity: 0.9,
       maxZoom: 20,
       updateWhenZooming: false,
@@ -116,8 +116,12 @@ export function TrafficLayer({
       keepBuffer: 3,
       attribution: '&copy; HERE Traffic',
     }).addTo(map);
-    return () => { layer.off(); map.removeLayer(layer); };
-  }, [mapReady, mapRef, showAreaFlow, visible]);
+
+    return () => {
+      layer.off();
+      if (map.hasLayer(layer)) map.removeLayer(layer);
+    };
+  }, [mapReady, mapRef, visible]);
 
   useEffect(() => {
     const map = mapRef.current;

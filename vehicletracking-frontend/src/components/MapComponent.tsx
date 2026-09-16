@@ -1,7 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react';
 import L from 'leaflet';
-import { decodeRoutePolyline } from '../services/polyline';
-import { googleMapTileUrl, officialGoogleTilesEnabled } from '../services/mapTiles';
+import { decodeFlexiblePolyline } from '../services/polyline';
 import type { MapTheme } from '../types/map';
 import type { TripDetail } from '../types/fleet';
 import type { RouteDetail, RouteDraftStop, RouteStopRole } from '../types/route';
@@ -206,7 +205,7 @@ export const MapComponent: FC = () => {
     const paths = new Map<number, MotionPath>();
     for (const item of simulationFleet.routes) paths.set(item.trip.id, makeMotionPath(item.segments));
     if (selectedTripId !== null && vehicleRoute) {
-      try { paths.set(selectedTripId, makeMotionPath(vehicleRoute.sections.map(section => decodeRoutePolyline(section.encodedPolyline, section.polylineEncoding)))); }
+      try { paths.set(selectedTripId, makeMotionPath(vehicleRoute.sections.map(section => decodeFlexiblePolyline(section.encodedPolyline)))); }
       catch { /* Invalid geometry cannot be used for presentation interpolation. */ }
     }
     return paths;
@@ -467,7 +466,8 @@ export const MapComponent: FC = () => {
     marker.addTo(layer);
   }, [formMode, stationForm, workspace, setStationForm, setPickingLocation]);
 
-  // Google base map with native Google Maps traffic layer.
+  // Google raster basemap is loaded directly by Leaflet without a Google API key.
+  // Traffic, incidents, ETA and routing remain backed by HERE through our backend.
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !mapReady) return;
@@ -477,11 +477,8 @@ export const MapComponent: FC = () => {
       tileLayerRef.current = null;
     }
     const baseType = theme === 'google-satellite' ? 'y' : 'm';
-    const tileUrl = officialGoogleTilesEnabled
-      ? googleMapTileUrl(theme)
-      : `https://{s}.google.com/vt/lyrs=${baseType}&hl=vi&gl=VN&x={x}&y={y}&z={z}`;
     const newTileLayer = L.tileLayer(
-      tileUrl,
+      `https://{s}.google.com/vt/lyrs=${baseType}&hl=vi&gl=VN&x={x}&y={y}&z={z}`,
       {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -506,13 +503,18 @@ export const MapComponent: FC = () => {
         }, 600 * (retryCount + 1));
       }
     });
+    newTileLayer.on('tileload', (event) => {
+      const tile = (event as L.TileEvent).tile as HTMLImageElement;
+      if (tile) delete tile.dataset.retryCount;
+    });
 
     newTileLayer.addTo(map).bringToBack();
     tileLayerRef.current = newTileLayer;
 
     return () => {
-      if (tileLayerRef.current && map) {
-        map.removeLayer(tileLayerRef.current);
+      newTileLayer.off();
+      if (map.hasLayer(newTileLayer)) map.removeLayer(newTileLayer);
+      if (tileLayerRef.current === newTileLayer) {
         tileLayerRef.current = null;
       }
     };
@@ -539,7 +541,7 @@ export const MapComponent: FC = () => {
     // M2-04: Decode polyline for each section. If ANY section fails or returns empty coordinates, fail the whole route!
     for (const section of plannedRoute.sections) {
       try {
-        const coords = decodeRoutePolyline(section.encodedPolyline, section.polylineEncoding);
+        const coords = decodeFlexiblePolyline(section.encodedPolyline);
         if (coords.length === 0) {
           hasDecodeError = true;
           break;
@@ -571,7 +573,7 @@ export const MapComponent: FC = () => {
        * connector can visibly cut across buildings instead of following a
        * road.
        */
-      for (const { coords: sectionCoords, section } of decodedSections) {
+      for (const { coords: sectionCoords } of decodedSections) {
         // 1. Google Maps subtle route shadow (đổ bóng mỏng nhẹ giúp tách biệt trên mọi nền bản đồ)
         L.polyline(sectionCoords, {
           pane: 'routePane',
@@ -605,20 +607,6 @@ export const MapComponent: FC = () => {
           interactive: false,
         }).addTo(layer);
 
-        // Google traffic intervals must be painted after the blue route core;
-        // otherwise the core hides every green/orange/red segment.
-        if (plannedRoute.routingProvider === 'GOOGLE' && showTraffic && section.trafficIntervals?.length) {
-          const colors = { NORMAL: '#16a34a', SLOW: '#f59e0b', TRAFFIC_JAM: '#dc2626', UNKNOWN: '#64748b' } as const;
-          for (const interval of section.trafficIntervals) {
-            const start = Math.max(0, Math.floor(interval.startPolylinePointIndex));
-            const end = Math.min(sectionCoords.length - 1, Math.floor(interval.endPolylinePointIndex));
-            if (end <= start) continue;
-            L.polyline(sectionCoords.slice(start, end + 1), {
-              pane: 'routePane', color: colors[interval.category] ?? colors.UNKNOWN,
-              weight: 5.5, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false,
-            }).addTo(layer);
-          }
-        }
       }
     }
 
@@ -657,7 +645,7 @@ export const MapComponent: FC = () => {
     return () => {
       if (toastTimer !== null) window.clearTimeout(toastTimer);
     };
-  }, [plannedRoute, showRoutes, showTraffic, fitBounds, workspace, hasSimulationRoute]);
+  }, [plannedRoute, showRoutes, fitBounds, workspace, hasSimulationRoute]);
 
   // Draft markers communicate order only; the POST response supplies road geometry.
   useEffect(() => {
@@ -762,7 +750,7 @@ export const MapComponent: FC = () => {
     <main ref={rootRef} className="map-first" data-workspace={workspace} data-sheet-expanded={sheetExpanded} data-drawer-open={contextVisible}>
       <div id="main-map" ref={mapContainerRef} className="map-canvas" aria-label="Bản đồ tương tác" tabIndex={-1} />
       <TrafficLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showTraffic}
-        showAreaFlow={plannedRoute?.routingProvider !== 'GOOGLE'} incidents={traffic.incidents} />
+        incidents={traffic.incidents} />
       {workspace==='simulation' && <Suspense fallback={null}><SimulationFleetLayer mapRef={mapInstanceRef} mapReady={mapReady} visible
         vehicles={simulationFleet.previews} onSelect={selectSimulationVehicle} />
         <SimulationRoutesLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showRoutes}

@@ -12,8 +12,7 @@ import com.quangkhai.vehicletracking_backend.route.error.RouteErrorCode;
 import com.quangkhai.vehicletracking_backend.route.error.RouteOperationException;
 import com.quangkhai.vehicletracking_backend.route.provider.CalculatedRoute;
 import com.quangkhai.vehicletracking_backend.route.provider.CalculatedSection;
-import com.quangkhai.vehicletracking_backend.route.provider.RoutingProviderRegistry;
-import com.quangkhai.vehicletracking_backend.route.provider.RoutingRequest;
+import com.quangkhai.vehicletracking_backend.route.provider.RoutingProvider;
 import com.quangkhai.vehicletracking_backend.route.provider.RoutingWaypoint;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.station.entity.StationEntity;
@@ -36,27 +35,26 @@ public class RouteService {
 
     private final RouteRepository routeRepository;
     private final StationRepository stationRepository;
-    private final RoutingProviderRegistry routingProviders;
+    private final RoutingProvider routingProvider;
     private final RoutePersistenceService routePersistenceService;
     private final TripRepository tripRepository;
 
     public RouteService(
             RouteRepository routeRepository,
             StationRepository stationRepository,
-            RoutingProviderRegistry routingProviders,
+            RoutingProvider routingProvider,
             RoutePersistenceService routePersistenceService,
             TripRepository tripRepository
     ) {
         this.routeRepository = routeRepository;
         this.stationRepository = stationRepository;
-        this.routingProviders = routingProviders;
+        this.routingProvider = routingProvider;
         this.routePersistenceService = routePersistenceService;
         this.tripRepository = tripRepository;
     }
 
     public RouteDetailResponse create(RouteCreateRequest request) {
-        RouteEntity saved = routePersistenceService.persistRoute(
-                buildRoute(request, routingProviders.defaultProvider(), RouteTransportMode.CAR));
+        RouteEntity saved = routePersistenceService.persistRoute(buildRoute(request));
         return RouteDetailResponse.from(saved);
     }
 
@@ -75,7 +73,7 @@ public class RouteService {
          * deletes the old rows, resulting in a 23505/HTTP 500.  Flush the
          * orphan removals first, then attach the freshly calculated snapshot.
          */
-        RouteEntity replacement = buildRoute(request, current.getRoutingProvider(), current.getTransportMode());
+        RouteEntity replacement = buildRoute(request);
         current.replaceDefinitionMetadata(replacement);
         current.clearDefinitionChildren();
         routeRepository.flush();
@@ -124,11 +122,7 @@ public class RouteService {
     }
 
     /** Provider call and construction are kept in one reusable path for create/update. */
-    private RouteEntity buildRoute(
-            RouteCreateRequest request,
-            RoutingProviderName providerName,
-            RouteTransportMode fallbackMode
-    ) {
+    private RouteEntity buildRoute(RouteCreateRequest request) {
         String normalizedName = normalizeName(request.name());
         validateStops(request.stops());
         Set<Long> uniqueStationIds = request.stops().stream().map(RouteCreateRequest.RouteStopInput::stationId).collect(Collectors.toSet());
@@ -144,20 +138,17 @@ public class RouteService {
             var input = request.stops().get(i); StationEntity station = stationMap.get(input.stationId());
             waypoints.add(new RoutingWaypoint(station.getId(), station.getName(), station.getLatitude(), station.getLongitude(), i + 1, input.dwellDurationSeconds()));
         }
-        RouteTransportMode mode = request.transportMode() == null ? fallbackMode : request.transportMode();
-        CalculatedRoute calculated = routingProviders.calculate(providerName,
-                new RoutingRequest(waypoints, mode, request.departureTime(), false));
+        CalculatedRoute calculated = routingProvider.calculate(waypoints);
         long distance = calculated.sections().stream().mapToLong(CalculatedSection::distanceMeters).sum();
         long travel = calculated.sections().stream().mapToLong(CalculatedSection::travelDurationSeconds).sum();
         long base = calculated.sections().stream().mapToLong(CalculatedSection::baseTravelDurationSeconds).sum();
         long dwell = waypoints.subList(1, waypoints.size() - 1).stream().mapToLong(RoutingWaypoint::dwellDurationSeconds).sum();
-        RouteEntity route = new RouteEntity(normalizedName, mode, providerName, distance, travel, base,
+        RouteEntity route = new RouteEntity(normalizedName, RouteTransportMode.CAR, RoutingProviderName.HERE, distance, travel, base,
                 dwell, travel + dwell, calculated.estimatedDepartureAt(), Instant.now());
         waypoints.forEach(wp -> route.addStop(new RouteStopEntity(stationMap.get(wp.stationId()), wp.sequenceNumber(), wp.stationName(),
                 wp.latitude(), wp.longitude(), wp.dwellDurationSeconds())));
         calculated.sections().forEach(cs -> route.addSection(new RouteSectionEntity(cs.sectionSequence(), cs.destinationStopSequence(),
-                cs.encodedPolyline(), cs.polylineEncoding(), cs.distanceMeters(), cs.travelDurationSeconds(),
-                cs.baseTravelDurationSeconds(), cs.trafficIntervals())));
+                cs.encodedPolyline(), cs.distanceMeters(), cs.travelDurationSeconds(), cs.baseTravelDurationSeconds())));
         return route;
     }
 

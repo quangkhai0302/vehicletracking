@@ -2,7 +2,6 @@ package com.quangkhai.vehicletracking_backend.traffic.matching;
 
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
 import com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline;
-import com.quangkhai.vehicletracking_backend.simulation.motion.RoutePolylineCodec;
 import com.quangkhai.vehicletracking_backend.simulation.motion.RouteMotion;
 
 import java.util.List;
@@ -42,7 +41,7 @@ public final class RoutePositionMatcher {
             if (section == null || section.encodedPolyline() == null) continue;
             List<FlexiblePolyline.Point> points;
             try {
-                points = RoutePolylineCodec.decode(section.encodedPolyline(), section.polylineEncoding());
+                points = FlexiblePolyline.decode(section.encodedPolyline());
             } catch (RuntimeException ignored) {
                 continue;
             }

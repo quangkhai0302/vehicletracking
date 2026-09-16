@@ -2,7 +2,6 @@ import { useEffect, useRef, type RefObject } from 'react';
 import L from 'leaflet';
 import type { WaitingSimulationVehicle } from '../../hooks/useSimulationFleet';
 import type { VehicleType } from '../../types/fleet';
-import { vehicleTypeLabel } from '../../types/fleet';
 import { vehicleMarkerGlyph } from '../../utils/vehiclePresentation';
 
 export function SimulationFleetLayer({ mapRef, mapReady, visible, vehicles, onSelect }: {
@@ -35,7 +34,7 @@ export function SimulationFleetLayer({ mapRef, mapReady, visible, vehicles, onSe
         icon:L.divIcon({className:'simulation-waiting-icon',iconSize:[44,44],iconAnchor:[22,22],
           html:`<div class="simulation-waiting-marker" data-waiting-count="${group.length}" data-vehicle-types="${groupTypes.join(' ')}">${markerGlyphs}${group.length > 1 ? `<b>${group.length}</b>` : ''}</div>`})}).addTo(layer);
       const label = document.createElement('span');
-      label.textContent = `${group.length > 1 ? `${group.length} xe` : first.plate} · ${groupTypes.map(vehicleTypeLabel).join(' + ')} · Chờ xuất phát · 0 km/h · GIẢ LẬP`;
+      label.textContent = `${group.length > 1 ? `${group.length} xe` : first.plate} · Chờ xuất phát`;
       marker.bindTooltip(label, {direction:'top',offset:[0,-22]});
       if (group.length === 1) marker.on('click', () => selectRef.current(first.tripId));
       else {

@@ -26,8 +26,6 @@ public record RouteDetailResponse(
         Instant estimatedDepartureAt,
         Instant calculatedAt,
         Instant createdAt,
-        long geometryVersion,
-        Instant providerContentExpiresAt,
         List<RouteStopResponse> stops,
         List<RouteSectionResponse> sections,
         List<RouteShapeRequest.ShapePoint> shapingPoints
@@ -35,12 +33,7 @@ public record RouteDetailResponse(
     public RouteDetailResponse(Long id,String name,RouteTransportMode mode,RoutingProviderName provider,
             long distance,long travel,long base,long dwell,long total,Instant departure,Instant calculated,Instant created,
             List<RouteStopResponse> stops,List<RouteSectionResponse> sections) {
-        this(id,name,mode,provider,distance,travel,base,dwell,total,departure,calculated,created,1,null,stops,sections,List.of());
-    }
-    public RouteDetailResponse(Long id,String name,RouteTransportMode mode,RoutingProviderName provider,
-            long distance,long travel,long base,long dwell,long total,Instant departure,Instant calculated,Instant created,
-            List<RouteStopResponse> stops,List<RouteSectionResponse> sections,List<RouteShapeRequest.ShapePoint> shapingPoints) {
-        this(id,name,mode,provider,distance,travel,base,dwell,total,departure,calculated,created,1,null,stops,sections,shapingPoints);
+        this(id,name,mode,provider,distance,travel,base,dwell,total,departure,calculated,created,stops,sections,List.of());
     }
     public record RouteStopResponse(
             int sequenceNumber,
@@ -60,25 +53,10 @@ public record RouteDetailResponse(
             int sectionSequence,
             int destinationStopSequence,
             String encodedPolyline,
-            com.quangkhai.vehicletracking_backend.route.entity.PolylineEncoding polylineEncoding,
             long distanceMeters,
             long travelDurationSeconds,
-            long baseTravelDurationSeconds,
-            List<com.quangkhai.vehicletracking_backend.route.entity.RouteTrafficInterval> trafficIntervals
-    ) {
-        public RouteSectionResponse(int sectionSequence, int destinationStopSequence, String encodedPolyline,
-                                    long distanceMeters, long travelDurationSeconds, long baseTravelDurationSeconds) {
-            this(sectionSequence, destinationStopSequence, encodedPolyline,
-                    com.quangkhai.vehicletracking_backend.route.entity.PolylineEncoding.HERE_FLEXIBLE_POLYLINE,
-                    distanceMeters, travelDurationSeconds, baseTravelDurationSeconds, List.of());
-        }
-        public RouteSectionResponse(int sectionSequence, int destinationStopSequence, String encodedPolyline,
-                                    com.quangkhai.vehicletracking_backend.route.entity.PolylineEncoding polylineEncoding,
-                                    long distanceMeters, long travelDurationSeconds, long baseTravelDurationSeconds) {
-            this(sectionSequence, destinationStopSequence, encodedPolyline, polylineEncoding,
-                    distanceMeters, travelDurationSeconds, baseTravelDurationSeconds, List.of());
-        }
-    }
+            long baseTravelDurationSeconds
+    ) {}
 
     public static RouteDetailResponse from(RouteEntity entity) {
         List<RouteSectionEntity> rawSections = entity.getSections();
@@ -143,11 +121,9 @@ public record RouteDetailResponse(
                         s.getSectionSequence(),
                         s.getDestinationStopSequence(),
                         s.getEncodedPolyline(),
-                        s.getPolylineEncoding(),
                         s.getDistanceMeters(),
                         s.getTravelDurationSeconds(),
-                        s.getBaseTravelDurationSeconds(),
-                        s.getTrafficIntervals()
+                        s.getBaseTravelDurationSeconds()
                 ))
                 .toList();
 
@@ -164,8 +140,6 @@ public record RouteDetailResponse(
                 entity.getEstimatedDepartureAt(),
                 entity.getCalculatedAt(),
                 entity.getCreatedAt(),
-                entity.getGeometryVersion(),
-                entity.getProviderContentExpiresAt(),
                 stopResponses,
                 sectionResponses,
                 entity.getShapingPoints().stream().map(p -> new RouteShapeRequest.ShapePoint(

@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import L from 'leaflet';
 import type { RouteDetail, RouteSection } from '../../types/route';
-import { decodeRoutePolyline } from '../../services/polyline';
+import { decodeFlexiblePolyline } from '../../services/polyline';
 import { useRouteTraffic } from '../../hooks/useRouteTraffic';
 import { matchFlow, project, trafficCell, usableTraffic, validLine, type Coordinate } from '../../utils/routeInspection';
 import { MapInspectionCard, NearbyTrafficIncidents, TrafficFlowDetails, TrafficSourceLine } from '../traffic/TrafficInspectionCard';
-import { inspectionDistance as distance, inspectionDuration as duration, inspectionStamp as stamp } from '../../utils/inspectionFormat';
 
 interface InspectedSection { section: RouteSection; points: Coordinate[] }
 interface Selection { route: RouteDetail; item: InspectedSection; point: Coordinate; x: number; y: number; pinned: boolean }
@@ -21,7 +20,7 @@ export function RouteInspectionLayer({ mapRef, mapReady, route, visible, traffic
   }, []);
   const prepared = useMemo(() => {
     try {
-      const sections = route?.sections.map(section => ({ section, points: decodeRoutePolyline(section.encodedPolyline, section.polylineEncoding) })) ?? [];
+      const sections = route?.sections.map(section => ({ section, points: decodeFlexiblePolyline(section.encodedPolyline) })) ?? [];
       return sections.every(item => validLine(item.points)) ? sections : [];
     } catch { return []; }
   }, [route]);
@@ -116,16 +115,14 @@ export function RouteInspectionLayer({ mapRef, mapReady, route, visible, traffic
   const to = current.route.stops[destination]?.stationName ?? 'Cuối chặng';
   return <MapInspectionCard x={current.x} y={current.y} pinned={current.pinned} kind="route" onClose={() => select(null)}>
     <strong className="route-inspection-name">{current.route.name}</strong>
-    <p className="route-inspection-leg">{from} → {to} · Đoạn {section.sectionSequence}</p>
-    <div className="route-inspection-baseline">Đoạn tuyến đã lưu: {distance(section.distanceMeters)} · {duration(section.travelDurationSeconds)}
-      <span>Tính lúc {stamp(current.route.calculatedAt)} · Chưa gồm dừng trạm</span></div>
+    <p className="route-inspection-leg"><span>Đoạn đang xem:</span> {from} → {to} · Đoạn {section.sectionSequence}</p>
     {!trafficEnabled ? <p className="route-inspection-empty">Bật lớp Giao thông để xem dữ liệu tại vị trí này.</p>
       : !flow ? <p className="route-inspection-empty" role="status">{traffic.loading ? 'Đang tải giao thông tại vị trí này…'
         : data?.flowError ? 'Không tải được dữ liệu giao thông.'
           : !usableTraffic(data?.flow ?? null) ? 'Chưa có dữ liệu giao thông.' : 'Chưa có dữ liệu khớp vị trí và hướng tuyến.'}</p>
         : <TrafficFlowDetails flow={flow} />}
-    {trafficEnabled && data?.flow && usableTraffic(data.flow) && <TrafficSourceLine label="Tốc độ" envelope={data.flow} receivedAt={data.receivedAt} now={now} />}
-    {trafficEnabled && data && <NearbyTrafficIncidents point={current.point} envelope={data.incidents} receivedAt={data.receivedAt} now={now} failed={data.incidentError} />}
+    {trafficEnabled && data?.flow && usableTraffic(data.flow) && <TrafficSourceLine label="Nguồn giao thông" envelope={data.flow} receivedAt={data.receivedAt} now={now} />}
+    {trafficEnabled && data && <NearbyTrafficIncidents point={current.point} envelope={data.incidents} now={now} failed={data.incidentError} />}
     {trafficEnabled && current.pinned && (data?.flowError || data?.incidentError) && <button className="route-inspection-retry" disabled={traffic.loading} onClick={traffic.retry}>Thử tải lại</button>}
   </MapInspectionCard>;
 }

@@ -11,7 +11,10 @@ public final class TripFixtures {
         return new StationEntity(name, null, new BigDecimal("10.772300"), new BigDecimal("106.698100"), 50);
     }
     public static RouteEntity route(StationEntity a, StationEntity b) {
-        var route = new RouteEntity("Tuyến vòng A-B-A", RouteTransportMode.CAR, RoutingProviderName.HERE,
+        return route(a, b, RouteTransportMode.CAR);
+    }
+    public static RouteEntity route(StationEntity a, StationEntity b, RouteTransportMode transportMode) {
+        var route = new RouteEntity("Tuyến vòng A-B-A", transportMode, RoutingProviderName.HERE,
                 2400L, 600L, 60L, 60L, 660L, Instant.parse("2026-09-13T16:00:00Z"), Instant.parse("2026-09-13T16:00:00Z"));
         route.addStop(new RouteStopEntity(a, 1, a.getName(), a.getLatitude(), a.getLongitude(), 0));
         route.addStop(new RouteStopEntity(b, 2, b.getName(), b.getLatitude(), b.getLongitude(), 60));

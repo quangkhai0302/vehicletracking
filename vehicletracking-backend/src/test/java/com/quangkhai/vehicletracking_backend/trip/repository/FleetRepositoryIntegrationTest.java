@@ -10,6 +10,7 @@ import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.service.VehicleService;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
+import com.quangkhai.vehicletracking_backend.route.entity.RouteTransportMode;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.station.dto.StationUpsertRequest;
 import com.quangkhai.vehicletracking_backend.station.repository.StationRepository;
@@ -64,7 +65,7 @@ class FleetRepositoryIntegrationTest {
 
         var a = stations.saveAndFlush(TripFixtures.station("Moto A"));
         var b = stations.saveAndFlush(TripFixtures.station("Moto B"));
-        var route = routes.saveAndFlush(TripFixtures.route(a, b));
+        var route = routes.saveAndFlush(TripFixtures.route(a, b, RouteTransportMode.MOTORCYCLE));
         var trip = service.create(new TripCreateRequest(response.id(), route.getId(), departure));
         assertThat(trip.trip().vehicleType()).isEqualTo(VehicleType.MOTORCYCLE);
     }

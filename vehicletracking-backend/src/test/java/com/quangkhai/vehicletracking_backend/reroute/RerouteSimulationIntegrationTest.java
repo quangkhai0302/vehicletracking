@@ -148,9 +148,14 @@ class RerouteSimulationIntegrationTest {
                 SimulationFixtures.encode(new double[][]{{before.frame().latitude(),before.frame().longitude()},{10.77025,106.702},{10.771,106.701}}),400,20,20));
             revision.addSection(new com.quangkhai.vehicletracking_backend.reroute.entity.TripRouteRevisionSectionEntity(2,3,
                 SimulationFixtures.encode(new double[][]{{10.771,106.701},{10.77,106.70}}),156,20,20));
-            for(var stop:trip.getStops()) if(stop.getSequenceNumber()>1) revision.addStop(new com.quangkhai.vehicletracking_backend.reroute.entity.TripRouteRevisionStopEntity(
-                stop.getSequenceNumber(),stop.getSequenceNumber()-1,stop.getStationId(),stop.getStationName(),stop.getLatitude(),stop.getLongitude(),stop.getDwellDurationSeconds(),
-                stop.getPlannedArrivalAt(),stop.getPlannedDepartureAt(),time.get().plusSeconds(20),time.get().plusSeconds(24)));
+            Instant arrival = time.get().plusSeconds(20);
+            for(var stop:trip.getStops()) if(stop.getSequenceNumber()>1) {
+                Instant departure = arrival.plusSeconds(stop.getDwellDurationSeconds());
+                revision.addStop(new com.quangkhai.vehicletracking_backend.reroute.entity.TripRouteRevisionStopEntity(
+                    stop.getSequenceNumber(),stop.getSequenceNumber()-1,stop.getStationId(),stop.getStationName(),stop.getLatitude(),stop.getLongitude(),stop.getDwellDurationSeconds(),
+                    stop.getPlannedArrivalAt(),stop.getPlannedDepartureAt(),arrival,departure));
+                arrival = departure.plusSeconds(20);
+            }
             return revisions.saveAndFlush(revision).getId();
         });
         time.updateAndGet(t -> t.plusSeconds(10));simulator.tick(id);

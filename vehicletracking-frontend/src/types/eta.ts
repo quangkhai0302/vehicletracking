@@ -17,8 +17,6 @@ export interface AffectedTrafficSegment {
   id: string;
   jamFactor: number;
   traversability: string;
-  points?: number[][];
-  center?: number[];
 }
 
 export interface TripEta {
@@ -35,7 +33,4 @@ export interface TripEta {
   stops: TripEtaStop[];
   affectedSegments: AffectedTrafficSegment[];
   warning: string | null;
-  geometryVersion: number;
-  attemptNumber: number;
-  routeRevisionId: number | null;
 }

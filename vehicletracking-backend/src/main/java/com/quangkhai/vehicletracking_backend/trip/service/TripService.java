@@ -3,11 +3,13 @@ package com.quangkhai.vehicletracking_backend.trip.service;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
+import com.quangkhai.vehicletracking_backend.trip.event.TripStartedEvent;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,7 @@ public class TripService {
     private final VehicleRepository vehicles;
     private final RouteRepository routes;
     private final Clock operationsClock;
+    private final ApplicationEventPublisher events;
 
     @Transactional(readOnly = true)
     public List<TripSummaryResponse> findAll(Long vehicleId) {
@@ -47,12 +50,6 @@ public class TripService {
         requireActive(vehicle);
         var route = routes.findById(input.routeId()).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy tuyến đường."));
         if (!route.isActive()) throw new ResponseStatusException(CONFLICT, "Tuyến đã ngừng sử dụng.");
-        if (!route.getTransportMode().name().equals(vehicle.getVehicleType().name())) {
-            throw new ResponseStatusException(CONFLICT, "Loại phương tiện không phù hợp với chế độ của tuyến.");
-        }
-        if (route.getProviderContentExpiresAt() != null && !route.getProviderContentExpiresAt().isAfter(operationsClock.instant())) {
-            throw new ResponseStatusException(CONFLICT, "Dữ liệu tuyến từ nhà cung cấp đã hết hạn; hãy tính lại tuyến trước khi tạo chuyến.");
-        }
         if (route.getStops().size() < 2) throw new ResponseStatusException(CONFLICT, "Tuyến chưa có đủ điểm dừng.");
         if (route.getStops().stream().anyMatch(stop -> !stop.getStation().isActive()))
             throw new ResponseStatusException(CONFLICT, "Tuyến có trạm đã ngừng sử dụng. Hãy tạo tuyến khác từ các trạm đang hoạt động.");
@@ -124,6 +121,7 @@ public class TripService {
         catch (DataIntegrityViolationException ex) {
             throw new ResponseStatusException(CONFLICT, "Trạng thái chuyến đã thay đổi hoặc xe đang chạy chuyến khác. Hãy tải lại.", ex);
         }
+        if (target == TripStatus.IN_PROGRESS) events.publishEvent(new TripStartedEvent(trip.getId()));
         return TripDetailResponse.from(trip);
     }
     private VehicleEntity lockVehicle(long id) {

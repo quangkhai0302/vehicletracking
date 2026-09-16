@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchTrip, fetchTripRoute } from '../services/fleet';
-import { decodeRoutePolyline } from '../services/polyline';
+import { decodeFlexiblePolyline } from '../services/polyline';
 import type { TripDetail, TripStop, TripSummary } from '../types/fleet';
 import type { RouteDetail } from '../types/route';
 import type { OperationsSnapshot } from '../types/operations';
@@ -15,7 +15,7 @@ function prepareDetail(detail: TripDetail) {
   const start = first && valid([first.latitude,first.longitude]) ? first : null;
   let segments: [number,number][][] | null = null;
   try {
-    const decoded = detail.route.sections.map(section => decodeRoutePolyline(section.encodedPolyline, section.polylineEncoding));
+    const decoded = detail.route.sections.map(section => decodeFlexiblePolyline(section.encodedPolyline));
     if (decoded.length && decoded.every(points => points.length>=2 && points.every(valid))) segments=decoded;
   } catch { /* Reject the entire route; retain a valid start marker independently. */ }
   return { route: detail.route, start, segments };

@@ -3,6 +3,7 @@ package com.quangkhai.vehicletracking_backend.trip.dto;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
 import java.time.Instant;
+import java.util.Comparator;
 
 public record TripSummaryResponse(Long id, Long vehicleId, String vehiclePlateNumber, Long routeId,
         String routeName, TripStatus status, Instant scheduledDepartureAt, Instant plannedEndAt,
@@ -18,8 +19,16 @@ public record TripSummaryResponse(Long id, Long vehicleId, String vehiclePlateNu
     public static TripSummaryResponse from(TripEntity trip) {
         return new TripSummaryResponse(trip.getId(), trip.getVehicle().getId(), trip.getVehiclePlateSnapshot(),
                 trip.getRoute().getId(), trip.getRoute().getName(), trip.getStatus(), trip.getScheduledDepartureAt(),
-                trip.getScheduledDepartureAt().plusSeconds(trip.getRoute().getEstimatedTripDurationSeconds()),
+                plannedEndAt(trip),
                 trip.getStartedAt(), trip.getEndedAt(), trip.getCreatedAt(), trip.getAttemptNumber(),
                 trip.getVehicle().getVehicleType());
+    }
+
+    private static Instant plannedEndAt(TripEntity trip) {
+        return trip.getStops().stream()
+                .max(Comparator.comparing(TripStopEntity::getSequenceNumber))
+                .map(TripStopEntity::getPlannedArrivalAt)
+                .orElseGet(() -> trip.getScheduledDepartureAt()
+                        .plusSeconds(trip.getRoute().getEstimatedTripDurationSeconds()));
     }
 }

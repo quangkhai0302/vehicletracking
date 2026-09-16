@@ -1,8 +1,6 @@
 package com.quangkhai.vehicletracking_backend.traffic.matching;
 
 import com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline;
-import com.quangkhai.vehicletracking_backend.simulation.motion.RoutePolylineCodec;
-import com.quangkhai.vehicletracking_backend.route.entity.PolylineEncoding;
 import com.quangkhai.vehicletracking_backend.simulation.motion.RouteMotion;
 import com.quangkhai.vehicletracking_backend.traffic.TrafficFlowSegment;
 
@@ -13,25 +11,16 @@ public class TrafficRouteMatcher {
         return Double.isFinite(matchDistanceMeters(encodedRoutePolyline, flow, radiusMeters));
     }
 
-    public boolean matches(String encodedRoutePolyline, PolylineEncoding encoding, TrafficFlowSegment flow, double radiusMeters) {
-        return Double.isFinite(matchDistanceMeters(encodedRoutePolyline, encoding, flow, radiusMeters));
-    }
-
     /**
      * Returns the closest geometry distance for a compatible flow segment.
      * {@link Double#POSITIVE_INFINITY} means the segment is not on this route
      * corridor or is travelling in the opposite direction.
      */
     public double matchDistanceMeters(String encodedRoutePolyline, TrafficFlowSegment flow, double radiusMeters) {
-        return matchDistanceMeters(encodedRoutePolyline, PolylineEncoding.HERE_FLEXIBLE_POLYLINE, flow, radiusMeters);
-    }
-
-    public double matchDistanceMeters(String encodedRoutePolyline, PolylineEncoding encoding,
-                                      TrafficFlowSegment flow, double radiusMeters) {
         if (encodedRoutePolyline == null || flow == null || flow.points().isEmpty()) return Double.POSITIVE_INFINITY;
         List<FlexiblePolyline.Point> route;
         try {
-            route = RoutePolylineCodec.decode(encodedRoutePolyline, encoding);
+            route = FlexiblePolyline.decode(encodedRoutePolyline);
         } catch (RuntimeException ex) {
             return Double.POSITIVE_INFINITY;
         }

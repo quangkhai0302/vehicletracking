@@ -29,9 +29,7 @@ public final class ReroutePolicy {
         int requiredFetches = properties == null ? 2 : properties.getConsecutiveFetches();
         if (eta == null || eta.trafficFetchedAt() == null
                 || (eta.source() != com.quangkhai.vehicletracking_backend.traffic.TrafficSource.HERE_LIVE
-                    && eta.source() != com.quangkhai.vehicletracking_backend.traffic.TrafficSource.HERE_LAST_KNOWN
-                    && eta.source() != com.quangkhai.vehicletracking_backend.traffic.TrafficSource.GOOGLE_LIVE
-                    && eta.source() != com.quangkhai.vehicletracking_backend.traffic.TrafficSource.GOOGLE_LAST_KNOWN))
+                    && eta.source() != com.quangkhai.vehicletracking_backend.traffic.TrafficSource.HERE_LAST_KNOWN))
             return new Decision(false, false, 0, fingerprint, "TRAFFIC_SOURCE_UNAVAILABLE");
         if (previousFetchedAt != null && !eta.trafficFetchedAt().isAfter(previousFetchedAt))
             return new Decision(false, false, previousCount, previousFingerprint, "TRAFFIC_NOT_REFRESHED");

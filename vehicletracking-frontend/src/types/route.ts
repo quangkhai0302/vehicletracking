@@ -1,12 +1,5 @@
-export type RouteTransportMode = 'CAR' | 'MOTORCYCLE';
-export type RoutingProviderName = 'HERE' | 'GOOGLE';
-export type PolylineEncoding = 'HERE_FLEXIBLE_POLYLINE' | 'GOOGLE_ENCODED_POLYLINE';
-export type TrafficSpeedCategory = 'NORMAL' | 'SLOW' | 'TRAFFIC_JAM' | 'UNKNOWN';
-export interface RouteTrafficInterval {
-  startPolylinePointIndex: number;
-  endPolylinePointIndex: number;
-  category: TrafficSpeedCategory;
-}
+export type RouteTransportMode = 'CAR';
+export type RoutingProviderName = 'HERE';
 export type RouteStopRole = 'START' | 'STOP' | 'END';
 
 export interface RouteStopInput {
@@ -21,8 +14,6 @@ export interface RouteDraftStop extends RouteStopInput {
 
 export interface RouteCreateInput {
   name: string;
-  transportMode?: RouteTransportMode;
-  departureTime?: string;
   stops: RouteStopInput[];
 }
 
@@ -44,11 +35,9 @@ export interface RouteSection {
   sectionSequence: number;
   destinationStopSequence: number;
   encodedPolyline: string;
-  polylineEncoding: PolylineEncoding;
   distanceMeters: number;
   travelDurationSeconds: number;
   baseTravelDurationSeconds: number;
-  trafficIntervals?: RouteTrafficInterval[];
 }
 
 export interface RouteSummary {
@@ -82,8 +71,6 @@ export interface RouteDetail {
   estimatedDepartureAt: string;
   calculatedAt: string;
   createdAt: string;
-  geometryVersion: number;
-  providerContentExpiresAt?: string | null;
   stops: RouteStop[];
   sections: RouteSection[];
 }

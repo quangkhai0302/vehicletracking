@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "trip_stops", schema = "vehicle_tracking")
@@ -39,6 +40,17 @@ public class TripStopEntity {
     public void reschedule(Instant departure) {
         plannedArrivalAt = departure.plusSeconds(arrivalOffsetSeconds);
         plannedDepartureAt = departure.plusSeconds(departureOffsetSeconds);
+    }
+
+    /**
+     * Applies a live ETA to this trip snapshot without changing the route
+     * offsets.  Keeping the offsets intact lets a replay restore the original
+     * route schedule while the active attempt uses the latest traffic timing.
+     */
+    public void applyLiveArrival(Instant arrivalAt) {
+        Instant normalized = arrivalAt.truncatedTo(ChronoUnit.MICROS);
+        plannedArrivalAt = normalized;
+        plannedDepartureAt = normalized.plusSeconds(dwellDurationSeconds);
     }
     void assignTo(TripEntity trip) { this.trip = trip; }
 }

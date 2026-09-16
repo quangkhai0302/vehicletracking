@@ -1,7 +1,7 @@
 package com.quangkhai.vehicletracking_backend.route.service;
 
 import com.quangkhai.vehicletracking_backend.route.controller.RouteController;
-import com.quangkhai.vehicletracking_backend.route.provider.RoutingProviderRegistry;
+import com.quangkhai.vehicletracking_backend.route.provider.RoutingProvider;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.station.repository.StationRepository;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
@@ -21,7 +21,9 @@ class RouteServiceWiringTest {
                 .withBean(RouteRepository.class, () -> repositoryStub(RouteRepository.class))
                 .withBean(StationRepository.class, () -> repositoryStub(StationRepository.class))
                 .withBean(TripRepository.class, () -> trips)
-                .withBean(RoutingProviderRegistry.class, () -> org.mockito.Mockito.mock(RoutingProviderRegistry.class))
+                .withBean(RoutingProvider.class, () -> waypoints -> {
+                    throw new AssertionError("Startup must not call HERE");
+                })
                 .withUserConfiguration(RoutePersistenceService.class, RouteService.class, RouteController.class)
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(RouteController.class).hasSingleBean(RouteService.class);

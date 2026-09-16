@@ -28,6 +28,9 @@ export function TripDetailPanel({ detail, loading, busy, error, onClose, onRetry
   const eta = useTripEta(trip?.id ?? null);
   const visitByStop = new Map(checkins.data?.visits.map(visit => [visit.stopSequence, visit]) ?? []);
   const etaByStop = new Map(eta.data?.stops.map(stop => [stop.sequenceNumber, stop]) ?? []);
+  const etaLabel = eta.data?.source === 'HERE_LIVE' && eta.data.status !== 'STALE' ? 'Dự kiến đến (theo giao thông)'
+    : eta.data?.source === 'HERE_LAST_KNOWN' || eta.data?.status === 'STALE' ? 'Dự kiến đến (dữ liệu gần nhất)'
+    : 'Dự kiến đến (theo lịch)';
   const beginScheduleEdit = () => { if (trip) { setSchedule(toLocalDateTimeInput(new Date(trip.scheduledDepartureAt))); setEditingSchedule(true); } };
   const saveSchedule = async () => { if (!trip || !onUpdateSchedule) return; const date = new Date(schedule); if (!Number.isFinite(date.getTime())) return; const ok = await onUpdateSchedule(trip.id, { scheduledDepartureAt: date.toISOString() }); if (ok) setEditingSchedule(false); };
   return <section className="fleet-editor" aria-label="Chi tiết chuyến đi">
@@ -59,12 +62,12 @@ export function TripDetailPanel({ detail, loading, busy, error, onClose, onRetry
             {(eta.data.source !== 'HERE_LIVE' || eta.data.status === 'STALE') && <small>{eta.data.status === 'STALE' ? 'Ước tính theo dữ liệu giao thông gần nhất' : trafficSourceLabel[eta.data.source]}</small>}
           </> : 'Chưa có ETA traffic; đang dùng lịch tuyến đã lưu.'}
         </div>
-        {onSimulate && <button className="fleet-text-button" disabled={busy} onClick={() => onSimulate(trip.id)}><Play size={14} />Mở mô phỏng chuyến này</button>}
+        {onSimulate && <button className="fleet-text-button" disabled={busy} onClick={() => onSimulate(trip.id)}><Play size={14} />Mở điều khiển chuyến này</button>}
         <ol className="trip-timeline">{detail.stops.map((stop,index) => <li key={stop.sequenceNumber}>
           <span className={`stop-order ${index === 0 ? 'start' : index === detail.stops.length - 1 ? 'end' : 'stop'}`}>{stop.sequenceNumber}</span>
           <div><button className="fleet-stop-link" onClick={() => onFocusStop([stop.latitude,stop.longitude],16)}><span>{stop.stationName}</span><MapPin size={13} /></button>
             <span className="fleet-help">{index === 0 ? 'Điểm đầu' : index === detail.stops.length - 1 ? 'Điểm cuối' : 'Trạm dừng'}</span>
-            {!visitByStop.has(stop.sequenceNumber) && <span className="trip-eta-stop">Dự kiến đến: {etaByStop.get(stop.sequenceNumber)?.etaAt ? displayTripTime(etaByStop.get(stop.sequenceNumber)!.etaAt) : eta.data?.status === 'BLOCKED' ? 'Đường bị đóng' : `${displayTripTime(stop.plannedArrivalAt)} (theo lịch)`}</span>}
+            {!visitByStop.has(stop.sequenceNumber) && <span className="trip-eta-stop">{etaLabel}: {etaByStop.get(stop.sequenceNumber)?.etaAt ? displayTripTime(etaByStop.get(stop.sequenceNumber)!.etaAt) : eta.data?.status === 'BLOCKED' ? 'Đường bị đóng' : displayTripTime(stop.plannedArrivalAt)}</span>}
             <VisitStatus visit={visitByStop.get(stop.sequenceNumber)}
               awaitingExit={checkins.data?.awaitingExit === true && checkins.data.nextStopSequence === stop.sequenceNumber} />
           </div>
@@ -89,5 +92,5 @@ export function TripDetailPanel({ detail, loading, busy, error, onClose, onRetry
 function VisitStatus({ visit, awaitingExit }: { visit?: StopVisit; awaitingExit?: boolean }) {
   if (!visit) return <span className="trip-checkin-pending">{awaitingExit ? 'Chờ ra khỏi vùng rồi vào lại' : 'Chưa ghi nhận'}</span>;
   const time = visit.source === 'SIMULATOR' && visit.simulatedArrivalAt ? visit.simulatedArrivalAt : visit.actualArrivalAt;
-  return <span className="trip-checkin-done">Đã qua trạm lúc {displayTripTime(time)}{visit.source === 'SIMULATOR' ? ' · Mô phỏng' : ''}</span>;
+  return <span className="trip-checkin-done">Đã qua trạm lúc {displayTripTime(time)}</span>;
 }

@@ -3,7 +3,6 @@ import L from 'leaflet';
 import type { OperationsSnapshot } from '../types/operations';
 import { positionFreshness } from '../types/operations';
 import type { VehicleType } from '../types/fleet';
-import { vehicleTypeLabel } from '../types/fleet';
 import { vehicleMarkerGlyph } from '../utils/vehiclePresentation';
 import { PLAYBACK_DELAY_MS, pointOnMotionPath, sampleMotion, type MotionPath, type MotionSample } from '../utils/vehicleMotion';
 
@@ -109,8 +108,6 @@ export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], mot
       const trip = snapshot?.trips.find(trip => trip.id === point.tripId);
       const run = snapshot?.simulations.find(run => run.tripId === point.tripId);
       const freshness = isPlanned ? 'stale' : positionFreshness(point, now);
-      const state = isPlanned ? 'Chưa khởi hành' : trip?.status === 'COMPLETED' || trip?.status === 'CANCELLED' ? 'Chuyến đã kết thúc' :
-        run?.status === 'PAUSED' ? 'Tạm dừng' : freshness === 'offline' ? 'Mất tín hiệu' : freshness === 'stale' ? 'Vị trí cũ' : 'Đang cập nhật';
       const stationary = isPlanned || (run?.status !== undefined && run.status !== 'RUNNING');
       const stale = freshness !== 'fresh' || stationary;
       const vehicleType = trip?.vehicleType ?? (isPlanned ? point.vehicleType : 'CAR');
@@ -161,10 +158,14 @@ export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], mot
         if (!animations.current.has(point.vehicleId)) body.style.setProperty('--heading', `${Number.isFinite(heading) ? heading : 0}deg`);
       }
       const text = document.createElement('span');
-      const sourceLabel = isPlanned ? 'KẾ HOẠCH' : point.source === 'SIMULATOR' ? 'GIẢ LẬP' : 'GPS';
-      const speedLabel = stationary ? '0' : point.speedKmh.toFixed(1);
-      const timeLabel = isPlanned ? 'chưa khởi hành' : new Date(point.recordedAt).toLocaleTimeString('vi-VN');
-      text.textContent = `${plateNumber ?? point.vehicleId} · ${vehicleTypeLabel(vehicleType)} · ${sourceLabel} · ${state} · ${speedLabel} km/h · ${timeLabel}`;
+      const statusLabel = isPlanned ? 'Chưa khởi hành'
+        : trip?.status === 'COMPLETED' ? 'Đã kết thúc'
+        : trip?.status === 'CANCELLED' ? 'Đã hủy'
+        : run?.status === 'PAUSED' ? 'Tạm dừng'
+        : freshness === 'offline' ? 'Mất tín hiệu'
+        : freshness === 'stale' ? 'Vị trí cũ'
+        : `${point.speedKmh.toFixed(1)} km/h`;
+      text.textContent = `${plateNumber ?? point.vehicleId} · ${statusLabel}`;
       if (marker.getTooltip()) marker.setTooltipContent(text); else marker.bindTooltip(text, { direction: 'top', opacity: .95 });
       marker.off('click').on('click', () => {
         const displayed = marker.getLatLng();

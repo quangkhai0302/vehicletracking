@@ -3,19 +3,8 @@ import type { TrafficFlowResponse, TrafficIncidentsResponse } from '../types/tra
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 
+/** HERE flow tiles are proxied by the backend so the HERE API key stays server-side. */
 export const TRAFFIC_TILE_URL = `${API_BASE_URL}/api/v1/traffic/tiles/{z}/{x}/{y}.png`;
-
-export function hereMapTileUrl(style: 'ROADMAP' | 'SATELLITE' | 'DARK'): string {
-  return `${API_BASE_URL}/api/v1/traffic/map-tiles/${style}/{z}/{x}/{y}`;
-}
-
-export function hereVectorStyleUrl(style: 'ROADMAP' | 'DARK'): string {
-  return `${API_BASE_URL}/api/v1/traffic/vector-styles/${style}`;
-}
-
-export function hereVectorResourceUrl(upstreamUrl: string): string {
-  return `${API_BASE_URL}/api/v1/traffic/vector-resources?url=${encodeURIComponent(upstreamUrl)}`;
-}
 
 // Mặc định Bounding Box khu vực trung tâm TP. Hồ Chí Minh
 // west (minLng), south (minLat), east (maxLng), north (maxLat)

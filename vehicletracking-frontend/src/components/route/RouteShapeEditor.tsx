@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import L from 'leaflet';
-import type { RouteDetail, RouteShapePoint, RoutingProviderName } from '../../types/route';
-import { decodeRoutePolyline } from '../../services/polyline';
+import type { RouteDetail, RouteShapePoint } from '../../types/route';
+import { decodeFlexiblePolyline } from '../../services/polyline';
 import { shapeRoute } from '../../services/routes';
 import { formatDuration } from '../../utils/format';
 import { FleetConfirmDialog } from '../fleet/FleetConfirmDialog';
@@ -11,19 +11,16 @@ export function RouteShapeEditor({ route, mapRef, onClose, onSaved }: {
 }) {
   const [points, setPoints] = useState<RouteShapePoint[]>(route.shapingPoints ?? []);
   const [preview, setPreview] = useState(route);
-  const [previewKey, setPreviewKey] = useState(JSON.stringify({points, provider: route.routingProvider}));
+  const [previewKey, setPreviewKey] = useState(JSON.stringify(points));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   const [copy, setCopy] = useState(false);
-  const [targetProvider, setTargetProvider] = useState<RoutingProviderName>(route.routingProvider);
   const requestRef = useRef<AbortController | null>(null);
   const pendingRef = useRef(false);
   const mounted = useRef(true);
   const dirty = JSON.stringify(points) !== JSON.stringify(route.shapingPoints ?? []);
-  const previewRequestKey = (provider: RoutingProviderName) => JSON.stringify({points, provider});
-  const activeTargetProvider = copy ? targetProvider : route.routingProvider;
-  const previewCurrent = previewKey === previewRequestKey(activeTargetProvider);
+  const previewCurrent = previewKey === JSON.stringify(points);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; requestRef.current?.abort(); }; }, []);
 
   useEffect(() => {
@@ -47,7 +44,7 @@ export function RouteShapeEditor({ route, mapRef, onClose, onSaved }: {
     };
     for (const section of preview.sections) {
       let line: [number, number][];
-      try { line = decodeRoutePolyline(section.encodedPolyline, section.polylineEncoding); } catch { continue; }
+      try { line = decodeFlexiblePolyline(section.encodedPolyline); } catch { continue; }
       L.polyline(line, {renderer, color: '#174ea6', weight: 9, interactive: false}).addTo(layer);
       const path = L.polyline(line, {renderer, color: '#4285f4', weight: 5, bubblingMouseEvents: false}).addTo(layer);
       path.bindTooltip('Bấm để thêm điểm dẫn đường, rồi kéo điểm tới đường muốn đi', {sticky: true});
@@ -101,10 +98,9 @@ export function RouteShapeEditor({ route, mapRef, onClose, onSaved }: {
     if (pendingRef.current) return;
     pendingRef.current = true;
     const controller = new AbortController(); requestRef.current = controller;
-    const provider = action === 'copy' ? targetProvider : activeTargetProvider;
-    const key = previewRequestKey(provider); setBusy(true); setError(null);
+    const key = JSON.stringify(points); setBusy(true); setError(null);
     try {
-      const result = await shapeRoute(route.id, points, action, controller.signal, provider);
+      const result = await shapeRoute(route.id, points, action, controller.signal);
       if (!mounted.current) return;
       if (action === 'preview') { setPreview(result); setPreviewKey(key); }
       else onSaved(result);
@@ -133,13 +129,6 @@ export function RouteShapeEditor({ route, mapRef, onClose, onSaved }: {
       <button type="button" className="btn-primary" disabled={busy || previewCurrent} onClick={() => void execute('preview')}>
         {busy ? 'Đang tính tuyến…' : 'Tính lại tuyến'}</button>
       <label className="route-shape-copy"><input type="checkbox" checked={copy} disabled={busy} onChange={e => setCopy(e.target.checked)} />Lưu thành tuyến mới</label>
-      {copy && <label className="form-field"><span className="form-label">Nhà cung cấp cho tuyến mới</span>
-        <select className="form-input" value={targetProvider} disabled={busy}
-          onChange={event => { setTargetProvider(event.target.value as RoutingProviderName); setPreviewKey(''); }}>
-          <option value="GOOGLE">Google Routes (hình học và ETA Google)</option>
-          <option value="HERE">HERE Routing</option>
-        </select>
-      </label>}
       <p className="panel-help">Nếu tuyến đã có chuyến đi, hãy lưu thành tuyến mới rồi chọn tuyến đó khi tạo chuyến.</p>
     </div>
     <div className="route-drawer-footer">

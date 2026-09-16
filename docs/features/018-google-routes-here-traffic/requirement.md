@@ -26,7 +26,7 @@ Ngoài phạm vi: thay toàn bộ UI bằng Google Maps JavaScript API; Google T
 ## Acceptance criteria
 
 | AC | Yêu cầu kiểm chứng |
-|---|---|
+| --- | --- |
 | AC01 | Tuyến mới Google có provider/mode rõ; tuyến HERE cũ vẫn đọc/chạy; cấu hình sai không âm thầm đổi nhà cung cấp. |
 | AC02 | Google polyline được giải mã đúng; vẽ, matching, simulator, kéo tuyến và check-in dùng cùng geometry/version; không nối thẳng hai section rời nhau. |
 | AC03 | Giữ 2–50 trạm, thứ tự occurrence kể cả A→B→A, tối đa 20 điểm dẫn đường; chia request theo giới hạn Google, không bỏ trạm hay cộng dwell hai lần. |
