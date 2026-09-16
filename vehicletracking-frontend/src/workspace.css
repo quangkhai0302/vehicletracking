@@ -1246,6 +1246,52 @@ fieldset { border: 0; min-width: 0; }
   -webkit-backdrop-filter: blur(20px);
 }
 
+.gm-traffic-floating-pill.light {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #202124;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.gm-traffic-pill-dropdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.gm-traffic-caret {
+  font-size: 11px;
+  line-height: 1;
+  color: #94a3b8;
+  margin-top: -1px;
+}
+
+.gm-traffic-floating-pill.light .gm-traffic-title {
+  color: #202124;
+}
+
+.gm-traffic-floating-pill.light .gm-traffic-caret {
+  color: #5f6368;
+}
+
+.gm-traffic-floating-pill.light .gm-traffic-pill-divider {
+  background: #dadce0;
+}
+
+.gm-traffic-floating-pill.light .gm-legend-tag {
+  color: #5f6368;
+}
+
+.gm-traffic-floating-pill.light .gm-switch-track {
+  background: #dadce0;
+}
+
+.gm-traffic-floating-pill.light .gm-traffic-toggle-switch.on .gm-switch-track,
+.gm-traffic-floating-pill.dark .gm-traffic-toggle-switch.on .gm-switch-track {
+  background: #00bcd4;
+}
+
 .gm-traffic-pill-status {
   display: flex;
   align-items: center;

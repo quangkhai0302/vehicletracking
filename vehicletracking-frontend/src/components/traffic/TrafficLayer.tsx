@@ -1,34 +1,8 @@
 import { useEffect, type RefObject } from 'react';
 import L from 'leaflet';
-import type { TrafficFlowSegment, TrafficIncident } from '../../types/map';
-import type { TrafficFlowResponse, TrafficIncidentsResponse } from '../../types/traffic';
-import { usableTraffic } from '../../utils/routeInspection';
+import type { TrafficIncident } from '../../types/map';
+import type { TrafficIncidentsResponse } from '../../types/traffic';
 import './traffic.css';
-
-// Match the familiar Google Maps traffic palette while keeping HERE as the
-// data source. The backend never exposes the HERE API key to the browser.
-const GOOGLE_TRAFFIC_COLORS = {
-  clear: '#34a853',
-  slow: '#f9ab00',
-  congested: '#ea4335',
-  blocked: '#a50e0e',
-} as const;
-
-function trafficColor(flow: TrafficFlowSegment) {
-  const traversability = (flow.traversability ?? '').toLowerCase();
-  if (traversability === 'closed' || traversability === 'reversiblenotroutable' || flow.speedKmh <= 0) {
-    return GOOGLE_TRAFFIC_COLORS.blocked;
-  }
-  const ratio = flow.freeFlowKmh > 0 ? flow.speedKmh / flow.freeFlowKmh : null;
-  if (flow.jamFactor >= 8 || (ratio !== null && ratio < 0.4)) return GOOGLE_TRAFFIC_COLORS.congested;
-  if (flow.jamFactor >= 4 || (ratio !== null && ratio < 0.7)) return GOOGLE_TRAFFIC_COLORS.slow;
-  return GOOGLE_TRAFFIC_COLORS.clear;
-}
-
-function validFlowPoints(flow: TrafficFlowSegment) {
-  return flow.points.filter(([latitude, longitude]) => Number.isFinite(latitude) && Number.isFinite(longitude)
-    && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180);
-}
 
 function createTrafficIncidentIcon(incident: TrafficIncident): L.DivIcon {
   const typeLower = (incident.type || '').toLowerCase();
@@ -115,51 +89,13 @@ export function TrafficLayer({
   mapRef,
   mapReady,
   visible,
-  flow,
   incidents,
 }: {
   mapRef: RefObject<L.Map | null>;
   mapReady: boolean;
   visible: boolean;
-  flow: TrafficFlowResponse | null;
   incidents: TrafficIncidentsResponse | null;
 }) {
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!mapReady || !map || !visible) return;
-
-    if (!map.getPane('trafficPane')) {
-      const pane = map.createPane('trafficPane');
-      pane.style.zIndex = '350';
-    }
-
-    const attribution = '&copy; HERE Traffic';
-    map.attributionControl.addAttribution(attribution);
-    const layer = L.layerGroup().addTo(map);
-    if (flow && usableTraffic(flow)) {
-      flow.results.forEach((segment) => {
-        const points = validFlowPoints(segment);
-        if (points.length < 2) return;
-        L.polyline(points as L.LatLngExpression[], {
-          pane: 'trafficPane',
-          className: 'google-traffic-flow',
-          color: trafficColor(segment),
-          weight: 5,
-          opacity: 0.95,
-          lineCap: 'round',
-          lineJoin: 'round',
-          interactive: false,
-        }).addTo(layer);
-      });
-    }
-
-    return () => {
-      layer.clearLayers();
-      map.removeLayer(layer);
-      map.attributionControl.removeAttribution(attribution);
-    };
-  }, [flow, mapReady, mapRef, visible]);
-
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map || !visible) return;

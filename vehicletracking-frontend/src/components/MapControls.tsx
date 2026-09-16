@@ -160,14 +160,11 @@ export function MapControls({
         </div>
       </div>
 
-      {/* Google Maps Floating Live Traffic Pill (Bottom-Center - authentic Google Maps design) */}
-      <div className={`gm-traffic-floating-pill ${theme === 'google-dark' ? 'dark' : 'light'}`} role="region" aria-label="Thông tin giao thông HERE">
-        <div className="gm-traffic-pill-status">
-          <span className={`gm-traffic-live-dot ${showTraffic ? 'active' : ''}`} />
-          <div className="gm-traffic-pill-label">
-            <span className="gm-traffic-title">Giao thông trực tiếp</span>
-            <span className="gm-traffic-sub" title={trafficMessage}>{showTraffic ? trafficMessage : 'Tạm tắt'}</span>
-          </div>
+      {/* Floating live traffic control */}
+      <div className={`gm-traffic-floating-pill ${theme === 'google-dark' ? 'dark' : 'light'}`} role="region" aria-label="Thông tin giao thông">
+        <div className="gm-traffic-pill-dropdown" title={trafficMessage}>
+          <span className="gm-traffic-title">Giao thông theo thời gian thực</span>
+          <span className="gm-traffic-caret">▾</span>
         </div>
 
         {showTraffic && trafficCanRetry && (

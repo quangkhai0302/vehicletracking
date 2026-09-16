@@ -477,8 +477,9 @@ export const MapComponent: FC = () => {
       tileLayerRef.current = null;
     }
     const baseType = theme === 'google-satellite' ? 'y' : 'm';
+    const layerType = showTraffic ? `${baseType},traffic` : baseType;
     const newTileLayer = L.tileLayer(
-      `https://{s}.google.com/vt/lyrs=${baseType}&hl=vi&gl=VN&x={x}&y={y}&z={z}`,
+      `https://{s}.google.com/vt/lyrs=${layerType}&hl=vi&gl=VN&x={x}&y={y}&z={z}`,
       {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -518,7 +519,7 @@ export const MapComponent: FC = () => {
         tileLayerRef.current = null;
       }
     };
-  }, [theme, mapReady]);
+  }, [theme, showTraffic, mapReady]);
 
   // Render Planned Route (Polyline & Stop markers)
   useEffect(() => {
@@ -750,7 +751,7 @@ export const MapComponent: FC = () => {
     <main ref={rootRef} className="map-first" data-workspace={workspace} data-sheet-expanded={sheetExpanded} data-drawer-open={contextVisible}>
       <div id="main-map" ref={mapContainerRef} className="map-canvas" aria-label="Bản đồ tương tác" tabIndex={-1} />
       <TrafficLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showTraffic}
-        flow={traffic.flow} incidents={traffic.incidents} />
+        incidents={traffic.incidents} />
       {workspace==='simulation' && <Suspense fallback={null}><SimulationFleetLayer mapRef={mapInstanceRef} mapReady={mapReady} visible
         vehicles={simulationFleet.previews} onSelect={selectSimulationVehicle} />
         <SimulationRoutesLayer mapRef={mapInstanceRef} mapReady={mapReady} visible={showRoutes}
