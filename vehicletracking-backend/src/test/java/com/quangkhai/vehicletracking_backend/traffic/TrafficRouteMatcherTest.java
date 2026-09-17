@@ -22,6 +22,8 @@ class TrafficRouteMatcherTest {
         TrafficFlowSegment flow = new TrafficFlowSegment("flow", "Route", 100, points, 20, 40, 6, "open", 1.0);
 
         assertThat(new TrafficRouteMatcher().matches(POLYLINE, flow, 100)).isTrue();
+        assertThat(new TrafficRouteMatcher().matchDecodedDistanceMeters(route, flow, 100))
+                .isEqualTo(new TrafficRouteMatcher().matchDistanceMeters(POLYLINE, flow, 100));
     }
 
     @Test

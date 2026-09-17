@@ -329,22 +329,32 @@ public class TrafficEtaService {
     private List<FlowMatch> matchingFlows(RouteDetailResponse.RouteSectionResponse section,
                                           TrafficEnvelope<TrafficFlowSegment> flow) {
         if (flow == null || flow.results().isEmpty()) return List.of();
+        List<FlexiblePolyline.Point> routePoints;
+        try {
+            routePoints = FlexiblePolyline.decode(section.encodedPolyline());
+        } catch (RuntimeException ignored) {
+            return List.of();
+        }
         return flow.results().stream()
-                .map(candidate -> new FlowMatch(candidate, matcher.matchDistanceMeters(
-                        section.encodedPolyline(), candidate, properties.getCorridorRadiusMeters())))
+                .map(candidate -> new FlowMatch(candidate, matcher.matchDecodedDistanceMeters(
+                        routePoints, candidate, properties.getCorridorRadiusMeters())))
                 .filter(match -> Double.isFinite(match.distanceMeters()))
                 .sorted(Comparator.comparingDouble(FlowMatch::distanceMeters))
                 .toList();
     }
 
     private TrafficFlowSegment bestMatchingFlowAtPosition(List<FlowMatch> matches, double latitude, double longitude) {
-        return matches.stream()
-                .map(match -> new PositionedFlowMatch(match.flow(),
-                        matcher.distanceToFlowMeters(latitude, longitude, match.flow())))
-                .filter(match -> Double.isFinite(match.distanceMeters())
-                        && match.distanceMeters() <= properties.getCorridorRadiusMeters())
-                .min(Comparator.comparingDouble(PositionedFlowMatch::distanceMeters))
-                .map(PositionedFlowMatch::flow).orElse(null);
+        TrafficFlowSegment nearest = null;
+        double best = Double.POSITIVE_INFINITY;
+        // This runs for every route edge; avoid allocating a record per candidate.
+        for (FlowMatch match : matches) {
+            double distance = matcher.distanceToFlowMeters(latitude, longitude, match.flow());
+            if (Double.isFinite(distance) && distance <= properties.getCorridorRadiusMeters() && distance < best) {
+                best = distance;
+                nearest = match.flow();
+            }
+        }
+        return nearest;
     }
 
     private double trafficDuration(RouteDetailResponse.RouteSectionResponse section, List<FlowMatch> matches,
@@ -405,7 +415,6 @@ public class TrafficEtaService {
     }
 
     private record FlowMatch(TrafficFlowSegment flow, double distanceMeters) {}
-    private record PositionedFlowMatch(TrafficFlowSegment flow, double distanceMeters) {}
 
     private double baselineDuration(RouteDetailResponse.RouteSectionResponse section, double remainingDistanceMeters) {
         long freeFlowSeconds = freeFlowDurationSeconds(section);

@@ -20,8 +20,8 @@ export function useTripEta(tripId: number | null) {
     let alive = true;
     let requestId = 0;
     let activeController: AbortController | null = null;
+    let timer: number | undefined;
     const load = () => {
-      activeController?.abort();
       const controller = new AbortController();
       activeController = controller;
       const currentRequest = ++requestId;
@@ -30,11 +30,15 @@ export function useTripEta(tripId: number | null) {
         if (alive && currentRequest === requestId) { setData(result); setLoadedTripId(tripId); setError(null); }
       }).catch((reason: unknown) => {
         if (alive && currentRequest === requestId && !controller.signal.aborted) setError({ tripId, message: reason instanceof Error ? reason.message : 'Không tải được ETA theo traffic.' });
-      }).finally(() => { if (alive && currentRequest === requestId) setLoading(false); });
+      }).finally(() => {
+        if (alive && currentRequest === requestId) {
+          setLoading(false);
+          timer = window.setTimeout(load, REFRESH_MS);
+        }
+      });
     };
     load();
-    const timer = window.setInterval(load, REFRESH_MS);
-    return () => { alive = false; activeController?.abort(); window.clearInterval(timer); };
+    return () => { alive = false; activeController?.abort(); window.clearTimeout(timer); };
   }, [tripId, attempt]);
 
   return { data: tripId !== null && loadedTripId === tripId ? data : null,

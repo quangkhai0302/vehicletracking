@@ -185,8 +185,20 @@ public class RerouteEvaluationService {
     private String fingerprint(TripEtaResponse eta) {
         String values = eta.affectedSegments().stream().map(s -> s.kind() + ":" + s.id() + ":" + s.destinationStopSequence())
                 .sorted().collect(Collectors.joining("|"));
-        return (eta.status() == com.quangkhai.vehicletracking_backend.traffic.TrafficStatus.BLOCKED ? "BLOCKED:" : "DELAY:")
-                + (values.isBlank() ? "route" : values);
+        String prefix = eta.status() == com.quangkhai.vehicletracking_backend.traffic.TrafficStatus.BLOCKED ? "BLOCKED:" : "DELAY:";
+        return boundedFingerprint(prefix + (values.isBlank() ? "route" : values));
+    }
+
+    // Leave room for notification type and trip ID in the varchar(255) dedupe key.
+    // Preserve existing short fingerprints so deployment does not reset their history.
+    static String boundedFingerprint(String value) {
+        if (value.length() <= 200) return value;
+        try {
+            return "sha256:" + HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 is required", ex);
+        }
     }
     private String affectedStops(TripEtaResponse eta) { return eta.affectedSegments().stream().map(s -> Integer.toString(s.destinationStopSequence())).distinct().sorted().collect(Collectors.joining(",")); }
     private String incidentId(TripEtaResponse eta) { return eta.affectedSegments().stream().filter(s -> "INCIDENT".equals(s.kind())).map(TripEtaResponse.AffectedSegment::id).findFirst().orElse(null); }

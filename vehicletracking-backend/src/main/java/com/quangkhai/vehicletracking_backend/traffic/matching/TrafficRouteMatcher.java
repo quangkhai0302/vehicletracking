@@ -24,7 +24,13 @@ public class TrafficRouteMatcher {
         } catch (RuntimeException ex) {
             return Double.POSITIVE_INFINITY;
         }
-        if (route.isEmpty() || !Double.isFinite(radiusMeters) || radiusMeters < 0) return Double.POSITIVE_INFINITY;
+        return matchDecodedDistanceMeters(route, flow, radiusMeters);
+    }
+
+    /** Reuse decoded route geometry across the flow candidates of one request. */
+    public double matchDecodedDistanceMeters(List<FlexiblePolyline.Point> route, TrafficFlowSegment flow, double radiusMeters) {
+        if (route == null || route.isEmpty() || flow == null || flow.points().isEmpty()
+                || !Double.isFinite(radiusMeters) || radiusMeters < 0) return Double.POSITIVE_INFINITY;
         double closest = Double.POSITIVE_INFINITY;
         for (var point : flow.points()) {
             if (point == null || point.size() < 2) continue;
