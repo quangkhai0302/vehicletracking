@@ -107,8 +107,10 @@ export const MapComponent: FC = () => {
           : 'Tạm tắt');
   const connectionLabel = live.connection === 'live' ? 'Đang cập nhật trực tiếp' : live.connection === 'connecting' ? 'Đang kết nối…' : 'Mất kết nối · Đang thử lại';
   const { focusLocation, fitBounds, getVisibleCenter, releaseFocus } = useMapCamera(rootRef, mapInstanceRef);
+  const [routeRefreshToken, setRouteRefreshToken] = useState(0);
   const stationWorkspace = useStationWorkspace({
     focusLocation, onToast: setToast,
+    onStationUpdated: () => setRouteRefreshToken(current => current + 1),
     onPickStart: () => setActivePanel(null),
     onPickEnd: () => { setDrawerOpen(true); setActivePanel('context'); },
   });
@@ -809,7 +811,8 @@ export const MapComponent: FC = () => {
         </div>
         <div className="context-content" hidden={workspace !== 'routes'}>
           <RouteWorkspace mapRef={mapInstanceRef} stations={stations} loadingStations={loadingStations} onPlannedRouteDisplay={setPlannedRoute} onShowToast={setToast}
-            onDraftStopsChange={setDraftStops} selectedDraftStopId={selectedDraftStopId} onFocusDraftStop={focusDraftStop} onFocusStop={focusLocation} />
+            onDraftStopsChange={setDraftStops} selectedDraftStopId={selectedDraftStopId} onFocusDraftStop={focusDraftStop} onFocusStop={focusLocation}
+            refreshToken={routeRefreshToken} />
         </div>
         {(workspace === 'stations' || workspace === 'routes') && <div className="context-footer"><span className="status-dot" />{workspace === 'stations' ? 'Danh sách trạm đã lưu' : 'Quản lý tuyến đường'}</div>}
       </aside>

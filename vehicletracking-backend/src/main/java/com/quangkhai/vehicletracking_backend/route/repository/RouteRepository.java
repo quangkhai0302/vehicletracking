@@ -15,6 +15,11 @@ public interface RouteRepository extends JpaRepository<RouteEntity, Long> {
 
     List<RouteEntity> findAllByOrderByCreatedAtDescIdDesc();
     List<RouteEntity> findAllByActiveTrueOrderByCreatedAtDescIdDesc();
+
+    @Query("select distinct r from RouteEntity r join r.stops stop "
+            + "where r.active = true and stop.station.id = :stationId")
+    List<RouteEntity> findAllActiveByStationId(@Param("stationId") long stationId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from RouteEntity r where r.id = :id")
     java.util.Optional<RouteEntity> findLockedById(@Param("id") long id);

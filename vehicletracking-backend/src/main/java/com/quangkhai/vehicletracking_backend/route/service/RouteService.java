@@ -5,6 +5,7 @@ import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
 import com.quangkhai.vehicletracking_backend.route.dto.RouteSummaryResponse;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteSectionEntity;
+import com.quangkhai.vehicletracking_backend.route.entity.RouteShapePointEntity;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteStopEntity;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteTransportMode;
 import com.quangkhai.vehicletracking_backend.route.entity.RoutingProviderName;
@@ -27,6 +28,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -74,11 +76,33 @@ public class RouteService {
          * orphan removals first, then attach the freshly calculated snapshot.
          */
         RouteEntity replacement = buildRoute(request);
-        current.replaceDefinitionMetadata(replacement);
-        current.clearDefinitionChildren();
-        routeRepository.flush();
-        current.appendDefinitionChildren(replacement);
-        return RouteDetailResponse.from(routeRepository.saveAndFlush(current));
+        return persistReplacement(current, replacement);
+    }
+
+    /**
+     * Rebuilds active, unused route definitions that reference a station after
+     * the station's name or coordinates change. Trip history is intentionally
+     * excluded: trip stops keep their own immutable snapshots.
+     */
+    @Transactional
+    public void refreshRoutesUsingStation(long stationId, boolean coordinatesChanged) {
+        List<RouteEntity> candidates = routeRepository.findAllActiveByStationId(stationId);
+        if (candidates.isEmpty()) return;
+
+        for (RouteEntity candidate : candidates) {
+            Long routeId = candidate.getId();
+            if (routeId == null) continue;
+            RouteEntity route = routeRepository.findLockedById(routeId).orElse(null);
+            if (route == null || !route.isActive() || tripRepository.existsByRouteId(routeId)) continue;
+
+            if (coordinatesChanged) {
+                persistReplacement(route, buildRouteFromCurrentDefinition(route));
+            } else {
+                route.getStops().stream()
+                        .filter(stop -> Objects.equals(stop.getStation().getId(), stationId))
+                        .forEach(RouteStopEntity::refreshSnapshotFromStation);
+            }
+        }
     }
 
     @Transactional
@@ -150,6 +174,78 @@ public class RouteService {
         calculated.sections().forEach(cs -> route.addSection(new RouteSectionEntity(cs.sectionSequence(), cs.destinationStopSequence(),
                 cs.encodedPolyline(), cs.distanceMeters(), cs.travelDurationSeconds(), cs.baseTravelDurationSeconds())));
         return route;
+    }
+
+    /** Recalculates a route while retaining its stop order, dwell times and shaping points. */
+    private RouteEntity buildRouteFromCurrentDefinition(RouteEntity source) {
+        List<RouteStopEntity> sourceStops = source.getStops();
+        if (sourceStops.size() < 2) {
+            throw new RouteOperationException(HttpStatus.BAD_REQUEST, RouteErrorCode.ROUTE_VALIDATION_FAILED,
+                    "Route must have between 2 and 50 stops");
+        }
+
+        List<RoutingWaypoint> waypoints = new ArrayList<>();
+        List<Integer> destinationStopSequences = new ArrayList<>();
+        for (RouteStopEntity stop : sourceStops) {
+            source.getShapingPoints().stream()
+                    .filter(point -> point.getDestinationStopSequence() == stop.getSequenceNumber())
+                    .forEach(point -> {
+                        waypoints.add(new RoutingWaypoint(null, "Điểm dẫn đường", point.getLatitude(), point.getLongitude(),
+                                waypoints.size() + 1, 0));
+                        destinationStopSequences.add(stop.getSequenceNumber());
+                    });
+
+            StationEntity station = stop.getStation();
+            waypoints.add(new RoutingWaypoint(station.getId(), station.getName(), station.getLatitude(), station.getLongitude(),
+                    waypoints.size() + 1, stop.getDwellDurationSeconds()));
+            destinationStopSequences.add(stop.getSequenceNumber());
+        }
+        if (waypoints.size() > 50) {
+            throw new RouteOperationException(HttpStatus.BAD_REQUEST, RouteErrorCode.ROUTE_VALIDATION_FAILED,
+                    "Tổng trạm và điểm dẫn đường tối đa 50");
+        }
+
+        CalculatedRoute calculated = routingProvider.calculate(waypoints);
+        if (calculated.sections().isEmpty()) {
+            throw new RouteOperationException(HttpStatus.BAD_GATEWAY, RouteErrorCode.ROUTING_PROVIDER_INVALID_RESPONSE,
+                    "Routing provider returned an empty route without sections");
+        }
+        long distance = calculated.sections().stream().mapToLong(CalculatedSection::distanceMeters).sum();
+        long travel = calculated.sections().stream().mapToLong(CalculatedSection::travelDurationSeconds).sum();
+        long base = calculated.sections().stream().mapToLong(CalculatedSection::baseTravelDurationSeconds).sum();
+        long dwell = sourceStops.subList(1, sourceStops.size() - 1).stream()
+                .mapToLong(stop -> stop.getDwellDurationSeconds()).sum();
+
+        RouteEntity replacement = new RouteEntity(source.getName(), source.getTransportMode(), source.getRoutingProvider(),
+                distance, travel, base, dwell, travel + dwell, calculated.estimatedDepartureAt(), Instant.now());
+        for (RouteStopEntity stop : sourceStops) {
+            StationEntity station = stop.getStation();
+            replacement.addStop(new RouteStopEntity(station, stop.getSequenceNumber(), station.getName(), station.getLatitude(),
+                    station.getLongitude(), stop.getDwellDurationSeconds()));
+        }
+        for (CalculatedSection section : calculated.sections()) {
+            int localDestination = section.destinationStopSequence();
+            if (localDestination < 2 || localDestination > destinationStopSequences.size()) {
+                throw new RouteOperationException(HttpStatus.BAD_GATEWAY, RouteErrorCode.ROUTING_PROVIDER_INVALID_RESPONSE,
+                        "Routing provider returned an invalid section destination");
+            }
+            replacement.addSection(new RouteSectionEntity(section.sectionSequence(),
+                    destinationStopSequences.get(localDestination - 1), section.encodedPolyline(), section.distanceMeters(),
+                    section.travelDurationSeconds(), section.baseTravelDurationSeconds()));
+        }
+        for (RouteShapePointEntity point : source.getShapingPoints()) {
+            replacement.addShapingPoint(new RouteShapePointEntity(point.getPointOrder(), point.getDestinationStopSequence(),
+                    point.getLatitude(), point.getLongitude()));
+        }
+        return replacement;
+    }
+
+    private RouteDetailResponse persistReplacement(RouteEntity current, RouteEntity replacement) {
+        current.replaceDefinitionMetadata(replacement);
+        current.clearDefinitionChildren();
+        routeRepository.flush();
+        current.appendDefinitionChildren(replacement);
+        return RouteDetailResponse.from(routeRepository.saveAndFlush(current));
     }
 
     private void validateStops(List<RouteCreateRequest.RouteStopInput> stops) {

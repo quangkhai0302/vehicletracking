@@ -17,6 +17,7 @@ interface RouteWorkspaceProps {
   onFocusStop: (position: [number, number], zoom?: number) => void;
   onPlannedRouteDisplay: (routeDetail: RouteDetail | null) => void;
   onShowToast: (message: string) => void;
+  refreshToken?: number;
 }
 
 export function RouteWorkspace({
@@ -24,6 +25,7 @@ export function RouteWorkspace({
   stations, loadingStations, onDraftStopsChange, selectedDraftStopId, onFocusDraftStop, onFocusStop,
   onPlannedRouteDisplay,
   onShowToast,
+  refreshToken = 0,
 }: RouteWorkspaceProps) {
   const [routes, setRoutes] = useState<RouteSummary[]>([]);
   const [loadingRoutes, setLoadingRoutes] = useState(true);
@@ -39,6 +41,7 @@ export function RouteWorkspace({
   // M-04: Request token & AbortController to prevent race condition on consecutive route selections
   const detailAbortRef = useRef<AbortController | null>(null);
   const detailRequestIdRef = useRef<number>(0);
+  const lastRouteRefreshTokenRef = useRef(refreshToken);
 
   // M4-01: Token & mounted flag to prevent deferred POST createRoute from usurping user selection
   const isMountedRef = useRef<boolean>(true);
@@ -50,7 +53,8 @@ export function RouteWorkspace({
     onPlannedRouteDisplayRef.current = onPlannedRouteDisplay;
   }, [onPlannedRouteDisplay]);
 
-  // Initial load of routes - only runs once on mount
+  // Load routes on mount and after a station edit, because the backend may
+  // have rebuilt route snapshots/geometry that reference that station.
   useEffect(() => {
     const abortController = new AbortController();
     fetchRoutes(abortController.signal)
@@ -68,7 +72,45 @@ export function RouteWorkspace({
     return () => {
       abortController.abort();
     };
-  }, []);
+  }, [refreshToken]);
+
+  // Keep an open route detail in sync without disturbing an unsaved route edit.
+  useEffect(() => {
+    if (refreshToken === 0 || refreshToken === lastRouteRefreshTokenRef.current) return;
+    // There is no detail to reload while the list is closed. Mark this token
+    // consumed so a later manual selection does not issue a duplicate GET.
+    if (selectedRouteId === null) {
+      lastRouteRefreshTokenRef.current = refreshToken;
+      return;
+    }
+    // Defer the refresh until an in-progress route draft is no longer editable.
+    if (routeDrawerMode === 'edit') return;
+    lastRouteRefreshTokenRef.current = refreshToken;
+    detailAbortRef.current?.abort();
+    const abortController = new AbortController();
+    detailAbortRef.current = abortController;
+    const requestId = ++detailRequestIdRef.current;
+    fetchRouteById(selectedRouteId, abortController.signal)
+      .then((detail) => {
+        if (!abortController.signal.aborted && isMountedRef.current && detailRequestIdRef.current === requestId) {
+          setRouteDetail(detail);
+          onPlannedRouteDisplayRef.current(detail);
+        }
+      })
+      .catch((err: unknown) => {
+        if (abortController.signal.aborted || !isMountedRef.current || detailRequestIdRef.current !== requestId) return;
+        setRouteError(err instanceof Error ? err.message : 'Không thể tải chi tiết tuyến đường');
+      })
+      .finally(() => {
+        if (!abortController.signal.aborted && isMountedRef.current && detailRequestIdRef.current === requestId) {
+          setLoadingRouteDetail(false);
+        }
+      });
+    return () => {
+      abortController.abort();
+      if (detailAbortRef.current === abortController) detailAbortRef.current = null;
+    };
+  }, [refreshToken, selectedRouteId, routeDrawerMode]);
 
   // Unmount cleanup: only runs when RouteWorkspace unmounts (e.g. workspace switched)
   useEffect(() => {

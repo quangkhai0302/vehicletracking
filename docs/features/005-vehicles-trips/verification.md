@@ -1,5 +1,9 @@
 # 005 — Kết quả triển khai và xác minh
 
+## Đồng bộ route khi sửa station
+
+`StationService.update` gọi `RouteService.refreshRoutesUsingStation` khi tên hoặc tọa độ station thay đổi. Route active chưa từng được dùng bởi trip được cập nhật mọi stop snapshot; nếu tọa độ đổi, HERE được gọi lại để tính distance/duration/polyline và các shaping point được giữ nguyên. Route đã gắn trip được bỏ qua để không làm thay đổi lịch sử snapshot. `RouteRepository.findAllActiveByStationId` giới hạn phạm vi truy vấn vào các route có station liên quan. Địa chỉ và bán kính check-in không ảnh hưởng geometry nên không gọi lại HERE.
+
 Ngày kiểm tra: 2026-09-13. Trạng thái: **đã triển khai và kiểm tra AC 1–8 trong working tree**, chưa commit/push. Các thay đổi Map-First 004 có sẵn được giữ lại. `docs/workflow.md` không tồn tại khi khảo sát; hồ sơ dùng AGENTS.md và yêu cầu triển khai trực tiếp của người dùng. Không mở rộng sang engine 006.
 
 ## Kiến trúc và evidence implementation

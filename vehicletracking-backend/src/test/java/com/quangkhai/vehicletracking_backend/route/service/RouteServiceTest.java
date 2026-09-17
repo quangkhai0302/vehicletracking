@@ -4,6 +4,8 @@ import com.quangkhai.vehicletracking_backend.route.dto.RouteCreateRequest;
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
 import com.quangkhai.vehicletracking_backend.route.dto.RouteSummaryResponse;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
+import com.quangkhai.vehicletracking_backend.route.entity.RouteShapePointEntity;
+import com.quangkhai.vehicletracking_backend.route.entity.RouteStopEntity;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteTransportMode;
 import com.quangkhai.vehicletracking_backend.route.entity.RoutingProviderName;
 import com.quangkhai.vehicletracking_backend.route.error.RouteErrorCode;
@@ -378,6 +380,83 @@ class RouteServiceTest {
                     assertThat(roe.getErrorCode()).isEqualTo(RouteErrorCode.ROUTE_VALIDATION_FAILED);
                 });
 
+        verify(routingProvider, never()).calculate(any());
+        verify(routeRepository, never()).flush();
+    }
+
+    @Test
+    void refreshRoutesUsingStation_recalculatesUnusedRouteWithCurrentStationSnapshotAndKeepsShape() {
+        StationEntity start = createStation(1L, "Trạm đầu", "10.800000", "106.700000");
+        StationEntity end = createStation(2L, "Tên cũ", "10.810000", "106.710000");
+        end.updateDetails("Tên mới", "Addr", new BigDecimal("10.820000"), new BigDecimal("106.720000"), 50);
+
+        RouteEntity route = new RouteEntity("Tuyến A", RouteTransportMode.CAR, RoutingProviderName.HERE,
+                1000L, 100L, 90L, 0L, 100L, Instant.now(), Instant.now());
+        ReflectionTestUtils.setField(route, "id", 12L);
+        route.addStop(new RouteStopEntity(start, 1, start.getName(), start.getLatitude(), start.getLongitude(), 0));
+        route.addStop(new RouteStopEntity(end, 2, "Tên cũ", new BigDecimal("10.810000"), new BigDecimal("106.710000"), 0));
+        route.addSection(new com.quangkhai.vehicletracking_backend.route.entity.RouteSectionEntity(
+                1, 2, "old", 1000L, 100L, 90L));
+        route.addShapingPoint(new RouteShapePointEntity(1, 2, new BigDecimal("10.815000"), new BigDecimal("106.715000")));
+
+        when(routeRepository.findAllActiveByStationId(2L)).thenReturn(List.of(route));
+        when(routeRepository.findLockedById(12L)).thenReturn(Optional.of(route));
+        when(tripRepository.existsByRouteId(12L)).thenReturn(false);
+        when(routingProvider.calculate(any())).thenAnswer(invocation -> {
+            List<RoutingWaypoint> waypoints = invocation.getArgument(0);
+            assertThat(waypoints).hasSize(3);
+            assertThat(waypoints.get(2).stationName()).isEqualTo("Tên mới");
+            assertThat(waypoints.get(2).latitude()).isEqualByComparingTo("10.820000");
+            return new CalculatedRoute(Instant.now(), List.of(
+                    new CalculatedSection(1, 2, "new-1", 1200L, 120L, 100L),
+                    new CalculatedSection(2, 3, "new-2", 800L, 80L, 70L)
+            ));
+        });
+        when(routeRepository.saveAndFlush(route)).thenReturn(route);
+
+        routeService.refreshRoutesUsingStation(2L, true);
+
+        assertThat(route.getStops().get(1).getStationNameSnapshot()).isEqualTo("Tên mới");
+        assertThat(route.getStops().get(1).getLatitudeSnapshot()).isEqualByComparingTo("10.820000");
+        assertThat(route.getSections()).extracting(section -> section.getEncodedPolyline())
+                .containsExactly("new-1", "new-2");
+        assertThat(route.getShapingPoints()).hasSize(1);
+        verify(routeRepository).flush();
+    }
+
+    @Test
+    void refreshRoutesUsingStation_skipsRouteAlreadyUsedByTrip() {
+        RouteEntity route = new RouteEntity("Tuyến đã chạy", RouteTransportMode.CAR, RoutingProviderName.HERE,
+                1000L, 100L, 90L, 0L, 100L, Instant.now(), Instant.now());
+        ReflectionTestUtils.setField(route, "id", 13L);
+        when(routeRepository.findAllActiveByStationId(1L)).thenReturn(List.of(route));
+        when(routeRepository.findLockedById(13L)).thenReturn(Optional.of(route));
+        when(tripRepository.existsByRouteId(13L)).thenReturn(true);
+
+        routeService.refreshRoutesUsingStation(1L, true);
+
+        verify(routingProvider, never()).calculate(any());
+        verify(routeRepository, never()).flush();
+    }
+
+    @Test
+    void refreshRoutesUsingStation_whenOnlyNameChanges_refreshesEveryOccurrenceWithoutHere() {
+        StationEntity station = createStation(1L, "Tên mới", "10.800000", "106.700000");
+        StationEntity other = createStation(2L, "Trạm khác", "10.810000", "106.710000");
+        RouteEntity route = new RouteEntity("Tuyến tên", RouteTransportMode.CAR, RoutingProviderName.HERE,
+                1000L, 100L, 90L, 0L, 100L, Instant.now(), Instant.now());
+        ReflectionTestUtils.setField(route, "id", 14L);
+        route.addStop(new RouteStopEntity(station, 1, "Tên cũ", station.getLatitude(), station.getLongitude(), 0));
+        route.addStop(new RouteStopEntity(other, 2, other.getName(), other.getLatitude(), other.getLongitude(), 0));
+        route.addStop(new RouteStopEntity(station, 3, "Tên cũ", station.getLatitude(), station.getLongitude(), 0));
+        when(routeRepository.findAllActiveByStationId(1L)).thenReturn(List.of(route));
+        when(routeRepository.findLockedById(14L)).thenReturn(Optional.of(route));
+        when(tripRepository.existsByRouteId(14L)).thenReturn(false);
+
+        routeService.refreshRoutesUsingStation(1L, false);
+
+        assertThat(route.getStops()).extracting(RouteStopEntity::getStationNameSnapshot)
+                .containsExactly("Tên mới", "Trạm khác", "Tên mới");
         verify(routingProvider, never()).calculate(any());
         verify(routeRepository, never()).flush();
     }

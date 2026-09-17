@@ -65,6 +65,13 @@ public class RouteStopEntity {
         this.dwellDurationSeconds = dwellDurationSeconds;
     }
 
+    /** Refreshes the route-definition snapshot after the referenced station changes. */
+    public void refreshSnapshotFromStation() {
+        this.stationNameSnapshot = station.getName();
+        this.latitudeSnapshot = station.getLatitude();
+        this.longitudeSnapshot = station.getLongitude();
+    }
+
     void setRoute(RouteEntity route) {
         this.route = route;
     }

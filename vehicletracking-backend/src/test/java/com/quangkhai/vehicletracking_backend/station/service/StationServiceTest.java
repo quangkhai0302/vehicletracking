@@ -4,6 +4,7 @@ import com.quangkhai.vehicletracking_backend.station.dto.StationResponse;
 import com.quangkhai.vehicletracking_backend.station.dto.StationUpsertRequest;
 import com.quangkhai.vehicletracking_backend.station.entity.StationEntity;
 import com.quangkhai.vehicletracking_backend.station.repository.StationRepository;
+import com.quangkhai.vehicletracking_backend.route.service.RouteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,11 +33,14 @@ class StationServiceTest {
     @Mock
     private StationRepository stationRepository;
 
+    @Mock
+    private RouteService routeService;
+
     private StationService stationService;
 
     @BeforeEach
     void setUp() {
-        stationService = new StationService(stationRepository);
+        stationService = new StationService(stationRepository, routeService);
     }
 
     @Test
@@ -164,6 +169,18 @@ class StationServiceTest {
         assertThat(existing.getName()).isEqualTo("Tên mới");
         assertThat(existing.getAddress()).isEqualTo("Địa chỉ mới");
         assertThat(existing.getCheckinRadiusMeters()).isEqualTo(200);
+        verify(routeService).refreshRoutesUsingStation(1L, true);
+    }
+
+    @Test
+    void update_whenOnlyAddressChanges_doesNotRecalculateRoutes() {
+        StationEntity existing = createEntity(1L, "Tên", "Địa chỉ cũ", new BigDecimal("10.800000"), new BigDecimal("106.700000"), 50);
+        when(stationRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(existing));
+
+        stationService.update(1L, new StationUpsertRequest(
+                "Tên", "Địa chỉ mới", new BigDecimal("10.800000"), new BigDecimal("106.700000"), 100));
+
+        verifyNoInteractions(routeService);
     }
 
     @Test

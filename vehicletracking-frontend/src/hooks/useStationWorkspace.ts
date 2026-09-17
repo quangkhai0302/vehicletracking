@@ -3,9 +3,10 @@ import type L from 'leaflet';
 import { createStation, deleteStation, fetchStations, updateStation } from '../services/stations';
 import { EMPTY_STATION_FORM, type Station, type StationFormMode, type StationFormState, type StationInput } from '../types/station';
 
-export function useStationWorkspace({ focusLocation, onPickStart, onPickEnd, onToast }: {
+export function useStationWorkspace({ focusLocation, onPickStart, onPickEnd, onToast, onStationUpdated }: {
   focusLocation: (position: L.LatLngExpression, zoom?: number) => void;
   onPickStart: () => void; onPickEnd: () => void; onToast: (message: string) => void;
+  onStationUpdated?: () => void;
 }) {
   const [stations, setStations] = useState<Station[]>([]);
   const [loadingStations, setLoadingStations] = useState(true);
@@ -107,6 +108,7 @@ export function useStationWorkspace({ focusLocation, onPickStart, onPickEnd, onT
       setStationForm(EMPTY_STATION_FORM);
       setPickingLocation(false);
       onPickEnd();
+      if (formMode === 'edit') onStationUpdated?.();
       onToast(formMode === 'create' ? `Đã tạo trạm “${saved.name}”.` : `Đã cập nhật trạm “${saved.name}”.`);
       focusLocation([saved.latitude, saved.longitude], 16);
     } catch (error) {
