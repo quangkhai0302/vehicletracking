@@ -13,6 +13,13 @@ import { SortableStopList } from './SortableStopList';
 import { formatDuration } from '../../utils/format';
 import { FleetConfirmDialog } from '../fleet/FleetConfirmDialog';
 
+// These IDs identify draft occurrences only, including repeated stations.
+// A page-local counter works without Web Crypto on HTTP deployments.
+let nextDraftStopId = 0;
+function createDraftStopId(): string {
+  return `draft-stop-${++nextDraftStopId}`;
+}
+
 interface RouteDrawerProps {
   onShape: () => void;
   onFocusStop: (position: [number, number], zoom?: number) => void;
@@ -68,16 +75,16 @@ function RouteCreateContent({
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const [formStops, setFormStops] = useState<RouteDraftStop[]>(() => {
-    if (initialRoute) return initialRoute.stops.map(stop => ({ id: crypto.randomUUID(), stationId: stop.stationId, dwellDurationSeconds: stop.dwellDurationSeconds }));
+    if (initialRoute) return initialRoute.stops.map(stop => ({ id: createDraftStopId(), stationId: stop.stationId, dwellDurationSeconds: stop.dwellDurationSeconds }));
     const active = stations.filter((s) => s.active);
     if (active.length >= 2) {
       return [
-        { id: crypto.randomUUID(), stationId: active[0].id, dwellDurationSeconds: 0 },
-        { id: crypto.randomUUID(), stationId: active[1].id, dwellDurationSeconds: 0 },
+        { id: createDraftStopId(), stationId: active[0].id, dwellDurationSeconds: 0 },
+        { id: createDraftStopId(), stationId: active[1].id, dwellDurationSeconds: 0 },
       ];
     }
     if (active.length === 1) {
-      return [{ id: crypto.randomUUID(), stationId: active[0].id, dwellDurationSeconds: 0 }];
+      return [{ id: createDraftStopId(), stationId: active[0].id, dwellDurationSeconds: 0 }];
     }
     return [];
   });
@@ -103,7 +110,7 @@ function RouteCreateContent({
     setFormStops((prev) =>
       normalizeStops([
         ...prev,
-        { id: crypto.randomUUID(), stationId: nextStation.id, dwellDurationSeconds: 0 },
+        { id: createDraftStopId(), stationId: nextStation.id, dwellDurationSeconds: 0 },
       ])
     );
   };
