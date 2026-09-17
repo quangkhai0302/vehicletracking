@@ -28,7 +28,7 @@ public class OperationsSnapshotService {
         var locationList=positions.findAllByOrderByVehicleIdAsc().stream()
             .filter(p -> byId.containsKey(p.getSample().getTripId()) && p.getSample().getAttemptNumber()==byId.get(p.getSample().getTripId()).getAttemptNumber())
             .map(p->TelemetryResponse.from(p.getSample())).toList();
-        var simulations=runs.findAllByOrderByIdAsc().stream().map(run->simulation.describe(byId.get(run.getTripId()),run)).toList();
+        var simulations=runs.findAllByOrderByIdAsc().stream().map(run->simulation.describeSnapshot(byId.get(run.getTripId()),run)).toList();
         var tripSummaries=tripList.stream().map(TripSummaryResponse::from).toList();
         var checkInList=checkIns.findAll(tripList.stream().map(t->t.getId()).toList());
         return new OperationsSnapshot(operationsClock.instant(),locationList,simulations,tripSummaries,checkInList,

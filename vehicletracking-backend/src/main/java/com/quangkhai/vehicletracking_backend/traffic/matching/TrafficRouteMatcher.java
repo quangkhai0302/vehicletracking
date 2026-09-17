@@ -31,6 +31,20 @@ public class TrafficRouteMatcher {
     public double matchDecodedDistanceMeters(List<FlexiblePolyline.Point> route, TrafficFlowSegment flow, double radiusMeters) {
         if (route == null || route.isEmpty() || flow == null || flow.points().isEmpty()
                 || !Double.isFinite(radiusMeters) || radiusMeters < 0) return Double.POSITIVE_INFINITY;
+        // Conservative latitude envelope; do not reject based on longitude (dateline/poles).
+        double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
+        for (var point : route) {
+            min = Math.min(min, point.latitude());
+            max = Math.max(max, point.latitude());
+        }
+        double flowMin = Double.POSITIVE_INFINITY, flowMax = Double.NEGATIVE_INFINITY;
+        for (var point : flow.points()) {
+            if (point == null || point.size() < 2 || point.get(0) == null || !Double.isFinite(point.get(0))) continue;
+            flowMin = Math.min(flowMin, point.get(0));
+            flowMax = Math.max(flowMax, point.get(0));
+        }
+        double margin = radiusMeters / 110_000d;
+        if (flowMin > max + margin || flowMax < min - margin) return Double.POSITIVE_INFINITY;
         double closest = Double.POSITIVE_INFINITY;
         for (var point : flow.points()) {
             if (point == null || point.size() < 2) continue;

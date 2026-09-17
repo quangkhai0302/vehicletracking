@@ -65,6 +65,14 @@ class SimulationReplayTest {
             attempts,checkpoints,alerts,revisions,new com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService(revisions));
     }
 
+    @Test void realtimeSnapshotDoesNotCalculateTrafficOrCallProvider() {
+        var response = service.describeSnapshot(trip, run);
+        assertThat(response.frame()).isNotNull();
+        verify(eta).latestForSnapshot(trip);
+        verify(eta, never()).calculate(anyLong());
+        verify(eta, never()).simulationRate(anyLong(), anyDouble());
+    }
+
     @Test void liveFlowSpeedIsNotClampedInFrameOrTelemetry() {
         var route=trip.getRoute();
         for (var section:route.getSections()) ReflectionTestUtils.setField(section,"baseTravelDurationSeconds",56L);

@@ -187,13 +187,22 @@ public class SimulationService {
             simulatedAt(trip,run));
     }
     public SimulationResponse describe(TripEntity trip,SimulationRunEntity run) {
+        return describe(trip, run, false);
+    }
+
+    /** Realtime snapshots must not wait for provider queries or route/traffic matching. */
+    public SimulationResponse describeSnapshot(TripEntity trip, SimulationRunEntity run) {
+        return describe(trip, run, true);
+    }
+
+    private SimulationResponse describe(TripEntity trip, SimulationRunEntity run, boolean snapshot) {
         RouteMotion.Frame frame=null;
         double duration=trip.getRoute().getEstimatedTripDurationSeconds();
         if(run.getStatus()!=SimulationStatus.FAILED) {
             try { var motion=motion(trip); duration=motion.duration(); frame=motion.at(run.getElapsedSeconds()); }
             catch(ResponseStatusException ignored) { /* Historical malformed geometry remains inspectable. */ }
         }
-        if (frame != null && run.getStatus() == SimulationStatus.RUNNING) {
+        if (frame != null && run.getStatus() == SimulationStatus.RUNNING && !snapshot) {
             double baselineRemaining = Math.max(0, motion(trip).duration() - run.getElapsedSeconds());
             double trafficRate = trafficEta.simulationRate(trip.getId(), baselineRemaining);
             if (frame.speedKmh() > 0 && Double.isFinite(trafficRate)) {
@@ -205,13 +214,23 @@ public class SimulationService {
         if(frame!=null && run.getStatus()!=SimulationStatus.RUNNING)
             frame=new RouteMotion.Frame(frame.latitude(),frame.longitude(),frame.heading(),0,frame.progressPercent(),
                 frame.nextStopSequence(),frame.nextStopEtaSeconds(),frame.dwelling(),frame.finished());
+        if (snapshot && frame != null && run.getStatus() == SimulationStatus.RUNNING) {
+            var sample = positions.findById(trip.getVehicle().getId()).map(p -> p.getSample()).orElse(null);
+            double speed = sample != null && trip.getId().equals(sample.getTripId())
+                    && sample.getAttemptNumber() == trip.getAttemptNumber() ? sample.getSpeedKmh() : 0;
+            frame = new RouteMotion.Frame(frame.latitude(), frame.longitude(), frame.heading(), speed,
+                    frame.progressPercent(), frame.nextStopSequence(), frame.nextStopEtaSeconds(), frame.dwelling(), frame.finished());
+        }
         return new SimulationResponse(run.getId(),trip.getId(),run.getStatus(),run.getMultiplier(),run.getElapsedSeconds(),
             duration,simulatedAt(trip,run),run.getUpdatedAt(),run.getErrorMessage(),run.getReplacementTripId(),frame,
-            trafficMetadata(trip),trip.getAttemptNumber(),frame==null?null:geometry.resolve(trip).revisionId());
+            trafficMetadata(trip, snapshot),
+            trip.getAttemptNumber(),frame==null?null:geometry.resolve(trip).revisionId());
     }
-    private SimulationTrafficMetadata trafficMetadata(TripEntity trip) {
+    private SimulationTrafficMetadata trafficMetadata(TripEntity trip, boolean snapshot) {
         try {
-            TripEtaResponse eta = trafficEta.calculate(trip.getId());
+            TripEtaResponse eta = snapshot ? trafficEta.latestForSnapshot(trip) : trafficEta.calculate(trip.getId());
+            if (eta == null) return new SimulationTrafficMetadata(TrafficSource.UNAVAILABLE, TrafficStatus.UNAVAILABLE,
+                    null, null, null, false, "TRAFFIC_REQUIRES_ETA_QUERY");
             Long nextEta = eta.nextStopSequence() == null ? null : eta.stops().stream()
                     .filter(stop -> stop.sequenceNumber() == eta.nextStopSequence())
                     .map(TripEtaResponse.EtaStop::etaSeconds)

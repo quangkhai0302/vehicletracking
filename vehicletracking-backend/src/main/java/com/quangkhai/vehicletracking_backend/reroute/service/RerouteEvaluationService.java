@@ -33,6 +33,8 @@ public class RerouteEvaluationService {
     private final TripRouteGeometryService geometry;
     private final Clock operationsClock;
     private final RerouteProperties properties;
+    private record EvaluationTick(int attempt, long startedAt) {}
+    private final Map<Long, EvaluationTick> evaluationTicks = new LinkedHashMap<>();
 
     /** Evaluates one trip. It is safe to call for every scheduler tick and ETA read. */
     // Evaluation is deliberately isolated from telemetry/simulator writes.
@@ -97,6 +99,18 @@ public class RerouteEvaluationService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void evaluateCurrent(long tripId) {
+        TripEntity trip = trips.findById(tripId).orElse(null);
+        if (trip == null || trip.getStatus() != TripStatus.IN_PROGRESS) return;
+        // Telemetry may arrive every second; observe traffic at most once per 10s.
+        // Replay bypasses the previous attempt's throttle. No DB work under this monitor.
+        synchronized (evaluationTicks) {
+            long now = System.nanoTime();
+            EvaluationTick last = evaluationTicks.get(tripId);
+            if (last != null && last.attempt() == trip.getAttemptNumber()
+                    && now - last.startedAt() < 10_000_000_000L) return;
+            if (evaluationTicks.size() >= 128) evaluationTicks.remove(evaluationTicks.keySet().iterator().next());
+            evaluationTicks.put(tripId, new EvaluationTick(trip.getAttemptNumber(), now));
+        }
         evaluate(tripId, trafficEta.calculate(tripId));
     }
 

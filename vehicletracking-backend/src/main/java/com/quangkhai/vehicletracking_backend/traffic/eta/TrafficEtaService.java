@@ -37,6 +37,23 @@ public class TrafficEtaService {
     private final com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry;
     private final TrafficRouteMatcher matcher = new TrafficRouteMatcher();
     private final RoutePositionMatcher positionMatcher = new RoutePositionMatcher();
+    // Cache geometry matches, never ETA: position/check-ins remain fresh on every calculation.
+    // Bounded and shared by HTTP, simulation and reroute callers. The lock coalesces misses.
+    private final Map<MatchKey, List<FlowMatch>> matchCache = new LinkedHashMap<>(16, 0.75f, true);
+    private record MatchKey(String polyline, List<TrafficFlowSegment> flows, double radius) {}
+    private record RecentEta(int attempt, com.quangkhai.vehicletracking_backend.trip.entity.TripStatus status,
+                             long storedAt, TripEtaResponse value) {}
+    private final Map<Long, RecentEta> recentEtas = new LinkedHashMap<>();
+
+    /** Non-blocking with respect to provider/matching work; never calculates an ETA. */
+    public TripEtaResponse latestForSnapshot(TripEntity trip) {
+        synchronized (recentEtas) {
+            RecentEta entry = recentEtas.get(trip.getId());
+            if (entry == null || entry.attempt() != trip.getAttemptNumber() || entry.status() != trip.getStatus()
+                    || System.nanoTime() - entry.storedAt() > 10_000_000_000L) return null;
+            return entry.value();
+        }
+    }
 
     @Transactional(readOnly = true)
     public TripEtaResponse calculate(long tripId) {
@@ -156,9 +173,23 @@ public class TrafficEtaService {
                 : trafficRequested ? trafficStatus : TrafficStatus.AVAILABLE;
         String warning = blocked ? "TRAFFIC_BLOCKED"
                 : trafficRequested ? trafficWarning : "VEHICLE_POSITION_UNAVAILABLE; using route snapshot";
-        return new TripEtaResponse(tripId, trip.getRoute().getId(), calculatedAt, source, status,
+        TripEtaResponse response = new TripEtaResponse(tripId, trip.getRoute().getId(), calculatedAt, source, status,
                 latestObservedAt(flow, incidents), latestFetchedAt(flow, incidents), nextStop < 0 ? null : nextStop,
                 Math.max(0, Math.round(baselineCumulative)), blocked ? 0 : Math.max(0, Math.round(cumulative)), rows, affected, warning);
+        RecentEta entry = new RecentEta(trip.getAttemptNumber(), trip.getStatus(), System.nanoTime(), response);
+        Runnable publish = () -> {
+            synchronized (recentEtas) {
+                if (recentEtas.size() >= 128) recentEtas.remove(recentEtas.keySet().iterator().next());
+                recentEtas.put(tripId, entry);
+            }
+        };
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void afterCommit() { publish.run(); }
+                    });
+        } else publish.run();
+        return response;
     }
 
     /**
@@ -326,21 +357,27 @@ public class TrafficEtaService {
         return Math.max(0, seconds);
     }
 
-    private List<FlowMatch> matchingFlows(RouteDetailResponse.RouteSectionResponse section,
+    private synchronized List<FlowMatch> matchingFlows(RouteDetailResponse.RouteSectionResponse section,
                                           TrafficEnvelope<TrafficFlowSegment> flow) {
         if (flow == null || flow.results().isEmpty()) return List.of();
+        MatchKey key = new MatchKey(section.encodedPolyline(), flow.results(), properties.getCorridorRadiusMeters());
+        List<FlowMatch> cached = matchCache.get(key);
+        if (cached != null) return cached;
         List<FlexiblePolyline.Point> routePoints;
         try {
             routePoints = FlexiblePolyline.decode(section.encodedPolyline());
         } catch (RuntimeException ignored) {
             return List.of();
         }
-        return flow.results().stream()
+        List<FlowMatch> result = flow.results().stream()
                 .map(candidate -> new FlowMatch(candidate, matcher.matchDecodedDistanceMeters(
                         routePoints, candidate, properties.getCorridorRadiusMeters())))
                 .filter(match -> Double.isFinite(match.distanceMeters()))
                 .sorted(Comparator.comparingDouble(FlowMatch::distanceMeters))
                 .toList();
+        if (matchCache.size() >= 16) matchCache.remove(matchCache.keySet().iterator().next());
+        matchCache.put(key, result);
+        return result;
     }
 
     private TrafficFlowSegment bestMatchingFlowAtPosition(List<FlowMatch> matches, double latitude, double longitude) {

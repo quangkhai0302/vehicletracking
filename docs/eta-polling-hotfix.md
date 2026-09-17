@@ -1,5 +1,31 @@
 # Sửa lỗi polling ETA và fingerprint đổi tuyến
 
+## Bổ sung theo thread dump EC2 (2026-09-17)
+
+Survey: cả operations-stream (OperationsSnapshotService -> SimulationService.describe -> trafficMetadata)
+và simulation-clock (TelemetryService.afterCommit -> RerouteEvaluationService.evaluateCurrent) đang chạy
+TrafficEtaService.matchingFlows/TrafficRouteMatcher trong hai dump. Sửa theo quy trình bugfix rút gọn:
+
+- OperationsSnapshotService dùng describeSnapshot: không tính ETA hay simulationRate trên luồng SSE.
+  Tốc độ lấy từ telemetry đúng trip/attempt. Metadata ETA đọc từ cache tối đa 10 giây; khi thiếu/hết hạn
+  trả UNAVAILABLE rõ ràng, không bịa thông tin traffic. Cache giới hạn 128 chuyến, chỉ publish sau commit.
+- Cache match hình học LRU 16 mục, khóa gồm polyline, nội dung flow (cả tốc độ) và bán kính;
+  không phụ thuộc ageSeconds của envelope. Các lần miss được đồng bộ để không tính trùng.
+  Không cache toàn response ETA cho HTTP: vị trí, check-in vẫn tính hiện tại.
+- Lọc khoảng latitude bảo thủ trước phép đo chi tiết, không dùng longitude tránh lỗi tại đường đổi ngày.
+- evaluateCurrent giới hạn 10 giây/chuyến/attempt; tối đa 128 checkpoint. Replay bỏ qua checkpoint cũ.
+  Đây là độ trễ có chủ ý tối đa khoảng 10 giây trước lần đánh giá từ telemetry tiếp theo;
+  endpoint ETA vẫn đánh giá đổi tuyến như trước. Không bỏ gọi provider vĩnh viễn.
+
+Kiểm tra: Java 26, `./mvnw -Dtest='Traffic*Test,SimulationReplayTest,ReroutePolicyTest,RerouteFingerprintTest' test`
+đạt 38 tests. Test bổ sung xác nhận snapshot không calculate/simulationRate; cache reuse khi age đổi
+và miss khi tốc độ flow đổi. Full `./mvnw test` ở bước trước test cache mới: 199 tests,
+0 failures, 6 errors do Docker không khả dụng. `git diff --check` sạch.
+
+Giới hạn: chưa benchmark EC2 hoặc kiểm thử SSE end-to-end. Cache match dùng monitor chung, có thể
+serialize các cache miss khác tuyến; HTTP và simulation vẫn có thể tính phần duration song song.
+Chưa tuyên bố xử lý hoàn toàn OOM. Cần đo lại CPU, ETA latency và realtime sau deploy backend.
+
 ## Phạm vi và kế hoạch rút gọn
 
 - `useTripEta`: đợi request kết thúc rồi mới hẹn lần tiếp theo sau 10 giây; hủy khi đổi chuyến/unmount/retry.
