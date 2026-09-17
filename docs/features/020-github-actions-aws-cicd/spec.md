@@ -11,8 +11,10 @@ push master
 ```
 
 - Hai job CI chạy song song.
-- Job deploy chỉ chạy khi cả hai job thành công và ba GitHub Actions variables đã tồn tại.
-- OIDC trust chỉ chấp nhận `quangkhai0302/vehicletracking`, ref `refs/heads/master`, audience `sts.amazonaws.com`.
+- Job deploy chạy trên `master` sau khi cả hai job CI thành công; bước đầu tiên kiểm tra ba GitHub Actions variables
+  và dừng với lỗi rõ ràng nếu thiếu.
+- OIDC trust chỉ chấp nhận subject bất biến chính xác của `quangkhai0302/vehicletracking`, ref `refs/heads/master`
+  và audience `sts.amazonaws.com`.
 - IAM deploy policy chỉ cho phép `AWS-RunShellScript` trên đúng instance production.
 - SSM reset checkout server về chính `GITHUB_SHA` đã qua CI, rồi gọi `deploy/aws/deploy.sh`.
 - Script khóa deploy bằng `flock`, validate `.env.production`, build/up Compose, chờ snapshot HTTP 200 tối đa 180 giây và prune image không dùng.

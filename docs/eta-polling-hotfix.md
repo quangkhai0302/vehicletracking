@@ -29,6 +29,9 @@ Chưa tuyên bố xử lý hoàn toàn OOM. Cần đo lại CPU, ETA latency và
 ## Phạm vi và kế hoạch rút gọn
 
 - `useTripEta`: đợi request kết thúc rồi mới hẹn lần tiếp theo sau 10 giây; hủy khi đổi chuyến/unmount/retry.
+- `useVehicleMarkers`: khi snapshot đến muộn hơn bộ đệm 1,5 giây, tạo một mẫu nối tại vị trí
+  đang hiển thị rồi nội suy đến tọa độ mới theo độ trễ (tối đa 10 giây). Vì vậy bản tin SSE bị trễ
+  không làm marker nhảy vọt; khi không còn bản tin, animation vẫn dừng ở mẫu cuối.
 - `TrafficEtaService.matchingFlows`: giải mã polyline một lần mỗi nhóm ứng viên thay vì một lần mỗi ứng viên; giữ nguyên thuật toán khoảng cách và hướng.
 - `bestMatchingFlowAtPosition`: vòng lặp tìm min thay stream/record ở mỗi cạnh tuyến để giảm cấp phát tạm.
 - `RerouteEvaluationService.fingerprint`: chuỗi ghép ID có thể vượt `VARCHAR(255)` trong V7 (`breach_fingerprint`, `last_triggered_fingerprint`, `dedupe_key`). Giữ khóa ngắn <=200 ký tự; khóa dài chuyển thành SHA-256 (71 ký tự kể cả prefix). Không cắt ID và không sửa migration đã áp dụng.

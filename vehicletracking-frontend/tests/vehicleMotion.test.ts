@@ -20,6 +20,14 @@ test('irregular samples interpolate by time and hold when disconnected', () => {
   assert.equal(sampleMotion([], 1), null);
 });
 
+test('interpolated route samples retain progress for a delayed snapshot bridge', () => {
+  const samples = [
+    {time: 0, latitude: 0, longitude: 0, heading: 0, progress: 10},
+    {time: 1000, latitude: 1, longitude: 1, heading: 0, progress: 30},
+  ];
+  assert.equal(sampleMotion(samples, 500)!.progress, 20);
+});
+
 test('route interpolation follows a corner rather than drawing a diagonal at 5x/10x', () => {
   const path = makeMotionPath([[[0, 0], [0, .001], [.001, .001]]]);
   const samples = [

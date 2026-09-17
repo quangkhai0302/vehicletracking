@@ -128,7 +128,8 @@ export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], mot
       const target = L.latLng(point.latitude, point.longitude);
       const currentAnimation = animations.current.get(point.vehicleId);
       const identity = `${point.tripId}:${isPlanned ? 'planned' : point.attemptNumber ?? run?.attemptNumber ?? 1}:${run?.routeRevisionId ?? 0}`;
-      const sample: MotionSample = { time: performance.now(), latitude: point.latitude, longitude: point.longitude,
+      const receivedAt = performance.now();
+      const sample: MotionSample = { time: receivedAt, latitude: point.latitude, longitude: point.longitude,
         heading, progress: !isPlanned && point.source === 'SIMULATOR' ? run?.frame?.progressPercent : undefined };
       const path = motionPaths?.get(point.tripId);
       const projected = path && sample.progress !== undefined ? pointOnMotionPath(path, sample.progress) : null;
@@ -144,7 +145,27 @@ export function useVehicleMarkers({ mapRef, snapshot, plannedPositions = [], mot
         // Keep the two sides of each interpolation across snapshot arrivals.
         // Equal/duplicate snapshots never restart or shorten the animation.
         currentAnimation.eventId = point.eventId;
-        currentAnimation.samples.push(sample);
+        const renderAt = receivedAt - PLAYBACK_DELAY_MS;
+        const lastSample = currentAnimation.samples[currentAnimation.samples.length - 1];
+        // If snapshot generation or network delivery took longer than the
+        // presentation buffer, renderAt has already passed the old tail. The
+        // old implementation then jumped straight into the new point. Create
+        // a sample at the currently displayed position and ease to the new
+        // point over the elapsed gap instead. This keeps delayed deployments
+        // smooth without making a disconnected vehicle move forever.
+        if (lastSample && (renderAt > lastSample.time || receivedAt <= lastSample.time)) {
+          const displayed = sampleMotion(currentAnimation.samples, renderAt, currentAnimation.path) ?? {
+            time: renderAt, latitude: previous.lat, longitude: previous.lng, heading,
+          };
+          const gap = lastSample ? Math.abs(receivedAt - lastSample.time) : PLAYBACK_DELAY_MS;
+          const duration = Math.max(PLAYBACK_DELAY_MS, Math.min(10_000, gap));
+          currentAnimation.samples = [
+            { ...displayed, time: renderAt },
+            { ...sample, time: renderAt + duration },
+          ];
+        } else {
+          currentAnimation.samples.push(sample);
+        }
         if (currentAnimation.samples.length > 12) currentAnimation.samples.splice(0, currentAnimation.samples.length - 12);
         currentAnimation.path = motionPaths?.get(point.tripId);
         scheduleAnimations();

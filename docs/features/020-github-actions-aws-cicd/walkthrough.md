@@ -9,9 +9,9 @@ Trong AWS Console, vào **IAM → Roles → Create role**:
 1. Trusted entity: **AWS service**.
 2. Use case: **EC2**.
 3. Permission: `AmazonSSMManagedInstanceCore`.
-4. Role name: `vehicletracking-ec2-ssm`.
+4. Role name: `VehicleTrackingEC2SSM` (tên role đang gắn trên instance production).
 
-Sau đó vào **EC2 → Instances → chọn instance → Actions → Security → Modify IAM role**, gắn role `vehicletracking-ec2-ssm`.
+Sau đó vào **EC2 → Instances → chọn instance → Actions → Security → Modify IAM role**, gắn role `VehicleTrackingEC2SSM`.
 
 Trên EC2 kiểm tra agent:
 
@@ -57,9 +57,17 @@ Vào **IAM → Roles → Create role → Web identity**:
 4. Repository: `vehicletracking`.
 5. Branch: `master`.
 6. Gắn policy `VehicleTrackingGitHubDeploy`.
-7. Role name: `vehicletracking-github-deploy`.
+7. Role name: `GitHubActionsVehicleTrackingDeploy`.
 
-Mở role vừa tạo và kiểm tra trust policy tương ứng `deploy/aws/github-oidc-trust-policy.example.json`. Sao chép Role ARN để dùng ở bước tiếp theo.
+Mở role vừa tạo và kiểm tra trust policy tương ứng `deploy/aws/github-oidc-trust-policy.example.json`. Repository này dùng
+OIDC subject bất biến, nên trust phải cho phép subject có owner/repository ID:
+
+```text
+repo:quangkhai0302@213111072/vehicletracking@1354976400:ref:refs/heads/master
+```
+
+Không dùng wildcard hoặc subject format cũ; repository này đã dùng subject bất biến nên policy chỉ cần giá trị chính xác trên.
+Sao chép Role ARN để dùng ở bước tiếp theo.
 
 ## 5. Tạo GitHub Actions variables
 
@@ -68,7 +76,7 @@ Vào repository GitHub → **Settings → Secrets and variables → Actions → 
 | Variable | Giá trị |
 |---|---|
 | `AWS_ACCOUNT_ID` | AWS account ID |
-| `AWS_DEPLOY_ROLE_ARN` | ARN của role `vehicletracking-github-deploy` |
+| `AWS_DEPLOY_ROLE_ARN` | ARN của role `GitHubActionsVehicleTrackingDeploy` |
 | `AWS_INSTANCE_ID` | Instance ID EC2 production |
 
 Không đưa HERE API key, mật khẩu PostgreSQL hoặc file PEM vào GitHub.

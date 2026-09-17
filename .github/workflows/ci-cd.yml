@@ -74,16 +74,28 @@ jobs:
       - frontend
       - backend
     if: >-
-      github.ref == 'refs/heads/master' &&
-      vars.AWS_ACCOUNT_ID != '' &&
-      vars.AWS_DEPLOY_ROLE_ARN != '' &&
-      vars.AWS_INSTANCE_ID != ''
+      github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
       contents: read
       id-token: write
     steps:
+      - name: Validate deployment variables
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          AWS_INSTANCE_ID: ${{ vars.AWS_INSTANCE_ID }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for name in AWS_ACCOUNT_ID AWS_DEPLOY_ROLE_ARN AWS_INSTANCE_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing required repository variable: $name" >&2
+              exit 1
+            fi
+          done
+
       - name: Configure short-lived AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:

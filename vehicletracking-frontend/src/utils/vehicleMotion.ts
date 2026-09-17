@@ -49,7 +49,9 @@ export function sampleMotion(samples: readonly MotionSample[], time: number, pat
     const headingDelta = ((b.heading - a.heading + 540) % 360) - 180;
     return { time, latitude: position?.[0] ?? a.latitude + (b.latitude - a.latitude) * t,
       longitude: position?.[1] ?? a.longitude + (b.longitude - a.longitude) * t,
-      heading: (a.heading + headingDelta * t + 360) % 360 };
+      heading: (a.heading + headingDelta * t + 360) % 360,
+      progress: a.progress !== undefined && b.progress !== undefined && b.progress >= a.progress
+        ? a.progress + (b.progress - a.progress) * t : undefined };
   }
   // A disconnected stream must never make a vehicle keep driving indefinitely.
   return samples[samples.length - 1];
