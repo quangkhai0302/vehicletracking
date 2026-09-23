@@ -1,6 +1,8 @@
 package com.quangkhai.vehicletracking_backend.reroute;
 
 import com.quangkhai.vehicletracking_backend.checkin.service.CheckInQueryService;
+import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
+import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripTrafficAlertStateRepository;
 import com.quangkhai.vehicletracking_backend.reroute.service.RerouteEvaluationService;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
@@ -32,6 +34,7 @@ import java.math.BigDecimal;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.*;
@@ -51,6 +54,7 @@ class RerouteSimulationIntegrationTest {
     @Autowired StationRepository stations;
     @Autowired RouteRepository routes;
     @Autowired VehicleRepository vehicles;
+    @Autowired DriverRepository drivers;
     @Autowired TripTrafficAlertStateRepository states;
     @Autowired RerouteEvaluationService reroutes;
     @Autowired TrafficEtaController etaController;
@@ -61,6 +65,7 @@ class RerouteSimulationIntegrationTest {
     @Autowired com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryQueryService routeQuery;
     @MockitoBean Clock operationsClock;
     @MockitoBean TrafficQueryService traffic;
+    private static final AtomicInteger IDS = new AtomicInteger();
     final AtomicReference<Instant> time = new AtomicReference<>();
 
     @BeforeEach void setup() {
@@ -78,8 +83,14 @@ class RerouteSimulationIntegrationTest {
         var b = stations.saveAndFlush(new StationEntity("B", null,
                 new BigDecimal("10.771000"), new BigDecimal("106.701000"), 50));
         var route = routes.saveAndFlush(SimulationFixtures.route(a, b));
-        var vehicle = vehicles.saveAndFlush(new VehicleEntity("RT" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT), "Test", null));
-        return trips.create(new TripCreateRequest(vehicle.getId(), route.getId(), time.get()));
+        String key = UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase(Locale.ROOT);
+        int id = IDS.incrementAndGet();
+        var vehicle = vehicles.saveAndFlush(new VehicleEntity("RT" + key, "Test", null));
+        var driver = drivers.saveAndFlush(new DriverEntity(
+                "Tài xế " + key,
+                String.format("06%08d", id),
+                "RT-B2-" + key));
+        return trips.create(new TripCreateRequest(vehicle.getId(), route.getId(), time.get(), driver.getId()));
     }
 
     @Test void firstLiveEvaluationPersistsSharedPrimaryKeyAndUpdatesExistingCheckpoint() {

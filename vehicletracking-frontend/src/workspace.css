@@ -341,6 +341,7 @@ fieldset { border: 0; min-width: 0; }
 }
 
 .context-content, .panel-list-slot { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.context-content .fleet-module-header { display: none; }
 .map-first :is(.operations-panel,.station-panel,.station-drawer,.route-panel,.route-drawer) {
   position: static;
   inset: auto;

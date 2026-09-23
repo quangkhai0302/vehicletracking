@@ -2,6 +2,8 @@ package com.quangkhai.vehicletracking_backend.simulation;
 
 import com.quangkhai.vehicletracking_backend.simulation.service.SimulationService;
 import com.quangkhai.vehicletracking_backend.telemetry.service.OperationsStreamService;
+import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
+import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.service.TripService;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
@@ -41,6 +43,7 @@ class OperationsHttpIntegrationTest {
     @Autowired StationRepository stations;
     @Autowired RouteRepository routes;
     @Autowired VehicleRepository vehicles;
+    @Autowired DriverRepository drivers;
     @Autowired ObjectMapper json;
     static final AtomicInteger ids=new AtomicInteger();
     final HttpClient client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
@@ -53,8 +56,11 @@ class OperationsHttpIntegrationTest {
         var b=stations.saveAndFlush(new StationEntity("B · SIMULATOR HTTP",null,
                 new BigDecimal("10.771000"),new BigDecimal("106.701000"),50));
         var route=routes.saveAndFlush(SimulationFixtures.route(a,b));
-        var vehicle=vehicles.saveAndFlush(new VehicleEntity("HTTP"+ids.incrementAndGet(),"Xe kiểm tra HTTP 006",null));
-        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),Instant.now()));
+        int id=ids.incrementAndGet();
+        var vehicle=vehicles.saveAndFlush(new VehicleEntity("HTTP"+id,"Xe kiểm tra HTTP 006",null));
+        var driver=drivers.saveAndFlush(new DriverEntity("Tài xế HTTP "+id,
+            String.format("08%08d",id),"HTTP-B2-"+id));
+        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),Instant.now(),driver.getId()));
     }
     private HttpResponse<String> post(String path,String body) throws Exception {
         var request=HttpRequest.newBuilder(URI.create(base()+path)).timeout(Duration.ofSeconds(8))
@@ -123,7 +129,7 @@ class OperationsHttpIntegrationTest {
     }
     @Test void twoStreamsReceiveCommittedStateAndReconnectResyncs() throws Exception {
         var trip=fixture();long id=trip.trip().id();
-        try(var one=connect(null);var two=connect(null);var executor=Executors.newVirtualThreadPerTaskExecutor()) {
+        try(var executor=Executors.newVirtualThreadPerTaskExecutor();var one=connect(null);var two=connect(null)) {
             var first=executor.submit(()->readSnapshot(one,id,true));
             var second=executor.submit(()->readSnapshot(two,id,true));
             long start=System.nanoTime();
@@ -137,7 +143,7 @@ class OperationsHttpIntegrationTest {
             System.out.println("006 SSE two subscribers command-to-snapshot latency_ms="+latency);
         }
         simulator.pause(id);
-        try(var reconnect=connect("old-or-unknown-event");var executor=Executors.newVirtualThreadPerTaskExecutor()) {
+        try(var executor=Executors.newVirtualThreadPerTaskExecutor();var reconnect=connect("old-or-unknown-event")) {
             var snapshot=executor.submit(()->readSnapshot(reconnect,id,true)).get(8,TimeUnit.SECONDS);
             boolean paused=false;
             for(var run:snapshot.get("simulations")) if(run.get("tripId").asLong()==id) paused=run.get("status").asString().equals("PAUSED");

@@ -30,8 +30,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.List;
-import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.*;
 
@@ -61,7 +59,10 @@ class FleetRepositoryIntegrationTest {
         return new Fixture(vehicle, route, a.getId());
     }
     private TripDetailResponse create(Fixture f) {
-        return service.create(new TripCreateRequest(f.vehicle().getId(), f.route().getId(), departure));
+        int id = sequence.incrementAndGet();
+        var driver = drivers.saveAndFlush(new DriverEntity("Tài xế kiểm thử " + id,
+                String.format("07%08d", id), "TEST-B2-" + id));
+        return service.create(new TripCreateRequest(f.vehicle().getId(), f.route().getId(), departure, driver.getId()));
     }
     @Test void persistsMotorcycleTypeAndExposesItThroughTripSummary() {
         var response = vehicleService.create(new VehicleUpsertRequest("59X1" + sequence.incrementAndGet(),
@@ -87,12 +88,10 @@ class FleetRepositoryIntegrationTest {
         assertThat(loaded.stops().getFirst().latitude()).isEqualByComparingTo("10.772300");
         assertThat(loaded.stops().get(1).plannedDepartureAt()).isEqualTo(departure.plusSeconds(360));
         assertThat(loaded.trip().vehiclePlateNumber()).isEqualTo(f.vehicle().getPlateNumber());
-        service.start(id);
-        var completed = service.complete(id);
-        assertThat(service.complete(id).trip().endedAt()).isEqualTo(completed.trip().endedAt());
-        assertThat(completed.trip().scheduledDepartureAt()).isEqualTo(departure);
+        var cancelled = service.cancel(id);
+        assertThat(cancelled.trip().scheduledDepartureAt()).isEqualTo(departure);
         vehicleService.deactivate(f.vehicle().getId());
-        assertThat(service.findById(id).trip().status()).isEqualTo(TripStatus.COMPLETED);
+        assertThat(service.findById(id).trip().status()).isEqualTo(TripStatus.CANCELLED);
     }
     @Test void uniquePlateAndDatabaseStateChecksAreEnforced() {
         var f = fixture();
@@ -109,20 +108,13 @@ class FleetRepositoryIntegrationTest {
         var two = new TripEntity(f.vehicle(), f.route(), departure); two.start(Instant.now());
         assertThatThrownBy(() -> trips.saveAndFlush(two)).isInstanceOf(DataIntegrityViolationException.class);
     }
-    @Test void concurrentStartsAllowExactlyOneWinner() throws Exception {
-        var f = fixture(); var a = create(f).trip().id(); var b = create(f).trip().id();
-        var gate = new CountDownLatch(1);
-        try (var executor = Executors.newFixedThreadPool(2)) {
-            List<Future<Integer>> results = List.of(a,b).stream().map(id -> executor.submit(() -> {
-                gate.await();
-                try { service.start(id); return 200; }
-                catch(ResponseStatusException ex) { return ex.getStatusCode().value(); }
-            })).toList();
-            gate.countDown();
-            assertThat(List.of(results.get(0).get(20, TimeUnit.SECONDS), results.get(1).get(20, TimeUnit.SECONDS)))
-                    .containsExactlyInAnyOrder(200,409);
-        }
-        assertThat(service.findAll(f.vehicle().getId())).filteredOn(t -> t.status() == TripStatus.IN_PROGRESS).hasSize(1);
+    @Test void overlappingVehicleTripsAreRejectedBeforeStart() {
+        var f = fixture();
+        create(f);
+        assertThatThrownBy(() -> create(f)).isInstanceOfSatisfying(ResponseStatusException.class,
+                ex -> assertThat(ex.getStatusCode().value()).isEqualTo(409));
+        assertThat(service.findAll(f.vehicle().getId())).singleElement()
+                .satisfies(trip -> assertThat(trip.status()).isEqualTo(TripStatus.SCHEDULED));
     }
     @Test void deactivationRequiresScheduledTripToBeCancelled() {
         var f = fixture(); var trip = create(f);

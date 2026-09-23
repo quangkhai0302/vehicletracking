@@ -8,6 +8,8 @@ import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource;
 import com.quangkhai.vehicletracking_backend.telemetry.repository.*;
 import com.quangkhai.vehicletracking_backend.telemetry.service.*;
 import com.quangkhai.vehicletracking_backend.checkin.service.CheckInQueryService;
+import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
+import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
 import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
@@ -52,22 +54,32 @@ class OperationsIntegrationTest {
     @Autowired StationRepository stations;
     @Autowired RouteRepository routes;
     @Autowired VehicleRepository vehicles;
+    @Autowired DriverRepository drivers;
     @MockitoBean Clock operationsClock;
     final AtomicReference<Instant> time=new AtomicReference<>();
     static final AtomicInteger ids=new AtomicInteger();
     @BeforeEach void clock() { time.set(Instant.now().truncatedTo(ChronoUnit.MICROS)); when(operationsClock.instant()).thenAnswer(call->time.get()); }
+    private DriverEntity driver(int id) {
+        return drivers.saveAndFlush(new DriverEntity("Tài xế mô phỏng "+id,
+            String.format("09%08d",id),"SIM-B2-"+id));
+    }
     private TripDetailResponse create() {
-        var a=stations.saveAndFlush(TripFixtures.station("A")); var b=stations.saveAndFlush(TripFixtures.station("B"));
+        var a=stations.saveAndFlush(new StationEntity("A",null,
+            new BigDecimal("10.770000"),new BigDecimal("106.700000"),50));
+        var b=stations.saveAndFlush(new StationEntity("B",null,
+            new BigDecimal("10.771000"),new BigDecimal("106.701000"),50));
         var route=routes.saveAndFlush(SimulationFixtures.route(a,b));
-        var vehicle=vehicles.saveAndFlush(new VehicleEntity("SIM"+ids.incrementAndGet(),"Xe thử 006",null));
-        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get()));
+        int id=ids.incrementAndGet();
+        var vehicle=vehicles.saveAndFlush(new VehicleEntity("SIM"+id,"Xe thử 006",null));
+        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get(),driver(id).getId()));
     }
     private TripDetailResponse createAligned() {
         var a=stations.saveAndFlush(new StationEntity("A aligned",null,new BigDecimal("10.770000"),new BigDecimal("106.700000"),50));
         var b=stations.saveAndFlush(new StationEntity("B aligned",null,new BigDecimal("10.771000"),new BigDecimal("106.701000"),50));
         var route=routes.saveAndFlush(SimulationFixtures.route(a,b));
-        var vehicle=vehicles.saveAndFlush(new VehicleEntity("CHK"+ids.incrementAndGet(),"Xe check-in",null));
-        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get()));
+        int id=ids.incrementAndGet();
+        var vehicle=vehicles.saveAndFlush(new VehicleEntity("CHK"+id,"Xe check-in",null));
+        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get(),driver(id).getId()));
     }
     private TelemetryRequest gps(TripDetailResponse trip,UUID event,Instant recorded,double latitude) {
         return new TelemetryRequest(event,trip.trip().vehicleId(),trip.trip().id(),recorded,latitude,106.7,30d,45d,5d,TelemetrySource.GPS);
@@ -87,7 +99,7 @@ class OperationsIntegrationTest {
         conflict(()->telemetry.ingestGps(gps(trip,UUID.randomUUID(),time.get().minusSeconds(2),10.79)));
         assertThat(samples.countByTripId(trip.trip().id())).isEqualTo(2);
         assertThat(snapshots.snapshot().positions()).filteredOn(p->p.vehicleId()==trip.trip().vehicleId()).singleElement().isEqualTo(second);
-        trips.complete(trip.trip().id());
+        trips.cancel(trip.trip().id());
         assertThat(telemetry.ingestGps(request).id()).isEqualTo(first.id()); // Retry still safe after trip ends.
         seconds(1); conflict(()->telemetry.ingestGps(gps(trip,UUID.randomUUID(),time.get(),10.78)));
     }
@@ -198,7 +210,8 @@ class OperationsIntegrationTest {
     }
     @Test void resetRejectsAnotherRunningTripWithoutArchiving() {
         var trip=create(); long id=trip.trip().id(); simulator.play(id); simulator.stop(id);
-        var other=trips.create(new TripCreateRequest(trip.trip().vehicleId(),trip.trip().routeId(),time.get()));
+        int driverId=ids.incrementAndGet();
+        var other=trips.create(new TripCreateRequest(trip.trip().vehicleId(),trip.trip().routeId(),time.get(),driver(driverId).getId()));
         trips.start(other.trip().id());
         conflict(()->simulator.reset(id));
         assertThat(simulator.attempts(id)).isEmpty();
@@ -232,9 +245,8 @@ class OperationsIntegrationTest {
             gate.countDown();
             assertThat(first.get(15,TimeUnit.SECONDS)).isEqualTo(second.get(15,TimeUnit.SECONDS));
         }
-        var other=trips.create(new TripCreateRequest(trip.trip().vehicleId(),trip.trip().routeId(),time.get()));
-        conflict(()->simulator.play(other.trip().id()));
-        assertThat(runs.findByTripId(other.trip().id())).isEmpty();
+        int driverId=ids.incrementAndGet();
+        conflict(()->trips.create(new TripCreateRequest(trip.trip().vehicleId(),trip.trip().routeId(),time.get(),driver(driverId).getId())));
     }
     @Test void corruptRouteCannotStartOrCreateRun() {
         var a=stations.saveAndFlush(TripFixtures.station("Bad A"));var b=stations.saveAndFlush(TripFixtures.station("Bad B"));

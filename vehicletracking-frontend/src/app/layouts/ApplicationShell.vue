@@ -57,7 +57,7 @@ const activePath = (path: string) => location.path === path || location.path.sta
 </script>
 <template>
   <div
-    :class="`business-shell${route.fullBleed ? '' : ' business-ui'}`"
+    :class="['business-shell', route.fullBleed ? 'business-shell-full' : 'business-ui']"
     :data-navigation-open="navigationOpen"
     :data-map-focus="route.fullBleed === true"
     :data-map-navigation-expanded="mapNavigationExpanded"
@@ -156,7 +156,6 @@ const activePath = (path: string) => location.path === path || location.path.sta
         <div class="business-topbar-copy">
           <span>{{ route.planned ? 'LỘ TRÌNH SẢN PHẨM' : 'TRUNG TÂM ĐIỀU HÀNH' }}</span>
           <h1>{{ route.title }}</h1>
-          <p>{{ route.description }}</p>
         </div>
         <div class="business-account">
           <span>{{ auth.user?.username }}</span
