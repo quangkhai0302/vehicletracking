@@ -6,5 +6,10 @@ import java.time.Instant;
 public record TripCreateRequest(
     @NotNull @Positive Long vehicleId,
     @NotNull @Positive Long routeId,
-    @NotNull(message = "Giờ xuất phát không được để trống") Instant scheduledDepartureAt
-) {}
+    @NotNull(message = "Giờ xuất phát không được để trống") Instant scheduledDepartureAt,
+    @Positive Long driverId
+) {
+    public TripCreateRequest(Long vehicleId, Long routeId, Instant scheduledDepartureAt) {
+        this(vehicleId, routeId, scheduledDepartureAt, null);
+    }
+}

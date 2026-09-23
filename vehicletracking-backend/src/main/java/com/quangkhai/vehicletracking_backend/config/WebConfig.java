@@ -1,10 +1,12 @@
 package com.quangkhai.vehicletracking_backend.config;
 
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
+@EnableConfigurationProperties(CorsProperties.class)
 public class WebConfig implements WebMvcConfigurer {
 
     private final CorsProperties corsProperties;
@@ -20,6 +22,7 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOrigins(origins)
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                 .allowedHeaders("*")
+                .allowCredentials(true)
                 .exposedHeaders("X-Request-Id");
     }
 }

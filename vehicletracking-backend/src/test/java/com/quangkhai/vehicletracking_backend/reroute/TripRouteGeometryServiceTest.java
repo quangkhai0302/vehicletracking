@@ -60,4 +60,22 @@ class TripRouteGeometryServiceTest {
         trip.getRoute().getSections().clear();
         assertThat(geometry.route(trip).sections()).isEmpty();
     }
+
+    @Test void trackingUsesActiveLiveRevisionGeometry() {
+        var revision = detour();
+        var now = Instant.now();
+        revision.addStop(new TripRouteRevisionStopEntity(1, 1, 1, "A",
+                java.math.BigDecimal.valueOf(10.77), java.math.BigDecimal.valueOf(106.70), 0,
+                now, now, now, now));
+        revision.addStop(new TripRouteRevisionStopEntity(2, 2, 2, "B",
+                java.math.BigDecimal.valueOf(10.771), java.math.BigDecimal.valueOf(106.701), 0,
+                now, now, now, now));
+        when(revisions.findAllByTripIdOrderByRevisionNumberDesc(1L)).thenReturn(List.of(revision));
+        when(revisions.findTopByTripIdAndStatusOrderByRevisionNumberDesc(1L, RouteRevisionStatus.ACTIVE))
+                .thenReturn(Optional.of(revision));
+
+        assertThat(geometry.routeForTracking(trip).sections()).hasSize(2);
+        assertThat(geometry.routeForTracking(trip).sections().getFirst().encodedPolyline())
+                .isEqualTo(revision.getSections().getFirst().getEncodedPolyline());
+    }
 }

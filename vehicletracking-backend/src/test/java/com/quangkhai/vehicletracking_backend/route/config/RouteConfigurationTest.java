@@ -2,8 +2,6 @@ package com.quangkhai.vehicletracking_backend.route.config;
 
 import com.quangkhai.vehicletracking_backend.route.provider.HereRoutingProperties;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.context.properties.bind.validation.BindValidationException;
-import org.springframework.boot.context.properties.ConfigurationPropertiesBindException;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 

@@ -30,10 +30,11 @@ services:
       - .env.production
     environment:
       APP_ENV_IMPORT: optional:classpath:/no-local-env.properties
+      SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
       DB_USERNAME: ${POSTGRES_USER:?POSTGRES_USER is required}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:?APP_CORS_ALLOWED_ORIGINS is required}
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms128m -Xmx768m}
       TZ: ${TZ:-Asia/Ho_Chi_Minh}
     depends_on:
@@ -51,7 +52,7 @@ services:
     image: vehicletracking-frontend:local
     restart: unless-stopped
     environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      SITE_ADDRESS: ${SITE_ADDRESS:?SITE_ADDRESS is required}
     ports:
       - "80:80"
       - "443:443"

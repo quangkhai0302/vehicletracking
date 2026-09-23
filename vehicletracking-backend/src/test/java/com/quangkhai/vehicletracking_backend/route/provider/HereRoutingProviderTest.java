@@ -1,6 +1,5 @@
 package com.quangkhai.vehicletracking_backend.route.provider;
 
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -15,10 +14,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.test.web.client.response.MockRestResponseCreators;
 import org.springframework.web.client.RestClient;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.SocketTimeoutException;
 import java.util.List;
@@ -215,7 +212,7 @@ class HereRoutingProviderTest {
                 .isInstanceOf(RouteOperationException.class)
                 .satisfies(ex -> {
                     RouteOperationException roe = (RouteOperationException) ex;
-                    assertThat(roe.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+                    assertThat(roe.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
                     assertThat(roe.getErrorCode()).isEqualTo(RouteErrorCode.ROUTE_NOT_FOUND_BY_PROVIDER);
                 });
 
@@ -372,7 +369,7 @@ class HereRoutingProviderTest {
                 .isInstanceOf(RouteOperationException.class)
                 .satisfies(ex -> {
                     RouteOperationException roe = (RouteOperationException) ex;
-                    assertThat(roe.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+                    assertThat(roe.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
                     assertThat(roe.getErrorCode()).isEqualTo(RouteErrorCode.ROUTE_NOT_FOUND_BY_PROVIDER);
                 });
 
@@ -388,7 +385,7 @@ class HereRoutingProviderTest {
                 .isInstanceOf(RouteOperationException.class)
                 .satisfies(ex -> {
                     RouteOperationException roe = (RouteOperationException) ex;
-                    assertThat(roe.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+                    assertThat(roe.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
                     assertThat(roe.getErrorCode()).isEqualTo(RouteErrorCode.ROUTE_NOT_FOUND_BY_PROVIDER);
                 });
 

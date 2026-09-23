@@ -70,7 +70,7 @@ public final class RouteMotion {
         if (sections.isEmpty() || !Double.isFinite(atElapsed) || atElapsed<0 || atElapsed>=duration()) throw invalid();
         var current=at(atElapsed);
         if (current.dwelling()) throw invalid();
-        var expected=route.stops().stream().map(RouteDetailResponse.RouteStopResponse::sequenceNumber)
+        var expected=route.stops().stream().map(stop -> stop.sequenceNumber())
             .filter(sequence -> sequence>=current.nextStopSequence()).toList();
         List<Integer> destinations=new ArrayList<>();
         for(var section:sections) {
@@ -125,10 +125,10 @@ public final class RouteMotion {
             FlexiblePolyline.encode(leg.points()),Math.round(leg.length()),Math.max(1,Math.round(leg.end()-leg.start())),Math.max(1,Math.round(leg.end()-leg.start()))));
         var stops=route.stops().stream().map(s -> new RouteDetailResponse.RouteStopResponse(s.sequenceNumber(),s.role(),s.stationId(),s.stationName(),
             s.latitude(),s.longitude(),s.dwellDurationSeconds(),
-            sections.stream().filter(section -> section.destinationStopSequence()==s.sequenceNumber()).mapToLong(RouteDetailResponse.RouteSectionResponse::distanceMeters).sum(),
-            sections.stream().filter(section -> section.destinationStopSequence()==s.sequenceNumber()).mapToLong(RouteDetailResponse.RouteSectionResponse::travelDurationSeconds).sum(),
+            sections.stream().filter(section -> section.destinationStopSequence()==s.sequenceNumber()).mapToLong(section -> section.distanceMeters()).sum(),
+            sections.stream().filter(section -> section.destinationStopSequence()==s.sequenceNumber()).mapToLong(section -> section.travelDurationSeconds()).sum(),
             Math.round(arrivalOffsets.get(s.sequenceNumber())),Math.round(departureOffsets.get(s.sequenceNumber())))).toList();
-        long travel=sections.stream().mapToLong(RouteDetailResponse.RouteSectionResponse::baseTravelDurationSeconds).sum();
+        long travel=sections.stream().mapToLong(section -> section.baseTravelDurationSeconds()).sum();
         return new RouteDetailResponse(route.id(),route.name(),route.transportMode(),route.routingProvider(),Math.round(totalDistance),travel,travel,
             route.totalDwellDurationSeconds(),Math.round(duration()),route.estimatedDepartureAt(),route.calculatedAt(),route.createdAt(),stops,sections,route.shapingPoints());
     }

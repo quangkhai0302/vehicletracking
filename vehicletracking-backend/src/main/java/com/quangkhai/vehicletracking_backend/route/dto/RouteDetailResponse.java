@@ -61,7 +61,7 @@ public record RouteDetailResponse(
     public static RouteDetailResponse from(RouteEntity entity) {
         List<RouteSectionEntity> rawSections = entity.getSections();
         Map<Integer, List<RouteSectionEntity>> sectionsByDestStop = rawSections.stream()
-                .collect(Collectors.groupingBy(RouteSectionEntity::getDestinationStopSequence));
+                .collect(Collectors.groupingBy(section -> section.getDestinationStopSequence()));
 
         List<RouteStopEntity> rawStops = entity.getStops();
         int totalStops = rawStops.size();
@@ -93,8 +93,8 @@ public record RouteDetailResponse(
                 cumulativeDepartureOffset = 0;
             } else {
                 List<RouteSectionEntity> legSections = sectionsByDestStop.getOrDefault(seq, List.of());
-                distFromPrev = legSections.stream().mapToLong(RouteSectionEntity::getDistanceMeters).sum();
-                travelFromPrev = legSections.stream().mapToLong(RouteSectionEntity::getTravelDurationSeconds).sum();
+                distFromPrev = legSections.stream().mapToLong(section -> section.getDistanceMeters()).sum();
+                travelFromPrev = legSections.stream().mapToLong(section -> section.getTravelDurationSeconds()).sum();
 
                 arrivalOffset = cumulativeDepartureOffset + travelFromPrev;
                 departureOffset = arrivalOffset + stop.getDwellDurationSeconds();

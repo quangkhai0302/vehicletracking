@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.quangkhai.vehicletracking_backend.config.HereTrafficProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -41,7 +40,7 @@ public class HereTrafficProvider implements TrafficProvider {
     public TrafficPayload<TrafficFlowSegment> fetchFlow(TrafficBounds bounds) {
         ensureConfigured();
         HereFlowResponse response = execute("flow", bounds, HereFlowResponse.class);
-        if (response == null) invalid("HERE flow response was empty");
+        if (response == null) throw invalid("HERE flow response was empty");
         try {
             List<TrafficFlowSegment> results = response.results() == null ? List.of()
                     : response.results().stream().map(this::mapFlow).toList();
@@ -58,7 +57,7 @@ public class HereTrafficProvider implements TrafficProvider {
     public TrafficPayload<TrafficIncident> fetchIncidents(TrafficBounds bounds) {
         ensureConfigured();
         HereIncidentResponse response = execute("incidents", bounds, HereIncidentResponse.class);
-        if (response == null) invalid("HERE incidents response was empty");
+        if (response == null) throw invalid("HERE incidents response was empty");
         try {
             List<TrafficIncident> results = response.results() == null ? List.of()
                     : response.results().stream().map(this::mapIncident).toList();
@@ -194,7 +193,7 @@ public class HereTrafficProvider implements TrafficProvider {
                     .encode()
                     .toUri();
             return client.get().uri(uri).retrieve()
-                    .onStatus(HttpStatusCode::isError, (request, response) -> {
+                    .onStatus(status -> status.isError(), (request, response) -> {
                         HttpStatus status = HttpStatus.resolve(response.getStatusCode().value());
                         if (status == HttpStatus.UNAUTHORIZED || status == HttpStatus.FORBIDDEN) {
                             throw new TrafficProviderException(TrafficProviderException.Kind.UNAUTHORIZED,
@@ -241,7 +240,7 @@ public class HereTrafficProvider implements TrafficProvider {
     }
 
     private TrafficFlowSegment mapFlow(HereFlowItem item) {
-        if (item == null || item.location() == null || item.currentFlow() == null) invalid("HERE flow item is incomplete");
+        if (item == null || item.location() == null || item.currentFlow() == null) throw invalid("HERE flow item is incomplete");
         List<List<Double>> points = points(item.location());
         double length = nonNegative(item.location().length(), "flow length");
         double speed = nonNegativeOrZero(item.currentFlow().speed(), "flow speed");
@@ -254,7 +253,7 @@ public class HereTrafficProvider implements TrafficProvider {
     }
 
     private TrafficIncident mapIncident(HereIncidentItem item) {
-        if (item == null || item.location() == null || item.incidentDetails() == null) invalid("HERE incident item is incomplete");
+        if (item == null || item.location() == null || item.incidentDetails() == null) throw invalid("HERE incident item is incomplete");
         List<List<Double>> points = points(item.location());
         List<Double> center = center(points);
         String id = item.id() == null || item.id().isBlank() ? UUID.randomUUID().toString() : item.id();
@@ -274,7 +273,7 @@ public class HereTrafficProvider implements TrafficProvider {
             if (link == null || link.points() == null) continue;
             for (HerePoint point : link.points()) {
                 if (point == null || point.lat() == null || point.lng() == null
-                        || !Double.isFinite(point.lat()) || !Double.isFinite(point.lng())) invalid("HERE geometry point is invalid");
+                        || !Double.isFinite(point.lat()) || !Double.isFinite(point.lng())) throw invalid("HERE geometry point is invalid");
                 result.add(List.of(point.lat(), point.lng()));
             }
         }
@@ -298,13 +297,12 @@ public class HereTrafficProvider implements TrafficProvider {
         try {
             return Instant.parse(value);
         } catch (DateTimeParseException ex) {
-            invalid("HERE " + field + " is malformed");
-            return null;
+            throw invalid("HERE " + field + " is malformed");
         }
     }
 
     private double nonNegative(Double value, String field) {
-        if (value == null || !Double.isFinite(value) || value < 0) invalid("HERE " + field + " is invalid");
+        if (value == null || !Double.isFinite(value) || value < 0) throw invalid("HERE " + field + " is invalid");
         return value;
     }
 
@@ -314,7 +312,7 @@ public class HereTrafficProvider implements TrafficProvider {
     }
 
     private double boundedJam(Double value) {
-        if (value == null || !Double.isFinite(value) || value < 0 || value > 10) invalid("HERE jamFactor is invalid");
+        if (value == null || !Double.isFinite(value) || value < 0 || value > 10) throw invalid("HERE jamFactor is invalid");
         return value;
     }
 
@@ -326,8 +324,8 @@ public class HereTrafficProvider implements TrafficProvider {
         return value == null || value.isBlank() ? "unknown" : value.toLowerCase(Locale.ROOT);
     }
 
-    private void invalid(String message) {
-        throw new TrafficProviderException(TrafficProviderException.Kind.INVALID_RESPONSE, message);
+    private TrafficProviderException invalid(String message) {
+        return new TrafficProviderException(TrafficProviderException.Kind.INVALID_RESPONSE, message);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

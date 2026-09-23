@@ -127,13 +127,13 @@ public class SimulationService {
     }
     @Transactional
     public void fail(long tripId) {
-        var trip=lockTrip(tripId); var run=requireRun(tripId);
+        lockTrip(tripId); var run=requireRun(tripId);
         if(run.getStatus()==SimulationStatus.RUNNING || run.getStatus()==SimulationStatus.PAUSED)
             run.fail("Mô phỏng gặp lỗi. Kiểm tra tuyến rồi chọn Chạy lại.",now());
     }
     @Transactional(readOnly=true)
     public List<Long> activeTripIds() {
-        return runs.findByStatusIn(List.of(SimulationStatus.RUNNING,SimulationStatus.PAUSED)).stream().map(SimulationRunEntity::getTripId).toList();
+        return runs.findByStatusIn(List.of(SimulationStatus.RUNNING,SimulationStatus.PAUSED)).stream().map(run -> run.getTripId()).toList();
     }
     private void advance(TripEntity trip,SimulationRunEntity run,Instant now) {
         if(run.getStatus()!=SimulationStatus.RUNNING && run.getStatus()!=SimulationStatus.PAUSED) return;
@@ -233,7 +233,7 @@ public class SimulationService {
                     null, null, null, false, "TRAFFIC_REQUIRES_ETA_QUERY");
             Long nextEta = eta.nextStopSequence() == null ? null : eta.stops().stream()
                     .filter(stop -> stop.sequenceNumber() == eta.nextStopSequence())
-                    .map(TripEtaResponse.EtaStop::etaSeconds)
+                    .map(stop -> stop.etaSeconds())
                     .findFirst().orElse(null);
             return new SimulationTrafficMetadata(eta.source(), eta.status(), nextEta,
                     eta.trafficObservedAt(), eta.trafficFetchedAt(), eta.status() == TrafficStatus.BLOCKED, eta.warning());

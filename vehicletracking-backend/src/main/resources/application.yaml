@@ -27,6 +27,13 @@ spring:
     problemdetails:
       enabled: true
 
+server:
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+
 here:
   traffic:
     enabled: ${HERE_TRAFFIC_ENABLED:false}
@@ -53,6 +60,28 @@ reroute:
   delay-percent: ${REROUTE_DELAY_PERCENT:30}
   cooldown-seconds: ${REROUTE_COOLDOWN_SECONDS:300}
   consecutive-fetches: ${REROUTE_CONSECUTIVE_FETCHES:2}
+
+trip:
+  lifecycle:
+    early-start-window-seconds: ${TRIP_EARLY_START_WINDOW_SECONDS:1800}
+    late-start-window-seconds: ${TRIP_LATE_START_WINDOW_SECONDS:7200}
+
+offroute:
+  enabled: ${OFFROUTE_ENABLED:true}
+  threshold-meters: ${OFFROUTE_THRESHOLD_METERS:150}
+  grace-period-seconds: ${OFFROUTE_GRACE_PERIOD_SECONDS:30}
+  consecutive-samples: ${OFFROUTE_CONSECUTIVE_SAMPLES:3}
+
+auth:
+  security-enabled: ${AUTH_SECURITY_ENABLED:true}
+  bootstrap-admin-username: ${AUTH_BOOTSTRAP_ADMIN_USERNAME:admin}
+  # Leave empty to disable automatic bootstrap. Set through the runtime environment only.
+  bootstrap-admin-password: ${AUTH_BOOTSTRAP_ADMIN_PASSWORD:}
+
+reporting:
+  # A report overspeed event is a transition into a GPS sample above this limit.
+  default-speed-limit-kmh: ${REPORT_DEFAULT_SPEED_LIMIT_KMH:80}
+  max-range-days: ${REPORT_MAX_RANGE_DAYS:366}
 
 app:
   cors:

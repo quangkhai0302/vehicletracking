@@ -1,0 +1,14 @@
+{
+  "productionEntry": "Vue",
+  "removedLegacyFiles": 66,
+  "retainedBaselineFilesChecked": 58,
+  "baselineCssChecked": 16,
+  "changedBaselineSource": [],
+  "legacySource": [],
+  "reactDependencies": [],
+  "reactLockEntries": [],
+  "moduleCount": 2017,
+  "reactModules": [],
+  "tsxModules": [],
+  "fixtureModules": []
+}

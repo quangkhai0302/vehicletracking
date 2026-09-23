@@ -52,7 +52,7 @@ class TripStartScheduleServiceTest {
 
         service.refresh(7L);
 
-        assertThat(trip.getStops()).extracting(TripStopEntity::getPlannedArrivalAt)
+        assertThat(trip.getStops()).extracting(stop -> stop.getPlannedArrivalAt())
                 .containsExactly(calculatedAt, calculatedAt.plusSeconds(100), calculatedAt.plusSeconds(400));
         assertThat(trip.getStops().get(1).getPlannedDepartureAt()).isEqualTo(calculatedAt.plusSeconds(160));
         verify(trips).flush();

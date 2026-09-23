@@ -18,8 +18,8 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public List<NotificationResponse> recent(boolean unreadOnly) {
-        var rows = unreadOnly ? notifications.findTop50ByReadAtIsNullOrderByCreatedAtDescIdDesc()
-                : notifications.findTop50ByOrderByCreatedAtDescIdDesc();
+        var rows = unreadOnly ? notifications.findTop50ByReadAtIsNullAndDismissedAtIsNullOrderByCreatedAtDescIdDesc()
+                : notifications.findTop50ByDismissedAtIsNullOrderByCreatedAtDescIdDesc();
         return rows.stream().map(NotificationResponse::from).toList();
     }
 
@@ -33,7 +33,7 @@ public class NotificationService {
     @Transactional
     public int markAllRead() {
         var now = operationsClock.instant();
-        var rows = notifications.findAllByReadAtIsNullOrderByCreatedAtDescIdDesc();
+        var rows = notifications.findAllByReadAtIsNullAndDismissedAtIsNullOrderByCreatedAtDescIdDesc();
         rows.forEach(item -> item.markRead(now));
         return rows.size();
     }
@@ -41,6 +41,6 @@ public class NotificationService {
     @Transactional
     public void delete(long id) {
         var item = notifications.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thông báo."));
-        notifications.delete(item);
+        item.dismiss(operationsClock.instant());
     }
 }

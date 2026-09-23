@@ -85,7 +85,7 @@ public class TrafficEtaService {
             actualAt.put(visit.getStopSequence(), visit.getActualArrivalAt());
         }
         int nextStop = route.stops().stream().filter(stop -> !checkedIn.contains(stop.sequenceNumber()))
-                .mapToInt(RouteDetailResponse.RouteStopResponse::sequenceNumber).findFirst().orElse(-1);
+                .mapToInt(stop -> stop.sequenceNumber()).findFirst().orElse(-1);
 
         Instant calculatedAt = operationsClock.instant();
         List<RouteDetailResponse.RouteSectionResponse> sections = route.sections();
@@ -137,7 +137,9 @@ public class TrafficEtaService {
             baselineCumulative += baselineDuration(section, remainingDistanceMeters);
             if (blocked) duration = 0;
             cumulative += duration;
-            etaByStop.merge(section.destinationStopSequence(), cumulative, Math::max);
+            etaByStop.merge(section.destinationStopSequence(), cumulative,
+                    (existing, candidate) -> existing == null ? candidate
+                            : candidate != null && candidate.compareTo(existing) > 0 ? candidate : existing);
             boolean finalSectionForStop = sectionIndex == sections.size() - 1
                     || sections.get(sectionIndex + 1).destinationStopSequence() != section.destinationStopSequence();
             if (!blocked && finalSectionForStop) {
@@ -293,10 +295,10 @@ public class TrafficEtaService {
 
     private int nextStop(long tripId, RouteDetailResponse route) {
         Set<Integer> checkedIn = visits.findAllByTripIdOrderByStopSequenceAsc(tripId).stream()
-                .map(TripStopVisitEntity::getStopSequence)
+                .map(visit -> visit.getStopSequence())
                 .collect(java.util.stream.Collectors.toSet());
         return route.stops().stream().filter(stop -> !checkedIn.contains(stop.sequenceNumber()))
-                .mapToInt(RouteDetailResponse.RouteStopResponse::sequenceNumber).findFirst().orElse(-1);
+                .mapToInt(stop -> stop.sequenceNumber()).findFirst().orElse(-1);
     }
 
     private Optional<RoutePositionMatcher.Projection> currentPosition(TripEntity trip,
@@ -323,16 +325,16 @@ public class TrafficEtaService {
                 // The normal route validator already rejects malformed geometry; use stop snapshots as a safe fallback.
             }
         }
-        double west = geometry.stream().mapToDouble(FlexiblePolyline.Point::longitude).min().orElseGet(
+        double west = geometry.stream().mapToDouble(point -> point.longitude()).min().orElseGet(
                 () -> route.stops().stream().filter(stop -> nextStop < 0 || stop.sequenceNumber() >= nextStop)
                         .mapToDouble(stop -> stop.longitude().doubleValue()).min().orElse(0));
-        double east = geometry.stream().mapToDouble(FlexiblePolyline.Point::longitude).max().orElseGet(
+        double east = geometry.stream().mapToDouble(point -> point.longitude()).max().orElseGet(
                 () -> route.stops().stream().filter(stop -> nextStop < 0 || stop.sequenceNumber() >= nextStop)
                         .mapToDouble(stop -> stop.longitude().doubleValue()).max().orElse(0));
-        double south = geometry.stream().mapToDouble(FlexiblePolyline.Point::latitude).min().orElseGet(
+        double south = geometry.stream().mapToDouble(point -> point.latitude()).min().orElseGet(
                 () -> route.stops().stream().filter(stop -> nextStop < 0 || stop.sequenceNumber() >= nextStop)
                         .mapToDouble(stop -> stop.latitude().doubleValue()).min().orElse(0));
-        double north = geometry.stream().mapToDouble(FlexiblePolyline.Point::latitude).max().orElseGet(
+        double north = geometry.stream().mapToDouble(point -> point.latitude()).max().orElseGet(
                 () -> route.stops().stream().filter(stop -> nextStop < 0 || stop.sequenceNumber() >= nextStop)
                         .mapToDouble(stop -> stop.latitude().doubleValue()).max().orElse(0));
         double margin = 0.002;
@@ -373,7 +375,7 @@ public class TrafficEtaService {
                 .map(candidate -> new FlowMatch(candidate, matcher.matchDecodedDistanceMeters(
                         routePoints, candidate, properties.getCorridorRadiusMeters())))
                 .filter(match -> Double.isFinite(match.distanceMeters()))
-                .sorted(Comparator.comparingDouble(FlowMatch::distanceMeters))
+                .sorted(Comparator.comparingDouble(match -> match.distanceMeters()))
                 .toList();
         if (matchCache.size() >= 16) matchCache.remove(matchCache.keySet().iterator().next());
         matchCache.put(key, result);
@@ -491,16 +493,16 @@ public class TrafficEtaService {
         }
         return Arrays.stream(envelopes)
                 .filter(this::isUsableTraffic)
-                .max(Comparator.comparing(TrafficEnvelope::fetchedAt,
+                .max(Comparator.comparing(envelope -> envelope.fetchedAt(),
                         Comparator.nullsFirst(Comparator.naturalOrder())))
-                .map(TrafficEnvelope::source)
+                .map(envelope -> envelope.source())
                 .orElse(TrafficSource.ROUTE_SNAPSHOT);
     }
 
     private Instant latestFetchedAt(TrafficEnvelope<?>... envelopes) {
         return Arrays.stream(envelopes)
                 .filter(this::isUsableTraffic)
-                .map(TrafficEnvelope::fetchedAt)
+                .map(envelope -> envelope.fetchedAt())
                 .filter(Objects::nonNull)
                 .max(Comparator.naturalOrder())
                 .orElse(null);
@@ -509,7 +511,7 @@ public class TrafficEtaService {
     private Instant latestObservedAt(TrafficEnvelope<?>... envelopes) {
         return Arrays.stream(envelopes)
                 .filter(this::isUsableTraffic)
-                .map(TrafficEnvelope::observedAt)
+                .map(envelope -> envelope.observedAt())
                 .filter(Objects::nonNull)
                 .max(Comparator.naturalOrder())
                 .orElse(null);
@@ -523,13 +525,13 @@ public class TrafficEtaService {
     }
 
     private TrafficStatus status(TrafficEnvelope<?>... envelopes) {
-        return latestUsable(envelopes).map(TrafficEnvelope::status).orElse(TrafficStatus.UNAVAILABLE);
+        return latestUsable(envelopes).map(envelope -> envelope.status()).orElse(TrafficStatus.UNAVAILABLE);
     }
 
     private Optional<TrafficEnvelope<?>> latestUsable(TrafficEnvelope<?>... envelopes) {
         return Arrays.stream(envelopes)
                 .filter(this::isUsableTraffic)
-                .max(Comparator.comparing(TrafficEnvelope::fetchedAt,
+                .max(Comparator.comparing(envelope -> envelope.fetchedAt(),
                         Comparator.nullsFirst(Comparator.naturalOrder())));
     }
 

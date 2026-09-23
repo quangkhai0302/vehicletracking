@@ -1,0 +1,523 @@
+/*
+ * Business interface, feature 031.
+ * Opt-in only: ApplicationShell omits business-ui on every map route.
+ * Do not move these tokens to :root: map controls share legacy components.
+ */
+.business-ui {
+  --app-bg: #f4f6f8;
+  --app-canvas: #f4f6f8;
+  --surface-base: #fff;
+  --surface-elevated: #f8fafb;
+  --surface-overlay: #fff;
+  --surface-glass: #fff;
+  --backdrop-blur: none;
+  --border-subtle: #e3e9ee;
+  --border-default: #ccd6df;
+  --border-focus: #087f8c;
+  --border-highlight: #b9dddf;
+  --text-primary: #172b3a;
+  --text-secondary: #415567;
+  --text-muted: #607486;
+  --text-dim: #607486;
+  --color-text-primary: #172b3a;
+  --color-text-secondary: #415567;
+  --color-text-muted: #607486;
+  --color-border: #e3e9ee;
+  --text: #172b3a;
+  --cyan: #087f8c;
+  --accent-cyan: #087f8c;
+  --accent-sky: #087f8c;
+  --accent-primary: #087f8c;
+  --accent-primary-gradient: #087f8c;
+  --accent-primary-hover: #076571;
+  --semantic-success: #177348;
+  --semantic-warning: #986009;
+  --semantic-danger: #b83340;
+  --shadow-card: 0 2px 4px rgb(23 43 58 / 3%);
+  --shadow-card-hover: 0 4px 12px rgb(23 43 58 / 7%);
+  --shadow-dropdown: 0 18px 60px rgb(23 43 58 / 16%);
+  --shadow-glow-cyan: none;
+  color: var(--text-primary);
+  color-scheme: light;
+  background: var(--app-bg);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.business-ui :is(h1,h2,h3,h4) { color: var(--text-primary); letter-spacing: -.025em; }
+.business-ui :is(button,input,select,textarea) { font-family: inherit; }
+.business-ui :is(button,a,input,select,textarea,summary):focus-visible { outline: 3px solid #169ba8; outline-offset: 3px; }
+.business-ui :is(button,a) { -webkit-tap-highlight-color: transparent; }
+.business-ui button { cursor: pointer; }
+.business-ui button:disabled { cursor: not-allowed; opacity: .5; transform: none; }
+.business-ui :is(small,time) { font-size: 12px; }
+.business-ui :is(input,select,textarea)::placeholder { color: #6b7c8c; opacity: 1; }
+.business-ui :is(input,select,textarea):not([type=checkbox]):not([type=radio]) {
+  min-height: 44px; min-width: 0; max-width: 100%; padding: 10px 12px; color: var(--text-primary);
+  background: #fff; border: 1px solid var(--border-default); border-radius: 8px; font-size: 14px; box-shadow: none;
+}
+.business-ui :is(input,select,textarea):not([type=checkbox]):not([type=radio]):focus {
+  background: #fff; border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgb(8 127 140 / 10%);
+}
+.business-ui select option { color: #172b3a; background: #fff; }
+.business-ui :is(input[type=checkbox],input[type=radio]) { accent-color: var(--accent-primary); }
+.business-ui :is(label,legend) { color: var(--text-secondary); font-size: 13px; font-weight: 600; }
+.business-ui small { color: var(--text-muted); }
+.business-ui [hidden] { display: none; }
+.business-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.business-ui .business-skip-link { position: fixed; z-index: 2000; top: -100px; left: 20px; padding: 12px 20px; background: #fff; color: #076571; }
+.business-ui .business-skip-link:focus { top: 12px; }
+
+/* Shell */
+.business-shell.business-ui { grid-template-columns: 240px minmax(0,1fr); }
+.business-ui .business-sidebar { background: #122b3b; color: #d6e1e9; border: 0; }
+.business-ui .business-brand { min-height: 88px; gap: 11px; padding: 24px 20px; border-bottom: 1px solid #284150; }
+.business-ui .business-brand-mark { width: 36px; height: 36px; flex-basis: 36px; background: #2499a5; color: #fff; border-radius: 10px; box-shadow: none; }
+.business-ui .business-brand strong { color: #fff; font-size: 14px; }
+.business-ui .business-brand small { color: #9eb8c6; font-size: 9px; letter-spacing: .09em; margin-top: 3px; }
+.business-ui .business-navigation { padding: 22px 12px; }
+.business-ui .business-navigation section + section { margin-top: 25px; padding-top: 0; border: 0; }
+.business-ui .business-navigation h2 { color: #8fa9ba; font-size: 10px; letter-spacing: .11em; padding: 0 12px 10px; }
+.business-ui .business-navigation a { gap: 12px; min-height: 44px; margin: 3px 0; padding: 10px 13px; color: #bbcedb; border: 0; border-radius: 8px; }
+.business-ui .business-navigation a span { font-size: 13px; font-weight: 500; }
+.business-ui .business-navigation a svg { width: 18px; height: 18px; }
+.business-ui .business-navigation a:hover { background: #1d3b4d; color: #fff; }
+.business-ui .business-navigation a.active { background: #245064; color: #fff; box-shadow: inset 3px 0 #60c6cc; }
+.business-ui .business-navigation a.active svg { color: #7dd7dd; }
+.business-ui .business-navigation a.active span { font-weight: 600; }
+.business-ui .business-guide-link { margin: 0 16px 20px; background: #1c3748; color: #c7dae4; border: 1px solid #305063; box-shadow: none; font-size: 12px; }
+.business-ui .business-guide-link:hover { background: #264757; color: #fff; }
+.business-ui .business-sidebar-close { color: #c7dae4; }
+.business-ui .business-shell-main { background: var(--app-bg); }
+.business-ui .business-topbar { min-height: 72px; padding: 12px 32px; background: #fff; border-bottom: 1px solid var(--border-subtle); backdrop-filter: none; }
+.business-ui .business-topbar-copy > span { display: none; }
+.business-ui .business-topbar-copy h1 { font-size: 15px; font-weight: 600; letter-spacing: 0; }
+.business-ui .business-topbar-copy p { font-size: 12px; color: var(--text-muted); }
+.business-ui .business-account { gap: 9px; padding: 4px 4px 4px 12px; background: #f6f8fa; border-color: var(--border-subtle); border-radius: 8px; }
+.business-ui .business-account span { font-size: 13px; color: var(--text-primary); max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.business-ui .business-account small { color: #08717c; background: #e3f3f4; border: 0; font-size: 10px; }
+.business-ui .business-account button { width: 36px; height: 36px; color: #526777; }
+.business-ui .business-account button:hover { color: #b83340; background: #fff0f1; }
+.business-ui .business-menu-button { color: var(--text-primary); background: #f4f6f8; border-color: var(--border-default); }
+.business-ui .business-content { padding: 32px 36px 48px; scrollbar-gutter: stable; }
+.business-ui .business-content > * { width: min(1480px,100%); }
+.business-ui .business-page { gap: 24px; }
+.business-ui .business-surface { background: #fff; border: 1px solid var(--border-subtle); border-radius: 12px; box-shadow: var(--shadow-card); backdrop-filter: none; }
+.business-ui .page-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 0 0 6px; }
+.business-ui .page-heading-copy { min-width: 0; }
+.business-ui .page-eyebrow { color: #08717c; font-size: 11px; font-weight: 700; letter-spacing: .09em; }
+.business-ui .page-heading h2 { margin-top: 5px; font-size: 28px; line-height: 1.3; font-weight: 700; }
+.business-ui .page-heading p { margin-top: 8px; color: var(--text-muted); font-size: 14px; max-width: 720px; }
+.business-ui .page-heading-actions { display: flex; flex: none; gap: 10px; }
+
+/* Buttons, feedback and section headers */
+.business-ui :is(.business-button,.schedule-button-primary,.schedule-button-secondary,.schedule-button-danger,.alerts-read-all,.reports-reset,.schedule-clear-filter,.user-row button,.management-detail-button,.alerts-management-actions a,.alerts-management-actions button) {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 9px 14px;
+  border: 1px solid var(--border-default); border-radius: 8px; color: var(--text-secondary); background: #fff;
+  box-shadow: none; font-size: 13px; font-weight: 600; text-decoration: none; transition: background .15s, border-color .15s; white-space: normal;
+}
+.business-ui :is(.business-button,.schedule-button-secondary,.alerts-read-all,.reports-reset,.schedule-clear-filter,.user-row button,.management-detail-button,.alerts-management-actions a,.alerts-management-actions button):hover:not(:disabled) { color: #076571; border-color: #9abfc2; background: #f0f8f8; box-shadow: none; transform: none; }
+.business-ui :is(.business-button.primary,.schedule-button-primary,.user-create button,.auth-form > button) { background: #087f8c; color: #fff; border: 1px solid #087f8c; box-shadow: 0 2px 3px rgb(8 127 140 / 10%); font-size: 14px; font-weight: 600; }
+.business-ui :is(.business-button.primary,.schedule-button-primary,.user-create button,.auth-form > button):hover:not(:disabled) { color: #fff; background: #076571; border-color: #076571; box-shadow: none; filter: none; transform: none; }
+.business-ui :is(.dashboard-card-heading,.reports-filter-heading,.alerts-list-heading,.schedule-list-heading,.users-heading,.driver-panel-heading) { padding: 20px 24px; border-bottom: 1px solid var(--border-subtle); gap: 14px; }
+.business-ui :is(.dashboard-card-heading,.reports-filter-heading,.alerts-list-heading,.schedule-list-heading,.users-heading,.driver-panel-heading) h2 { font-size: 16px; font-weight: 650; color: var(--text-primary); }
+.business-ui :is(.dashboard-card-heading,.reports-filter-heading,.alerts-list-heading,.schedule-list-heading,.users-heading,.driver-panel-heading) p { font-size: 12px; margin-top: 4px; color: var(--text-muted); }
+.business-ui .dashboard-card-heading > a { color: #08717c; font-size: 12px; }
+.business-ui :is(.dashboard-error,.reports-error,.schedule-error,.alerts-error,.users-error,.fleet-error,.auth-error,.driver-error,.schedule-inline-error,.inline-error) { background: #fff2f3; color: #a32938; border: 1px solid #f1c4ca; padding: 14px 16px; border-radius: 9px; font-size: 13px; box-shadow: none; overflow-wrap: anywhere; }
+.business-ui :is(.dashboard-error,.reports-error,.schedule-error,.alerts-error,.users-error) :is(strong,p,span) { color: #a32938; font-size: 13px; }
+.business-ui :is(.dashboard-error,.reports-error,.schedule-error,.alerts-error,.users-error,.driver-error) button { color: #a32938; background: #fff; border: 1px solid #edb5bf; min-height: 36px; padding: 7px 12px; border-radius: 7px; font-size: 12px; }
+.business-ui :is(.users-notice,.auth-success) { color: #166b44; background: #eef9f3; border: 1px solid #c4e4d1; }
+.business-ui :is(.auth-success strong,.auth-success a) { color: #166b44; }
+.business-ui :is(.business-empty,.dashboard-empty,.reports-empty,.schedule-empty,.alerts-empty-state,.users-empty,.driver-empty) { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 52px 24px; background: transparent; color: var(--text-muted); text-align: center; }
+.business-ui :is(.business-empty,.dashboard-empty,.reports-empty,.schedule-empty,.alerts-empty-state,.users-empty,.driver-empty) :is(strong,h3) { color: var(--text-primary); font-size: 16px; margin-top: 8px; }
+.business-ui :is(.business-empty,.dashboard-empty,.reports-empty,.schedule-empty,.alerts-empty-state,.users-empty,.driver-empty) p { color: var(--text-muted); font-size: 13px; max-width: 400px; }
+.business-ui :is(.dashboard-state,.reports-loading,.schedule-state,.alerts-state,.users-state,.driver-state,.fleet-loading) { color: var(--text-muted); font-size: 14px; padding: 38px 24px; }
+.business-ui .business-toast { color: #fff; background: #173c4b; border-color: #355767; box-shadow: var(--shadow-dropdown); font-size: 14px; }
+
+/* Dashboard and metric families */
+.business-ui .dashboard-section-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: -12px; }
+.business-ui .dashboard-section-label h3 { font-size: 15px; font-weight: 600; }
+.business-ui .dashboard-section-label span { font-size: 12px; color: var(--text-muted); }
+.business-ui .dashboard-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+.business-ui :is(.dashboard-metric,.reports-metric,.schedule-metrics article,.alerts-metrics article,.driver-summary-grid article) { padding: 22px; background: #fff; border: 1px solid var(--border-subtle); border-radius: 12px; box-shadow: var(--shadow-card); backdrop-filter: none; transform: none; gap: 16px; }
+.business-ui :is(.dashboard-metric,.reports-metric):hover { background: #fff; border-color: #c7d8df; box-shadow: var(--shadow-card-hover); transform: none; }
+.business-ui :is(.dashboard-metric,.reports-metric) > div > span { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+.business-ui :is(.dashboard-metric,.reports-metric) strong { color: var(--text-primary); font-size: 30px; font-weight: 700; letter-spacing: -.04em; line-height: 1.3; margin: 8px 0 4px; font-variant-numeric: tabular-nums; }
+.business-ui :is(.dashboard-metric,.reports-metric) small { font-size: 12px; color: var(--text-muted); }
+.business-ui :is(.dashboard-metric-icon,.reports-metric-icon) { width: 42px; height: 42px; flex-basis: 42px; border: 0; box-shadow: none; border-radius: 11px; }
+.business-ui :is(.dashboard-metric,.reports-metric):is(.blue,.cyan) > :is(.dashboard-metric-icon,.reports-metric-icon) { color: #08717c; background: #e7f4f4; border: 0; box-shadow: none; }
+.business-ui :is(.dashboard-metric,.reports-metric).green > :is(.dashboard-metric-icon,.reports-metric-icon) { color: #177348; background: #eaf6ee; border: 0; box-shadow: none; }
+.business-ui :is(.dashboard-metric,.reports-metric):is(.red,.rose) > :is(.dashboard-metric-icon,.reports-metric-icon) { color: #b83340; background: #fceef0; border: 0; box-shadow: none; }
+.business-ui :is(.dashboard-metric,.reports-metric).amber > :is(.dashboard-metric-icon,.reports-metric-icon) { color: #986009; background: #fcf3e3; border: 0; box-shadow: none; }
+.business-ui :is(.dashboard-metric,.reports-metric).violet > :is(.dashboard-metric-icon,.reports-metric-icon) { color: #665499; background: #f1eef8; border: 0; box-shadow: none; }
+.business-ui .dashboard-loading-value { background: #e3e9ee; border-radius: 5px; }
+.business-ui .dashboard-metric > div { display: flex; flex: 1; flex-direction: column; gap: 0; }
+.business-ui .dashboard-metric strong { align-self: flex-start; }
+.business-ui .dashboard-columns { grid-template-columns: minmax(0,1.55fr) minmax(320px,1fr); gap: 24px; }
+.business-ui .dashboard-trip-row { min-height: 80px; grid-template-columns: 38px minmax(0,1fr) auto; padding: 15px 22px; gap: 12px; border-color: var(--border-subtle); }
+.business-ui .dashboard-trip-row time { grid-column: 2; font-size: 12px; max-width: none; }
+.business-ui .dashboard-trip-row .dashboard-status { grid-column: 3; grid-row: 1 / 3; }
+.business-ui .dashboard-trip-row :is(strong,small) { white-space: normal; overflow-wrap: anywhere; }
+.business-ui .dashboard-trip-row strong { font-size: 13px; }
+.business-ui .dashboard-trip-row small { font-size: 12px; }
+.business-ui :is(.dashboard-trip-row,.dashboard-quick-links > a,.dashboard-alert-row):hover { background: #f5f9fa; }
+.business-ui .dashboard-quick-links > a { min-height: 80px; padding: 17px 24px; }
+.business-ui .dashboard-quick-links > a strong { color: var(--text-primary); font-size: 13px; }
+.business-ui :is(.dashboard-quick-links > a small,.dashboard-alert-row small) { font-size: 12px; color: var(--text-muted); }
+.business-ui .dashboard-alert-row { padding: 18px 24px; }
+.business-ui .dashboard-alert-row strong { font-size: 13px; color: var(--text-primary); }
+.business-ui .dashboard-alert-icon.off-route { color: #b83340; background: #fceef0; }
+.business-ui .dashboard-alert-icon.reroute { color: #986009; background: #fcf3e3; }
+
+/* Readable, shared status palette */
+.business-ui :is(.business-status,.dashboard-status,.trip-status,.driver-status,.schedule-status,.user-role,.user-active,.user-inactive,.alerts-severity,.driver-schedule-active,.driver-schedule-paused) { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 4px 9px; border: 1px solid transparent; border-radius: 6px; font-size: 11px; font-weight: 600; line-height: 1.5; box-shadow: none; white-space: normal; }
+.business-ui .business-status i { width: 6px; height: 6px; flex: none; background: currentColor; border-radius: 50%; }
+.business-ui :is(.business-status.success,.business-status.completed,.dashboard-status.completed,.trip-status.completed,.driver-status.completed,.schedule-status.active,.user-active,.driver-schedule-active) { color: #166b44; background: #eaf6ee; border-color: #d1eada; box-shadow: none; }
+.business-ui :is(.business-status.in_progress,.dashboard-status.in_progress,.trip-status.in_progress,.driver-status.in_progress,.user-role.driver) { color: #096d81; background: #e7f4f7; border-color: #cde7eb; box-shadow: none; }
+.business-ui :is(.business-status.scheduled,.dashboard-status.scheduled,.trip-status.scheduled,.driver-status.scheduled,.alerts-severity.major) { color: #8b590c; background: #fcf3e3; border-color: #f0dfb9; }
+.business-ui :is(.business-status.cancelled,.dashboard-status.cancelled,.trip-status.cancelled,.driver-status.cancelled,.user-inactive,.alerts-severity.critical) { color: #a62e3d; background: #fceef0; border-color: #f1cfd5; }
+.business-ui :is(.business-status.neutral,.schedule-status.paused,.driver-schedule-paused) { color: #526777; background: #eef2f5; border-color: #dde5eb; }
+.business-ui .user-role.admin { color: #665499; background: #f1eef8; border-color: #e0d9ef; }
+
+/* Fleet management uses tables; map FleetWorkspace keeps its existing cards. */
+.business-ui .business-management-surface { display: block; min-height: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+.business-ui .business-management-surface :is(.fleet-workspace,.fleet-list-view) { display: block; overflow: visible; width: 100%; }
+.business-ui .business-management-surface .fleet-list-view[hidden] { display: none; }
+.business-ui .business-management-surface .fleet-module-header { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 20px; padding: 0; margin-bottom: 24px; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.business-ui .business-management-surface .fleet-module-icon { display: none; }
+.business-ui .business-management-surface .fleet-module-eyebrow { font-size: 11px; color: #08717c; letter-spacing: .09em; }
+.business-ui .business-management-surface .fleet-module-header h2 { font-size: 28px; margin-top: 5px; }
+.business-ui .business-management-surface .fleet-module-header p { font-size: 14px; margin-top: 8px; white-space: normal; color: var(--text-muted); }
+.business-ui .business-management-surface .fleet-module-actions { grid-column: 2; grid-row: 1; }
+.business-ui .business-management-surface .fleet-module-summary { grid-row: 2; grid-column: 1 / -1; gap: 16px; padding: 0; }
+.business-ui .business-management-surface .fleet-module-summary > div { flex: 1; flex-direction: row; align-items: baseline; gap: 12px; padding: 20px 24px; background: #fff; border: 1px solid var(--border-subtle); border-radius: 12px; }
+.business-ui .business-management-surface .fleet-module-summary strong { color: var(--text-primary); font-size: 28px; }
+.business-ui .business-management-surface .fleet-module-summary span { color: var(--text-muted); font-size: 13px; white-space: normal; }
+.business-ui .business-management-surface .fleet-primary-action { min-height: 42px; padding: 10px 16px; background: #087f8c; border: 1px solid #087f8c; border-radius: 8px; box-shadow: none; font-size: 14px; }
+.business-ui .business-management-surface .fleet-primary-action:hover:not(:disabled) { background: #076571; box-shadow: none; transform: none; }
+.business-ui .business-management-surface :is(.fleet-refresh-button,.fleet-icon-button) { min-width: 40px; height: 40px; background: #fff; color: #526777; border: 1px solid var(--border-default); border-radius: 8px; box-shadow: none; }
+.business-ui .business-management-surface :is(.fleet-refresh-button,.fleet-icon-button):hover { background: #edf6f6; color: #08717c; border-color: #add1d4; transform: none; }
+.business-ui .business-management-surface .fleet-heading { padding: 0 0 16px; }
+.business-ui .business-management-surface .fleet-heading .panel-eyebrow { display: none; }
+.business-ui .business-management-surface .fleet-heading h2 { font-size: 15px; }
+.business-ui .business-management-surface .fleet-list-hint { color: var(--text-muted); font-size: 12px; }
+.business-ui .business-management-surface .fleet-list-hint svg { color: #177348; }
+.business-ui .business-management-surface .fleet-list-tools { display: flex; align-items: center; flex-direction: row; flex-wrap: wrap; padding: 18px; gap: 12px; background: #fff; border: 1px solid var(--border-subtle); border-bottom: 0; border-radius: 12px 12px 0 0; }
+.business-ui .business-management-surface .fleet-search { flex: 1 1 220px; min-height: 44px; padding: 0 12px; color: var(--text-muted); background: #fff; border: 1px solid var(--border-default); border-radius: 8px; box-shadow: none; }
+.business-ui .business-management-surface .fleet-search input { min-height: 42px; padding: 0; border: 0; outline: 0; box-shadow: none; background: transparent; color: var(--text-primary); font-size: 14px; }
+.business-ui .business-management-surface .fleet-search:focus-within { border-color: #087f8c; outline: 2px solid #b1dce0; outline-offset: 2px; background: #fff; }
+.business-ui .business-management-surface .fleet-list-tools select { max-width: 100%; min-width: 170px; min-height: 44px; color: var(--text-primary); background: #fff; border-color: var(--border-default); font-size: 13px; }
+.business-ui .business-management-surface .fleet-clear-filters { min-height: 40px; color: #08717c; background: #eaf5f6; border-color: #cde7e9; font-size: 12px; }
+.business-ui .business-management-surface .fleet-filter-chip { color: #08717c; background: #eaf5f6; border-color: #cde7e9; }
+.business-ui .business-management-surface .fleet-list-body { display: block; padding: 0; overflow: visible; background: #fff; border: 1px solid var(--border-subtle); border-radius: 0 0 12px 12px; }
+.business-ui .business-management-surface .fleet-error { margin: 16px; color: #a32938; background: #fff2f3; border-color: #f1c4ca; }
+.business-ui .management-table-wrap { overflow-x: auto; border-radius: inherit; }
+.business-ui .management-table { width: 100%; border-collapse: collapse; text-align: left; }
+.business-ui .management-table th { padding: 13px 20px; background: #f8fafb; border-bottom: 1px solid var(--border-subtle); color: #607486; font-size: 11px; font-weight: 600; letter-spacing: .025em; white-space: nowrap; }
+.business-ui .management-table td { padding: 19px 20px; border-bottom: 1px solid #edf1f4; color: var(--text-secondary); font-size: 13px; }
+.business-ui .management-table tbody tr:hover { background: #f8fbfc; }
+.business-ui .management-table th:last-child { text-align: right; }
+.business-ui .management-identity { display: flex; gap: 12px; align-items: center; }
+.business-ui .management-avatar { display: grid; place-items: center; flex: 0 0 40px; height: 40px; border-radius: 10px; color: #08717c; background: #eaf4f5; }
+.business-ui .management-avatar.person { color: #536688; background: #eef1f7; }
+.business-ui :is(.management-identity > div,.management-stacked,.management-trip) { display: flex; flex-direction: column; gap: 4px; }
+.business-ui :is(.management-identity,.management-stacked,.management-trip) strong { color: var(--text-primary); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.business-ui .management-code { font-size: 12px; color: #08717c; font-weight: 600; font-variant-numeric: tabular-nums; }
+.business-ui .management-table time { white-space: nowrap; font-size: 12px; }
+.business-ui .business-unassigned { color: #80622d; font-size: 12px; }
+.business-ui .management-row-actions { display: flex; justify-content: flex-end; gap: 4px; }
+.business-ui .management-row-actions button { display: grid; place-items: center; width: 34px; height: 36px; border: 1px solid transparent; border-radius: 7px; color: #607486; background: transparent; }
+.business-ui .management-row-actions button:hover { color: #08717c; background: #e8f3f4; border-color: #cde7e9; }
+.business-ui .management-row-actions button.danger:hover { color: #b83340; background: #fceef0; border-color: #f1cfd5; }
+.business-ui .management-detail-button { min-height: 34px; padding: 6px 10px; font-size: 12px; float: right; }
+.business-ui .management-table-footer { padding: 15px 20px; color: var(--text-muted); font-size: 12px; background: #fff; }
+
+/* Form/detail coverage for the shared fleet components. Specificity matches legacy rules. */
+.business-ui .business-management-surface .fleet-editor { display: flex; overflow: visible; min-height: 0; max-width: 880px; background: #fff; border: 1px solid var(--border-subtle); border-radius: 12px; box-shadow: var(--shadow-card); backdrop-filter: none; }
+.business-ui .business-management-surface .fleet-editor .fleet-heading { padding: 24px; border-bottom: 1px solid var(--border-subtle); }
+.business-ui .business-management-surface .fleet-editor .fleet-heading h2 { font-size: 21px; }
+.business-ui .business-management-surface .fleet-editor :is(.fleet-form-body,.fleet-detail-body) { padding: 24px; overflow: visible; }
+.business-ui .business-management-surface .fleet-editor .fleet-form-body > fieldset { padding: 0; border: 0; gap: 20px; min-width: 0; }
+.business-ui .business-management-surface .fleet-editor :is(.fleet-form-body label,.vehicle-type-field legend,.trip-schedule-editor label) { font-size: 13px; color: var(--text-secondary); }
+.business-ui .business-management-surface .fleet-editor :is(.fleet-form-body,.trip-schedule-editor,.trip-history-filters) :is(input,select,textarea):not([type=radio]):not([type=checkbox]) { min-height: 44px; color: var(--text-primary); background: #fff; border: 1px solid var(--border-default); border-radius: 8px; font-size: 14px; box-shadow: none; }
+.business-ui .business-management-surface .fleet-editor :is(input,select,textarea):focus { border-color: #087f8c; box-shadow: 0 0 0 3px rgb(8 127 140 / 10%); }
+.business-ui .business-management-surface .fleet-editor .vehicle-type-options label { background: #fff; color: var(--text-primary); border-color: var(--border-default); padding: 16px; box-shadow: none; }
+.business-ui .business-management-surface .fleet-editor .vehicle-type-options label[data-selected=true] { background: #edf7f7; border-color: #087f8c; box-shadow: none; }
+.business-ui .business-management-surface .fleet-editor .vehicle-type-options strong { color: var(--text-primary); font-size: 14px; }
+.business-ui .business-management-surface .fleet-editor .vehicle-type-options :is(small,svg) { color: #526777; }
+.business-ui .business-management-surface .fleet-editor :is(.fleet-help,.availability-note,.route-snapshot-note,.trip-eta-stop,.trip-checkin-pending,.trip-checkin-done) { font-size: 12px; line-height: 1.7; }
+.business-ui .business-management-surface .fleet-editor :is(.trip-preview,.route-snapshot-note,.trip-checkin-summary,.trip-eta-summary) { color: #415567; background: #f0f7f8; border: 1px solid #d5e6e8; border-radius: 8px; padding: 14px; }
+.business-ui .business-management-surface .fleet-editor :is(.trip-preview strong,.trip-eta-summary strong,.trip-eta-stop,.trip-times dd) { color: #08717c; font-size: 13px; text-transform: none; letter-spacing: 0; }
+.business-ui .business-management-surface .fleet-editor :is(.trip-times > div,.trip-schedule-editor,.trip-history-panel,.trip-revision-panel,.trip-revision-row,.telemetry-history-row) { background: #f8fafb; color: var(--text-secondary); border-color: var(--border-subtle); }
+.business-ui .business-management-surface .fleet-editor :is(.trip-summary h3,.trip-summary p,.trip-section-heading,.fleet-stop-link) { color: var(--text-primary); }
+.business-ui .business-management-surface .fleet-editor .trip-summary h3 { font-size: 24px; }
+.business-ui .business-management-surface .fleet-editor .trip-summary p { font-size: 14px; margin-top: 5px; }
+.business-ui .business-management-surface .fleet-editor .trip-checkin-done { color: #177348; }
+.business-ui .business-management-surface .fleet-editor .trip-timeline { margin-top: 20px; }
+.business-ui .business-management-surface .fleet-editor .trip-timeline li { padding-bottom: 20px; }
+.business-ui .business-management-surface .fleet-editor .fleet-stop-link { font-size: 14px; }
+.business-ui .business-management-surface .fleet-editor .fleet-footer { flex-wrap: wrap; justify-content: flex-end; padding: 18px 24px; background: #f8fafb; border-top: 1px solid var(--border-subtle); border-radius: 0 0 12px 12px; }
+.business-ui .business-management-surface .fleet-editor .fleet-footer button { flex: 0 1 auto; min-height: 42px; padding: 10px 20px; font-size: 13px; }
+.business-ui :is(.btn-secondary,.fleet-text-button) { color: #08717c; background: #fff; border: 1px solid #c8dade; font-size: 13px; border-radius: 8px; box-shadow: none; }
+.business-ui .business-management-surface .fleet-editor .btn-secondary { color: var(--text-secondary); background: #fff; border-color: var(--border-default); }
+.business-ui .business-management-surface .fleet-text-button { color: #08717c; background: #eef7f8; border-color: #c8dade; font-size: 12px; padding: 8px 12px; }
+.business-ui .business-management-surface .fleet-text-button:hover { color: #076571; background: #e3f1f2; border-color: #9abfc2; box-shadow: none; transform: none; }
+.business-ui .business-management-surface .fleet-editor .btn-primary { color: #fff; background: #087f8c; border: 1px solid #087f8c; box-shadow: none; }
+.business-ui .business-management-surface .fleet-editor .btn-primary:hover:not(:disabled) { background: #076571; box-shadow: none; transform: none; }
+.business-ui :is(.danger-action,.schedule-button-danger) { color: #a62e3d; background: #fceef0; border: 1px solid #edbdc5; border-radius: 8px; font-size: 13px; padding: 10px 14px; box-shadow: none; }
+.business-ui .business-management-surface .fleet-editor .trip-status { font-size: 12px; box-shadow: none; }
+.business-ui .business-management-surface .fleet-editor .trip-status.in_progress { color: #096d81; background: #e7f4f7; border-color: #cde7eb; }
+.business-ui .business-management-surface .fleet-editor .trip-status.completed { color: #166b44; background: #eaf6ee; border-color: #d1eada; }
+.business-ui .business-management-surface .fleet-editor .trip-status.cancelled { color: #a62e3d; background: #fceef0; border-color: #f1cfd5; }
+
+/* Schedules, alerts, reports and accounts */
+.business-ui :is(.schedule-metrics,.alerts-metrics) { gap: 16px; }
+.business-ui :is(.schedule-metrics,.alerts-metrics) article > svg { color: #087f8c; background: #e7f4f4; border: 0; border-radius: 10px; padding: 9px; width: 42px; height: 42px; box-shadow: none; }
+.business-ui :is(.schedule-metrics,.alerts-metrics) article span { font-size: 13px; color: var(--text-secondary); }
+.business-ui :is(.schedule-metrics,.alerts-metrics) article strong { color: var(--text-primary); font-size: 28px; }
+.business-ui :is(.schedule-metrics,.alerts-metrics) article small { color: var(--text-muted); font-size: 12px; }
+.business-ui :is(.reports-filters,.alerts-filters,.schedule-filters) { padding: 20px 24px; gap: 16px; background: #fff; border-color: var(--border-subtle); }
+.business-ui :is(.reports-filters,.alerts-filters,.schedule-filters) label { font-size: 12px; color: var(--text-secondary); }
+.business-ui .reports-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.business-ui .reports-filter-note { padding: 14px 24px; background: #f8fafb; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-muted); flex-wrap: wrap; }
+.business-ui .reports-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.business-ui .reports-definition { padding: 22px 24px; }
+.business-ui .reports-definition h2 { font-size: 15px; }
+.business-ui .reports-definition p { color: var(--text-muted); font-size: 13px; line-height: 1.8; }
+.business-ui .reports-definition > div:last-child { font-size: 12px; color: var(--text-muted); }
+.business-ui .schedule-cards { padding: 22px; grid-template-columns: repeat(auto-fit,minmax(min(320px,100%),1fr)); gap: 18px; }
+.business-ui .schedule-card { background: #fff; border-color: var(--border-subtle); border-radius: 10px; box-shadow: none; padding: 20px; }
+.business-ui .schedule-card:hover { background: #fff; border-color: #add1d4; box-shadow: none; transform: none; }
+.business-ui .schedule-card[data-enabled=false] { opacity: 1; background: #fafbfc; }
+.business-ui .schedule-card h3 { font-size: 17px; color: var(--text-primary); white-space: normal; }
+.business-ui .schedule-route { font-size: 13px; color: #08717c; white-space: normal; }
+.business-ui .schedule-card dl { background: #f8fafb; padding: 14px; border-color: var(--border-subtle); }
+.business-ui .schedule-card dl div { gap: 16px; }
+.business-ui .schedule-card dt { color: var(--text-muted); font-size: 12px; flex: 0 0 90px; }
+.business-ui .schedule-card dd { color: var(--text-primary); font-size: 12px; overflow-wrap: anywhere; }
+.business-ui .schedule-card-header button { color: #526777; background: #fff; border-color: var(--border-default); width: 36px; height: 36px; }
+.business-ui .schedule-card-header button:hover { color: #08717c; background: #edf7f7; border-color: #add1d4; }
+.business-ui .schedule-last-run.success { color: #166b44; background: #eef9f3; border-color: #c4e4d1; font-size: 12px; }
+.business-ui .schedule-last-run.failed { color: #a32938; background: #fff2f3; border-color: #f1c4ca; font-size: 12px; }
+.business-ui .schedule-card > a { color: #08717c; font-size: 13px; }
+.business-ui .alerts-management-list { padding: 6px 24px 22px; }
+.business-ui .alerts-management-card { padding: 22px 18px; background: #fff; border: 1px solid var(--border-subtle); border-radius: 10px; box-shadow: none; }
+.business-ui .alerts-management-card.unread { border-left: 3px solid #087f8c; background: #fbfefe; box-shadow: none; }
+.business-ui .alerts-management-card.read { opacity: 1; background: #fafbfc; }
+.business-ui .alerts-management-card:hover { background: #f8fbfc; transform: none; box-shadow: none; }
+.business-ui .alerts-management-body h3 { color: var(--text-primary); font-size: 16px; }
+.business-ui .alerts-management-body p { color: var(--text-muted); font-size: 13px; }
+.business-ui .alerts-management-body > strong { color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+.business-ui .alerts-management-icon.off-route { color: #b83340; background: #fceef0; border-color: #f1cfd5; box-shadow: none; }
+.business-ui .alerts-management-icon.reroute { color: #986009; background: #fcf3e3; border-color: #f0dfb9; box-shadow: none; }
+.business-ui .alerts-management-actions { gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.business-ui .alerts-management-actions button:last-child { color: #a62e3d; background: #fff; border-color: #edbdc5; }
+.business-ui .alerts-management-top { flex-wrap: wrap; gap: 10px; }
+.business-ui .alerts-management-top time { color: var(--text-muted); font-size: 12px; }
+.business-ui .users-columns { grid-template-columns: minmax(0,1.5fr) minmax(300px,1fr); gap: 24px; align-items: start; }
+.business-ui .users-heading { background: #fff; }
+.business-ui .users-heading > span { background: #e7f4f4; color: #08717c; border-color: #cde7e9; font-size: 12px; }
+.business-ui .users-heading > svg { color: #08717c; }
+.business-ui .user-row { grid-template-columns: auto minmax(0,1fr) auto; padding: 20px; gap: 12px; background: #fff; border-color: var(--border-subtle); }
+.business-ui .user-row:hover { background: #f8fbfc; }
+.business-ui .user-row > button { grid-column: 3; justify-self: end; }
+.business-ui .user-row :is(strong,small) { white-space: normal; overflow-wrap: anywhere; }
+.business-ui .user-create form { padding: 24px; gap: 20px; }
+.business-ui .user-create button { min-height: 44px; }
+.business-ui .user-create-help { color: var(--text-muted); font-size: 12px; }
+
+/* Native dialogs stay within the theme inheritance while entering the top layer. */
+.business-ui :is(.fleet-confirm,.schedule-confirm) { width: min(480px,calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 28px; color: var(--text-primary); background: #fff; border: 1px solid var(--border-subtle); border-radius: 14px; box-shadow: var(--shadow-dropdown); overflow-y: auto; backdrop-filter: none; }
+.business-ui :is(.fleet-confirm,.schedule-confirm) h2 { color: var(--text-primary); font-size: 21px; }
+.business-ui :is(.fleet-confirm,.schedule-confirm) > p { color: var(--text-muted); font-size: 14px; line-height: 1.7; margin-top: 10px; }
+.business-ui :is(.fleet-confirm,.schedule-confirm) :is(.dialog-actions,div:last-child) { flex-wrap: wrap; gap: 10px; }
+.business-ui :is(.fleet-confirm,.schedule-confirm)::backdrop,.business-ui .business-side-panel::backdrop { background: rgb(15 34 48 / 45%); backdrop-filter: blur(2px); }
+.business-ui .business-side-panel { position: fixed; inset: 0 0 0 auto; width: min(620px,100%); max-width: 100vw; height: 100dvh; max-height: 100dvh; min-height: 0; margin: 0; padding: 0; overflow-y: auto; border: 0; border-left: 1px solid var(--border-subtle); border-radius: 0; background: #fff; color: var(--text-primary); box-shadow: -10px 0 40px rgb(15 34 48 / 12%); backdrop-filter: none; }
+.business-ui .business-side-panel header { position: sticky; top: 0; z-index: 1; background: #fff; padding: 24px; border-color: var(--border-subtle); }
+.business-ui .business-side-panel header span { color: #08717c; font-size: 11px; }
+.business-ui .business-side-panel h2 { color: var(--text-primary); font-size: 22px; margin-top: 6px; }
+.business-ui .business-side-panel header button { background: #f5f8fa; color: #526777; border-color: var(--border-default); width: 38px; height: 38px; flex: none; }
+.business-ui .schedule-editor form { padding: 24px; gap: 22px; }
+.business-ui .schedule-editor fieldset { background: #f8fafb; border-color: var(--border-subtle); }
+.business-ui .schedule-editor :is(label,legend) { font-size: 13px; color: var(--text-secondary); }
+.business-ui .schedule-weekdays span { min-width: 38px; min-height: 40px; display: grid; place-items: center; color: var(--text-secondary); background: #fff; border: 1px solid var(--border-default); font-size: 13px; box-shadow: none; }
+.business-ui .schedule-weekdays input:checked + span { color: #fff; background: #087f8c; border-color: #087f8c; box-shadow: none; }
+.business-ui .schedule-weekdays input:focus-visible + span { outline: 3px solid #169ba8; outline-offset: 3px; }
+
+/* Driver workspace */
+.driver-portal.business-ui { height: 100dvh; min-height: 0; overflow-y: auto; }
+.business-ui .driver-portal-header { position: sticky; top: 0; z-index: 10; background: #122b3b; color: #d6e1e9; padding-block: 16px; border: 0; }
+.business-ui .driver-portal-brand strong { color: #fff; font-size: 15px; }
+.business-ui .driver-portal-brand small { color: #a8c0ce; font-size: 10px; }
+.business-ui .driver-portal-brand > span { color: #fff; background: #2499a5; }
+.business-ui .driver-portal-account button { min-height: 40px; color: #d6e1e9; background: #1c3d50; border-color: #305063; font-size: 12px; }
+.business-ui .driver-portal-content { width: min(1200px,100%); padding: 32px 24px 56px; }
+.business-ui .driver-welcome { padding: 0; color: var(--text-primary); background: transparent; box-shadow: none; border: 0; border-radius: 0; }
+.business-ui .driver-welcome h1 { color: var(--text-primary); font-size: 30px; margin-top: 7px; }
+.business-ui .driver-welcome p { color: var(--text-muted); font-size: 14px; margin-top: 8px; }
+.business-ui .driver-welcome > div:first-child > span { color: #08717c; font-size: 11px; letter-spacing: .08em; }
+.business-ui .driver-welcome-icon { color: #08717c; background: #e0eeee; border-radius: 50%; }
+.business-ui .driver-tabs { background: transparent; border-bottom: 1px solid var(--border-default); border-radius: 0; padding: 0; gap: 24px; margin: 28px 0 24px; }
+.business-ui .driver-tabs a { padding: 14px 3px; color: var(--text-muted); border-bottom: 2px solid transparent; border-radius: 0; font-size: 14px; }
+.business-ui .driver-tabs a.active { color: #08717c; background: transparent; border-color: #087f8c; box-shadow: none; }
+.business-ui .driver-summary-grid { gap: 16px; margin-bottom: 24px; }
+.business-ui .driver-summary-grid article > span { font-size: 13px; color: var(--text-muted); }
+.business-ui .driver-summary-grid strong { font-size: 26px; color: var(--text-primary); }
+.business-ui .driver-panel { border-color: var(--border-subtle); box-shadow: var(--shadow-card); border-radius: 12px; }
+.business-ui .driver-panel-heading > span { color: #08717c; background: #e7f4f4; font-size: 12px; }
+.business-ui .driver-trip-card { padding: 20px 24px; gap: 16px; background: #fff; }
+.business-ui .driver-trip-card:hover { background: #f8fbfc; }
+.business-ui .driver-trip-card strong { font-size: 15px; white-space: normal; }
+.business-ui .driver-trip-card small { font-size: 12px; }
+.business-ui .driver-trip-id { font-size: 12px; color: #08717c; }
+.business-ui .driver-schedule-card { padding: 22px 24px; }
+.business-ui .driver-schedule-card strong { font-size: 15px; }
+.business-ui .driver-schedule-card p { font-size: 13px; color: #08717c; }
+.business-ui .driver-schedule-card small { font-size: 12px; }
+.business-ui .driver-detail-meta { padding: 24px; gap: 14px; }
+.business-ui .driver-detail-meta :is(span,strong) { font-size: 13px; }
+.business-ui .driver-stop-list { padding: 0 24px 28px; }
+.business-ui .driver-stop-list h3 { font-size: 16px; padding: 12px 0; }
+.business-ui .driver-stop-list strong { font-size: 14px; }
+.business-ui .driver-stop-list small { font-size: 12px; }
+
+/* Authentication: product introduction + focused form, with viewport scrolling. */
+.auth-page.business-ui { height: 100dvh; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: minmax(0,1fr) minmax(440px,1fr); padding: 0; place-items: stretch; background: #fff; }
+.business-ui .auth-introduction { display: flex; flex-direction: column; justify-content: space-between; min-height: 100%; padding: 48px clamp(32px,5vw,88px); background: #122b3b; color: #fff; position: relative; overflow: hidden; }
+.business-ui .auth-introduction::after { content: ""; position: absolute; width: 360px; height: 360px; border: 1px solid #315365; border-radius: 50%; bottom: -210px; right: -80px; box-shadow: 0 0 0 65px rgb(48 92 111 / 10%),0 0 0 130px rgb(48 92 111 / 6%); pointer-events: none; }
+.business-ui .auth-product-brand { display: flex; gap: 13px; align-items: center; }
+.business-ui .auth-product-brand > span { width: 44px; height: 44px; display: grid; place-items: center; background: #2499a5; color: #fff; border-radius: 12px; }
+.business-ui .auth-product-brand > div { display: flex; flex-direction: column; gap: 3px; }
+.business-ui .auth-product-brand strong { color: #fff; font-size: 18px; }
+.business-ui .auth-product-brand small { color: #a8c0ce; font-size: 10px; letter-spacing: .12em; }
+.business-ui .auth-product-copy { position: relative; z-index: 1; padding: 60px 0; }
+.business-ui .auth-product-eyebrow { color: #71d0d6; font-size: 11px; font-weight: 600; letter-spacing: .13em; }
+.business-ui .auth-product-copy h2 { color: #fff; font-size: clamp(32px,3.5vw,54px); line-height: 1.2; font-weight: 650; margin-top: 22px; letter-spacing: -.045em; }
+.business-ui .auth-product-copy > p { color: #a8c0ce; font-size: 15px; line-height: 1.9; max-width: 420px; margin-top: 22px; }
+.business-ui .auth-capabilities { display: flex; flex-direction: column; gap: 20px; margin-top: 40px; color: #d1e3ed; font-size: 14px; }
+.business-ui .auth-capabilities span { display: flex; align-items: center; gap: 13px; }
+.business-ui .auth-capabilities svg { color: #71d0d6; }
+.business-ui .auth-product-footer { color: #91afbf; font-size: 12px; }
+.business-ui .auth-form-pane { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 48px 32px; min-width: 0; }
+.business-ui .auth-card { width: min(420px,100%); padding: 0; color: var(--text-primary); background: #fff; border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none; }
+.business-ui .auth-brand { display: none; }
+.business-ui .auth-heading { margin-top: 0; }
+.business-ui .auth-heading > span { color: #08717c; font-size: 11px; letter-spacing: .1em; }
+.business-ui .auth-heading h1 { color: var(--text-primary); font-size: 30px; margin-top: 10px; letter-spacing: -.035em; }
+.business-ui .auth-heading p { color: var(--text-muted); font-size: 14px; line-height: 1.7; margin-top: 12px; }
+.business-ui .auth-form { gap: 22px; margin-top: 32px; }
+.business-ui .auth-form label { color: var(--text-secondary); font-size: 13px; }
+.business-ui .auth-input { min-height: 48px; color: var(--text-muted); background: #fff; border: 1px solid var(--border-default); padding: 0 14px; border-radius: 8px; box-shadow: none; }
+.business-ui .auth-input:focus-within { background: #fff; color: #08717c; border-color: #087f8c; box-shadow: 0 0 0 3px rgb(8 127 140 / 10%); }
+.business-ui .auth-input input:not([type=checkbox]):not([type=radio]) { background: transparent; min-height: 46px; color: var(--text-primary); border: 0; padding: 0; border-radius: 0; outline: 0; box-shadow: none; }
+.business-ui .auth-input input:not([type=checkbox]):not([type=radio]):focus { box-shadow: none; }
+.business-ui .auth-form > button { min-height: 48px; border-radius: 8px; }
+.business-ui .auth-note { margin-top: 24px; font-size: 12px; color: var(--text-muted); }
+.business-ui .auth-link { color: #08717c; font-size: 13px; margin-top: 20px; }
+.business-ui .auth-link:hover { color: #065e68; }
+.business-ui .auth-pane-footer { margin-top: 44px; color: var(--text-muted); font-size: 11px; text-align: center; }
+
+/* Responsive rules come after all desktop overrides. */
+@media (max-width: 1200px) {
+  .business-ui .business-content { padding: 28px 24px 40px; }
+  .business-ui .dashboard-columns { grid-template-columns: minmax(0,1fr); }
+  .business-ui .dashboard-side-column { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .business-ui .users-columns { grid-template-columns: minmax(0,1fr); }
+  .business-ui .reports-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .business-ui .management-table td { padding: 16px 12px; }
+  .business-ui .management-table th { padding: 12px; }
+}
+@media (max-width: 960px) {
+  .business-shell.business-ui { grid-template-columns: minmax(0,1fr); }
+  .business-ui .business-topbar { padding: 12px 20px; min-height: 68px; }
+  .business-ui .business-sidebar { width: min(290px,86vw); box-shadow: 14px 0 40px rgb(18 43 59 / 20%); }
+  .business-ui .business-shell-overlay { background: rgb(15 34 48 / 45%); }
+  .business-ui .page-heading { align-items: flex-start; }
+  .business-ui .page-heading h2 { font-size: 25px; }
+  .business-ui .dashboard-metric { padding: 18px; gap: 12px; }
+  .business-ui .dashboard-metric-icon { width: 36px; height: 36px; flex-basis: 36px; }
+  .auth-page.business-ui { grid-template-columns: minmax(0,.85fr) minmax(380px,1fr); }
+  .business-ui .auth-introduction { padding: 32px; }
+}
+@media (max-width: 700px) {
+  .business-ui .business-content { padding: 24px 16px 36px; scrollbar-gutter: auto; }
+  .business-ui .business-topbar { padding: 10px 16px; gap: 10px; }
+  .business-ui .business-topbar-copy p { display: none; }
+  .business-ui .business-topbar-copy h1 { font-size: 14px; }
+  .business-ui .business-account > span { display: none; }
+  .business-ui .business-account { padding: 3px; gap: 4px; }
+  .business-ui .business-page { gap: 20px; }
+  .business-ui .page-heading { flex-direction: column; gap: 16px; }
+  .business-ui .page-heading h2 { font-size: 25px; }
+  .business-ui .page-heading p { font-size: 13px; }
+  .business-ui .page-heading-actions { width: 100%; }
+  .business-ui .dashboard-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .business-ui .dashboard-metric { flex-direction: column; gap: 10px; padding: 16px; }
+  .business-ui .dashboard-metric > div > span { font-size: 12px; }
+  .business-ui .dashboard-metric strong { font-size: 28px; }
+  .business-ui .dashboard-metric small { font-size: 11px; }
+  .business-ui .dashboard-side-column { display: flex; }
+  .business-ui .dashboard-section-label { align-items: flex-start; }
+  .business-ui .dashboard-section-label span { font-size: 11px; }
+  .business-ui :is(.dashboard-card-heading,.reports-filter-heading,.alerts-list-heading,.schedule-list-heading,.users-heading,.driver-panel-heading) { padding: 18px; flex-wrap: wrap; }
+  .business-ui .dashboard-trip-row { padding: 16px; gap: 8px; grid-template-columns: 30px minmax(0,1fr); }
+  .business-ui .dashboard-trip-row .dashboard-status { grid-column: 2; grid-row: auto; }
+  .business-ui .dashboard-trip-row time { display: block; }
+  .business-ui .business-management-surface .fleet-module-header { display: flex; flex-wrap: wrap; gap: 18px; }
+  .business-ui .business-management-surface .fleet-module-title { width: 100%; }
+  .business-ui .business-management-surface .fleet-module-header h2 { font-size: 25px; }
+  .business-ui .business-management-surface .fleet-module-summary { width: 100%; order: 3; gap: 10px; }
+  .business-ui .business-management-surface .fleet-module-summary > div { padding: 16px; flex-direction: column; gap: 6px; }
+  .business-ui .business-management-surface .fleet-list-tools { padding: 14px; flex-direction: column; align-items: stretch; }
+  .business-ui .business-management-surface .fleet-search { flex: auto; width: 100%; }
+  .business-ui .business-management-surface .fleet-list-tools select { width: 100%; }
+  .business-ui .business-management-surface .fleet-list-hint { display: none; }
+  .business-ui .management-table thead { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+  .business-ui .management-table :is(tbody,tr) { display: block; }
+  .business-ui .management-table tr { padding: 14px; border-bottom: 1px solid var(--border-subtle); }
+  .business-ui .management-table td { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 0; padding: 7px 0; font-size: 13px; }
+  .business-ui .management-table td::before { content: attr(data-label); color: var(--text-muted); font-size: 12px; flex: 0 0 90px; }
+  .business-ui .management-table td:first-child { padding-bottom: 14px; margin-bottom: 8px; border-bottom: 1px solid #edf1f4; }
+  .business-ui .management-table td:first-child::before { display: none; }
+  .business-ui .management-table td > :is(.management-stacked,.business-unassigned,time) { text-align: right; }
+  .business-ui .management-table .management-row-actions { margin-left: auto; }
+  .business-ui .management-detail-button { float: none; }
+  .business-ui .business-management-surface .fleet-editor :is(.fleet-heading,.fleet-form-body,.fleet-detail-body) { padding: 18px; }
+  .business-ui .business-management-surface .fleet-editor .vehicle-type-options { grid-template-columns: 1fr; }
+  .business-ui .business-management-surface .fleet-editor .fleet-footer { padding: 16px; }
+  .business-ui :is(.reports-filters,.reports-metrics) { grid-template-columns: minmax(0,1fr); }
+  .business-ui :is(.reports-filters,.alerts-filters,.schedule-filters) { padding: 18px; }
+  .business-ui :is(.schedule-metrics,.alerts-metrics) { grid-template-columns: 1fr; gap: 10px; }
+  .business-ui :is(.schedule-metrics,.alerts-metrics) article { padding: 18px; }
+  .business-ui .schedule-cards { padding: 16px; }
+  .business-ui .schedule-card { padding: 16px; }
+  .business-ui .alerts-management-list { padding: 0 14px 16px; }
+  .business-ui .alerts-management-card { padding: 16px; gap: 12px; }
+  .business-ui .alerts-management-icon { display: none; }
+  .business-ui .alerts-management-body { min-width: 0; }
+  .business-ui .user-row { grid-template-columns: auto minmax(0,1fr); gap: 10px; padding: 18px; }
+  .business-ui .user-row > button { grid-column: 2; }
+  .business-ui .user-row .user-active,.business-ui .user-row .user-inactive { grid-column: 1; }
+  .business-ui .schedule-form-grid { grid-template-columns: minmax(0,1fr); }
+  .business-ui .business-side-panel :is(header,form) { padding: 20px; }
+  .business-ui .schedule-editor { scroll-padding-block: 112px 80px; }
+  .business-ui .schedule-editor footer { bottom: 0; padding: 12px 0; border-top: 1px solid var(--border-subtle); background: #fff; }
+  .business-ui .driver-portal-content { padding: 24px 16px 40px; }
+  .business-ui .driver-welcome h1 { font-size: 25px; }
+  .business-ui .driver-trip-card { grid-template-columns: 35px minmax(0,1fr) 18px; padding: 18px; gap: 10px; }
+  .business-ui .driver-trip-card .driver-status { display: inline-flex; grid-column: 2; grid-row: 2; }
+  .business-ui .driver-trip-card > svg { grid-column: 3; grid-row: 1; }
+  .business-ui .driver-schedule-card { flex-wrap: wrap; padding: 18px; }
+  .business-ui .driver-schedule-card > span { margin-left: 46px; }
+  .auth-page.business-ui { display: flex; flex-direction: column; }
+  .business-ui .auth-introduction { flex: none; min-height: 0; padding: 24px; }
+  .business-ui .auth-product-copy { padding: 28px 0 0; }
+  .business-ui .auth-product-copy h2 { margin-top: 10px; font-size: 28px; }
+  .business-ui :is(.auth-product-copy > p,.auth-capabilities,.auth-product-footer) { display: none; }
+  .business-ui .auth-product-copy h2 br { display: none; }
+  .business-ui .auth-form-pane { flex: 1; padding: 32px 24px; }
+  .business-ui .auth-heading h1 { font-size: 27px; }
+  .business-ui .auth-pane-footer { margin-top: 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .business-ui *, .business-ui *::before, .business-ui *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

@@ -1,0 +1,11 @@
+{
+  "candidateOnly": true,
+  "productionEntryUnchanged": true,
+  "baselineFilesChecked": 124,
+  "baselineCssChecked": 16,
+  "changedBaselineSource": [],
+  "moduleCount": 2018,
+  "reactModules": [],
+  "tsxModules": [],
+  "fixtureModules": []
+}

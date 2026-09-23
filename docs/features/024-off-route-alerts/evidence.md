@@ -1,0 +1,25 @@
+# Evidence 024 — Cảnh báo xe lệch tuyến
+
+Ngày kiểm tra: **2026-09-21**.
+
+## Source evidence
+
+| Acceptance criterion | Evidence sau implementation |
+|---|---|
+| AC-01 | `vehicletracking-backend/src/main/java/com/quangkhai/vehicletracking_backend/reroute/service/OffRouteEvaluationService.java` — `evaluateCurrent()` khóa trip đang chạy, lấy `TripRouteGeometryService.routeForTracking()` (route gốc hoặc live revision), xác định section còn lại và gọi `RoutePositionMatcher.project()`. |
+| AC-02 | `OffRouteEvaluationService.evaluateCurrent()` bỏ qua detector disabled, trip không `IN_PROGRESS`, sample không phải `GPS`, sai attempt hoặc thiếu geometry; threshold hiệu dụng dùng `max(configured, accuracyMeters)`. |
+| AC-03 | `TripOffRouteAlertStateEntity.observeBreach()`, `markActive()`, state `active`, `episode` và `OffRouteProperties` consecutive/grace; dedupe key `OFF_ROUTE_DETECTED:<trip>:<attempt>:<episode>`. |
+| AC-04 | `TripOffRouteAlertStateEntity.clear()` re-arm sau khi về corridor; `resetForAttempt()` xóa state detector khi attempt thay đổi. |
+| AC-05 | `TripNotificationEntity` và `NotificationResponse` có distance/threshold/duration; `NotificationService`, `OperationsSnapshotService` và SSE dùng cùng notification contract hiện hữu. |
+| AC-06 | `TelemetryService.evaluatePostCommitSafely()` gọi off-route sau commit và bắt `RuntimeException`; migration `V16__create_off_route_alerts.sql` mở rộng CHECK/type/metrics mà không sửa migration cũ. |
+| AC-07 | `vehicletracking-frontend/src/pages/AlertsManagementPage.tsx` có KPI, filter, loading, empty, error/retry, read/read-all/delete và link mở giám sát; route `/alerts` trong `App.tsx`, nav không còn `planned`; `MapComponent` nhận `tripId` query để chọn/focus chuyến. |
+| AC-08 | V16, `OffRouteProperties`, backend/frontend types và `TripOffRouteAlertStateTest` đã thêm; lint/tsc/build và non-Docker backend tests đạt. PostgreSQL integration còn phụ thuộc Docker. |
+
+## Verification commands
+
+- `git diff --check` — đạt.
+- `cd vehicletracking-frontend && PATH=/home/khainq/.nvm/versions/node/v24.16.0/bin:$PATH npm run lint && ./node_modules/.bin/tsc --noEmit && npm run build` — exit 0; lint còn 6 warning không chặn.
+- `cd vehicletracking-backend && env JAVA_HOME=/home/khainq/.sdkman/candidates/java/26.0.1-amzn PATH=... ./mvnw -Dtest='!**/*IntegrationTest' test` — exit 0, 254 tests passed.
+- `cd vehicletracking-backend && ./mvnw test` — 6 test tích hợp lỗi vì môi trường không có Docker daemon; không có failure assertion.
+
+Chưa tuyên bố test tích hợp PostgreSQL/Flyway thành công vì Docker daemon không khả dụng trong môi trường kiểm tra.

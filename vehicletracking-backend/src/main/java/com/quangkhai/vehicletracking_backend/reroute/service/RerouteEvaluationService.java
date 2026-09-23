@@ -132,7 +132,7 @@ public class RerouteEvaluationService {
         final Integer next=simulationNext;
         List<TripStopEntity> remaining = trip.getStops().stream().filter(s -> next==null
                 ? !checked.contains(s.getSequenceNumber()) : s.getSequenceNumber()>=next)
-                .sorted(Comparator.comparing(TripStopEntity::getSequenceNumber)).toList();
+                .sorted(Comparator.comparing(stop -> stop.getSequenceNumber())).toList();
         if (remaining.isEmpty()) return null;
         List<RoutingWaypoint> waypoints = new ArrayList<>();
         waypoints.add(new RoutingWaypoint(null, "Current vehicle position", BigDecimal.valueOf(position.getLatitude()),
@@ -142,8 +142,8 @@ public class RerouteEvaluationService {
                     stop.getSequenceNumber(), stop.getDwellDurationSeconds()));
         }
         CalculatedRoute route = routing.calculate(waypoints);
-        long revisedSeconds = route.sections().stream().mapToLong(CalculatedSection::travelDurationSeconds).sum()
-                + remaining.stream().mapToLong(TripStopEntity::getDwellDurationSeconds).sum();
+        long revisedSeconds = route.sections().stream().mapToLong(section -> section.travelDurationSeconds()).sum()
+                + remaining.stream().mapToLong(stop -> stop.getDwellDurationSeconds()).sum();
         if (!closure && revisedSeconds >= currentEta.totalRemainingSeconds()) return null;
         String detail = closure ? "Phát hiện đường bị đóng/chặn từ HERE Traffic" : "Độ trễ giao thông vượt ngưỡng, đã chọn tuyến nhanh hơn";
         NotificationSeverity severity = closure ? NotificationSeverity.CRITICAL : NotificationSeverity.MAJOR;
@@ -159,7 +159,7 @@ public class RerouteEvaluationService {
                     revisions.saveAndFlush(active);
                 });
         Instant cursor = now;
-        Map<Integer, TripStopEntity> byOriginal = remaining.stream().collect(Collectors.toMap(TripStopEntity::getSequenceNumber, s -> s));
+        Map<Integer, TripStopEntity> byOriginal = remaining.stream().collect(Collectors.toMap(stop -> stop.getSequenceNumber(), s -> s));
         for (int local = 2; local <= waypoints.size(); local++) {
             final int destinationLocal = local;
             int original = waypoints.get(local - 1).sequenceNumber();
@@ -215,5 +215,5 @@ public class RerouteEvaluationService {
         }
     }
     private String affectedStops(TripEtaResponse eta) { return eta.affectedSegments().stream().map(s -> Integer.toString(s.destinationStopSequence())).distinct().sorted().collect(Collectors.joining(",")); }
-    private String incidentId(TripEtaResponse eta) { return eta.affectedSegments().stream().filter(s -> "INCIDENT".equals(s.kind())).map(TripEtaResponse.AffectedSegment::id).findFirst().orElse(null); }
+    private String incidentId(TripEtaResponse eta) { return eta.affectedSegments().stream().filter(s -> "INCIDENT".equals(s.kind())).map(segment -> segment.id()).findFirst().orElse(null); }
 }

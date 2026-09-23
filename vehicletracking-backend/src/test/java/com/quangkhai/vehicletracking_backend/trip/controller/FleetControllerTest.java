@@ -87,8 +87,28 @@ class FleetControllerTest {
                 .content("{\"plateNumber\":\"51B12345\",\"name\":\"Xe sửa\"}")).andExpect(status().isOk());
         mvc.perform(delete("/api/v1/vehicles/4")).andExpect(status().isNoContent());
         mvc.perform(post("/api/v1/trips/5/complete")).andExpect(status().isOk());
-        mvc.perform(post("/api/v1/trips/5/cancel")).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/trips/5/cancel").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"Điều phối hủy chuyến\"}" )).andExpect(status().isOk());
         verify(vehicles).update(eq(4L), any()); verify(vehicles).deactivate(4);
-        verify(trips).complete(5); verify(trips).cancel(5);
+        verify(trips).complete(5); verify(trips).cancel(5, "Điều phối hủy chuyến");
+    }
+    @Test void cancelRequiresReasonBody() throws Exception {
+        mvc.perform(post("/api/v1/trips/5/cancel").contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(trips);
+    }
+    @Test void driverAssignmentEndpointsDelegate() throws Exception {
+        mvc.perform(put("/api/v1/vehicles/4/driver").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"driverId\":7}")).andExpect(status().isOk());
+        mvc.perform(delete("/api/v1/vehicles/4/driver")).andExpect(status().isNoContent());
+        mvc.perform(put("/api/v1/trips/5/driver").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"driverId\":7}")).andExpect(status().isOk());
+        mvc.perform(delete("/api/v1/trips/5/driver")).andExpect(status().isNoContent());
+
+        verify(vehicles).assignDriver(4L, 7L);
+        verify(vehicles).unassignDriver(4L);
+        verify(trips).assignDriver(5L, 7L);
+        verify(trips).unassignDriver(5L);
     }
 }

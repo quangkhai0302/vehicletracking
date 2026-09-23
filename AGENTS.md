@@ -12,17 +12,17 @@ File này áp dụng cho toàn bộ repository `vehicletracking`. Mục tiêu l�
 ## 2. Cấu trúc dự án hiện tại
 
 - `vehicletracking-backend/`: Spring Boot, Java 26, Maven, Spring MVC, Spring Data JPA, PostgreSQL và Flyway.
-- `vehicletracking-frontend/`: React, TypeScript, Vite và Leaflet.
+- `vehicletracking-frontend/`: Vue 3, TypeScript, Vue Router, Vite và Leaflet.
 - `docs/`: tài liệu kiến trúc, feature, kế hoạch, bằng chứng và review.
 - `compose.yaml`: các dịch vụ phục vụ môi trường phát triển cục bộ.
 
 Backend tổ chức theo feature. Một feature nghiệp vụ như `station` có thể chứa các package `controller`, `dto`, `entity`, `repository` và `service`. Không gom toàn bộ entity, controller hoặc service của mọi feature vào các package dùng chung ở cấp ứng dụng.
 
-Frontend hiện có `components`, `services`, `types` và `data`. Component chịu trách nhiệm hiển thị/tương tác; lời gọi HTTP đặt trong `services`; kiểu dữ liệu dùng chung đặt trong `types`. Không đặt logic gọi API trực tiếp rải rác trong component nếu có thể tách thành service.
+Frontend tổ chức theo kiến trúc Feature-Driven Co-location: `src/features/<feature-name>/` (chứa `api`, `components`, `composables`, `types`, `utils`, `styles` của riêng từng nghiệp vụ như `auth`, `stations`, `routes`, `fleet`, `tracking`, `simulation`, `traffic`, `schedules`, `reports`, `map`), `src/shared/` (chứa `api/http.ts`, UI component dùng chung, composable tiện ích, types và utilities thuần túy), `src/app/` (layouts, router, navigation) và `src/pages/` (thin router page entry points). Sử dụng path alias `@/` cho các import giữa các module. Không gom phẳng các services, types hoặc composables vào thư mục dùng chung cấp ứng dụng.
 
 ## 3. Quy trình bắt buộc
 
-- Đọc [docs/workflow.md](docs/workflow.md) trước khi tạo hoặc thay đổi một feature.
+- Đọc docs/workflow.md trước khi tạo hoặc thay đổi một feature.
 - Feature mới phải có ID kế tiếp và thư mục `docs/features/<NNN>-<slug>/`.
 - Nếu người dùng yêu cầu các giai đoạn Requirement → Research → Survey → Spec → Test-Plan → Plan, chỉ tạo tài liệu đến hết `plan.md`, sau đó dừng để người dùng review. Không implement source code trong lượt đó.
 - Chỉ triển khai sau khi kế hoạch được người dùng chấp thuận hoặc người dùng yêu cầu trực tiếp việc triển khai.
@@ -34,6 +34,16 @@ Frontend hiện có `components`, `services`, `types` và `data`. Component ch�
 - Mọi nhận định về repository trong tài liệu feature phải dẫn evidence bằng đường dẫn file và dòng hoặc tên symbol cụ thể.
 - Tài liệu cũ, walkthrough và lời mô tả không phải bằng chứng rằng code hiện tại đã implement chức năng.
 - Không tuyên bố test/build thành công nếu chưa chạy lệnh tương ứng. Ghi rõ lệnh, kết quả và giới hạn môi trường nếu có.
+
+## 4.1 Orchestration subagent
+
+- Main agent là orchestrator: phân tích task, chọn subagent thực sự liên quan, giao phạm vi và đầu ra rõ ràng, chờ kết quả cần thiết, giải quyết mâu thuẫn và chịu trách nhiệm tài liệu/kết luận cuối cùng.
+- Chỉ dùng subagent khi công việc độc lập giúp tăng chất lượng hoặc rút ngắn thời gian; không spawn chỉ để tăng số lượng agent. Không để nhiều agent cùng sửa một vùng source nếu chưa phân chia ownership rõ ràng.
+- Dùng `researcher` khi cần xác minh kiến thức bên ngoài; agent này ưu tiên tài liệu chính thức và mặc định chỉ-đọc.
+- Dùng `backend_surveyor`, `frontend_surveyor` và `infrastructure_surveyor` để khảo sát các phạm vi tương ứng. Với feature liên quan nhiều phạm vi, các survey độc lập có thể chạy song song; chỉ gọi agent liên quan. Main agent phải chờ các survey cần thiết trước khi viết Spec.
+- Mọi kết luận Survey về repository phải có evidence: file path cùng symbol/class/method hoặc cấu hình/migration liên quan; bổ sung số dòng khi ổn định. Không dùng tài liệu cũ hoặc UI mock làm bằng chứng thay cho source code.
+- Dùng `reviewer` sau implementation khi cần review độc lập. Agent đối chiếu Requirement → Research → Survey → Spec → Test-Plan → Plan và chỉ trả findings; không tự sửa.
+- Research, các Survey Agent và Review Agent mặc định chỉ-đọc: không sửa source, migration, cấu hình hay tài liệu. Main agent giữ quyền thay đổi và chỉ triển khai sau gate phê duyệt trong quy trình dự án.
 
 ## 5. Quy ước backend
 
@@ -88,7 +98,9 @@ Frontend yêu cầu Node.js từ 22.12; repository hiện định hướng Node 
 ```bash
 cd vehicletracking-frontend
 npm run lint
-./node_modules/.bin/tsc --noEmit
+npm run typecheck
+npm run test:unit
+npm run test:motion
 npm run build
 ```
 

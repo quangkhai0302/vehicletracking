@@ -1,5 +1,6 @@
 package com.quangkhai.vehicletracking_backend.trip.controller;
 
+import com.quangkhai.vehicletracking_backend.driver.dto.DriverAssignmentRequest;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.service.TripService;
 import jakarta.validation.Valid;
@@ -26,7 +27,17 @@ public class TripController {
     @DeleteMapping("/{id}") public ResponseEntity<Void> delete(@PathVariable long id) {
         service.delete(id); return ResponseEntity.noContent().build();
     }
+    @PutMapping("/{id}/driver") public TripDetailResponse assignDriver(@PathVariable long id,
+            @Valid @RequestBody DriverAssignmentRequest request) {
+        return service.assignDriver(id, request.driverId());
+    }
+    @DeleteMapping("/{id}/driver") public ResponseEntity<Void> unassignDriver(@PathVariable long id) {
+        service.unassignDriver(id); return ResponseEntity.noContent().build();
+    }
     @PostMapping("/{id}/start") public TripDetailResponse start(@PathVariable long id) { return service.start(id); }
     @PostMapping("/{id}/complete") public TripDetailResponse complete(@PathVariable long id) { return service.complete(id); }
-    @PostMapping("/{id}/cancel") public TripDetailResponse cancel(@PathVariable long id) { return service.cancel(id); }
+    @PostMapping("/{id}/cancel") public TripDetailResponse cancel(@PathVariable long id,
+            @Valid @RequestBody CancelTripRequest request) { return service.cancel(id, request.reason()); }
+    /** Compatibility overload for internal callers/tests; HTTP clients must send a reason body. */
+    public TripDetailResponse cancel(long id) { return service.cancel(id); }
 }

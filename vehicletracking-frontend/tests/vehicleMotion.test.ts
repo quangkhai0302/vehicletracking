@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeMotionPath, pointOnMotionPath, sampleMotion, PLAYBACK_DELAY_MS } from '../src/utils/vehicleMotion.ts';
+import { makeMotionPath, pointOnMotionPath, sampleMotion, PLAYBACK_DELAY_MS } from '../src/features/fleet/utils/vehicleMotion.ts';
 
 test('buffer crosses snapshot boundaries continuously instead of stopping after 900ms', () => {
   const samples = [0, 1000, 2000, 3000].map(time => ({time, latitude: time / 1000, longitude: 0, heading: 0}));

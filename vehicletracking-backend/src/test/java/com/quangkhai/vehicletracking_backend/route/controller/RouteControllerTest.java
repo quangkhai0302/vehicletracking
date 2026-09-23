@@ -273,7 +273,7 @@ class RouteControllerTest {
     @Test
     void create_stationUnavailable_returns422() throws Exception {
         when(routeService.create(any(RouteCreateRequest.class))).thenThrow(
-                new RouteOperationException(HttpStatus.UNPROCESSABLE_ENTITY, RouteErrorCode.ROUTE_STATION_UNAVAILABLE, "Không tìm thấy hoặc trạm không hoạt động: [999]")
+                new RouteOperationException(HttpStatus.UNPROCESSABLE_CONTENT, RouteErrorCode.ROUTE_STATION_UNAVAILABLE, "Không tìm thấy hoặc trạm không hoạt động: [999]")
         );
 
         String payload = """
@@ -289,7 +289,7 @@ class RouteControllerTest {
         mockMvc.perform(post("/api/v1/routes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.code").value("ROUTE_STATION_UNAVAILABLE"))
                 .andExpect(jsonPath("$.detail").value("Không tìm thấy hoặc trạm không hoạt động: [999]"));
     }

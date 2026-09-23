@@ -13,7 +13,7 @@ class GeofenceCrossingTest {
         assertThat(GeofenceCrossing.inside(center, 10, 20, 0)).isTrue();
         assertThat(GeofenceCrossing.distance(10, 20, BigDecimal.TEN, BigDecimal.valueOf(20))).isZero();
         assertThat(GeofenceCrossing.firstEntry(center, center, 10, 20, 50))
-                .extracting(GeofenceCrossing.Crossing::fraction)
+                .extracting(crossing -> crossing.fraction())
                 .isEqualTo(0d);
         assertThat(GeofenceCrossing.firstEntry(new GeofenceCrossing.Point(10.01, 20),
                 new GeofenceCrossing.Point(10.01, 20), 10, 20, 50)).isNull();

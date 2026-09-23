@@ -20,8 +20,8 @@ Caddy + React SPA ---- /api/* ----> Spring Boot :8080 ----> PostgreSQL :5432
 
 ## Chế độ địa chỉ
 
-- Kiểm thử bằng IP: `SITE_ADDRESS=:80`.
-- Có domain: `SITE_ADDRESS=tracking.example.com`; Caddy tự quản lý HTTPS sau khi DNS và security group cho phép 80/443.
+- Production dùng domain: `SITE_ADDRESS=tracking.example.com`; Caddy tự quản lý HTTPS sau khi DNS và security group cho phép 80/443.
+- Kiểm thử bằng IP/HTTP chỉ phù hợp cho môi trường tạm thời không bật authentication; không dùng với secure session cookie của production.
 
 ## Tài nguyên
 

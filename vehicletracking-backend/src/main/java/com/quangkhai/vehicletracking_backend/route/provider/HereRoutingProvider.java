@@ -7,7 +7,6 @@ import com.quangkhai.vehicletracking_backend.route.error.RouteOperationException
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -61,7 +60,7 @@ public class HereRoutingProvider implements RoutingProvider {
             response = hereRoutingRestClient.get()
                     .uri(requestUri)
                     .retrieve()
-                    .onStatus(HttpStatusCode::isError, (req, res) -> {
+                    .onStatus(status -> status.isError(), (req, res) -> {
                         HttpStatus status = HttpStatus.resolve(res.getStatusCode().value());
                         if (status == HttpStatus.UNAUTHORIZED || status == HttpStatus.FORBIDDEN) {
                             throw new RouteOperationException(
@@ -79,7 +78,7 @@ public class HereRoutingProvider implements RoutingProvider {
                         }
                         if (status == HttpStatus.BAD_REQUEST) {
                             throw new RouteOperationException(
-                                    HttpStatus.UNPROCESSABLE_ENTITY,
+                                    HttpStatus.UNPROCESSABLE_CONTENT,
                                     RouteErrorCode.ROUTE_NOT_FOUND_BY_PROVIDER,
                                     "Routing provider rejected the request coordinates or waypoints"
                             );
@@ -160,7 +159,7 @@ public class HereRoutingProvider implements RoutingProvider {
     private CalculatedRoute normalizeResponse(HereRoutingResponse response, List<RoutingWaypoint> waypoints) {
         if (response == null || response.routes() == null || response.routes().isEmpty()) {
             throw new RouteOperationException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    HttpStatus.UNPROCESSABLE_CONTENT,
                     RouteErrorCode.ROUTE_NOT_FOUND_BY_PROVIDER,
                     "No feasible route found between specified stops"
             );
@@ -178,7 +177,7 @@ public class HereRoutingProvider implements RoutingProvider {
         List<HereSection> sections = firstRoute.sections();
         if (sections == null || sections.isEmpty()) {
             throw new RouteOperationException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    HttpStatus.UNPROCESSABLE_CONTENT,
                     RouteErrorCode.ROUTE_NOT_FOUND_BY_PROVIDER,
                     "Routing provider returned an empty route without sections"
             );
@@ -199,7 +198,7 @@ public class HereRoutingProvider implements RoutingProvider {
 
         if (hasCriticalNotice(firstRoute.notices()) || hasCriticalNotice(response.notices()) || hasSectionCritical) {
             throw new RouteOperationException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    HttpStatus.UNPROCESSABLE_CONTENT,
                     RouteErrorCode.ROUTE_NOT_FOUND_BY_PROVIDER,
                     "Routing provider reported a critical obstacle on the route"
             );

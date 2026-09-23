@@ -1,0 +1,829 @@
+{
+  "capturedAt": "2026-09-22T08:57:16.690Z",
+  "source": "vehicletracking-frontend working tree, including untracked source",
+  "excludes": [
+    ".env*",
+    "node_modules",
+    "dist",
+    ".git",
+    "backend",
+    "credentials"
+  ],
+  "files": [
+    {
+      "path": "src/App.tsx",
+      "bytes": 4148,
+      "sha256": "e789396ff0bd8d358e2556121181415f47ae11d5f28ea8e89d3e3ecc6eb458f3",
+      "replacement": "src/App.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/app/ApplicationShell.tsx",
+      "bytes": 5281,
+      "sha256": "f63832bb87798b8f3b5c0216bf9aa0c0c2b868143b23a9e1d4e6383d3f9cf5e4",
+      "replacement": "src/app/ApplicationShell.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/app/application-shell.css",
+      "bytes": 13334,
+      "sha256": "fddb95801c0994886109bceedc34e862e789691c181b7c82810928961ad971fd"
+    },
+    {
+      "path": "src/app/routeConfig.ts",
+      "bytes": 3339,
+      "sha256": "8e00d8b051ab9463675ab0ccb8ef90fdfaf7472a6c985aabe5f04bdc5540aaba"
+    },
+    {
+      "path": "src/auth/AuthContext.tsx",
+      "bytes": 1595,
+      "sha256": "9a738d210b72ddf91c27eab69d41ba801836c855e03e21be23928b5b2e73c188",
+      "replacement": "src/auth/authState.ts + src/auth/useAuth.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/auth/RouteGuards.tsx",
+      "bytes": 641,
+      "sha256": "851c1444ec35a971d2197f8156587c8ead78a3e2addc61d1b66b7aa356334c52",
+      "replacement": "src/app/router.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/MapComponent.tsx",
+      "bytes": 49958,
+      "sha256": "c5c4243a946e5f49440dd62e6ae066985d41a3e305afce154af759407a260083",
+      "replacement": "src/components/MapComponent.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/MapControls.tsx",
+      "bytes": 6743,
+      "sha256": "994219ea08b94d85363a4518c55fe775dd14a47477fbd4accde376691e27b6b0",
+      "replacement": "src/components/MapControls.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/SimulatorControls.tsx",
+      "bytes": 2327,
+      "sha256": "834cf7eb437648ea4ccccab6ae2d40101e8f79d650d8495eb04bc85b93dcb441",
+      "replacement": "src/components/SimulatorControls.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/StationDrawer.tsx",
+      "bytes": 14254,
+      "sha256": "dda666d95d13ef2a2f5eeac1d5b26baa1118216b4f6ba0aded021311f0376611",
+      "replacement": "src/components/StationDrawer.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/StationPanel.tsx",
+      "bytes": 8421,
+      "sha256": "33727ee9e84728d86e7116856f33e6311ba755f6cf91d2a0f29ef4c987d99a91",
+      "replacement": "src/components/StationPanel.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/TrackingPanel.tsx",
+      "bytes": 8374,
+      "sha256": "3980a312b7d06e952651a540e2994472a2c9e8bfdd0db4bc533280f165880b7e",
+      "replacement": "src/components/TrackingPanel.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/VehicleDrawer.tsx",
+      "bytes": 7746,
+      "sha256": "e9a36339906bbc5adae3462032b66ed22ab6357d811267b2ecc3ba9db8252bf6",
+      "replacement": "src/components/VehicleDrawer.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/business/AuthLayout.tsx",
+      "bytes": 1289,
+      "sha256": "8337d31dbabbced4b24737901fa591d25fd3c1525685037fcf849bde1502f0d3",
+      "replacement": "src/components/business/AuthLayout.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/business/FleetManagementTable.tsx",
+      "bytes": 5710,
+      "sha256": "aac27acd39fc3e590eca254025dca401a1bd6c906b1fa6f7797549f1b74b91f5",
+      "replacement": "src/components/business/FleetManagementTable.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/business/PageHeading.tsx",
+      "bytes": 458,
+      "sha256": "6a0a7075f2492f8f3bfd360de914891e9af90889c6f3cff17ff65a9b0e4f52c5",
+      "replacement": "src/components/business/PageHeading.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/business/SidePanel.tsx",
+      "bytes": 1025,
+      "sha256": "b2e6c8f707665772db6106ec7c7e50debe96263066148b47eeb75c084bc857b6",
+      "replacement": "src/components/business/SidePanel.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/fleet/DriverEditor.tsx",
+      "bytes": 3480,
+      "sha256": "0d6509db307674b44acf54a8b1d6a2014c87023095d92046fc87f05a60208305",
+      "replacement": "src/components/fleet/DriverEditor.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/fleet/FleetConfirmDialog.tsx",
+      "bytes": 1185,
+      "sha256": "20841f47c16a704e4496f2776e1d38dec209f72e656c6084f46b8fff36cddab6",
+      "replacement": "src/components/fleet/FleetConfirmDialog.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/fleet/FleetWorkspace.tsx",
+      "bytes": 19009,
+      "sha256": "45b5b10530a0ee0e9351a84e06bec3a9402a1d4d6685fe5b93aecb528821b9a9",
+      "replacement": "src/components/fleet/FleetWorkspace.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/fleet/RouteRevisionPanel.tsx",
+      "bytes": 3385,
+      "sha256": "4de9271ab1044da2c9b47ac54a42ce318def1cf19ec38ff30a100faebcb18863",
+      "replacement": "src/components/fleet/RouteRevisionPanel.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/fleet/TelemetryHistoryPanel.tsx",
+      "bytes": 4388,
+      "sha256": "eba6f12e16c7cc1e72f0026b220ef7e511aa29ab83517517199e69eebe457e0e",
+      "replacement": "src/components/fleet/TelemetryHistoryPanel.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/fleet/TripDetailPanel.tsx",
+      "bytes": 13534,
+      "sha256": "90b6fa03594b555c21c8f1bd5c53bc9312bb436751bbd5589e2f1b63175c58ec",
+      "replacement": "src/components/fleet/TripDetailPanel.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/fleet/TripEditor.tsx",
+      "bytes": 7197,
+      "sha256": "0d196de8239aec26cc3a89522c01379e4e3c840f4c057427cf1fff1fa253c593",
+      "replacement": "src/components/fleet/TripEditor.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/fleet/VehicleEditor.tsx",
+      "bytes": 4886,
+      "sha256": "600310717fffcfabb42b1ba8a39ac00657384632a4482572a9a1f4fd1d38877e",
+      "replacement": "src/components/fleet/VehicleEditor.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/fleet/fleet.css",
+      "bytes": 34955,
+      "sha256": "60d11ed3468423d8816dd0fbab37eea2edee54abfd069d13c9da4be6dea47845"
+    },
+    {
+      "path": "src/components/operations/AlertStream.tsx",
+      "bytes": 4424,
+      "sha256": "203568dd389a9bb4eb76a072b8f8da9acf82f4b580631c9850d170c478af8181",
+      "replacement": "src/components/operations/AlertStream.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/operations/ConfirmStationDelete.tsx",
+      "bytes": 1284,
+      "sha256": "466b388d3db48f635515b9d7d002813eb5ad9c1b685d6ab272a2f2257ee96685",
+      "replacement": "src/components/operations/ConfirmStationDelete.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/operations/ModeBar.tsx",
+      "bytes": 2288,
+      "sha256": "a3788199f57e1075f1de5ad3d70e0a86252c3f1f5bb3914d7a5cc80dfe612276",
+      "replacement": "src/components/operations/ModeBar.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/operations/SimulationFleetLayer.tsx",
+      "bytes": 3788,
+      "sha256": "36a52211347724d222fc8b3ad41e9a539eeaf39c0bf04ed17ccbff6af2a20580",
+      "replacement": "src/components/operations/SimulationFleetLayer.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/operations/SimulationFleetList.tsx",
+      "bytes": 3398,
+      "sha256": "e042f0b52fdf4cda3c43d083aa43837a00a30cf8a99a4e3f44a6840f2aa82809",
+      "replacement": "src/components/operations/SimulationFleetList.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/operations/SimulationRoutesLayer.tsx",
+      "bytes": 4813,
+      "sha256": "e8437cc663b0cc4a5455010b7b81e52636789a1d0d03f8b81b3f4f6b83e3d24a",
+      "replacement": "src/components/operations/SimulationRoutesLayer.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/operations/SimulatorPanel.tsx",
+      "bytes": 8765,
+      "sha256": "39bbb3d748b47506475d73221ea79d09ca026ac0924e4749d7b123c4a1cd8306",
+      "replacement": "src/components/operations/SimulatorPanel.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/operations/TripTrafficSummary.tsx",
+      "bytes": 5073,
+      "sha256": "d26fee7d43080999d6c4a354bcbc056c68a0369d6f61469bbae388e99d36f144",
+      "replacement": "src/components/operations/TripTrafficSummary.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/operations/simulator.css",
+      "bytes": 11624,
+      "sha256": "ae7e615a8a01daeb296ffe3214c872a50f9896a82262c32f186dcc6247c78eeb"
+    },
+    {
+      "path": "src/components/route/RouteDrawer.tsx",
+      "bytes": 20780,
+      "sha256": "e17617f69e1b12e4f7a15f542775de9dbc7eef98fa5e1577ed29508e3b1fb3f1",
+      "replacement": "src/components/route/RouteDrawer.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/route/RouteInspectionLayer.tsx",
+      "bytes": 8026,
+      "sha256": "98dc0ed48603fc626328ad0c37a84c950f8a72b992fb1fa626c9716db66d1bb3",
+      "replacement": "src/components/route/RouteInspectionLayer.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/route/RoutePanel.tsx",
+      "bytes": 6022,
+      "sha256": "fb9c741da20cd50efb55b094958265cd5b0a756b8bcdbb582325b92dfb973080",
+      "replacement": "src/components/route/RoutePanel.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/route/RouteShapeEditor.tsx",
+      "bytes": 9204,
+      "sha256": "2c52424bbab31006fdd0e0543df555c53dea923977cb2846cfba384599354bec",
+      "replacement": "src/components/route/RouteShapeEditor.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/route/RouteWorkspace.tsx",
+      "bytes": 13719,
+      "sha256": "3c17e29d1647dc30e937cbd6129c36b12692e3a77e20ed181e7c121c639e898f",
+      "replacement": "src/components/route/RouteWorkspace.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/route/SortableStopList.tsx",
+      "bytes": 6396,
+      "sha256": "c07e1e851258cb66c889211bc6f21cfa06f582d462abe6570b9ef6f4a36ef7f4",
+      "replacement": "src/components/route/SortableStopList.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/route/route-inspection.css",
+      "bytes": 3172,
+      "sha256": "518364545950847a9f0d0291d3c9b7d5261bf4f518d669b640ef1ea998af7d2f"
+    },
+    {
+      "path": "src/components/route/route.css",
+      "bytes": 14769,
+      "sha256": "61ad5d199c407e9d74ed7c542094ca4f5afa349a20bc74e50d31a3779877593b"
+    },
+    {
+      "path": "src/components/traffic/TrafficInspectionCard.tsx",
+      "bytes": 5524,
+      "sha256": "f6b9b1b34adf2c361700260670dd5723a469705e93d4c5667df42a24cc9378a4",
+      "replacement": "src/components/traffic/TrafficInspectionCard.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/traffic/TrafficLayer.tsx",
+      "bytes": 5144,
+      "sha256": "6d737aa3ecde7849fa6deedc47b5b11e03bca3adb2cda0353bd7c24e5f500389",
+      "replacement": "src/components/traffic/TrafficLayer.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/components/traffic/traffic.css",
+      "bytes": 2475,
+      "sha256": "ce90898c8875ceaa26750335c6d115549dd9f86d0cad5c95040e5aa490ede020"
+    },
+    {
+      "path": "src/hooks/useCompactLayout.ts",
+      "bytes": 479,
+      "sha256": "17fca13ba04063a6f8819f4b01552e18b93a534ca7da408a74755e185b2fa9cf",
+      "replacement": "src/composables/useCompactLayout.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useFleetWorkspace.ts",
+      "bytes": 12707,
+      "sha256": "68421665e79cd312792f5bf03acb8c0e17d2d6917c4a7f79fcaf05a03957ef99",
+      "replacement": "src/composables/useFleetWorkspace.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useLiveOperations.ts",
+      "bytes": 1872,
+      "sha256": "9fad1279ae9ce1bb72d9c77a6f54339f8abfe1461b256ce937661c667b374b6d",
+      "replacement": "src/composables/useLiveOperations.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useMapCamera.ts",
+      "bytes": 4468,
+      "sha256": "24498708126fafb503e2e34296e4b5e66c8a6f5667f35ff8a03352197fed02e8",
+      "replacement": "src/composables/useMapCamera.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/usePlannedVehicleAnchors.ts",
+      "bytes": 3974,
+      "sha256": "2465001b2f70aba544b520f441e0815faf1b640d1ee3b1231245ded60028c651",
+      "replacement": "src/composables/usePlannedVehicleAnchors.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useRouteTraffic.ts",
+      "bytes": 2679,
+      "sha256": "191b74248e777111278e2a040d0b8451176c1b357e39aea6f488bf26d4234955",
+      "replacement": "src/composables/useRouteTraffic.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useSelectedVehicleRoute.ts",
+      "bytes": 1216,
+      "sha256": "0a5b402317f24e2b9df1de4243a1e0fe5228f2b36a563430818a06b79e164aec",
+      "replacement": "src/composables/useSelectedVehicleRoute.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useSimulationFleet.ts",
+      "bytes": 4780,
+      "sha256": "47156e618e321f35ed8f755fe7f80dcc884e977468dbba83335694f161c8687a",
+      "replacement": "src/composables/useSimulationFleet.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useSimulator.ts",
+      "bytes": 4038,
+      "sha256": "83e9b69d14743a29de20436c3239f02c8708c50323ef0eafeaa3ee9fe4537649",
+      "replacement": "src/composables/useSimulator.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useStationWorkspace.ts",
+      "bytes": 5888,
+      "sha256": "ebdf2c8f04aadb905b57e04ddf57763ffabbf60669caf413b70c8581d362026d",
+      "replacement": "src/composables/useStationWorkspace.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useTraffic.ts",
+      "bytes": 5004,
+      "sha256": "0ac64e8f3b7ff2307cba6cbf9b311407b41a0f1a977fa4f4a94341b447d55c8a",
+      "replacement": "src/composables/useTraffic.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useTripCheckIns.ts",
+      "bytes": 1602,
+      "sha256": "628272b675fae6fc93d9faadc8ee00f74faa9c24ee5dc8f62a443b44f109b8ed",
+      "replacement": "src/composables/useTripCheckIns.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useTripEta.ts",
+      "bytes": 1912,
+      "sha256": "b5b0fe133d2fadf1f513b369e473a09ba0338f5bb2dee8724a0cb09aac2c8bd9",
+      "replacement": "src/composables/useTripEta.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/hooks/useVehicleMarkers.ts",
+      "bytes": 13582,
+      "sha256": "9386e0450426500ca16ddd3cc50df95667d3fb466d1ffb04f082e1ca14db4055",
+      "replacement": "src/composables/useVehicleMarkers.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/index.css",
+      "bytes": 50764,
+      "sha256": "5003d35a756fafe6c41e20fbe4ed3562450df06f86730442fdfd35a96e5ee319"
+    },
+    {
+      "path": "src/main.tsx",
+      "bytes": 303,
+      "sha256": "069313f6c879c4a2028e1800026a0a8ebafac7a2c983fabbe37627cb50132360",
+      "replacement": "src/main.ts",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/AdminRegistrationPage.tsx",
+      "bytes": 3496,
+      "sha256": "30a5a968ae0e54d8a997c8965edb81db163766b936daf8579be4b362fa9f9de9",
+      "replacement": "src/pages/AdminRegistrationPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/AlertsManagementPage.tsx",
+      "bytes": 9063,
+      "sha256": "8131b21cdff0c8ccea7b5f8292ecfbdda420b225470ce92535d885bf7cfb4454",
+      "replacement": "src/pages/AlertsManagementPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/DashboardPage.tsx",
+      "bytes": 8671,
+      "sha256": "02ea7df595bac740fc15b87381778ea9f84d9f0230dd532109baa141f1e99db6",
+      "replacement": "src/pages/DashboardPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/DriverPortalPage.tsx",
+      "bytes": 8173,
+      "sha256": "9957ab09a2e0c7349ecef37aaee659ff7779288e7a0adf238c4f8641dfbe4804",
+      "replacement": "src/pages/DriverPortalPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/FleetManagementPage.tsx",
+      "bytes": 1624,
+      "sha256": "c2df832890cabdaf02bd99b06b8d4ddb4640950d10c26dc9fbdd690162c2842a",
+      "replacement": "src/pages/FleetManagementPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/LoginPage.tsx",
+      "bytes": 2721,
+      "sha256": "81192d414d8447a6fee4fe18557bae4b264f059acc7b4aeda487039f357c081b",
+      "replacement": "src/pages/LoginPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/NotFoundPage.tsx",
+      "bytes": 506,
+      "sha256": "02775582023bb81be4e25dceb656530229386b92a56aceecf2141cd21d09548b",
+      "replacement": "src/pages/NotFoundPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/ReportsPage.tsx",
+      "bytes": 8756,
+      "sha256": "b2f567c487c3985a0c61383ff839ff495d29a5ad9290fb07477cfb96b50c4bd6",
+      "replacement": "src/pages/ReportsPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/RoadmapPage.tsx",
+      "bytes": 1308,
+      "sha256": "d87548fc89f05198fc623773934a7a823e808fd995dc0e5f329e87a708cc23aa",
+      "replacement": "src/pages/RoadmapPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/ScheduleManagementPage.tsx",
+      "bytes": 17451,
+      "sha256": "1b4b130f43bd52b61c7bcfe01fb8c92033b81ccb6b54d94a4583fb1c15348432",
+      "replacement": "src/pages/ScheduleManagementPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/UserManagementPage.tsx",
+      "bytes": 5832,
+      "sha256": "7fe5893ac7529be2a835a990b4da1d44108e1495b34d5814c8018afb898f3985",
+      "replacement": "src/pages/UserManagementPage.vue",
+      "migrationStatus": "pending"
+    },
+    {
+      "path": "src/pages/alerts-management.css",
+      "bytes": 8891,
+      "sha256": "3dded7cc58746d28c150ffd0bf1c97fba8f27482f91e446cb39c53cd7f9a43c4"
+    },
+    {
+      "path": "src/pages/auth-pages.css",
+      "bytes": 4790,
+      "sha256": "86b72562f661c1af7d7551fc2fc8bbfdc59fbd392083e7f257a3d27707003e29"
+    },
+    {
+      "path": "src/pages/business-pages.css",
+      "bytes": 13399,
+      "sha256": "cb6ec61fc83165ecfd450380700ff8ac56520a8c0386b5d2357f2777111454fe"
+    },
+    {
+      "path": "src/pages/driver-portal.css",
+      "bytes": 8341,
+      "sha256": "444f9a83d35c05af0df198af57504ca21fb3ed9d35e3b2a440dae608e19cc46a"
+    },
+    {
+      "path": "src/pages/reports.css",
+      "bytes": 8475,
+      "sha256": "e99eaf2c8ac5fdb9de45c9c267c03805fb2b7ae0aad0e8451cc8d9632b112140"
+    },
+    {
+      "path": "src/pages/schedule-management.css",
+      "bytes": 14991,
+      "sha256": "eed603836d5299085e331bbe1050bfe50efb2baa40c49775c4c65e0457c5ec41"
+    },
+    {
+      "path": "src/pages/user-management.css",
+      "bytes": 8463,
+      "sha256": "6504b5aab128e805c557e7da9d5668445136011783321a8917d6ea3e74231f10"
+    },
+    {
+      "path": "src/services/auth.ts",
+      "bytes": 1494,
+      "sha256": "3af7ac079e8f55c72b39e08290df150ea744ea8eb093cf1f82d386efe8cf0a1b"
+    },
+    {
+      "path": "src/services/checkins.ts",
+      "bytes": 728,
+      "sha256": "333d90846da7273302c70848bdbe106626203c78e87d387c8623b706af625b73"
+    },
+    {
+      "path": "src/services/dashboard.ts",
+      "bytes": 776,
+      "sha256": "c2bfacc9f0b7effd7194c7d603d6a47bb368083ff8be69d200faa96a2547fd9e"
+    },
+    {
+      "path": "src/services/driverPortal.ts",
+      "bytes": 1498,
+      "sha256": "cc590b3b27ad92dfa4cb03ccab545bca613a7ec59e43914530495c10b5af7268"
+    },
+    {
+      "path": "src/services/eta.ts",
+      "bytes": 716,
+      "sha256": "9c65554f34c272435b5c02674ab2707d3a538e2ee258942235e1711927d53bb9"
+    },
+    {
+      "path": "src/services/fleet.ts",
+      "bytes": 3782,
+      "sha256": "c710a4039b4c0ba3ff09bf539cdb8af712d63d049b441e1fc71a7f5ea2dc305a"
+    },
+    {
+      "path": "src/services/hereTraffic.ts",
+      "bytes": 3135,
+      "sha256": "63a6f0dc92315f55158efc94b4f2a6aa8d868936e9862e223dbdf6513e19a999"
+    },
+    {
+      "path": "src/services/http.ts",
+      "bytes": 1614,
+      "sha256": "fa62f5716289c423fc0ff2e52f9c56b04000b7ccb1497f73062c19c9a567f2f5"
+    },
+    {
+      "path": "src/services/notifications.ts",
+      "bytes": 2271,
+      "sha256": "42623b1fb75f86ccc38c7915166d6c2d196422dd3ebf33b2a3a2da2b0a31d457"
+    },
+    {
+      "path": "src/services/operations.ts",
+      "bytes": 2360,
+      "sha256": "7f8758255d52506a734247b41b3b1ab7934eab512172675c8498e2cb5b829f40"
+    },
+    {
+      "path": "src/services/polyline.ts",
+      "bytes": 2855,
+      "sha256": "ffb99b2702f4254a447fefa5811c9d5f3b02d2ecade1e1c3cd836c7a5d2b4537"
+    },
+    {
+      "path": "src/services/reports.ts",
+      "bytes": 1106,
+      "sha256": "6b50f8065486f75bfec87af37e6d3a1298921cc2636500898bfc888b02009842"
+    },
+    {
+      "path": "src/services/routes.ts",
+      "bytes": 2230,
+      "sha256": "1cc982485c68b2ee7e5e53441068d50ada5417a9b837e012c8d4ac8331b68d91"
+    },
+    {
+      "path": "src/services/schedules.ts",
+      "bytes": 1497,
+      "sha256": "b61c85038999b89c70ee7122be4a4c81ff8ba9f2ec2050e6edffa2cf26928b87"
+    },
+    {
+      "path": "src/services/stations.ts",
+      "bytes": 1653,
+      "sha256": "cf19fd4e8f2c7fadd3616ec4fa5e59bb403e49d9309490f88cca3a90d20ceb66"
+    },
+    {
+      "path": "src/services/telemetry.ts",
+      "bytes": 966,
+      "sha256": "692812c36d832e7446559e4e5828a07f4b73428150ede960391365fe64199661"
+    },
+    {
+      "path": "src/services/users.ts",
+      "bytes": 1553,
+      "sha256": "ef1243469d07803ce243a9085e17d312c1f44aff5bcc4e73c1145f87170ece0c"
+    },
+    {
+      "path": "src/types/auth.ts",
+      "bytes": 536,
+      "sha256": "c321bde2ab375a261f94afae6aaaf4f2178df0195ea7b658157051c226153b32"
+    },
+    {
+      "path": "src/types/checkin.ts",
+      "bytes": 634,
+      "sha256": "54ee06de5739cc52471fd7c5fa15562d8bdad3df04c0aba53b0984f9b67de3d0"
+    },
+    {
+      "path": "src/types/dashboard.ts",
+      "bytes": 403,
+      "sha256": "95cfaf58976d667ab3e77a4bc10826ee8a1dbbbbf124f9ed67fbd517377ca9b1"
+    },
+    {
+      "path": "src/types/eta.ts",
+      "bytes": 898,
+      "sha256": "36220d948ebccc1c0d7a1a4c126d21c6f5498c134e94eeb909695ee5791066c7"
+    },
+    {
+      "path": "src/types/fleet.ts",
+      "bytes": 2331,
+      "sha256": "d6baf5c0dc870be887e8a3421e9d6d99ee1b047dbea180b83ce1b45c1ee61a2f"
+    },
+    {
+      "path": "src/types/map.ts",
+      "bytes": 1415,
+      "sha256": "1d1f9fee467fb63c3bf4e5b403c93aee52854c6e231cc96979bce7ee9eee2daa"
+    },
+    {
+      "path": "src/types/notifications.ts",
+      "bytes": 1705,
+      "sha256": "5ed885886b39d6bfcb0da99c9e5c814be7ff414a51ff56eaf7f742b40e1b456c"
+    },
+    {
+      "path": "src/types/operations.ts",
+      "bytes": 2255,
+      "sha256": "d5851623eac9d129045bafd095f0719bec85c53219ec4c1295b902368d71d6ab"
+    },
+    {
+      "path": "src/types/reports.ts",
+      "bytes": 465,
+      "sha256": "d68b8b85086da5fae5c7508465abf9758ab204ed086d772f1443cd6af3d7bf7e"
+    },
+    {
+      "path": "src/types/route.ts",
+      "bytes": 2066,
+      "sha256": "844e5e2ccfed0b716608daa213bfca794a9a2d9e50502ccbacab566c25f5002e"
+    },
+    {
+      "path": "src/types/schedule.ts",
+      "bytes": 961,
+      "sha256": "d8631624058b66729ba0f3aaaa4ea0e34b4600ba301b107a0828da08312f2692"
+    },
+    {
+      "path": "src/types/station.ts",
+      "bytes": 721,
+      "sha256": "547e8e24b166cb9059452e6b999cf3f2c1492c9dde63cd970bef7fef8a75f810"
+    },
+    {
+      "path": "src/types/telemetry.ts",
+      "bytes": 191,
+      "sha256": "f9070c8ff5fc93b6aa4445003e7dc37a41be719b123d22ee05b16178ae89e419"
+    },
+    {
+      "path": "src/types/traffic.ts",
+      "bytes": 592,
+      "sha256": "cf962c7408a1fa831993a5dadbee11339598c9343080998fcdeb0f95da0f5f13"
+    },
+    {
+      "path": "src/types/vehicle.ts",
+      "bytes": 905,
+      "sha256": "ce6648cecba7d30f6e6c746bb52b1f69efddf77305a5aa0f3e6891cf49da5a0b"
+    },
+    {
+      "path": "src/types/workspace.ts",
+      "bytes": 79,
+      "sha256": "6ac7ef142e2ac19dedf328bfabca522ddb19ba9628a48eaf1044d890b3fa6f3d"
+    },
+    {
+      "path": "src/ui-refresh.css",
+      "bytes": 53666,
+      "sha256": "71a15b54a36433d078af8e6a4f298c3bcb5bea1ea40760697a27410ddd233821"
+    },
+    {
+      "path": "src/utils/format.ts",
+      "bytes": 401,
+      "sha256": "4831a5937cf7408b0a6c808e19512ed2883607fa2ab4cb4e5343ec7823f289a4"
+    },
+    {
+      "path": "src/utils/inspectionFormat.ts",
+      "bytes": 708,
+      "sha256": "7a6e0c8d26eea22e4668251860474ed202306f3a7f8d867f7b254f5ba398065f"
+    },
+    {
+      "path": "src/utils/routeInspection.ts",
+      "bytes": 5179,
+      "sha256": "0b0ea6ea814efb7433c22192976817ce9dfbab9c46b33942dc346d5c078d4869"
+    },
+    {
+      "path": "src/utils/simulationFleet.ts",
+      "bytes": 2243,
+      "sha256": "346797b6083696ba2598a7f813ffa6aeb264a1c913df372c855f8331ed26c427"
+    },
+    {
+      "path": "src/utils/tripTime.ts",
+      "bytes": 556,
+      "sha256": "2302dfb80eda5c055ed1213f5a2813f148b2e576d1326b4f6a463a655b6a22af"
+    },
+    {
+      "path": "src/utils/tripTraffic.ts",
+      "bytes": 3609,
+      "sha256": "c22028d57a9fce39c298b0591838517c08d5b903799eb7c370c3391c80951aa4"
+    },
+    {
+      "path": "src/utils/vehicleMotion.ts",
+      "bytes": 3004,
+      "sha256": "b7c6331f3f2368118f058a9fdc0f8403515341ab77b3f3ae35416fffa0533388"
+    },
+    {
+      "path": "src/utils/vehiclePresentation.ts",
+      "bytes": 1922,
+      "sha256": "8968d5006ee841837345ef20f1523cb3d1ddd8d7e1b9c07521f6ac8629e7dda0"
+    },
+    {
+      "path": "src/vite-env.d.ts",
+      "bytes": 163,
+      "sha256": "0209610c59ec3f55fc39c3f3ff52882a1ea8f608985acbf070c7dc3182087d3c"
+    },
+    {
+      "path": "src/workspace.css",
+      "bytes": 56686,
+      "sha256": "697250a63ff13f5dff7e007489d0be7665b64ad903be27075a4ac7dbbf5923a3"
+    },
+    {
+      "path": "public/huong-dan/guide.css",
+      "bytes": 12501,
+      "sha256": "05fd2c396dd1a270405dfeeb66b6ee59fd4ab33e04774516e88a8c5dffbb3b57"
+    },
+    {
+      "path": "public/huong-dan/index.html",
+      "bytes": 21148,
+      "sha256": "1f3a43c84a93dd38684b989e198aaed6a038f4df082bb8765224a6b407933340"
+    },
+    {
+      "path": "tests/vehicleMotion.test.ts",
+      "bytes": 2385,
+      "sha256": "e9ec0e77f3402419922b73c616e3474f624865d4e7ed81e94d7fee9b7bc0bdf3"
+    },
+    {
+      "path": "index.html",
+      "bytes": 375,
+      "sha256": "99fbba4c6c1c4c7c2a8ad6e6ba69609a34033e11a5e9ceb4721e543a0e605b78"
+    },
+    {
+      "path": "package.json",
+      "bytes": 671,
+      "sha256": "f413d9df7dcb955738c6dc29bad2a3adc3c4d3c59f83b463adc1baf3cac231e6"
+    },
+    {
+      "path": "package-lock.json",
+      "bytes": 56019,
+      "sha256": "63fa024e9d9a10b63271dc8c2a8e2ac8162f4e1473647a520150d04c96856a59"
+    },
+    {
+      "path": "vite.config.js",
+      "bytes": 161,
+      "sha256": "e1eefd0ed1639c88d1213884ef760516884db9e168190e223fee6b063ad3e088"
+    },
+    {
+      "path": "tsconfig.json",
+      "bytes": 551,
+      "sha256": "00adaef3cb5f1cc832be92b2867c32ec31a6fabd05b58a6a827eebfd782532ff"
+    },
+    {
+      "path": ".oxlintrc.json",
+      "bytes": 231,
+      "sha256": "1be899e45c49b2a2edc715bc3bfb31d8ed8e866ed7ebab2065ff6e55e88c2396"
+    },
+    {
+      "path": ".nvmrc",
+      "bytes": 3,
+      "sha256": "68ca3fba3b7e864770cb61aeb306d4bd4354b68ab4dd38450860c5d823e42a53"
+    },
+    {
+      "path": "Dockerfile",
+      "bytes": 302,
+      "sha256": "01204e6f220434c8d64d5587b72fa33de535a9fb972e67d46521e121f1e222de"
+    },
+    {
+      "path": "Caddyfile",
+      "bytes": 297,
+      "sha256": "72d17f642fb81607463c0326939951e755e3ad8eaf4210a749431ed5033e3326"
+    },
+    {
+      "path": ".dockerignore",
+      "bytes": 52,
+      "sha256": "7abbe9284c956e6410954dfe8deb5be3e031ed3f19f2f92b23815b04a5a83eea"
+    }
+  ]
+}

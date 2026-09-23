@@ -242,7 +242,9 @@ cd vehicletracking-backend
 
 cd ../vehicletracking-frontend
 npm run lint
-./node_modules/.bin/tsc --noEmit
+npm run typecheck
+npm run test:unit
+npm run test:motion
 npm run build
 ```
 

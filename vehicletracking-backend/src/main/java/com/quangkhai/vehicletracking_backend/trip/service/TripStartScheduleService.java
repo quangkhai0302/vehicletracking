@@ -34,7 +34,7 @@ public class TripStartScheduleService {
 
         Set<Integer> checkedIn = eta.stops().stream()
                 .filter(stop -> "CHECKED_IN".equals(stop.state()))
-                .map(TripEtaResponse.EtaStop::sequenceNumber)
+                .map(stop -> stop.sequenceNumber())
                 .collect(java.util.stream.Collectors.toSet());
         Map<Integer, Instant> etaBySequence = new HashMap<>();
         eta.stops().stream()

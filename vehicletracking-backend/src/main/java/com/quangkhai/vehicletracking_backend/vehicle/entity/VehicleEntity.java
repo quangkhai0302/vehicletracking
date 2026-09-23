@@ -1,5 +1,6 @@
 package com.quangkhai.vehicletracking_backend.vehicle.entity;
 
+import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -19,6 +20,9 @@ public class VehicleEntity {
     private String name;
     @Column(length = 255)
     private String description;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "driver_id")
+    private DriverEntity driver;
     @Enumerated(EnumType.STRING)
     @Column(name = "vehicle_type", nullable = false, length = 20)
     private VehicleType vehicleType = VehicleType.CAR;
@@ -49,4 +53,6 @@ public class VehicleEntity {
         updatedAt = Instant.now();
     }
     public void deactivate() { active = false; updatedAt = Instant.now(); }
+    public void assignDriver(DriverEntity driver) { this.driver = driver; updatedAt = Instant.now(); }
+    public void unassignDriver() { driver = null; updatedAt = Instant.now(); }
 }

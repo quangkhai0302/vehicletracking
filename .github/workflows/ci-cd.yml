@@ -39,7 +39,13 @@ jobs:
         run: npm run lint
 
       - name: Type check
-        run: ./node_modules/.bin/tsc --noEmit
+        run: npm run typecheck
+
+      - name: Unit and component tests
+        run: npm run test:unit
+
+      - name: Vehicle motion regression
+        run: npm run test:motion
 
       - name: Build production frontend
         env:

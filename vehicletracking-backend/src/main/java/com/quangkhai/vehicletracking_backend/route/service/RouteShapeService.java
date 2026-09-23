@@ -68,9 +68,9 @@ public class RouteShapeService {
         if (waypoints.size()>50) throw new ResponseStatusException(BAD_REQUEST,"Tổng trạm và điểm dẫn đường tối đa 50.");
         var result=routing.calculate(waypoints);
         if (result.sections().isEmpty()) throw new ResponseStatusException(BAD_GATEWAY,"HERE không trả về tuyến.");
-        long distance=result.sections().stream().mapToLong(CalculatedSection::distanceMeters).sum();
-        long travel=result.sections().stream().mapToLong(CalculatedSection::travelDurationSeconds).sum();
-        long base=result.sections().stream().mapToLong(CalculatedSection::baseTravelDurationSeconds).sum();
+        long distance=result.sections().stream().mapToLong(section -> section.distanceMeters()).sum();
+        long travel=result.sections().stream().mapToLong(section -> section.travelDurationSeconds()).sum();
+        long base=result.sections().stream().mapToLong(section -> section.baseTravelDurationSeconds()).sum();
         String name=copy?source.getName().substring(0,Math.min(138,source.getName().length()))+" (bản sao)":source.getName();
         var replacement=new RouteEntity(name,source.getTransportMode(),source.getRoutingProvider(),distance,travel,base,
             source.getTotalDwellDurationSeconds(),travel+source.getTotalDwellDurationSeconds(),result.estimatedDepartureAt(),Instant.now());

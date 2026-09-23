@@ -2,7 +2,6 @@ package com.quangkhai.vehicletracking_backend.route.service;
 
 import com.quangkhai.vehicletracking_backend.route.dto.RouteCreateRequest;
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
-import com.quangkhai.vehicletracking_backend.route.dto.RouteSummaryResponse;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteShapePointEntity;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteStopEntity;
@@ -236,7 +235,7 @@ class RouteServiceTest {
                 .isInstanceOf(RouteOperationException.class)
                 .satisfies(ex -> {
                     RouteOperationException roe = (RouteOperationException) ex;
-                    assertThat(roe.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+                    assertThat(roe.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
                     assertThat(roe.getErrorCode()).isEqualTo(RouteErrorCode.ROUTE_STATION_UNAVAILABLE);
                     assertThat(roe.getMessage()).contains("99");
                 });
@@ -347,9 +346,9 @@ class RouteServiceTest {
 
         assertThat(response.id()).isEqualTo(7L);
         assertThat(response.name()).isEqualTo("Tuyến mới");
-        assertThat(response.stops()).extracting(RouteDetailResponse.RouteStopResponse::stationId)
+        assertThat(response.stops()).extracting(stop -> stop.stationId())
                 .containsExactly(1L, 3L);
-        assertThat(response.sections()).extracting(RouteDetailResponse.RouteSectionResponse::encodedPolyline)
+        assertThat(response.sections()).extracting(section -> section.encodedPolyline())
                 .containsExactly("new-polyline");
 
         InOrder order = inOrder(routeRepository);
@@ -455,7 +454,7 @@ class RouteServiceTest {
 
         routeService.refreshRoutesUsingStation(1L, false);
 
-        assertThat(route.getStops()).extracting(RouteStopEntity::getStationNameSnapshot)
+        assertThat(route.getStops()).extracting(stop -> stop.getStationNameSnapshot())
                 .containsExactly("Tên mới", "Trạm khác", "Tên mới");
         verify(routingProvider, never()).calculate(any());
         verify(routeRepository, never()).flush();

@@ -36,7 +36,7 @@ class RouteShapeServiceTest {
         });
         var preview=service.preview(3,input());
         assertThat(preview.stops()).hasSize(3);
-        assertThat(preview.sections()).extracting(RouteDetailResponse.RouteSectionResponse::destinationStopSequence).containsExactly(2,2,3);
+        assertThat(preview.sections()).extracting(section -> section.destinationStopSequence()).containsExactly(2,2,3);
         assertThat(preview.totalDwellDurationSeconds()).isEqualTo(4);
         assertThat(preview.shapingPoints()).hasSize(1);
         assertThat(source.getSections()).hasSize(2);

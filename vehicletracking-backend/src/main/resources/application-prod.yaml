@@ -1,0 +1,7 @@
+# Activated only by SPRING_PROFILES_ACTIVE=prod. Local HTTP development keeps its current cookie behaviour.
+server:
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        secure: true

@@ -100,7 +100,7 @@ public class RouteService {
             } else {
                 route.getStops().stream()
                         .filter(stop -> Objects.equals(stop.getStation().getId(), stationId))
-                        .forEach(RouteStopEntity::refreshSnapshotFromStation);
+                        .forEach(stop -> stop.refreshSnapshotFromStation());
             }
         }
     }
@@ -149,12 +149,12 @@ public class RouteService {
     private RouteEntity buildRoute(RouteCreateRequest request) {
         String normalizedName = normalizeName(request.name());
         validateStops(request.stops());
-        Set<Long> uniqueStationIds = request.stops().stream().map(RouteCreateRequest.RouteStopInput::stationId).collect(Collectors.toSet());
+        Set<Long> uniqueStationIds = request.stops().stream().map(stop -> stop.stationId()).collect(Collectors.toSet());
         Map<Long, StationEntity> stationMap = stationRepository.findAllByIdInAndActiveTrue(uniqueStationIds).stream()
-                .collect(Collectors.toMap(StationEntity::getId, s -> s));
+                .collect(Collectors.toMap(station -> station.getId(), s -> s));
         if (stationMap.size() < uniqueStationIds.size()) {
             List<Long> unavailableIds = uniqueStationIds.stream().filter(id -> !stationMap.containsKey(id)).sorted().toList();
-            throw new RouteOperationException(HttpStatus.UNPROCESSABLE_ENTITY, RouteErrorCode.ROUTE_STATION_UNAVAILABLE,
+            throw new RouteOperationException(HttpStatus.UNPROCESSABLE_CONTENT, RouteErrorCode.ROUTE_STATION_UNAVAILABLE,
                     "Stations are unavailable or inactive: " + unavailableIds);
         }
         List<RoutingWaypoint> waypoints = new ArrayList<>(request.stops().size());
@@ -163,10 +163,10 @@ public class RouteService {
             waypoints.add(new RoutingWaypoint(station.getId(), station.getName(), station.getLatitude(), station.getLongitude(), i + 1, input.dwellDurationSeconds()));
         }
         CalculatedRoute calculated = routingProvider.calculate(waypoints);
-        long distance = calculated.sections().stream().mapToLong(CalculatedSection::distanceMeters).sum();
-        long travel = calculated.sections().stream().mapToLong(CalculatedSection::travelDurationSeconds).sum();
-        long base = calculated.sections().stream().mapToLong(CalculatedSection::baseTravelDurationSeconds).sum();
-        long dwell = waypoints.subList(1, waypoints.size() - 1).stream().mapToLong(RoutingWaypoint::dwellDurationSeconds).sum();
+        long distance = calculated.sections().stream().mapToLong(section -> section.distanceMeters()).sum();
+        long travel = calculated.sections().stream().mapToLong(section -> section.travelDurationSeconds()).sum();
+        long base = calculated.sections().stream().mapToLong(section -> section.baseTravelDurationSeconds()).sum();
+        long dwell = waypoints.subList(1, waypoints.size() - 1).stream().mapToLong(waypoint -> waypoint.dwellDurationSeconds()).sum();
         RouteEntity route = new RouteEntity(normalizedName, RouteTransportMode.CAR, RoutingProviderName.HERE, distance, travel, base,
                 dwell, travel + dwell, calculated.estimatedDepartureAt(), Instant.now());
         waypoints.forEach(wp -> route.addStop(new RouteStopEntity(stationMap.get(wp.stationId()), wp.sequenceNumber(), wp.stationName(),
@@ -210,9 +210,9 @@ public class RouteService {
             throw new RouteOperationException(HttpStatus.BAD_GATEWAY, RouteErrorCode.ROUTING_PROVIDER_INVALID_RESPONSE,
                     "Routing provider returned an empty route without sections");
         }
-        long distance = calculated.sections().stream().mapToLong(CalculatedSection::distanceMeters).sum();
-        long travel = calculated.sections().stream().mapToLong(CalculatedSection::travelDurationSeconds).sum();
-        long base = calculated.sections().stream().mapToLong(CalculatedSection::baseTravelDurationSeconds).sum();
+        long distance = calculated.sections().stream().mapToLong(section -> section.distanceMeters()).sum();
+        long travel = calculated.sections().stream().mapToLong(section -> section.travelDurationSeconds()).sum();
+        long base = calculated.sections().stream().mapToLong(section -> section.baseTravelDurationSeconds()).sum();
         long dwell = sourceStops.subList(1, sourceStops.size() - 1).stream()
                 .mapToLong(stop -> stop.getDwellDurationSeconds()).sum();
 

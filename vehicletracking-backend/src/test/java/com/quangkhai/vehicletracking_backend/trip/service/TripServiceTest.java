@@ -1,15 +1,23 @@
 package com.quangkhai.vehicletracking_backend.trip.service;
 
+import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
+import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
 import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import com.quangkhai.vehicletracking_backend.trip.event.TripStartedEvent;
+import com.quangkhai.vehicletracking_backend.checkin.repository.TripStopVisitRepository;
+import com.quangkhai.vehicletracking_backend.config.TripLifecycleProperties;
+import com.quangkhai.vehicletracking_backend.schedule.entity.ScheduleFrequency;
+import com.quangkhai.vehicletracking_backend.schedule.entity.TripScheduleEntity;
+import com.quangkhai.vehicletracking_backend.schedule.repository.TripScheduleRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
+import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
 import com.quangkhai.vehicletracking_backend.station.entity.StationEntity;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 import static org.assertj.core.api.Assertions.*;
@@ -30,7 +39,11 @@ import static org.mockito.Mockito.*;
 class TripServiceTest {
     @Mock TripRepository trips;
     @Mock VehicleRepository vehicles;
+    @Mock DriverRepository drivers;
     @Mock RouteRepository routes;
+    @Mock TripScheduleRepository schedules;
+    @Mock TripStopVisitRepository visits;
+    @Mock Clock operationsClock;
     @Mock ApplicationEventPublisher events;
     @InjectMocks TripService service;
     final Instant departure = Instant.parse("2026-09-13T16:58:00Z");
@@ -38,6 +51,8 @@ class TripServiceTest {
     StationEntity station;
     RouteEntity route;
     @BeforeEach void setup() {
+        lenient().when(operationsClock.instant()).thenReturn(departure.plusSeconds(60));
+        lenient().when(visits.existsByTripIdAndStopSequence(anyLong(), anyInt())).thenReturn(true);
         vehicle = new VehicleEntity("51B12345", "Xe A", null);
         station = TripFixtures.station("A");
         var other = TripFixtures.station("B");
@@ -53,7 +68,7 @@ class TripServiceTest {
         when(trips.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
         var result = service.create(new TripCreateRequest(1L, 2L, departure));
         assertThat(result.trip().status()).isEqualTo(TripStatus.SCHEDULED);
-        assertThat(result.stops()).extracting(TripDetailResponse.Stop::stationId).containsExactly(11L, 12L, 11L);
+        assertThat(result.stops()).extracting(stop -> stop.stationId()).containsExactly(11L, 12L, 11L);
         assertThat(result.stops().get(1).plannedArrivalAt()).isEqualTo(departure.plusSeconds(300));
         assertThat(result.stops().get(1).plannedDepartureAt()).isEqualTo(departure.plusSeconds(360));
         assertThat(result.trip().plannedEndAt()).isEqualTo(departure.plusSeconds(660));
@@ -70,6 +85,100 @@ class TripServiceTest {
 
         var result = service.create(new TripCreateRequest(1L, 2L, departure));
         assertThat(result.trip().vehicleType()).isEqualTo(VehicleType.MOTORCYCLE);
+    }
+    @Test void create_snapshotsSelectedDriverDetails() {
+        var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        ReflectionTestUtils.setField(driver, "id", 9L);
+        when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));
+        lenient().when(drivers.findLockedById(9L)).thenReturn(Optional.of(driver));
+        when(routes.findById(2L)).thenReturn(Optional.of(route));
+        when(trips.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+
+        var result = service.create(new TripCreateRequest(1L, 2L, departure, 9L));
+        driver.updateDetails("Tên mới", "0987654321", "C-999");
+
+        assertThat(result.trip().driver().fullName()).isEqualTo("Nguyễn Văn A");
+        assertThat(result.trip().driver().licenseNumber()).isEqualTo("B2-123");
+    }
+    @Test void assignDriver_onlyAllowsScheduledTrip() {
+        var trip = lockedTrip();
+        var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        ReflectionTestUtils.setField(driver, "id", 9L);
+        lenient().when(drivers.findLockedById(9L)).thenReturn(Optional.of(driver));
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+
+        var assigned = service.assignDriver(3L, 9L);
+        assertThat(assigned.trip().driver().id()).isEqualTo(9L);
+
+        ReflectionTestUtils.setField(trip, "status", TripStatus.IN_PROGRESS);
+        assertConflict(() -> service.unassignDriver(3L));
+    }
+    @Test void assignDriver_rejectsOverlappingDriverTrip() {
+        lockedTrip();
+        var driver = new DriverEntity("Nguyễn Văn B", "0907654321", "B2-456");
+        ReflectionTestUtils.setField(driver, "id", 10L);
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        when(drivers.findLockedById(10L)).thenReturn(Optional.of(driver));
+        var existing = new TripEntity(vehicle, route, departure.minusSeconds(60), driver);
+        ReflectionTestUtils.setField(existing, "id", 8L);
+        when(trips.findAllByVehicleIdAndStatusIn(eq(1L), any())).thenReturn(java.util.List.of());
+        when(trips.findAllByDriverIdAndStatusIn(eq(10L), any())).thenReturn(java.util.List.of(existing));
+
+        assertConflict(() -> service.assignDriver(3L, 10L));
+        verify(trips, never()).flush();
+    }
+    @Test void start_rejectsDriverRunningAnotherTrip() {
+        var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        ReflectionTestUtils.setField(driver, "id", 9L);
+        var trip = new TripEntity(vehicle, route, departure, driver);
+        ReflectionTestUtils.setField(trip, "id", 3L);
+        when(trips.findLockedById(3L)).thenReturn(Optional.of(trip));
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        when(drivers.findLockedById(9L)).thenReturn(Optional.of(driver));
+        when(trips.existsByDriverIdAndStatusAndIdNot(9L, TripStatus.IN_PROGRESS, 3L)).thenReturn(true);
+
+        assertConflict(() -> service.start(3L));
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.SCHEDULED);
+    }
+    @Test void start_rejectsInactiveDriver() {
+        var trip = lockedTrip();
+        trip.getDriver().deactivate();
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+
+        assertConflict(() -> service.start(3L));
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.SCHEDULED);
+    }
+    @Test void start_requiresAssignedDriver() {
+        var trip = new TripEntity(vehicle, route, departure);
+        ReflectionTestUtils.setField(trip, "id", 3L);
+        when(trips.findLockedById(3L)).thenReturn(Optional.of(trip));
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+
+        assertConflict(() -> service.start(3L));
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.SCHEDULED);
+    }
+    @Test void start_rejectsOutsideConfiguredWindow() {
+        var properties = new TripLifecycleProperties();
+        properties.setEarlyStartWindowSeconds(300);
+        properties.setLateStartWindowSeconds(600);
+        ReflectionTestUtils.setField(service, "lifecycle", properties);
+        when(operationsClock.instant()).thenReturn(departure.plusSeconds(601));
+        var trip = lockedTrip();
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+
+        assertConflict(() -> service.start(3L));
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.SCHEDULED);
+    }
+    @Test void start_acceptsWithinConfiguredWindow() {
+        var properties = new TripLifecycleProperties();
+        properties.setEarlyStartWindowSeconds(300);
+        properties.setLateStartWindowSeconds(600);
+        ReflectionTestUtils.setField(service, "lifecycle", properties);
+        var trip = lockedTrip();
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+
+        assertThat(service.start(3L).trip().status()).isEqualTo(TripStatus.IN_PROGRESS);
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.IN_PROGRESS);
     }
     @Test void create_rejectsInactiveStation() {
         when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));
@@ -91,6 +200,70 @@ class TripServiceTest {
     @Test void create_rejectsUnsupportedDate() {
         assertThatThrownBy(() -> service.create(new TripCreateRequest(1L, 2L, Instant.parse("2200-01-01T00:00:00Z"))))
                 .isInstanceOfSatisfying(ResponseStatusException.class, ex -> assertThat(ex.getStatusCode().value()).isEqualTo(400));
+    }
+    @Test void delete_rejectsTripGeneratedBySchedule() {
+        var schedule = new TripScheduleEntity("Daily", route, vehicle, null, ScheduleFrequency.WEEKLY, null, (short) 1,
+                java.time.LocalTime.NOON, "UTC", java.time.LocalDate.of(2026, 9, 1), null);
+        var trip = new TripEntity(vehicle, route, departure, null, schedule, departure);
+        ReflectionTestUtils.setField(trip, "id", 3L);
+        when(trips.findLockedById(3L)).thenReturn(Optional.of(trip));
+
+        assertConflict(() -> service.delete(3L));
+        verify(trips, never()).delete(any());
+    }
+    @Test void scheduledCreation_rejectsVehicleDoubleBooking() {
+        var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        ReflectionTestUtils.setField(driver, "id", 9L);
+        var schedule = new TripScheduleEntity("Daily", route, vehicle, driver, ScheduleFrequency.WEEKLY, null, (short) 1,
+                java.time.LocalTime.NOON, "UTC", java.time.LocalDate.of(2026, 9, 1), null);
+        ReflectionTestUtils.setField(schedule, "id", 7L);
+        when(schedules.getReferenceById(7L)).thenReturn(schedule);
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        when(drivers.findLockedById(9L)).thenReturn(Optional.of(driver));
+        when(routes.findLockedById(2L)).thenReturn(Optional.of(route));
+        var existing = new TripEntity(vehicle, route, departure, driver);
+        ReflectionTestUtils.setField(existing, "id", 8L);
+        when(trips.findAllByVehicleIdAndStatusIn(eq(1L), any())).thenReturn(java.util.List.of(existing));
+
+        assertConflict(() -> service.createFromSchedule(schedule, departure));
+        verify(trips, never()).saveAndFlush(any());
+    }
+    @Test void scheduledCreation_rejectsDriverOverlap() {
+        var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        ReflectionTestUtils.setField(driver, "id", 9L);
+        var schedule = new TripScheduleEntity("Daily", route, vehicle, driver, ScheduleFrequency.WEEKLY, null, (short) 1,
+                java.time.LocalTime.NOON, "UTC", java.time.LocalDate.of(2026, 9, 1), null);
+        ReflectionTestUtils.setField(schedule, "id", 7L);
+        when(schedules.getReferenceById(7L)).thenReturn(schedule);
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        when(drivers.findLockedById(9L)).thenReturn(Optional.of(driver));
+        when(routes.findLockedById(2L)).thenReturn(Optional.of(route));
+        var existing = new TripEntity(vehicle, route, departure.minusSeconds(60), driver);
+        ReflectionTestUtils.setField(existing, "id", 8L);
+        when(trips.findAllByVehicleIdAndStatusIn(eq(1L), any())).thenReturn(java.util.List.of());
+        when(trips.findAllByDriverIdAndStatusIn(eq(9L), any())).thenReturn(java.util.List.of(existing));
+
+        assertConflict(() -> service.createFromSchedule(schedule, departure));
+        verify(trips, never()).saveAndFlush(any());
+    }
+    @Test void scheduledCreation_allowsFutureTripWhenRunningTripIntervalDoesNotOverlap() {
+        var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        ReflectionTestUtils.setField(driver, "id", 9L);
+        var schedule = new TripScheduleEntity("Daily", route, vehicle, driver, ScheduleFrequency.WEEKLY, null, (short) 1,
+                java.time.LocalTime.NOON, "UTC", java.time.LocalDate.of(2026, 9, 1), null);
+        ReflectionTestUtils.setField(schedule, "id", 7L);
+        var running = new TripEntity(vehicle, route, departure.minusSeconds(660), driver);
+        ReflectionTestUtils.setField(running, "id", 8L);
+        ReflectionTestUtils.setField(running, "status", TripStatus.IN_PROGRESS);
+        when(schedules.getReferenceById(7L)).thenReturn(schedule);
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        when(drivers.findLockedById(9L)).thenReturn(Optional.of(driver));
+        when(routes.findLockedById(2L)).thenReturn(Optional.of(route));
+        when(trips.findAllByVehicleIdAndStatusIn(eq(1L), any())).thenReturn(java.util.List.of(running));
+        when(trips.findAllByDriverIdAndStatusIn(eq(9L), any())).thenReturn(java.util.List.of(running));
+        when(trips.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+
+        assertThat(service.createFromSchedule(schedule, departure).trip().status()).isEqualTo(TripStatus.SCHEDULED);
     }
     @Test void start_blocksSecondRunningTrip() {
         var trip = lockedTrip();
@@ -118,7 +291,7 @@ class TripServiceTest {
         assertThat(trip.getStatus()).isEqualTo(initial);
     }
     @Test void complete_andCancelRecordEndTimes() {
-        var trip = lockedTrip();
+        lockedTrip();
         when(vehicles.findLockedById(1)).thenReturn(Optional.of(vehicle));
         service.start(3); var completed = service.complete(3);
         assertThat(completed.trip().endedAt()).isAfterOrEqualTo(completed.trip().startedAt());
@@ -130,8 +303,35 @@ class TripServiceTest {
         assertThat(cancelled.trip().endedAt()).isNotNull();
         assertThat(service.cancel(3).trip().endedAt()).isEqualTo(cancelled.trip().endedAt());
     }
+    @Test void complete_requiresFinalStopVisit() {
+        var trip = lockedTrip();
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        service.start(3);
+        when(visits.existsByTripIdAndStopSequence(3L, 3)).thenReturn(false);
+
+        assertConflict(() -> service.complete(3));
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.IN_PROGRESS);
+    }
+    @Test void cancelStoresReason() {
+        lockedTrip();
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+
+        var cancelled = service.cancel(3, "Xe gặp sự cố");
+
+        assertThat(cancelled.trip().cancellationReason()).isEqualTo("Xe gặp sự cố");
+    }
+    @Test void cancelRejectsBlankReason() {
+        assertThatThrownBy(() -> service.cancel(3L, "  "))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        ex -> assertThat(ex.getStatusCode().value()).isEqualTo(400));
+        verifyNoInteractions(trips);
+    }
     private TripEntity lockedTrip() {
-        var trip = new TripEntity(vehicle, route, departure);
+        var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        ReflectionTestUtils.setField(driver, "id", 9L);
+        lenient().when(drivers.findLockedById(9L)).thenReturn(Optional.of(driver));
+        var trip = new TripEntity(vehicle, route, departure, driver);
+        RouteDetailResponse.from(route).stops().forEach(stop -> trip.addStop(new TripStopEntity(stop, 50, departure)));
         ReflectionTestUtils.setField(trip, "id", 3L);
         when(trips.findLockedById(3)).thenReturn(Optional.of(trip));
         return trip;

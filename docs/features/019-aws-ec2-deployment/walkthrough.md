@@ -34,7 +34,7 @@ openssl rand -hex 32
 nano .env.production
 ```
 
-Thay `POSTGRES_PASSWORD`, `HERE_API_KEY`. Khi dùng IP giữ `SITE_ADDRESS=:80`; khi có domain đặt domain vào `SITE_ADDRESS` và đặt origin HTTPS tương ứng vào `APP_CORS_ALLOWED_ORIGINS`.
+Thay `POSTGRES_PASSWORD`, `HERE_API_KEY` và đặt domain thật vào `SITE_ADDRESS` cùng origin HTTPS tương ứng vào `APP_CORS_ALLOWED_ORIGINS`. Production bật secure session cookie, vì vậy không dùng `SITE_ADDRESS=:80` hoặc origin HTTP.
 
 Không in nội dung `.env.production` ra log và không commit file này.
 
@@ -51,12 +51,12 @@ docker compose --env-file .env.production -f compose.production.yaml ps
 Trên EC2:
 
 ```bash
-curl -I http://localhost
-curl http://localhost/api/v1/telemetry/snapshot
+curl -I https://tracking.example.com
+curl https://tracking.example.com/api/v1/telemetry/snapshot
 docker compose --env-file .env.production -f compose.production.yaml logs --tail=100 backend
 ```
 
-Từ máy cá nhân mở `http://PUBLIC_IP`.
+Từ máy cá nhân mở `https://tracking.example.com`.
 
 ## 6. Cập nhật phiên bản
 

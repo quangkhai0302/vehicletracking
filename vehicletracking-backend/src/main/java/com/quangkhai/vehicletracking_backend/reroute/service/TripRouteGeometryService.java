@@ -23,10 +23,46 @@ public class TripRouteGeometryService {
             .anyMatch(r -> r.getSimulationStartElapsed()!=null && Objects.equals(r.getSimulationAttemptNumber(),trip.getAttemptNumber()));
         return applied?resolve(trip).route():RouteDetailResponse.from(trip.getRoute());
     }
+
+    /**
+     * Returns the route currently assigned to an operational trip. Simulation
+     * revisions are reconstructed by {@link #route(TripEntity)}; a persisted
+     * live reroute has its own immutable sections and must be used directly by
+     * telemetry-based detectors and tracking views.
+     */
+    public RouteDetailResponse routeForTracking(TripEntity trip) {
+        RouteDetailResponse simulationRoute = route(trip);
+        boolean hasSimulationRevision = revisions.findAllByTripIdOrderByRevisionNumberDesc(trip.getId()).stream()
+                .anyMatch(r -> r.getSimulationStartElapsed() != null
+                        && Objects.equals(r.getSimulationAttemptNumber(), trip.getAttemptNumber()));
+        if (hasSimulationRevision) return simulationRoute;
+
+        var active = revisions.findTopByTripIdAndStatusOrderByRevisionNumberDesc(
+                trip.getId(), RouteRevisionStatus.ACTIVE).orElse(null);
+        if (active == null || active.getSections().isEmpty() || active.getStops().isEmpty()) return simulationRoute;
+
+        var source = trip.getRoute();
+        var stops = active.getStops().stream().map(stop -> new RouteDetailResponse.RouteStopResponse(
+                stop.getOriginalStopSequence(),
+                stop.getOriginalStopSequence() == active.getStops().getFirst().getOriginalStopSequence() ? "START"
+                        : stop == active.getStops().getLast() ? "END" : "STOP",
+                stop.getStationId(), stop.getStationName(), stop.getLatitude(), stop.getLongitude(),
+                stop.getDwellDurationSeconds(), 0, 0, 0, 0)).toList();
+        var sections = active.getSections().stream().map(section -> new RouteDetailResponse.RouteSectionResponse(
+                section.getSectionSequence(), section.getDestinationStopSequence(), section.getEncodedPolyline(),
+                section.getDistanceMeters(), section.getTravelDurationSeconds(), section.getBaseTravelDurationSeconds())).toList();
+        long distance = sections.stream().mapToLong(section -> section.distanceMeters()).sum();
+        long travel = sections.stream().mapToLong(section -> section.travelDurationSeconds()).sum();
+        long baseTravel = sections.stream().mapToLong(section -> section.baseTravelDurationSeconds()).sum();
+        long dwell = stops.stream().mapToLong(stop -> stop.dwellDurationSeconds()).sum();
+        return new RouteDetailResponse(source.getId(), source.getName(), source.getTransportMode(), source.getRoutingProvider(),
+                distance, travel, baseTravel, dwell, travel + dwell, source.getEstimatedDepartureAt(),
+                source.getCalculatedAt(), source.getCreatedAt(), stops, sections, List.of());
+    }
     public Plan resolve(TripEntity trip) {
         var applied=revisions.findAllByTripIdOrderByRevisionNumberDesc(trip.getId()).stream()
             .filter(r -> r.getSimulationStartElapsed()!=null && Objects.equals(r.getSimulationAttemptNumber(),trip.getAttemptNumber()))
-            .sorted(Comparator.comparingInt(TripRouteRevisionEntity::getRevisionNumber)).toList();
+            .sorted(Comparator.comparingInt(revision -> revision.getRevisionNumber())).toList();
         Long id=applied.isEmpty()?null:applied.getLast().getId();
         String key=trip.getId()+":"+trip.getAttemptNumber()+":"+trip.getRoute().getCalculatedAt()+":"+id
             +":"+(applied.isEmpty()?0:applied.getLast().getSimulationStartElapsed());
@@ -44,7 +80,7 @@ public class TripRouteGeometryService {
             var check=new RouteMotion(RouteDetailResponse.from(trip.getRoute()));
             var previous=revisions.findAllByTripIdOrderByRevisionNumberDesc(trip.getId()).stream()
                 .filter(r -> r.getSimulationStartElapsed()!=null && Objects.equals(r.getSimulationAttemptNumber(),trip.getAttemptNumber()))
-                .sorted(Comparator.comparingInt(TripRouteRevisionEntity::getRevisionNumber)).toList();
+                .sorted(Comparator.comparingInt(revision -> revision.getRevisionNumber())).toList();
             for(var revision:previous) check.revise(sections(revision),revision.getSimulationStartElapsed());
             check.revise(sections(active),elapsed);
             active.applyToSimulation(elapsed,trip.getAttemptNumber());

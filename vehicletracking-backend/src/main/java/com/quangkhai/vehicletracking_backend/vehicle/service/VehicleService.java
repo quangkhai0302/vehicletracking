@@ -1,5 +1,6 @@
 package com.quangkhai.vehicletracking_backend.vehicle.service;
 
+import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.dto.*;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
@@ -19,6 +20,7 @@ import static org.springframework.http.HttpStatus.*;
 public class VehicleService {
     private final VehicleRepository vehicles;
     private final TripRepository trips;
+    private final DriverRepository drivers;
 
     @Transactional(readOnly = true)
     public List<VehicleResponse> findAll() {
@@ -32,7 +34,8 @@ public class VehicleService {
     public VehicleResponse create(VehicleUpsertRequest input) {
         String plate = normalizePlate(input.plateNumber());
         ensureUnique(plate, -1L);
-        return persist(new VehicleEntity(plate, input.name().trim(), normalizeDescription(input.description()), input.vehicleType()));
+        VehicleEntity vehicle = new VehicleEntity(plate, input.name().trim(), normalizeDescription(input.description()), input.vehicleType());
+        return persist(vehicle);
     }
     @Transactional
     public VehicleResponse update(long id, VehicleUpsertRequest input) {
@@ -49,7 +52,30 @@ public class VehicleService {
         if (!vehicle.isActive()) return;
         if (trips.existsByVehicleIdAndStatusIn(id, List.of(TripStatus.SCHEDULED, TripStatus.IN_PROGRESS)))
             throw new ResponseStatusException(CONFLICT, "Hãy hoàn thành hoặc hủy các chuyến chưa kết thúc trước khi ngừng sử dụng xe.");
+        vehicle.unassignDriver();
         vehicle.deactivate();
+    }
+    @Transactional
+    public VehicleResponse assignDriver(long id, long driverId) {
+        VehicleEntity vehicle = findLocked(id);
+        if (!vehicle.isActive()) throw new ResponseStatusException(CONFLICT, "Xe đã ngừng sử dụng.");
+        var driver = drivers.findLockedById(driverId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy tài xế."));
+        if (!driver.isActive()) throw new ResponseStatusException(CONFLICT, "Tài xế đã ngừng sử dụng.");
+        if (vehicles.existsByDriverIdAndActiveTrueAndIdNot(driverId, id))
+            throw new ResponseStatusException(CONFLICT, "Tài xế đang được gán cho xe khác.");
+        vehicle.assignDriver(driver);
+        try { vehicles.flush(); }
+        catch (DataIntegrityViolationException ex) {
+            throw new ResponseStatusException(CONFLICT, "Tài xế đang được gán cho xe khác. Hãy tải lại.", ex);
+        }
+        return VehicleResponse.from(vehicle);
+    }
+    @Transactional
+    public void unassignDriver(long id) {
+        VehicleEntity vehicle = findLocked(id);
+        if (!vehicle.isActive()) throw new ResponseStatusException(CONFLICT, "Xe đã ngừng sử dụng.");
+        vehicle.unassignDriver();
     }
     private VehicleEntity findLocked(long id) {
         return vehicles.findLockedById(id).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy xe."));

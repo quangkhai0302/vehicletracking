@@ -1,5 +1,7 @@
 node_modules
 dist
+dist-vue-preview
+dist-vue-audit
 .env
 .env.*
 .git

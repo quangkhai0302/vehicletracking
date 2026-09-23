@@ -1,0 +1,8 @@
+{
+  "name": "vehicletracking-vue-compatibility-spike",
+  "private": true,
+  "type": "module",
+  "scripts": { "typecheck": "vue-tsc --noEmit", "build": "vite build" },
+  "dependencies": { "vue": "3.5.43", "leaflet": "1.9.4", "@lucide/vue": "1.43.0" },
+  "devDependencies": { "@vitejs/plugin-vue": "6.0.9", "vite": "8.2.2", "vue-tsc": "3.3.11", "typescript": "7.0.2", "@types/leaflet": "1.9.22" }
+}

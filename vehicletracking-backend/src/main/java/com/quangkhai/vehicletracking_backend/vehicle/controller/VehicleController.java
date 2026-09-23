@@ -1,5 +1,6 @@
 package com.quangkhai.vehicletracking_backend.vehicle.controller;
 
+import com.quangkhai.vehicletracking_backend.driver.dto.DriverAssignmentRequest;
 import com.quangkhai.vehicletracking_backend.vehicle.dto.*;
 import com.quangkhai.vehicletracking_backend.vehicle.service.VehicleService;
 import jakarta.validation.Valid;
@@ -22,6 +23,13 @@ public class VehicleController {
     }
     @PutMapping("/{id}") public VehicleResponse update(@PathVariable long id, @Valid @RequestBody VehicleUpsertRequest request) {
         return service.update(id, request);
+    }
+    @PutMapping("/{id}/driver") public VehicleResponse assignDriver(@PathVariable long id,
+            @Valid @RequestBody DriverAssignmentRequest request) {
+        return service.assignDriver(id, request.driverId());
+    }
+    @DeleteMapping("/{id}/driver") public ResponseEntity<Void> unassignDriver(@PathVariable long id) {
+        service.unassignDriver(id); return ResponseEntity.noContent().build();
     }
     @DeleteMapping("/{id}") public ResponseEntity<Void> deactivate(@PathVariable long id) {
         service.deactivate(id); return ResponseEntity.noContent().build();

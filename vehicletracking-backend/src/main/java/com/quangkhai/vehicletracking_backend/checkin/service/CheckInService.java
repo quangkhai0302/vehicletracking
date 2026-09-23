@@ -3,8 +3,6 @@ package com.quangkhai.vehicletracking_backend.checkin.service;
 import com.quangkhai.vehicletracking_backend.checkin.entity.*;
 import com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing;
 import com.quangkhai.vehicletracking_backend.checkin.repository.*;
-import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
-import com.quangkhai.vehicletracking_backend.simulation.motion.RouteMotion;
 import com.quangkhai.vehicletracking_backend.telemetry.entity.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import lombok.RequiredArgsConstructor;
@@ -98,15 +96,12 @@ public class CheckInService {
 
     private long targetRevision(TripCheckInStateEntity state) { return state.getRevision()+1; }
     private int hysteresis(double radius) { return (int)Math.ceil(Math.max(5d,radius*.1d)); }
-    private boolean inside(TripEntity trip,int sequence,TelemetrySampleEntity sample) {
-        return inside(trip,sequence,new GeofenceCrossing.Point(sample.getLatitude(),sample.getLongitude()));
-    }
     private boolean inside(TripEntity trip,int sequence,GeofenceCrossing.Point point) {
         var stop=trip.getStops().stream().filter(item->item.getSequenceNumber()==sequence).findFirst().orElseThrow();
         return GeofenceCrossing.inside(point,stop.getLatitude().doubleValue(),stop.getLongitude().doubleValue(),stop.getCheckinRadiusMeters());
     }
     private Integer nextSequence(TripEntity trip,int sequence) {
-        return trip.getStops().stream().map(TripStopEntity::getSequenceNumber).filter(item->item>sequence).min(Integer::compareTo).orElse(null);
+        return trip.getStops().stream().map(item -> item.getSequenceNumber()).filter(item->item>sequence).min((a, b) -> Integer.compare(a, b)).orElse(null);
     }
     private record Evidence(double fraction,double latitude,double longitude,CheckInEvidenceKind kind) {}
 
@@ -167,9 +162,7 @@ public class CheckInService {
     private void saveVisit(TripEntity trip,TripStopEntity stop,TelemetrySampleEntity current,TelemetrySampleEntity previous,Evidence evidence) {
         if (visits.existsByTripIdAndStopSequence(trip.getId(),stop.getSequenceNumber())) return;
         Instant actual=current.getRecordedAt(); Instant simulated=current.getSimulatedAt();
-        Long fromId=null;
         if(previous!=null && evidence.kind()!=CheckInEvidenceKind.POINT) {
-            fromId=previous.getId();
             long micros=Duration.between(previous.getRecordedAt(),current.getRecordedAt()).toNanos()/1_000;
             actual=previous.getRecordedAt().plus((long)(micros*evidence.fraction()),ChronoUnit.MICROS).truncatedTo(ChronoUnit.MICROS);
             if(simulated!=null && previous.getSimulatedAt()!=null) {

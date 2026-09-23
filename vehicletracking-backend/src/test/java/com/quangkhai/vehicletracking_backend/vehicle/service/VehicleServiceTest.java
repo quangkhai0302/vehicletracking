@@ -1,5 +1,7 @@
 package com.quangkhai.vehicletracking_backend.vehicle.service;
 
+import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
+import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.dto.VehicleUpsertRequest;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleType;
@@ -20,6 +22,7 @@ import static org.mockito.Mockito.*;
 class VehicleServiceTest {
     @Mock VehicleRepository vehicles;
     @Mock TripRepository trips;
+    @Mock DriverRepository drivers;
     @InjectMocks VehicleService service;
     @Test void create_normalizesPlateAndTrimsFields() {
         when(vehicles.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
@@ -80,8 +83,42 @@ class VehicleServiceTest {
         assertThat(result.description()).isEqualTo("Note");
         verify(vehicles).existsByPlateNumberAndIdNot("51B12345", 1L);
     }
+    @Test void updateDetails_preservesExistingDriverAssignment() {
+        var vehicle = new VehicleEntity("51B12345", "A", null);
+        var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        vehicle.assignDriver(driver);
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        when(vehicles.saveAndFlush(vehicle)).thenReturn(vehicle);
+
+        var result = service.update(1L, new VehicleUpsertRequest("51B12345", "Tên mới", null));
+
+        assertThat(result.driver().licenseNumber()).isEqualTo("B2-123");
+        assertThat(vehicle.getDriver()).isSameAs(driver);
+        verifyNoInteractions(drivers);
+    }
     @Test void missingVehicle_isNotFound() {
         assertThatThrownBy(() -> service.findById(99)).isInstanceOfSatisfying(ResponseStatusException.class,
                 ex -> assertThat(ex.getStatusCode().value()).isEqualTo(404));
+    }
+    @Test void assignDriver_requiresActiveUnassignedDriver() {
+        var vehicle = new VehicleEntity("51B12345", "A", null);
+        var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        when(drivers.findLockedById(2L)).thenReturn(Optional.of(driver));
+
+        var response = service.assignDriver(1L, 2L);
+
+        assertThat(response.driver().fullName()).isEqualTo("Nguyễn Văn A");
+        verify(vehicles).flush();
+    }
+    @Test void assignDriver_rejectsDriverOnAnotherActiveVehicle() {
+        var vehicle = new VehicleEntity("51B12345", "A", null);
+        var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        when(drivers.findLockedById(2L)).thenReturn(Optional.of(driver));
+        when(vehicles.existsByDriverIdAndActiveTrueAndIdNot(2L, 1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.assignDriver(1L, 2L)).isInstanceOf(ResponseStatusException.class);
+        assertThat(vehicle.getDriver()).isNull();
     }
 }

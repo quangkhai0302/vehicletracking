@@ -576,30 +576,27 @@ Realtime event chỉ update state cần thiết.
 
 ## 29. Component Design
 
-Ưu tiên feature-based structure.
-
-Ví dụ:
+Kiến trúc Feature-Driven Co-location bắt buộc cho toàn bộ mã nguồn frontend:
 
 ```text
-features/
-├── stations/
-├── routes/
-├── vehicles/
-├── trips/
-├── tracking/
-├── simulator/
-└── traffic/
+src/
+├── app/                  # Shell, layouts (ApplicationShell, AuthLayout), router & guards, navigation
+├── shared/               # Core http client, generic UI (PageHeading, SidePanel), composables, styles, utils
+├── features/             # Đóng gói theo domain (api, components, composables, types, utils, styles):
+│   ├── auth/             # Quản lý phiên, tài khoản & quyền truy cập
+│   ├── map/              # Leaflet core engine, MapComponent, MapControls, camera & layers
+│   ├── stations/         # Quản lý trạm dừng & modal xác nhận
+│   ├── routes/           # Tuyến đường, trạm dừng trên tuyến & thanh tra hình học
+│   ├── fleet/            # Đội xe, tài xế, chuyến đi, telemetry, ETA, checkin & chuyển động xe
+│   ├── tracking/         # Giám sát trực tiếp realtime (Live Operations), marker xe & luồng cảnh báo
+│   ├── simulation/       # Giả lập lộ trình & simulator controls
+│   ├── traffic/          # Lớp giao thông & sự cố HERE
+│   ├── schedules/        # Lập lịch trình tự động & xác nhận điều phối
+│   └── reports/          # Báo cáo vận hành, dashboard KPI & danh sách thông báo
+└── pages/                # Thin router page entry points
 ```
 
-Map components:
-
-- `MapView`.
-- `StationMarker`.
-- `VehicleMarker`.
-- `IncidentMarker`.
-- `RoutePolyline`.
-- `GeofenceCircle`.
-- `MapControls`.
+Sử dụng path alias `@/` cho tất cả các import liên module (cross-module import).
 
 Shared UI:
 

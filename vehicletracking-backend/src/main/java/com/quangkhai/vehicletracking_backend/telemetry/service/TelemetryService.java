@@ -9,7 +9,9 @@ import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.checkin.service.CheckInService;
 import com.quangkhai.vehicletracking_backend.reroute.service.RerouteEvaluationService;
+import com.quangkhai.vehicletracking_backend.reroute.service.OffRouteEvaluationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -20,7 +22,7 @@ import java.time.*;
 import java.time.temporal.ChronoUnit;
 import static org.springframework.http.HttpStatus.*;
 
-@Service @RequiredArgsConstructor
+@Service @RequiredArgsConstructor @Slf4j
 public class TelemetryService {
     private final TelemetryRepository samples;
     private final VehiclePositionRepository positions;
@@ -30,6 +32,7 @@ public class TelemetryService {
     private final Clock operationsClock;
     private final CheckInService checkIns;
     private final RerouteEvaluationService reroutes;
+    private final OffRouteEvaluationService offRoutes;
 
     @Transactional
     public TelemetryResponse ingestGps(TelemetryRequest input) {
@@ -66,7 +69,7 @@ public class TelemetryService {
         checkIns.process(trip, latest.map(p -> p.getSample()).orElse(null), sample);
         if (latest.isPresent()) latest.get().update(sample);
         else positions.save(new VehiclePositionEntity(vehicle.getId(),sample));
-        evaluateRerouteSafely(trip.getId());
+        evaluatePostCommitSafely(trip.getId());
         return TelemetryResponse.from(sample);
     }
 
@@ -76,12 +79,13 @@ public class TelemetryService {
      * reroute persistence failure must never mark the authoritative position
      * transaction rollback-only and make the simulator fail.
      */
-    private void evaluateRerouteSafely(long tripId) {
+    private void evaluatePostCommitSafely(long tripId) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
                     evaluateRerouteNow(tripId);
+                    evaluateOffRouteSafely(tripId);
                 }
             });
             return;
@@ -89,13 +93,24 @@ public class TelemetryService {
         // Keep direct/service-level calls safe when no transaction is active
         // (for example, a small unit test or an internal maintenance command).
         evaluateRerouteNow(tripId);
+        evaluateOffRouteSafely(tripId);
+    }
+
+    private void evaluateOffRouteSafely(long tripId) {
+        try {
+            offRoutes.evaluateCurrent(tripId);
+        } catch (RuntimeException ex) {
+            // Off-route detection is best-effort; GPS persistence remains authoritative.
+            log.warn("Không thể đánh giá lệch tuyến sau khi ghi telemetry cho chuyến {}", tripId, ex);
+        }
     }
 
     private void evaluateRerouteNow(long tripId) {
         try {
             reroutes.evaluateCurrent(tripId);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException ex) {
             // Reroute is best-effort; position and check-in persistence remain authoritative.
+            log.warn("Không thể đánh giá đổi tuyến sau khi ghi telemetry cho chuyến {}", tripId, ex);
         }
     }
     private TelemetryResponse duplicate(TelemetrySampleEntity sample, TelemetryRequest input) {

@@ -1,5 +1,9 @@
 package com.quangkhai.vehicletracking_backend.trip.repository;
 
+import com.quangkhai.vehicletracking_backend.driver.dto.DriverUpsertRequest;
+import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
+import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
+import com.quangkhai.vehicletracking_backend.driver.service.DriverService;
 import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
@@ -37,11 +41,13 @@ class FleetRepositoryIntegrationTest {
     @Container @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17");
     @Autowired VehicleRepository vehicles;
+    @Autowired DriverRepository drivers;
     @Autowired RouteRepository routes;
     @Autowired StationRepository stations;
     @Autowired TripRepository trips;
     @Autowired TripService service;
     @Autowired VehicleService vehicleService;
+    @Autowired DriverService driverService;
     @Autowired StationService stationService;
     static final AtomicInteger sequence = new AtomicInteger();
     final Instant departure = Instant.parse("2026-09-13T16:58:00Z");
@@ -124,5 +130,37 @@ class FleetRepositoryIntegrationTest {
         service.cancel(trip.trip().id()); vehicleService.deactivate(f.vehicle().getId());
         assertThat(vehicleService.findById(f.vehicle().getId()).active()).isFalse();
         assertThatThrownBy(() -> create(f)).isInstanceOf(ResponseStatusException.class);
+    }
+    @Test void persistsDriverAssignmentsAndKeepsTripSnapshot() {
+        var driver = drivers.saveAndFlush(new DriverEntity("Nguyễn Văn A", "0901234567", "B2-" + sequence.incrementAndGet()));
+        var f = fixture();
+        vehicleService.assignDriver(f.vehicle().getId(), driver.getId());
+
+        var created = service.create(new TripCreateRequest(f.vehicle().getId(), f.route().getId(), departure, driver.getId()));
+        driverService.update(driver.getId(), new DriverUpsertRequest("Tên đã đổi", "0987654321", driver.getLicenseNumber()));
+
+        var loaded = service.findById(created.trip().id());
+        assertThat(loaded.trip().driver().fullName()).isEqualTo("Nguyễn Văn A");
+        assertThat(loaded.trip().driver().phoneNumber()).isEqualTo("0901234567");
+    }
+    @Test void databaseBlocksOneDriverOnTwoActiveVehicles() {
+        var driver = drivers.saveAndFlush(new DriverEntity("Nguyễn Văn B", "0909999999", "C-" + sequence.incrementAndGet()));
+        var first = fixture();
+        var second = fixture();
+        first.vehicle().assignDriver(driver);
+        vehicles.saveAndFlush(first.vehicle());
+        second.vehicle().assignDriver(driver);
+        assertThatThrownBy(() -> vehicles.saveAndFlush(second.vehicle())).isInstanceOf(DataIntegrityViolationException.class);
+    }
+    @Test void partialUniqueIndexBlocksTwoRunningTripsForOneDriver() {
+        var driver = drivers.saveAndFlush(new DriverEntity("Nguyễn Văn C", "0908888888", "D-" + sequence.incrementAndGet()));
+        var first = fixture();
+        var second = fixture();
+        var one = new TripEntity(first.vehicle(), first.route(), departure, driver);
+        one.start(Instant.now());
+        trips.saveAndFlush(one);
+        var two = new TripEntity(second.vehicle(), second.route(), departure, driver);
+        two.start(Instant.now());
+        assertThatThrownBy(() -> trips.saveAndFlush(two)).isInstanceOf(DataIntegrityViolationException.class);
     }
 }

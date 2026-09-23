@@ -50,6 +50,9 @@ public class TripNotificationEntity {
 
     @Column(name = "revised_eta_seconds")
     private Long revisedEtaSeconds;
+    @Column(name = "measured_distance_meters") private Double measuredDistanceMeters;
+    @Column(name = "threshold_distance_meters") private Double thresholdDistanceMeters;
+    @Column(name = "breach_duration_seconds") private Long breachDurationSeconds;
 
     @Column(name = "dedupe_key", nullable = false, unique = true, length = 255)
     private String dedupeKey;
@@ -60,10 +63,26 @@ public class TripNotificationEntity {
     @Column(name = "read_at")
     private Instant readAt;
 
+    /**
+     * A notification may be removed from the operator inbox without erasing
+     * the operational event used by historical reports.
+     */
+    @Column(name = "dismissed_at")
+    private Instant dismissedAt;
+
     public TripNotificationEntity(TripEntity trip, TripRouteRevisionEntity revision, NotificationType type,
                                   NotificationSeverity severity, String title, String reason, String incidentId,
                                   String affectedStopSequences, Long baselineEtaSeconds, Long revisedEtaSeconds,
                                   String dedupeKey, Instant createdAt) {
+        this(trip, revision, type, severity, title, reason, incidentId, affectedStopSequences,
+                baselineEtaSeconds, revisedEtaSeconds, null, null, null, dedupeKey, createdAt);
+    }
+
+    public TripNotificationEntity(TripEntity trip, TripRouteRevisionEntity revision, NotificationType type,
+                                  NotificationSeverity severity, String title, String reason, String incidentId,
+                                  String affectedStopSequences, Long baselineEtaSeconds, Long revisedEtaSeconds,
+                                  Double measuredDistanceMeters, Double thresholdDistanceMeters,
+                                  Long breachDurationSeconds, String dedupeKey, Instant createdAt) {
         this.trip = trip;
         this.revision = revision;
         this.type = type;
@@ -74,11 +93,18 @@ public class TripNotificationEntity {
         this.affectedStopSequences = affectedStopSequences;
         this.baselineEtaSeconds = baselineEtaSeconds;
         this.revisedEtaSeconds = revisedEtaSeconds;
+        this.measuredDistanceMeters = measuredDistanceMeters;
+        this.thresholdDistanceMeters = thresholdDistanceMeters;
+        this.breachDurationSeconds = breachDurationSeconds;
         this.dedupeKey = dedupeKey;
         this.createdAt = createdAt;
     }
 
     public void markRead(Instant now) {
         this.readAt = now;
+    }
+
+    public void dismiss(Instant now) {
+        this.dismissedAt = now;
     }
 }
