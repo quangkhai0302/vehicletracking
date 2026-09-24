@@ -3,7 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils';
 import L from 'leaflet';
 import MapComponent from '@/features/map/components/MapComponent.vue';
 import * as operations from '@/features/tracking/api/operations';
+import * as fleetApi from '@/features/fleet/api/fleet';
 import type { OperationsSnapshot } from '@/features/tracking/types/operations';
+import type { TripDetail } from '@/features/fleet/types/fleet';
 vi.mock('@/features/tracking/api/operations', () => ({ fetchOperations: vi.fn(), subscribeOperations: vi.fn(), controlSimulation: vi.fn() }));
 const snapshot: OperationsSnapshot = { serverTime: '2026-09-23T01:00:00Z', positions: [], trips: [], simulations: [], checkIns: [], notifications: [] };
 const originalCanvas = Object.getOwnPropertyDescriptor(L.Browser, 'canvas')!, originalSvg = Object.getOwnPropertyDescriptor(L.Browser, 'svg')!;
@@ -59,4 +61,63 @@ test('changing basemap keeps one tile layer and clears a failed-tile retry and i
   expect(tiles()).toHaveLength(1); expect(tiles()[0]).not.toBe(old); expect(tiles()[0].options.className).toBe('dark-map-tiles');
   expect(clear).toHaveBeenCalledWith(timer); expect(old.listens('tileerror')).toBe(false); expect(old.listens('tileload')).toBe(false);
   expect(createMap).toHaveBeenCalledTimes(1); expect(operations.subscribeOperations).toHaveBeenCalledTimes(1);
+});
+
+
+test('selecting a scheduled vehicle opens its trip summary without presenting the planned marker as GPS', async () => {
+  const trip = {
+    id: 42, vehicleId: 7, vehiclePlateNumber: '63B853904', vehicleType: 'CAR' as const,
+    routeId: 3, routeName: 'Bến Thành → Suối Tiên', status: 'SCHEDULED' as const,
+    scheduledDepartureAt: snapshot.serverTime, plannedEndAt: snapshot.serverTime,
+    startedAt: null, endedAt: null, createdAt: snapshot.serverTime, driver: null,
+  };
+  const detail = {
+    trip,
+    stops: [{ sequenceNumber: 1, stationName: 'Bến Thành', latitude: 10.77, longitude: 106.7 }],
+    route: { stops: [], sections: [], shapingPoints: [] },
+  } as unknown as TripDetail;
+  const plannedSnapshot = { ...snapshot, trips: [trip] };
+  vi.mocked(operations.fetchOperations).mockResolvedValue(plannedSnapshot);
+  vi.mocked(operations.subscribeOperations).mockImplementation(callback => {
+    callback(plannedSnapshot);
+    return vi.fn();
+  });
+  vi.spyOn(fleetApi, 'fetchTrip').mockResolvedValue(detail);
+  vi.spyOn(fleetApi, 'fetchTripRoute').mockResolvedValue(detail.route);
+
+  const wrapper = mount(MapComponent, { props: { initialTripId: 42 }, attachTo: document.body });
+  unmounts.push(() => wrapper.unmount());
+  await flushPromises();
+
+  expect(wrapper.get('.context-drawer').attributes('hidden')).toBeUndefined();
+  expect(wrapper.get('.tracking-vehicle-card').text()).toContain('63B853904');
+  expect(wrapper.get('.tracking-vehicle-card').text()).toContain('không phải vị trí thực tế');
+  expect(wrapper.get('.live-follow').attributes('hidden')).toBeDefined();
+  await wrapper.get('.tracking-vehicle-clear').trigger('click');
+  expect(wrapper.get('.context-drawer').attributes('hidden')).toBeDefined();
+});
+
+test('failed basemap tiles show a retry action that replaces the tile layer', async () => {
+  const createMap = vi.spyOn(L, 'map');
+  const wrapper = mount(MapComponent, { attachTo: document.body });
+  unmounts.push(() => wrapper.unmount());
+  await flushPromises();
+  const map: L.Map = createMap.mock.results[0].value;
+  const tiles = () => {
+    const result: L.TileLayer[] = [];
+    map.eachLayer(layer => { if (layer instanceof L.TileLayer) result.push(layer); });
+    return result;
+  };
+  const old = tiles()[0];
+  old.fire('loading');
+  old.fire('tileerror', { tile: document.createElement('img') });
+  old.fire('load');
+  await flushPromises();
+  expect(wrapper.get('.basemap-error').text()).toContain('Không tải được bản đồ nền');
+
+  await wrapper.get('.basemap-error button').trigger('click');
+  await flushPromises();
+  expect(tiles()).toHaveLength(1);
+  expect(tiles()[0]).not.toBe(old);
+  expect(wrapper.find('.basemap-error').exists()).toBe(false);
 });

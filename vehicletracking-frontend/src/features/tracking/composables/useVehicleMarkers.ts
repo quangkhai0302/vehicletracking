@@ -199,12 +199,12 @@ export function useVehicleMarkers(options: MaybeRefOrGetter<{
           for (const candidate of nearby) {
             const button=document.createElement('button');button.type='button';button.dataset.simulationVehicle=String(candidate.vehicleId);
             button.textContent=snapshot?.trips.find(item=>item.id===candidate.tripId)?.vehiclePlateNumber ?? `Xe ${candidate.vehicleId}`;
-            button.onclick=()=>{map.closePopup();onSelect(candidate.vehicleId, candidate.tripId);onFocus(markers.get(candidate.vehicleId)?.getLatLng() ?? [candidate.latitude,candidate.longitude],16);};content.append(button);
+            button.onclick=()=>{map.closePopup();onSelect(candidate.vehicleId, candidate.tripId);onFocus(markers.get(candidate.vehicleId)?.getLatLng() ?? [candidate.latitude,candidate.longitude]);};content.append(button);
           }
           const popup=L.popup({maxWidth:260}).setLatLng(displayed).setContent(content).openOn(map);
           vehiclePicker=popup;
           popup.once('remove',()=>content.querySelectorAll('button').forEach(button=>{button.onclick=null;}));
-        } else { onSelect(point.vehicleId, point.tripId); onFocus(displayed,16); }
+        } else { onSelect(point.vehicleId, point.tripId); onFocus(displayed); }
       });
     }
     const selected = positions.find(point => point.vehicleId === selectedId);

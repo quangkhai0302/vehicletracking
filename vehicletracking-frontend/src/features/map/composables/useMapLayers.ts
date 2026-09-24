@@ -50,6 +50,9 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
   let routeDraftLayer: L.LayerGroup | null = null, stationLayer: L.LayerGroup | null = null, draftLayer: L.LayerGroup | null = null;
   let plannedRouteLayer: L.LayerGroup | null = null, tileLayer: L.TileLayer | null = null;
   const plannedRouteBounds = shallowRef<L.LatLngBounds | null>(null);
+  const basemapStatus = shallowRef<'loading' | 'ready' | 'error'>('loading');
+  const basemapRetry = shallowRef(0);
+  const retryBasemap = () => { basemapRetry.value += 1; };
   const stationMarkers = new Map<number, L.Marker>();
   const o = () => toValue(options);
   const s = () => o().stationWorkspace;
@@ -258,11 +261,12 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
     cleanup(() => { draftLayer?.eachLayer(item => item.off()); draftLayer?.clearLayers(); });
   }, { immediate: true });
 
-  watch([mapInstanceRef, () => o().theme, () => o().showTraffic], (_value, _previous, cleanup) => {
+  watch([mapInstanceRef, () => o().theme, () => o().showTraffic, basemapRetry], (_value, _previous, cleanup) => {
     const { theme, showTraffic } = o(); const mapReady = !!mapInstanceRef.value;
     const dispose = (() => {
     const map = mapInstanceRef.value;
     if (!map || !mapReady) return;
+    basemapStatus.value = 'loading';
 
     if (tileLayer) {
       map.removeLayer(tileLayer);
@@ -284,8 +288,24 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
     );
 
     const retryTimers = new Set<ReturnType<typeof setTimeout>>();
+    let loadedTile = false, failedTile = false;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    const clearTimeoutCheck = () => {
+      if (timeout !== null) clearTimeout(timeout);
+      timeout = null;
+    };
+    newTileLayer.on('loading', () => {
+      loadedTile = false;
+      failedTile = false;
+      basemapStatus.value = 'loading';
+      clearTimeoutCheck();
+      timeout = setTimeout(() => {
+        if (!loadedTile) basemapStatus.value = 'error';
+      }, 10_000);
+    });
     // Auto-retry transient failed tiles (e.g. rate-limit or network timeout)
     newTileLayer.on('tileerror', (event) => {
+      failedTile = true;
       const tile = (event as L.TileEvent).tile as HTMLImageElement;
       if (!tile) return;
       const retryCount = Number(tile.dataset.retryCount || '0');
@@ -299,8 +319,15 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
       }
     });
     newTileLayer.on('tileload', (event) => {
+      loadedTile = true;
+      basemapStatus.value = 'ready';
+      clearTimeoutCheck();
       const tile = (event as L.TileEvent).tile as HTMLImageElement;
       if (tile) delete tile.dataset.retryCount;
+    });
+
+    newTileLayer.on('load', () => {
+      if (failedTile && !loadedTile) basemapStatus.value = 'error';
     });
 
     newTileLayer.addTo(map).bringToBack();
@@ -308,6 +335,7 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
 
     return () => {
       retryTimers.forEach(timer => clearTimeout(timer));
+      clearTimeoutCheck();
       newTileLayer.off();
       if (map.hasLayer(newTileLayer)) map.removeLayer(newTileLayer);
       if (tileLayer === newTileLayer) {
@@ -515,5 +543,5 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
     })();
     cleanup(() => { routeDraftLayer?.eachLayer(item => item.off()); routeDraftLayer?.clearLayers(); });
   }, { immediate: true });
-  return { plannedRouteBounds };
+  return { plannedRouteBounds, basemapStatus, retryBasemap };
 }

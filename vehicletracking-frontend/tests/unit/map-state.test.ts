@@ -169,6 +169,7 @@ test('marker updates reuse Leaflet instances and visibility/disposal removes lay
     selectedId: null, following: false, onSelect: select, onFocus: focus })));
   const markers = () => { const result: L.Marker[] = []; map.eachLayer(layer => { if (layer instanceof L.Marker) result.push(layer); }); return result; };
   const first = markers()[0]; expect(markers()).toHaveLength(1); first.fire('click'); expect(select).toHaveBeenCalledWith(1, 1);
+  expect(focus).toHaveBeenCalledWith(first.getLatLng());
   live.value = { ...snapshot(), serverTime: '2026-09-22T01:00:01Z' }; await nextTick(); expect(markers()[0]).toBe(first);
   visible.value = false; await nextTick(); expect(markers()).toHaveLength(0); expect(first.listens('click')).toBe(false);
   visible.value = true; await nextTick(); const last = markers()[0]; scopes[0].stop();

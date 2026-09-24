@@ -48,6 +48,7 @@ import {
 } from '@lucide/vue';
 import SimulatorPanel from '@/features/simulation/components/SimulatorPanel.vue';
 import TripTrafficSummary from '@/features/tracking/components/TripTrafficSummary.vue';
+import TrackingVehicleCard from '@/features/tracking/components/TrackingVehicleCard.vue';
 import AlertStream from '@/features/tracking/components/AlertStream.vue';
 import ConfirmStationDelete from '@/features/stations/components/ConfirmStationDelete.vue';
 import TrafficLayer from '@/features/traffic/components/TrafficLayer.vue';
@@ -178,7 +179,7 @@ const {
 const contextVisible = computed(
   () =>
     drawerOpen.value &&
-    workspace.value !== 'tracking' &&
+    (workspace.value !== 'tracking' || selectedVehicleId.value !== null) &&
     !(pickingLocation.value && workspace.value === 'stations') &&
     (!compact.value || activePanel.value === 'context'),
 );
@@ -312,6 +313,9 @@ const selectedTripId = computed(
         selectedWaitingVehicle.value?.trip.id ??
         (simulator.trip?.vehicleId === selectedVehicleId.value ? simulator.trip.id : null))),
 );
+const selectedTrip = computed(
+  () => live.snapshot?.trips.find((trip) => trip.id === selectedTripId.value) ?? null,
+);
 const selectedRun = computed(() =>
   live.snapshot?.simulations.find((run) => run.tripId === selectedTripId.value),
 );
@@ -391,6 +395,7 @@ const clearVehicleSelection = () => {
   followingVehicle.value = false;
   tripSelection.value = { tripId: null };
   simulator.select(null);
+  if (workspace.value === 'tracking') drawerOpen.value = false;
 };
 useVehicleMarkers(() => ({
   mapRef: mapInstanceRef,
@@ -476,7 +481,7 @@ watch(toast, (message, _old, cleanup) => {
   }, 3500);
   cleanup(() => window.clearTimeout(timer));
 });
-const { plannedRouteBounds } = useMapLayers(mapContainerRef, mapInstanceRef, () => ({
+const { plannedRouteBounds, basemapStatus, retryBasemap } = useMapLayers(mapContainerRef, mapInstanceRef, () => ({
   workspace: workspace.value,
   showStations: showStations.value,
   showRoutes: showRoutes.value,
@@ -592,6 +597,11 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       aria-label="Bản đồ tương tác"
       :tabindex="-1"
     />
+    <div v-if="basemapStatus === 'error'" class="basemap-error glass-panel" role="alert">
+      <strong>Không tải được bản đồ nền</strong>
+      <p>Biểu tượng xe vẫn hiển thị, nhưng chưa thể xem đường và địa điểm. Kiểm tra kết nối rồi thử lại.</p>
+      <button type="button" @click="retryBasemap">Tải lại bản đồ</button>
+    </div>
     <TrafficLayer
       :map="mapInstanceRef"
       :map-ready="mapReady"
@@ -627,7 +637,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     <div
       class="live-follow glass-panel"
       data-map-edge="top"
-      :hidden="!selectedVehicle && !selectedWaitingVehicle && !selectedPlannedVehicle"
+      :hidden="(!selectedVehicle && !selectedWaitingVehicle && !selectedPlannedVehicle) || (workspace === 'tracking' && contextVisible && !!selectedPlannedVehicle && !selectedVehicle)"
     >
       <div
         v-if="!selectedVehicle && selectedWaitingVehicle"
@@ -706,12 +716,14 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     >
       <div class="floating-panel-heading">
         <span
-          ><MapPin v-if="workspace === 'stations'" :size="15" /><Play v-else-if="workspace === 'simulation'" :size="15" /><List v-else :size="15" />{{
+          ><MapPin v-if="workspace === 'stations'" :size="15" /><Play v-else-if="workspace === 'simulation'" :size="15" /><BusFront v-else-if="workspace === 'tracking'" :size="15" /><List v-else :size="15" />{{
             workspace === 'simulation'
               ? 'MÔ PHỎNG CHUYẾN ĐI'
               : workspace === 'stations'
                 ? 'QUẢN LÝ TRẠM DỪNG'
-                : 'VẬN HÀNH'
+                : workspace === 'tracking'
+                  ? 'XE ĐƯỢC CHỌN'
+                  : 'VẬN HÀNH'
           }}</span
         >
         <div>
@@ -751,6 +763,13 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
         >
           Trạm dừng <span>{{ stations.length }}</span>
         </button>
+      </div>
+      <div class="context-content" :hidden="workspace !== 'tracking'">
+        <TrackingVehicleCard
+          :trip="selectedTrip"
+          :position="selectedVehicle"
+          :on-clear="clearVehicleSelection"
+        />
       </div>
       <div
         class="context-content simulator-workspace"
