@@ -60,7 +60,7 @@ class OperationsHttpIntegrationTest {
         var vehicle=vehicles.saveAndFlush(new VehicleEntity("HTTP"+id,"Xe kiểm tra HTTP 006",null));
         var driver=drivers.saveAndFlush(new DriverEntity("Tài xế HTTP "+id,
             String.format("08%08d",id),"HTTP-B2-"+id));
-        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),Instant.now(),driver.getId()));
+        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),driver.getId()));
     }
     private HttpResponse<String> post(String path,String body) throws Exception {
         var request=HttpRequest.newBuilder(URI.create(base()+path)).timeout(Duration.ofSeconds(8))

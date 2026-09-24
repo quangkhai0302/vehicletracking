@@ -62,7 +62,7 @@ class FleetRepositoryIntegrationTest {
         int id = sequence.incrementAndGet();
         var driver = drivers.saveAndFlush(new DriverEntity("Tài xế kiểm thử " + id,
                 String.format("07%08d", id), "TEST-B2-" + id));
-        return service.create(new TripCreateRequest(f.vehicle().getId(), f.route().getId(), departure, driver.getId()));
+        return service.create(new TripCreateRequest(f.vehicle().getId(), f.route().getId(), driver.getId()));
     }
     @Test void persistsMotorcycleTypeAndExposesItThroughTripSummary() {
         var response = vehicleService.create(new VehicleUpsertRequest("59X1" + sequence.incrementAndGet(),
@@ -73,7 +73,7 @@ class FleetRepositoryIntegrationTest {
         var a = stations.saveAndFlush(TripFixtures.station("Moto A"));
         var b = stations.saveAndFlush(TripFixtures.station("Moto B"));
         var route = routes.saveAndFlush(TripFixtures.route(a, b, RouteTransportMode.MOTORCYCLE));
-        var trip = service.create(new TripCreateRequest(response.id(), route.getId(), departure));
+        var trip = service.create(new TripCreateRequest(response.id(), route.getId(), null));
         assertThat(trip.trip().vehicleType()).isEqualTo(VehicleType.MOTORCYCLE);
     }
     @Test void persistsImmutableStopScheduleRadiusAndPlateAfterStationAndVehicleUpdates() {
@@ -86,10 +86,11 @@ class FleetRepositoryIntegrationTest {
         assertThat(loaded.stops().getFirst().stationName()).isEqualTo("A");
         assertThat(loaded.stops().getFirst().checkinRadiusMeters()).isEqualTo(50);
         assertThat(loaded.stops().getFirst().latitude()).isEqualByComparingTo("10.772300");
-        assertThat(loaded.stops().get(1).plannedDepartureAt()).isEqualTo(departure.plusSeconds(360));
+        assertThat(loaded.stops().get(1).plannedDepartureAt())
+                .isEqualTo(created.trip().scheduledDepartureAt().plusSeconds(360));
         assertThat(loaded.trip().vehiclePlateNumber()).isEqualTo(f.vehicle().getPlateNumber());
         var cancelled = service.cancel(id);
-        assertThat(cancelled.trip().scheduledDepartureAt()).isEqualTo(departure);
+        assertThat(cancelled.trip().scheduledDepartureAt()).isEqualTo(created.trip().scheduledDepartureAt());
         vehicleService.deactivate(f.vehicle().getId());
         assertThat(service.findById(id).trip().status()).isEqualTo(TripStatus.CANCELLED);
     }
@@ -108,13 +109,15 @@ class FleetRepositoryIntegrationTest {
         var two = new TripEntity(f.vehicle(), f.route(), departure); two.start(Instant.now());
         assertThatThrownBy(() -> trips.saveAndFlush(two)).isInstanceOf(DataIntegrityViolationException.class);
     }
-    @Test void overlappingVehicleTripsAreRejectedBeforeStart() {
+    @Test void vehicleMayHaveMultipleWaitingOnDemandTrips() {
         var f = fixture();
         create(f);
-        assertThatThrownBy(() -> create(f)).isInstanceOfSatisfying(ResponseStatusException.class,
-                ex -> assertThat(ex.getStatusCode().value()).isEqualTo(409));
-        assertThat(service.findAll(f.vehicle().getId())).singleElement()
-                .satisfies(trip -> assertThat(trip.status()).isEqualTo(TripStatus.SCHEDULED));
+        create(f);
+        assertThat(service.findAll(f.vehicle().getId())).hasSize(2)
+                .allSatisfy(trip -> {
+                    assertThat(trip.status()).isEqualTo(TripStatus.SCHEDULED);
+                    assertThat(trip.dispatchMode()).isEqualTo(TripDispatchMode.ON_DEMAND);
+                });
     }
     @Test void deactivationRequiresScheduledTripToBeCancelled() {
         var f = fixture(); var trip = create(f);
@@ -128,7 +131,7 @@ class FleetRepositoryIntegrationTest {
         var f = fixture();
         vehicleService.assignDriver(f.vehicle().getId(), driver.getId());
 
-        var created = service.create(new TripCreateRequest(f.vehicle().getId(), f.route().getId(), departure, driver.getId()));
+        var created = service.create(new TripCreateRequest(f.vehicle().getId(), f.route().getId(), driver.getId()));
         driverService.update(driver.getId(), new DriverUpsertRequest("Tên đã đổi", "0987654321", driver.getLicenseNumber()));
 
         var loaded = service.findById(created.trip().id());
@@ -154,5 +157,24 @@ class FleetRepositoryIntegrationTest {
         var two = new TripEntity(second.vehicle(), second.route(), departure, driver);
         two.start(Instant.now());
         assertThatThrownBy(() -> trips.saveAndFlush(two)).isInstanceOf(DataIntegrityViolationException.class);
+    }
+    @Test void driverMayOwnOverlappingTripsButCannotStartBoth() {
+        var driver = drivers.saveAndFlush(new DriverEntity("Tài xế nhiều chuyến", "0907777777",
+                "MULTI-" + sequence.incrementAndGet()));
+        var first = fixture();
+        var second = fixture();
+
+        var firstTrip = service.create(new TripCreateRequest(first.vehicle().getId(), first.route().getId(),
+                driver.getId()));
+        var secondTrip = service.create(new TripCreateRequest(second.vehicle().getId(), second.route().getId(),
+                driver.getId()));
+
+        assertThat(firstTrip.trip().driver().id()).isEqualTo(driver.getId());
+        assertThat(secondTrip.trip().driver().id()).isEqualTo(driver.getId());
+        assertThat(service.start(firstTrip.trip().id()).trip().status()).isEqualTo(TripStatus.IN_PROGRESS);
+        assertThatThrownBy(() -> service.start(secondTrip.trip().id()))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        ex -> assertThat(ex.getReason()).isEqualTo("Tài xế đang chạy một chuyến khác."));
+        assertThat(service.findById(secondTrip.trip().id()).trip().status()).isEqualTo(TripStatus.SCHEDULED);
     }
 }

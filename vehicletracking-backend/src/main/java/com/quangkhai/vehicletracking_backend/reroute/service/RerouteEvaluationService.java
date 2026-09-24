@@ -122,7 +122,7 @@ public class RerouteEvaluationService {
         Integer simulationNext=null;
         if (position.getSource()==com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR
                 && position.getSimulatedAt()!=null) {
-            double elapsed=Duration.between(trip.getScheduledDepartureAt(),position.getSimulatedAt()).toNanos()/1_000_000_000d;
+            double elapsed=Duration.between(trip.simulationOriginAt(),position.getSimulatedAt()).toNanos()/1_000_000_000d;
             var frame=geometry.resolve(trip).motion().at(elapsed);
             if (frame.dwelling() || frame.finished()) return null;
             // Check-in occurs at the geofence edge, before the vehicle reaches

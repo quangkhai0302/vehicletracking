@@ -96,9 +96,14 @@ public class SimulationService {
                 .anyMatch(other -> !other.getId().equals(tripId) && other.getStatus()==TripStatus.IN_PROGRESS))
             throw conflict("Xe đang thực hiện chuyến khác. Hãy kết thúc chuyến đó trước.");
         motion(trip);
-        if (trip.getStatus()==TripStatus.SCHEDULED && run.getStatus()==SimulationStatus.PAUSED && run.getElapsedSeconds()==0)
-            return describe(trip,run); // Repeated reset before play is idempotent.
         var now=now();
+        if (trip.getStatus()==TripStatus.SCHEDULED && run.getStatus()==SimulationStatus.PAUSED && run.getElapsedSeconds()==0) {
+            // Keep the same clean attempt, but refresh its time anchor when an
+            // operator comes back days later and chooses replay again.
+            if (trip.getSchedule() == null) trip.reschedule(now);
+            run.replay(now); trips.flush();
+            return describe(trip,run);
+        }
         attempts.saveAndFlush(new SimulationAttemptEntity(trip,run,now));
         trip.replay(now); run.replay(now);
         checkInStates.findById(tripId).ifPresent(state -> state.replay(trip.getAttemptNumber()));
@@ -247,7 +252,7 @@ public class SimulationService {
         try { return geometry.resolve(trip).motion(); }
         catch(IllegalArgumentException|ArithmeticException ex) { throw conflict("Geometry hoặc thời lượng tuyến không hợp lệ để mô phỏng. Hãy tính lại tuyến."); }
     }
-    private Instant simulatedAt(TripEntity trip,SimulationRunEntity run) { return trip.getScheduledDepartureAt().plusMillis((long)(run.getElapsedSeconds()*1000)); }
+    private Instant simulatedAt(TripEntity trip,SimulationRunEntity run) { return trip.simulationOriginAt().plusMillis((long)(run.getElapsedSeconds()*1000)); }
     private TripEntity lockTrip(long id) {
         var trip=trips.findLockedById(id).orElseThrow(()->new ResponseStatusException(NOT_FOUND,"Không tìm thấy chuyến."));
         vehicles.findLockedById(trip.getVehicle().getId()).orElseThrow();

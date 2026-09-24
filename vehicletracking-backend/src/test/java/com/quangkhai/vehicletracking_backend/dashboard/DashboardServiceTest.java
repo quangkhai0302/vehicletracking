@@ -4,6 +4,7 @@ import com.quangkhai.vehicletracking_backend.dashboard.service.DashboardService;
 import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripOffRouteAlertStateRepository;
+import com.quangkhai.vehicletracking_backend.schedule.entity.TripScheduleEntity;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStopEntity;
@@ -63,13 +64,15 @@ class DashboardServiceTest {
     }
 
     @Test
-    void summaryCountsOnlyRunningTripsPastPlannedEndAsOverdue() {
+    void summaryCountsOnlyFixedScheduleTripsPastPlannedEndAsOverdue() {
         Instant now = Instant.parse("2026-09-21T08:00:00Z");
         var overdueTrip = org.mockito.Mockito.mock(TripEntity.class);
+        var onDemandTrip = org.mockito.Mockito.mock(TripEntity.class);
         var finalStop = org.mockito.Mockito.mock(TripStopEntity.class);
         when(operationsClock.instant()).thenReturn(now);
-        when(trips.findAllByStatus(TripStatus.IN_PROGRESS)).thenReturn(List.of(overdueTrip));
+        when(trips.findAllByStatus(TripStatus.IN_PROGRESS)).thenReturn(List.of(overdueTrip, onDemandTrip));
         when(finalStop.getPlannedArrivalAt()).thenReturn(now.minusSeconds(1));
+        when(overdueTrip.getSchedule()).thenReturn(org.mockito.Mockito.mock(TripScheduleEntity.class));
         when(overdueTrip.getStops()).thenReturn(List.of(finalStop));
         when(trips.countByStatus(TripStatus.IN_PROGRESS)).thenReturn(1L);
         when(trips.countByStatus(TripStatus.SCHEDULED)).thenReturn(0L);

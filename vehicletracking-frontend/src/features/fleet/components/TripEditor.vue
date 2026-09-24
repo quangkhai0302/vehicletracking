@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue';
-import { ArrowLeft, CalendarPlus, RefreshCw } from '@lucide/vue';
+import { ArrowLeft, Play, RefreshCw } from '@lucide/vue';
 import type { Driver, FleetVehicle, TripInput } from '@/features/fleet/types/fleet';
 import { vehicleTypeLabel } from '@/features/fleet/types/fleet';
 import type { RouteSummary } from '@/features/routes/types/route';
 import { fetchRoutes } from '@/features/routes/api/routes';
-import { displayTripTime, toLocalDateTimeInput } from '@/features/fleet/utils/tripTime';
+import { displayTripTime } from '@/features/fleet/utils/tripTime';
+import { formatDuration } from '@/shared/utils/format';
 import FleetConfirmDialog from './FleetConfirmDialog.vue';
 const props = defineProps<{
   vehicles: FleetVehicle[];
   drivers: Driver[];
   initialVehicleId: number | null;
+  initialRouteId?: number | null;
   busy: boolean;
   error: string | null;
   onSave: (input: TripInput) => Promise<boolean>;
@@ -20,10 +22,8 @@ const props = defineProps<{
 const initialDriverId = props.vehicles.find((vehicle) => vehicle.id === props.initialVehicleId)
   ?.driver?.id;
 const vehicleId = ref(props.initialVehicleId ? String(props.initialVehicleId) : ''),
-  routeId = ref(''),
+  routeId = ref(props.initialRouteId ? String(props.initialRouteId) : ''),
   driverId = ref(initialDriverId ? String(initialDriverId) : '');
-const initialDeparture = toLocalDateTimeInput(new Date(Date.now() + 15 * 60000)),
-  departure = ref(initialDeparture);
 const routes = shallowRef<RouteSummary[]>([]),
   loading = ref(true),
   routeError = ref<string | null>(null),
@@ -59,27 +59,18 @@ function retry() {
 const selectedRoute = computed(() =>
   routes.value.find((route) => route.id === Number(routeId.value)),
 );
-const date = computed(() => new Date(departure.value));
-const validTime = computed(
-  () =>
-    Number.isFinite(date.value.getTime()) &&
-    date.value.getTime() >= Date.UTC(2000, 0, 1) &&
-    date.value.getTime() < Date.UTC(2101, 0, 1),
-);
 const valid = computed(
   () =>
     props.vehicles.some((vehicle) => vehicle.id === Number(vehicleId.value) && vehicle.active) &&
     !!selectedRoute.value &&
-    validTime.value &&
     !loading.value &&
     !routeError.value,
 );
 const dirty = computed(
   () =>
-    routeId.value !== '' ||
+    routeId.value !== (props.initialRouteId ? String(props.initialRouteId) : '') ||
     vehicleId.value !== (props.initialVehicleId ? String(props.initialVehicleId) : '') ||
-    driverId.value !== (initialDriverId ? String(initialDriverId) : '') ||
-    departure.value !== initialDeparture,
+    driverId.value !== (initialDriverId ? String(initialDriverId) : ''),
 );
 function close() {
   if (dirty.value) confirm.value = true;
@@ -95,11 +86,9 @@ function submit() {
     void props.onSave({
       vehicleId: Number(vehicleId.value),
       routeId: Number(routeId.value),
-      scheduledDepartureAt: date.value.toISOString(),
       driverId: driverId.value ? Number(driverId.value) : null,
     });
 }
-const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 </script>
 <template>
   <section
@@ -116,8 +105,8 @@ const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         <ArrowLeft :size="18" />
       </button>
       <div>
-        <span class="panel-eyebrow">LẬP LỊCH VẬN HÀNH</span>
-        <h2>Tạo chuyến đi</h2>
+        <span class="panel-eyebrow">ĐIỀU PHỐI TỨC THỜI</span>
+        <h2>Điều phối chuyến ngay</h2>
       </div>
     </div>
     <form
@@ -185,6 +174,13 @@ const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
           </select></label
         >
         <p
+          v-if="initialRouteId && !loading && !routeError && !selectedRoute"
+          class="fleet-error"
+          role="alert"
+        >
+          Tuyến #{{ initialRouteId }} không còn khả dụng. Hãy chọn tuyến khác đang hoạt động.
+        </p>
+        <p
           v-if="routeError"
           class="fleet-error"
           role="alert"
@@ -213,29 +209,16 @@ const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         >
           Chưa có tuyến. Tạo tuyến ở mục Tuyến & trạm, sau đó quay lại và tải lại danh sách.
         </p>
-        <label
-          >Giờ xuất phát *<input
-            v-model="departure"
-            type="datetime-local"
-            required
-            min="2000-01-01T00:00"
-            max="2100-12-31T23:59"
-        /></label>
-        <p class="fleet-help">
-          Giờ địa phương: {{ timezone }}. Lịch kế hoạch được giữ nguyên khi xe khởi hành trễ.
+        <p class="fleet-help trip-dispatch-help">
+          Chuyến được tạo ở trạng thái chờ khởi hành. Thời gian thực tế bắt đầu khi điều phối viên
+          hoặc tài xế bấm khởi hành; chuyến chạy cố định được cấu hình tại Lịch chạy tự động.
         </p>
         <div
-          v-if="validTime && selectedRoute"
+          v-if="selectedRoute"
           class="trip-preview"
         >
-          <span>Dự kiến hoàn thành</span
-          ><strong>{{
-            displayTripTime(
-              new Date(
-                date.getTime() + selectedRoute.estimatedTripDurationSeconds * 1000,
-              ).toISOString(),
-            )
-          }}</strong
+          <span>Thời lượng tuyến ước tính</span
+          ><strong>{{ formatDuration(selectedRoute.estimatedTripDurationSeconds) }}</strong
           ><span
             >{{ selectedRoute.stopCount }} điểm ·
             {{ (selectedRoute.totalDistanceMeters / 1000).toFixed(1) }} km</span
@@ -261,13 +244,13 @@ const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         form="trip-form"
         :disabled="busy || !valid"
       >
-        <CalendarPlus :size="15" />{{ busy ? 'Đang tạo…' : 'Tạo chuyến' }}
+        <Play :size="15" />{{ busy ? 'Đang tạo…' : 'Tạo chuyến tức thời' }}
       </button>
     </div>
     <FleetConfirmDialog
       v-if="confirm"
       title="Bỏ bản nháp chuyến đi?"
-      message="Xe, tuyến và giờ xuất phát chưa lưu sẽ bị xóa."
+      message="Xe, tài xế và tuyến đang chọn chưa được lưu."
       confirm-label="Bỏ bản nháp"
       :busy="false"
       :on-confirm="onClose"

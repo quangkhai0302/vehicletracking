@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import {
   ArrowRight,
   BusFront,
@@ -42,11 +42,15 @@ const props = withDefaults(
     onManageStations: () => void;
     liveSnapshot?: OperationsSnapshot | null;
     onSimulateTrip?: (id: number) => void;
+    onViewRoute?: (id: number) => void;
     onFocusVehicle?: (id: number) => void;
     tripSelection?: { tripId: number | null } | null;
     onTripCreated?: (detail: TripDetail) => void;
     initialTab?: FleetTab;
     initialVehicleFilter?: number | null;
+    initialRouteId?: number | null;
+    openTripFromRoute?: boolean;
+    onExitRoutePrefill?: () => void;
     lockedTab?: FleetTab;
     onViewVehicleTrips?: (vehicleId: number) => void;
     onClearVehicleFilter?: () => void;
@@ -61,8 +65,19 @@ const fleet = useFleetWorkspace(
   props.initialTab,
   props.initialVehicleFilter,
 );
+watch(
+  [() => props.initialRouteId, () => props.openTripFromRoute],
+  ([routeId, open]) => {
+    if (props.lockedTab === 'trips' && open && routeId) fleet.openTripForm();
+  },
+  { immediate: true },
+);
 const activeTab = computed(() => props.lockedTab ?? fleet.tab),
   screen = computed(() => fleet.screen);
+watch(screen, (current, previous) => {
+  if (previous.kind === 'trip-form' && current.kind !== 'trip-form' && props.openTripFromRoute)
+    props.onExitRoutePrefill?.();
+});
 const query = ref(''),
   vehicleStatus = ref<'active' | 'inactive' | 'all'>('active'),
   driverStatus = ref<'active' | 'inactive' | 'all'>('active'),
@@ -145,11 +160,11 @@ const moduleCopy = computed(() =>
           primaryAction: () => fleet.openDriverForm(null),
         }
       : {
-          eyebrow: 'LỊCH VẬN HÀNH',
+          eyebrow: 'ĐIỀU PHỐI VẬN HÀNH',
           title: 'Chuyến đi',
-          description: 'Lập chuyến, phân công và theo dõi vòng đời vận hành.',
+          description: 'Điều phối chuyến tức thời, phân công và theo dõi vòng đời vận hành.',
           icon: CalendarDays,
-          primary: 'Tạo chuyến đi',
+          primary: 'Điều phối chuyến ngay',
           total: fleet.trips.length,
           primaryAction: fleet.openTripForm,
         },
@@ -551,7 +566,7 @@ async function removeDriver() {
           >
             <CalendarDays :size="30" />
             <h3>Chưa có chuyến phù hợp</h3>
-            <p>Chọn xe, tuyến và giờ xuất phát để lập lịch trình.</p>
+            <p>Chọn xe và tuyến để tạo chuyến điều phối tức thời.</p>
           </div>
           <button
             v-for="trip in trips"
@@ -566,10 +581,18 @@ async function removeDriver() {
                 TRIP_STATUS_LABELS[trip.status]
               }}</span></span
             ><span class="fleet-trip-route">{{ trip.routeName }}</span
-            ><span class="fleet-help"
-              >Xuất phát {{ displayTripTime(trip.scheduledDepartureAt) }}</span
-            ><span class="fleet-help">Tài xế: {{ trip.driver?.fullName ?? 'Chưa gán' }}</span
-            ><span class="fleet-help">Theo lịch: {{ displayTripTime(trip.plannedEndAt) }}</span
+            ><span class="fleet-help">
+              {{
+                trip.dispatchMode === 'FIXED_SCHEDULE'
+                  ? `Theo lịch cố định · ${displayTripTime(trip.scheduledDepartureAt)}`
+                  : `Điều phối tức thời · ${displayTripTime(trip.createdAt)}`
+              }}
+            </span>
+            <span class="fleet-help">Tài xế: {{ trip.driver?.fullName ?? 'Chưa gán' }}</span>
+            <span
+              v-if="trip.dispatchMode === 'FIXED_SCHEDULE'"
+              class="fleet-help"
+              >Hoàn thành theo lịch: {{ displayTripTime(trip.plannedEndAt) }}</span
             ><ArrowRight
               class="fleet-card-arrow"
               :size="16"
@@ -598,7 +621,7 @@ async function removeDriver() {
           :disabled="fleet.loading || !!fleet.error || !hasActiveVehicle"
           @click="fleet.openTripForm"
         >
-          <Plus :size="16" />Tạo chuyến mới
+          <Plus :size="16" />Điều phối chuyến ngay
         </button>
       </div>
       <p
@@ -629,9 +652,11 @@ async function removeDriver() {
     />
     <TripEditor
       v-if="screen.kind === 'trip-form'"
+      :key="`${screen.vehicleId ?? 'none'}:${initialRouteId ?? 'none'}`"
       :vehicles="fleet.vehicles"
       :drivers="fleet.drivers"
       :initial-vehicle-id="screen.vehicleId"
+      :initial-route-id="initialRouteId"
       :busy="fleet.busy"
       :error="fleet.error"
       :on-save="fleet.saveTrip"
@@ -649,11 +674,11 @@ async function removeDriver() {
       :drivers="fleet.drivers"
       :on-retry="retryTrip"
       :on-action="fleet.transition"
-      :on-update-schedule="fleet.updateTripSchedule"
       :on-update-driver="fleet.updateTripDriver"
       :on-delete-trip="fleet.removeTrip"
       :on-focus-stop="onFocusStop"
       :on-simulate="onSimulateTrip"
+      :on-view-route="onViewRoute"
       :live-snapshot="liveSnapshot"
     />
     <FleetConfirmDialog

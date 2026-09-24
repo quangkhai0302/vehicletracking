@@ -21,9 +21,6 @@ public class TripController {
         var created = service.create(request);
         return ResponseEntity.created(URI.create("/api/v1/trips/" + created.trip().id())).body(created);
     }
-    @PutMapping("/{id}") public TripDetailResponse update(@PathVariable long id, @Valid @RequestBody TripUpdateRequest request) {
-        return service.update(id, request);
-    }
     @DeleteMapping("/{id}") public ResponseEntity<Void> delete(@PathVariable long id) {
         service.delete(id); return ResponseEntity.noContent().build();
     }

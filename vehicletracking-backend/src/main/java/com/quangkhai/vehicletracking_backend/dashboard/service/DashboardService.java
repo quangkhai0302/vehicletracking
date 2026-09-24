@@ -33,7 +33,10 @@ public class DashboardService {
     public DashboardSummaryResponse summary() {
         Instant now = operationsClock.instant().truncatedTo(ChronoUnit.MICROS);
         var inProgress = trips.findAllByStatus(TripStatus.IN_PROGRESS);
-        long overdue = inProgress.stream().filter(trip -> plannedEndAt(trip).isBefore(now)).count();
+        long overdue = inProgress.stream()
+                .filter(trip -> trip.getSchedule() != null)
+                .filter(trip -> plannedEndAt(trip).isBefore(now))
+                .count();
         var pendingAlerts = notifications.findTop50ByReadAtIsNullAndDismissedAtIsNullOrderByCreatedAtDescIdDesc().stream()
                 .map(NotificationResponse::from).limit(5).toList();
         return new DashboardSummaryResponse(

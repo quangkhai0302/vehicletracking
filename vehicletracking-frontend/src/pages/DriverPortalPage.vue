@@ -15,9 +15,15 @@ import {
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useAuth } from '@/features/auth/composables/useAuth';
 import { fetchMySchedules, fetchMyTrip, fetchMyTrips } from '@/features/fleet/api/driverPortal';
-import { TRIP_STATUS_LABELS, type TripDetail, type TripSummary } from '@/features/fleet/types/fleet';
+import {
+  TRIP_STATUS_LABELS,
+  type TripDetail,
+  type TripSummary,
+} from '@/features/fleet/types/fleet';
+import { tripDispatchLabel, tripReferenceTime } from '@/features/fleet/utils/tripTime';
 import type { TripSchedule } from '@/features/schedules/types/schedule';
 import SidePanel from '@/shared/components/SidePanel.vue';
+import { formatDuration } from '@/shared/utils/format';
 import '@/features/fleet/styles/driver-portal.css';
 const BUSINESS_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const dateTime = (value: string | null) =>
@@ -78,14 +84,14 @@ watch(
 );
 const todayTrips = computed(() =>
   trips.value.filter(
-    (trip) => businessDateKey(trip.scheduledDepartureAt) === businessDateKey(new Date()),
+    (trip) => businessDateKey(tripReferenceTime(trip)) === businessDateKey(new Date()),
   ),
 );
 const nextTrip = computed(
   () =>
     trips.value
       .filter((trip) => trip.status === 'SCHEDULED' || trip.status === 'IN_PROGRESS')
-      .sort((a, b) => Date.parse(a.scheduledDepartureAt) - Date.parse(b.scheduledDepartureAt))[0],
+      .sort((a, b) => Date.parse(tripReferenceTime(a)) - Date.parse(tripReferenceTime(b)))[0],
 );
 let detailRequest: AbortController | null = null;
 async function openTrip(trip: TripSummary) {
@@ -203,7 +209,8 @@ async function signOut() {
               ><span
                 ><strong>{{ trip.routeName }}</strong
                 ><small
-                  >{{ trip.vehiclePlateNumber }} · {{ dateTime(trip.scheduledDepartureAt) }}</small
+                  >{{ trip.vehiclePlateNumber }} · {{ tripDispatchLabel(trip) }} ·
+                  {{ dateTime(tripReferenceTime(trip)) }}</small
                 ></span
               ><span :class="`driver-status ${trip.status.toLowerCase()}`">{{
                 TRIP_STATUS_LABELS[trip.status]
@@ -286,9 +293,13 @@ async function signOut() {
           >
         </div>
         <div>
-          <Clock3 :size="16" /><span
-            >Khởi hành<strong>{{ dateTime(detail.trip.scheduledDepartureAt) }}</strong></span
-          >
+          <Clock3 :size="16" />
+          <span v-if="detail.trip.dispatchMode === 'FIXED_SCHEDULE'">
+            Khởi hành theo lịch<strong>{{ dateTime(detail.trip.scheduledDepartureAt) }}</strong>
+          </span>
+          <span v-else>
+            Điều phối tức thời<strong>{{ dateTime(detail.trip.createdAt) }}</strong>
+          </span>
         </div>
       </div>
       <div class="driver-stop-list">
@@ -300,7 +311,12 @@ async function signOut() {
           <span>{{ stop.sequenceNumber }}</span>
           <div>
             <strong>{{ stop.stationName }}</strong
-            ><small>Dự kiến đến {{ dateTime(stop.plannedArrivalAt) }}</small>
+            ><small v-if="detail.trip.dispatchMode === 'FIXED_SCHEDULE'">
+              Dự kiến đến {{ dateTime(stop.plannedArrivalAt) }}
+            </small>
+            <small v-else>
+              Sau {{ formatDuration(stop.arrivalOffsetSeconds) }} từ lúc khởi hành
+            </small>
           </div>
         </div>
       </div></SidePanel

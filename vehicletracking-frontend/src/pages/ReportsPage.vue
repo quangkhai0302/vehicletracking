@@ -129,14 +129,14 @@ const metrics = computed(() => {
         {
           label: 'Tỷ lệ đúng giờ',
           value: `${r.onTimeRatePercent.toLocaleString('vi-VN')}%`,
-          detail: 'Trong các chuyến đã hoàn thành',
+          detail: 'Trong các chuyến theo lịch cố định đã hoàn thành',
           icon: CheckCircle2,
           tone: 'green',
         },
         {
           label: 'Chuyến bị trễ',
           value: r.lateTripCount.toLocaleString('vi-VN'),
-          detail: 'Đã kết thúc trễ hoặc đang quá giờ',
+          detail: 'Chuyến theo lịch cố định đã trễ hoặc đang quá giờ',
           icon: AlertTriangle,
           tone: 'red',
         },

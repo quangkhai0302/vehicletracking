@@ -43,7 +43,6 @@ import {
   MapPin,
   PanelLeftClose,
   Play,
-  Radio,
   X,
 } from '@lucide/vue';
 import SimulatorPanel from '@/features/simulation/components/SimulatorPanel.vue';
@@ -127,10 +126,10 @@ const trafficMessage = computed(() =>
 );
 const connectionLabel = computed(() =>
   live.connection === 'live'
-    ? 'Đang cập nhật trực tiếp'
+    ? 'Đang cập nhật'
     : live.connection === 'connecting'
       ? 'Đang kết nối…'
-      : 'Mất kết nối · Đang thử lại',
+      : 'Đang thử kết nối…',
 );
 const { focusLocation, fitBounds, getVisibleCenter, releaseFocus } = useMapCamera(
   rootRef,
@@ -181,7 +180,9 @@ const contextVisible = computed(
     drawerOpen.value &&
     (workspace.value !== 'tracking' || selectedVehicleId.value !== null) &&
     !(pickingLocation.value && workspace.value === 'stations') &&
-    (!compact.value || activePanel.value === 'context'),
+    (!compact.value ||
+      activePanel.value === 'context' ||
+      (workspace.value === 'simulation' && activePanel.value === 'simulator')),
 );
 const unreadAlertCount = computed(() => {
   if (!live.snapshot) return null;
@@ -319,6 +320,15 @@ const selectedTrip = computed(
 const selectedRun = computed(() =>
   live.snapshot?.simulations.find((run) => run.tripId === selectedTripId.value),
 );
+const simulationDisabledReason = computed(() => {
+  if (!selectedTrip.value || selectedTrip.value.status !== 'SCHEDULED') return null;
+  if (!selectedTrip.value.driver) return 'Cần phân công tài xế cho chuyến trước khi bắt đầu mô phỏng.';
+  if (selectedVehicle.value?.source === 'GPS') return 'Xe đã có vị trí GPS nên không thể chạy mô phỏng.';
+  if (selectedRun.value && selectedRun.value.status !== 'PAUSED')
+    return 'Chuyến đã có phiên mô phỏng. Mở bảng mô phỏng để kiểm tra.';
+  if (live.connection !== 'live') return 'Đang kết nối dữ liệu trực tiếp. Vui lòng thử lại sau.';
+  return null;
+});
 const vehicleRoute = useSelectedVehicleRoute(
   selectedTripId,
   setToast,
@@ -370,7 +380,7 @@ const selectVehicleTrip = (vehicleId: number, tripId: number) => {
   drawerOpen.value = true;
   simulatorExpanded.value = true;
   sheetExpanded.value = true;
-  activePanel.value = 'context';
+  activePanel.value = workspace.value === 'simulation' ? 'simulator' : 'context';
 };
 watch(
   [() => props.initialTripId, () => live.snapshot, () => simulator.busy],
@@ -429,6 +439,12 @@ const openSimulation = (id: number) => {
     simulator.select(id);
   }
   selectMode('simulation');
+};
+const startSelectedSimulation = (id: number) => {
+  if (selectedTrip.value?.id !== id || selectedTrip.value.status !== 'SCHEDULED'
+    || simulationDisabledReason.value || simulator.busy) return;
+  openSimulation(id);
+  void simulator.command('play');
 };
 const selectSimulationVehicle = (tripId: number) => {
   if (simulator.busy) return;
@@ -768,6 +784,9 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
         <TrackingVehicleCard
           :trip="selectedTrip"
           :position="selectedVehicle"
+          :simulation-busy="simulator.busy"
+          :simulation-disabled-reason="simulationDisabledReason"
+          :on-start-simulation="startSelectedSimulation"
           :on-clear="clearVehicleSelection"
         />
       </div>
@@ -914,6 +933,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     >
       <button
         v-if="workspace === 'stations'"
+        aria-label="Danh sách trạm"
         :aria-pressed="drawerOpen"
         @click="
           drawerOpen = !drawerOpen;
@@ -925,17 +945,21 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
 
       <button
         v-if="workspace !== 'stations'"
+        aria-label="Theo dõi trực tiếp"
         :aria-pressed="workspace === 'tracking'"
         @click="
           selectMode('tracking');
           drawerOpen = false;
         "
       >
-        <BusFront :size="16" /><span>Theo dõi trực tiếp</span>
+        <BusFront :size="16" />
+        <span class="launcher-label-full">Theo dõi trực tiếp</span>
+        <span class="launcher-label-compact" aria-hidden="true">Theo dõi</span>
       </button>
 
       <button
         v-if="workspace !== 'stations'"
+        aria-label="Mô phỏng xe"
         :aria-pressed="workspace === 'simulation' && drawerOpen"
         @click="
           if (workspace === 'simulation' && drawerOpen) {
@@ -948,11 +972,14 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
           }
         "
       >
-        <Play :size="16" /><span>Mô phỏng xe</span>
+        <Play :size="16" />
+        <span class="launcher-label-full">Mô phỏng xe</span>
+        <span class="launcher-label-compact" aria-hidden="true">Mô phỏng</span>
       </button>
 
       <button
         class="panel-alert-launcher"
+        aria-label="Cảnh báo"
         :aria-pressed="alertsOpen"
         @click="openAlerts"
       >
@@ -964,10 +991,13 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       <span
         v-if="workspace === 'tracking' || workspace === 'simulation'"
         class="launcher-connection"
+        :data-connection="live.connection"
+        :aria-label="connectionLabel"
+        :title="connectionLabel"
+        role="status"
       >
         <span class="live-beacon-dot" aria-hidden="true" />
-        <Radio :size="13" />
-        <span>{{ connectionLabel }}</span>
+        <span class="launcher-connection-label">{{ connectionLabel }}</span>
       </span>
     </div>
     <div

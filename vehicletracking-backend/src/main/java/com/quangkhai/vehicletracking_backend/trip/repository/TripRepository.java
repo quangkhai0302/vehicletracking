@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface TripRepository extends JpaRepository<TripEntity, Long> {
-    @EntityGraph(attributePaths = {"route", "stops"})
+    @EntityGraph(attributePaths = {"route", "stops", "schedule"})
     @Query("""
             select distinct t from TripEntity t
             where t.scheduledDepartureAt >= :from
@@ -24,16 +24,16 @@ public interface TripRepository extends JpaRepository<TripEntity, Long> {
                                                    @Param("vehicleId") Long vehicleId,
                                                    @Param("driverId") Long driverId);
 
-    @EntityGraph(attributePaths = {"route", "stops"})
+    @EntityGraph(attributePaths = {"route", "stops", "schedule"})
     List<TripEntity> findAllByStatus(TripStatus status);
     long countByStatus(TripStatus status);
-    @EntityGraph(attributePaths = {"vehicle", "route", "driver"})
+    @EntityGraph(attributePaths = {"vehicle", "route", "driver", "schedule"})
     List<TripEntity> findAllByOrderByScheduledDepartureAtDescIdDesc();
-    @EntityGraph(attributePaths = {"vehicle", "route", "driver"})
+    @EntityGraph(attributePaths = {"vehicle", "route", "driver", "schedule"})
     List<TripEntity> findAllByVehicleIdOrderByScheduledDepartureAtDescIdDesc(long vehicleId);
-    @EntityGraph(attributePaths = {"vehicle", "route", "driver", "stops"})
+    @EntityGraph(attributePaths = {"vehicle", "route", "driver", "stops", "schedule"})
     List<TripEntity> findAllByDriverIdOrderByScheduledDepartureAtDescIdDesc(long driverId);
-    @EntityGraph(attributePaths = {"vehicle", "route", "driver", "stops"})
+    @EntityGraph(attributePaths = {"vehicle", "route", "driver", "stops", "schedule"})
     Optional<TripEntity> findByIdAndDriverId(long id, long driverId);
     boolean existsByVehicleIdAndStatusIn(long vehicleId, Collection<TripStatus> statuses);
     boolean existsByVehicleIdAndScheduledDepartureAtAndStatusIn(long vehicleId, Instant scheduledDepartureAt,
@@ -44,8 +44,6 @@ public interface TripRepository extends JpaRepository<TripEntity, Long> {
     boolean existsByDriverIdAndStatusAndIdNot(long driverId, TripStatus status, long id);
     @EntityGraph(attributePaths = {"route"})
     List<TripEntity> findAllByVehicleIdAndStatusIn(long vehicleId, Collection<TripStatus> statuses);
-    @EntityGraph(attributePaths = {"route"})
-    List<TripEntity> findAllByDriverIdAndStatusIn(long driverId, Collection<TripStatus> statuses);
     boolean existsByRouteId(long routeId);
     boolean existsByRouteIdAndStatusIn(long routeId, Collection<TripStatus> statuses);
     boolean existsByScheduleIdAndScheduleOccurrenceAt(Long scheduleId, Instant scheduleOccurrenceAt);

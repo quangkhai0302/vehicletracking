@@ -69,7 +69,7 @@ Không áp dụng giới hạn GPS 15 s/160 km/h vào Δwall clock của simulat
 Mỗi visit ghi các trường không thay đổi sau tạo:
 
 - `actualArrivalAt`: wall-clock của evidence; POINT bằng recordedAt của sample hiện tại. SEGMENT là thời điểm nội suy entry giữa recordedAt hai mẫu. ROUTE_TRACE là thời điểm wall-clock **suy ra** bằng tỉ lệ tiến độ simulatedAt trong khoảng hai mẫu, không dùng giờ nhận server làm actual arrival.
-- `simulatedArrivalAt`: null cho GPS; với SIMULATOR là giờ trong lịch giả lập tại điểm entry, gồm scheduledDepartureAt + elapsed tại entry. Có thể khác wall-clock nhiều; không hiển thị như giờ GPS thực.
+- `simulatedArrivalAt`: null cho GPS; với SIMULATOR là giờ trong lịch giả lập tại điểm entry, gồm `startedAt` của attempt hiện tại + elapsed tại entry. Trước khi attempt bắt đầu có thể dùng giờ kế hoạch để preview, nhưng telemetry/check-in của attempt đã chạy không neo vào lịch dự kiến cũ.
 - `detectedAt`: clock server khi quyết định được lưu, UTC microsecond. Không áp constraint actualArrivalAt≤detectedAt vì telemetry 006 cho clock skew tương lai tối đa 30 s (E01).
 - `evidenceKind`: POINT / SEGMENT / ROUTE_TRACE. POINT cũng chỉ chứng minh có mặt lúc đo, không bảo đảm thời điểm xe bắt đầu vào vùng. SEGMENT/ROUTE_TRACE bắt buộc UI ghi “Thời điểm suy ra”.
 - `fromSampleId`: null khi POINT; đầu khoảng khi SEGMENT/ROUTE_TRACE. `toSampleId`: mẫu hiện tại. `evidenceFraction`: 1 khi POINT, `[0,1]` cho SEGMENT, tỉ lệ thời gian giả lập toàn khoảng cho ROUTE_TRACE.
@@ -158,7 +158,7 @@ Revision theo trip bảo vệ race GET lịch sử/SSE: dùng read model revisio
 
 ## 6. UI contract
 
-- TripDetailPanel giữ timeline kế hoạch; thêm từng stop trạng thái **Đã ghi nhận / Chưa ghi nhận**, giờ ghi nhận, nguồn và nhãn suy ra. GPS hiển thị actualArrivalAt; SIMULATOR ưu tiên simulatedArrivalAt với nhãn **Giờ GIẢ LẬP**, có wall-clock ghi nhận riêng trong phần chi tiết. Hiển thị ngày và giờ địa phương, xử lý qua ngày.
+- TripDetailPanel giữ timeline kế hoạch; thêm từng stop trạng thái **Đã ghi nhận / Chưa ghi nhận**, giờ ghi nhận, nguồn và nhãn suy ra. `actualArrivalAt` là giờ nghiệp vụ hiển thị chính cho cả GPS và SIMULATOR; SIMULATOR hiển thị thêm `simulatedArrivalAt` với nhãn **Giờ mô phỏng**. Hiển thị ngày và giờ địa phương, xử lý qua ngày.
 - Đặt giải thích ngắn: “Ghi nhận đi qua vùng trạm, không xác nhận dừng đón/trả khách”. Không đổi chữ Rời kế hoạch thành actual departure.
 - Tải check-in riêng với AbortController khi chọn trip; baseline/detail vẫn xem được nếu GET check-ins lỗi. Chưa tải xong hiển thị Đang tải ghi nhận; lỗi có Tải lại; giữ dữ liệu đã có khi stream reconnect và gắn nhãn chưa cập nhật. Revision=0: “Chưa có dữ liệu check-in cho chuyến này”. Visits rỗng không phải lỗi.
 - Target chờ ra ngoài hiển thị “Chờ ra khỏi vùng rồi vào lại”; target bị mất bằng chứng chỉ “Chưa ghi nhận”, không tuyên bố đã bỏ trạm hoặc tự đổi lịch.

@@ -7,7 +7,6 @@ import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import com.quangkhai.vehicletracking_backend.trip.event.TripStartedEvent;
 import com.quangkhai.vehicletracking_backend.checkin.repository.TripStopVisitRepository;
-import com.quangkhai.vehicletracking_backend.config.TripLifecycleProperties;
 import com.quangkhai.vehicletracking_backend.schedule.entity.TripScheduleEntity;
 import com.quangkhai.vehicletracking_backend.schedule.repository.TripScheduleRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
@@ -37,7 +36,6 @@ public class TripService {
     private final RouteRepository routes;
     private final TripScheduleRepository schedules;
     private final TripStopVisitRepository visits;
-    private final TripLifecycleProperties lifecycle;
     private final Clock operationsClock;
     private final ApplicationEventPublisher events;
 
@@ -53,7 +51,7 @@ public class TripService {
     }
     @Transactional
     public TripDetailResponse create(TripCreateRequest input) {
-        return createInternal(input.vehicleId(), input.routeId(), input.driverId(), input.scheduledDepartureAt(), null, null);
+        return createInternal(input.vehicleId(), input.routeId(), input.driverId(), clockNow(), null, null);
     }
     /** Creates a trip occurrence while preserving the same resource and route checks as manual creation. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -79,8 +77,10 @@ public class TripService {
         if (route.getStops().size() < 2) throw new ResponseStatusException(CONFLICT, "Tuyến chưa có đủ điểm dừng.");
         if (route.getStops().stream().anyMatch(stop -> !stop.getStation().isActive()))
             throw new ResponseStatusException(CONFLICT, "Tuyến có trạm đã ngừng sử dụng. Hãy tạo tuyến khác từ các trạm đang hoạt động.");
-        ensureNoResourceConflict(vehicleId, driver == null ? null : driver.getId(), departure,
-                route.getEstimatedTripDurationSeconds(), null);
+        if (schedule != null) {
+            ensureNoFixedScheduleConflict(vehicleId, departure,
+                    route.getEstimatedTripDurationSeconds(), null);
+        }
         var detail = RouteDetailResponse.from(route);
         TripEntity trip = new TripEntity(vehicle, route, departure, driver, schedule, occurrenceAt == null ? null : occurrenceAt.truncatedTo(ChronoUnit.MICROS));
         try {
@@ -93,22 +93,6 @@ public class TripService {
             throw new ResponseStatusException(BAD_REQUEST, "Thời gian lịch trình vượt phạm vi hỗ trợ.");
         }
         return TripDetailResponse.from(trips.saveAndFlush(trip));
-    }
-    @Transactional
-    public TripDetailResponse update(long id, TripUpdateRequest input) {
-        TripEntity trip = trips.findLockedById(id).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy chuyến đi."));
-        if (trip.getStatus() != TripStatus.SCHEDULED)
-            throw new ResponseStatusException(CONFLICT, "Chỉ có thể sửa lịch chuyến chưa khởi hành.");
-        Instant departure = input.scheduledDepartureAt().truncatedTo(ChronoUnit.MICROS);
-        validateDeparture(departure);
-        VehicleEntity vehicle = lockVehicle(trip.getVehicle().getId());
-        requireActive(vehicle);
-        DriverEntity driver = trip.getDriver() == null ? null : lockDriver(trip.getDriver().getId());
-        if (driver != null) requireActive(driver);
-        ensureNoResourceConflict(vehicle.getId(), driver == null ? null : driver.getId(), departure,
-                trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId());
-        trip.reschedule(departure);
-        return TripDetailResponse.from(trip);
     }
     @Transactional
     public void delete(long id) {
@@ -129,8 +113,6 @@ public class TripService {
         requireActive(vehicle);
         DriverEntity driver = lockDriver(driverId);
         requireActive(driver);
-        ensureNoResourceConflict(vehicle.getId(), driver.getId(), trip.getScheduledDepartureAt(),
-                trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId());
         trip.assignDriver(driver);
         return flushAssignment(trip);
     }
@@ -176,9 +158,6 @@ public class TripService {
                     throw new ResponseStatusException(CONFLICT, "Tài xế đang chạy một chuyến khác.");
                 if (trips.existsByVehicleIdAndStatusIn(vehicle.getId(), List.of(TripStatus.IN_PROGRESS)))
                     throw new ResponseStatusException(CONFLICT, "Xe đang chạy một chuyến khác.");
-                ensureNoResourceConflict(vehicle.getId(), driver.getId(), trip.getScheduledDepartureAt(),
-                        trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId());
-                ensureStartWindow(trip.getScheduledDepartureAt(), now);
                 trip.start(now);
             }
             case COMPLETED -> {
@@ -246,28 +225,15 @@ public class TripService {
             throw new ResponseStatusException(BAD_REQUEST, "Giờ xuất phát phải nằm trong năm 2000–2100.");
     }
 
-    private void ensureStartWindow(Instant scheduledDeparture, Instant now) {
-        if (lifecycle == null) return;
-        Instant earliest = scheduledDeparture.minusSeconds(lifecycle.getEarlyStartWindowSeconds());
-        Instant latest = scheduledDeparture.plusSeconds(lifecycle.getLateStartWindowSeconds());
-        if (now.isBefore(earliest) || now.isAfter(latest))
-            throw new ResponseStatusException(CONFLICT, "Ngoài khung giờ khởi hành cho phép của chuyến.");
-    }
-
-    private void ensureNoResourceConflict(long vehicleId, Long driverId, Instant departure,
-                                           long durationSeconds, Long exceptTripId) {
+    private void ensureNoFixedScheduleConflict(long vehicleId, Instant departure,
+                                               long durationSeconds, Long exceptTripId) {
         Instant end = departure.plusSeconds(Math.max(0, durationSeconds));
         List<TripStatus> activeStatuses = List.of(TripStatus.SCHEDULED, TripStatus.IN_PROGRESS);
         for (TripEntity other : trips.findAllByVehicleIdAndStatusIn(vehicleId, activeStatuses)) {
             if (exceptTripId != null && exceptTripId.equals(other.getId())) continue;
+            if (other.getSchedule() == null) continue;
             if (overlaps(other, departure, end))
-                throw new ResponseStatusException(CONFLICT, "Xe đã có chuyến bị chồng thời gian dự kiến.");
-        }
-        if (driverId == null) return;
-        for (TripEntity other : trips.findAllByDriverIdAndStatusIn(driverId, activeStatuses)) {
-            if (exceptTripId != null && exceptTripId.equals(other.getId())) continue;
-            if (overlaps(other, departure, end))
-                throw new ResponseStatusException(CONFLICT, "Tài xế đã có chuyến bị chồng thời gian dự kiến.");
+                throw new ResponseStatusException(CONFLICT, "Xe đã có lịch chạy cố định bị chồng thời gian.");
         }
     }
 

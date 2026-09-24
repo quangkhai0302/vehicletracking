@@ -336,8 +336,8 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
     return () => {
       retryTimers.forEach(timer => clearTimeout(timer));
       clearTimeoutCheck();
-      newTileLayer.off();
       if (map.hasLayer(newTileLayer)) map.removeLayer(newTileLayer);
+      newTileLayer.off();
       if (tileLayer === newTileLayer) {
         tileLayer = null;
       }

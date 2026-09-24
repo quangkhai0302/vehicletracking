@@ -9,7 +9,11 @@ import {
   type TripSummary,
 } from '@/features/fleet/types/fleet';
 import type { FleetTab } from '@/features/fleet/composables/useFleetWorkspace';
-import { displayTripTime } from '@/features/fleet/utils/tripTime';
+import {
+  displayTripTime,
+  tripDispatchLabel,
+  tripReferenceTime,
+} from '@/features/fleet/utils/tripTime';
 const props = defineProps<{
   tab: FleetTab;
   vehicles: FleetVehicle[];
@@ -35,7 +39,7 @@ const headers = computed(() =>
     ? ['Phương tiện', 'Loại xe', 'Tài xế phụ trách', 'Trạng thái', 'Thao tác']
     : props.tab === 'drivers'
       ? ['Tài xế', 'Giấy phép lái xe', 'Phương tiện', 'Trạng thái', 'Thao tác']
-      : ['Chuyến đi / Tuyến', 'Phân công', 'Khởi hành', 'Trạng thái', 'Thao tác'],
+      : ['Chuyến đi / Tuyến', 'Phân công', 'Hình thức / thời gian', 'Trạng thái', 'Thao tác'],
 );
 const assignedVehicle = (id: number) =>
   props.allVehicles.find((vehicle) => vehicle.active && vehicle.driver?.id === id);
@@ -201,10 +205,13 @@ const assignedVehicle = (id: number) =>
                 ><small>{{ trip.driver?.fullName ?? 'Chưa gán tài xế' }}</small>
               </div>
             </td>
-            <td data-label="Khởi hành">
-              <time :datetime="trip.scheduledDepartureAt">{{
-                displayTripTime(trip.scheduledDepartureAt)
-              }}</time>
+            <td data-label="Hình thức / thời gian">
+              <div class="management-stacked">
+                <strong>{{ tripDispatchLabel(trip) }}</strong>
+                <time :datetime="tripReferenceTime(trip)">{{
+                  displayTripTime(tripReferenceTime(trip))
+                }}</time>
+              </div>
             </td>
             <td data-label="Trạng thái">
               <span :class="`business-status ${trip.status.toLowerCase()}`"

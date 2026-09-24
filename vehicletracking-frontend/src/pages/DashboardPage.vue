@@ -17,7 +17,11 @@ import { fetchTrips } from '@/features/fleet/api/fleet';
 import { fetchDashboardSummary } from '@/features/reports/api/dashboard';
 import { TRIP_STATUS_LABELS, type TripSummary } from '@/features/fleet/types/fleet';
 import type { DashboardSummary } from '@/features/reports/types/dashboard';
-import { displayTripTime } from '@/features/fleet/utils/tripTime';
+import {
+  displayTripTime,
+  tripDispatchLabel,
+  tripReferenceTime,
+} from '@/features/fleet/utils/tripTime';
 import PageHeading from '@/shared/components/PageHeading.vue';
 import '@/features/reports/styles/business-pages.css';
 const data = shallowRef<{ summary: DashboardSummary; trips: TripSummary[] } | null>(null);
@@ -58,13 +62,13 @@ watch(
 const recentTrips = computed(() =>
   [...(data.value?.trips ?? [])]
     .sort(
-      (a, b) =>
-        Date.parse(b.scheduledDepartureAt) - Date.parse(a.scheduledDepartureAt) || b.id - a.id,
+      (a, b) => Date.parse(tripReferenceTime(b)) - Date.parse(tripReferenceTime(a)) || b.id - a.id,
     )
     .slice(0, 6),
 );
 function isOverdue(trip: TripSummary) {
   return (
+    trip.dispatchMode === 'FIXED_SCHEDULE' &&
     trip.status === 'IN_PROGRESS' &&
     Date.parse(trip.plannedEndAt) <
       Date.parse(data.value?.summary.serverTime ?? new Date().toISOString())
@@ -114,7 +118,7 @@ const metricCards = computed(() => [
   {
     label: 'Chuyến đang trễ',
     value: data.value?.summary.overdueTrips,
-    detail: 'Đang chạy quá giờ dự kiến',
+    detail: 'Lịch cố định đang chạy quá giờ kế hoạch',
     icon: Clock3,
     tone: 'red',
   },
@@ -236,7 +240,9 @@ const metricCards = computed(() => [
                 >{{ trip.vehiclePlateNumber }} ·
                 {{ trip.driver?.fullName ?? 'Chưa gán tài xế' }}</small
               ></span
-            ><time>{{ displayTripTime(trip.scheduledDepartureAt) }}</time
+            ><time :title="tripDispatchLabel(trip)">{{
+              displayTripTime(tripReferenceTime(trip))
+            }}</time
             ><span :class="`dashboard-status ${trip.status.toLowerCase()}`">{{
               isOverdue(trip) ? 'Đang trễ' : TRIP_STATUS_LABELS[trip.status]
             }}</span></RouterLink

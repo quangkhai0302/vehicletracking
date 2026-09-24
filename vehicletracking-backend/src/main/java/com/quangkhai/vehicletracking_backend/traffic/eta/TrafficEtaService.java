@@ -236,7 +236,7 @@ public class TrafficEtaService {
             if (sample.getSource() == com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR
                     && trip.getId().equals(sample.getTripId()) && sample.getAttemptNumber() == trip.getAttemptNumber()
                     && sample.getSimulatedAt() != null) {
-                double elapsed = java.time.Duration.between(trip.getScheduledDepartureAt(), sample.getSimulatedAt()).toNanos() / 1_000_000_000d;
+                double elapsed = java.time.Duration.between(trip.simulationOriginAt(), sample.getSimulatedAt()).toNanos() / 1_000_000_000d;
                 var frame = geometry.resolve(trip).motion().at(elapsed);
                 if (frame.dwelling() || frame.finished()) return 1d;
                 // Check-in at the edge of a station must not switch the speed

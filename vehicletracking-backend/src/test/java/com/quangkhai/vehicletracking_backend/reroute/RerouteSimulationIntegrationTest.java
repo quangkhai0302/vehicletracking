@@ -90,7 +90,7 @@ class RerouteSimulationIntegrationTest {
                 "Tài xế " + key,
                 String.format("06%08d", id),
                 "RT-B2-" + key));
-        return trips.create(new TripCreateRequest(vehicle.getId(), route.getId(), time.get(), driver.getId()));
+        return trips.create(new TripCreateRequest(vehicle.getId(), route.getId(), driver.getId()));
     }
 
     @Test void firstLiveEvaluationPersistsSharedPrimaryKeyAndUpdatesExistingCheckpoint() {

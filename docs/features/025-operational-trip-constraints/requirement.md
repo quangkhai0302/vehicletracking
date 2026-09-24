@@ -1,6 +1,6 @@
 # Requirement 025 — Ràng buộc vận hành chuyến
 
-Trạng thái: **Implemented** — kiểm tra non-Docker đạt ngày 2026-09-21; PostgreSQL integration cần Docker.
+Trạng thái: **Verified** — toàn bộ backend test, gồm PostgreSQL/Testcontainers, đạt ngày 2026-09-24.
 
 ## Bối cảnh
 
@@ -9,8 +9,9 @@ Hệ thống đã có lifecycle chuyến, phân công xe/tài xế, check-in và
 ## Phạm vi MVP
 
 - Bắt buộc chuyến có tài xế active trước khi khởi hành.
-- Chặn khởi hành ngoài cửa sổ thời gian cấu hình.
-- Chặn xung đột xe/tài xế theo khoảng thời gian dự kiến, không chỉ cùng giờ xuất phát.
+- Giờ xuất phát dự kiến dùng để lập kế hoạch; không chặn khởi hành chỉ vì lệch giờ dự kiến.
+- Chặn xung đột xe theo khoảng thời gian dự kiến, không chỉ cùng giờ xuất phát.
+- Cho phép một tài xế được phân công vào nhiều chuyến, kể cả lịch dự kiến giao nhau; chỉ chặn bắt đầu chuyến khi tài xế đang chạy một chuyến khác.
 - Chỉ hoàn thành chuyến sau khi đã check-in trạm cuối; giữ một đường override rõ ràng cho quản trị viên ở giai đoạn sau, chưa mở trong MVP.
 - Hủy chuyến phải có lý do; lưu lý do trong trip snapshot/lịch sử hiện có.
 - UI disable/nêu lý do tại thao tác khởi hành, hoàn thành và hủy; backend vẫn là nguồn quyết định cuối cùng.
@@ -25,8 +26,9 @@ Hệ thống đã có lifecycle chuyến, phân công xe/tài xế, check-in và
 ## Acceptance criteria
 
 - AC-01: `POST /trips/{id}/start` trả `409` nếu chuyến chưa có tài xế hoặc tài xế/xe đã inactive.
-- AC-02: Start chỉ thành công trong cửa sổ từ `scheduledDepartureAt - earlyWindow` đến `scheduledDepartureAt + lateWindow`; ngoài cửa sổ trả lỗi có mã nghiệp vụ.
-- AC-03: Tạo/cập nhật chuyến và sinh chuyến tự động không cho xe hoặc tài xế có các chuyến `SCHEDULED/IN_PROGRESS` bị chồng khoảng thời gian dự kiến.
+- AC-02 (điều chỉnh 2026-09-24): Start không phụ thuộc khoảng cách giữa thời điểm hiện tại và `scheduledDepartureAt`; các điều kiện tài xế, xe và xung đột chuyến vẫn áp dụng.
+- AC-03 (điều chỉnh 2026-09-24): Tạo/cập nhật chuyến và sinh chuyến tự động vẫn chặn khoảng thời gian dự kiến bị chồng của cùng xe, nhưng không chặn vì một tài xế đã được phân công vào chuyến khác.
+- AC-03a: Khi bắt đầu chuyến hoặc bắt đầu giả lập, backend trả `409` nếu tài xế đang có một chuyến khác ở trạng thái `IN_PROGRESS`; các chuyến khác còn `SCHEDULED` không gây lỗi.
 - AC-04: `POST /trips/{id}/complete` trả `409` nếu chưa ghi nhận trạm cuối của attempt hiện tại.
 - AC-05: `POST /trips/{id}/cancel` yêu cầu lý do không trống và lưu được lý do; hủy idempotent giữ nguyên lý do ban đầu.
 - AC-06: Frontend hiển thị tài xế bắt buộc, trạng thái readiness, lỗi xung đột, điều kiện hoàn thành và textarea lý do hủy.
@@ -36,4 +38,5 @@ Hệ thống đã có lifecycle chuyến, phân công xe/tài xế, check-in và
 
 - `trip.driver_id` là phân công thực tế của chuyến; `vehicle.driver_id` chỉ là phân công hiện tại/mặc định của xe.
 - Khoảng bận dự kiến dùng `scheduledDepartureAt` đến `scheduledDepartureAt + route.estimatedTripDurationSeconds`; không cộng buffer trong MVP.
-- Cửa sổ start mặc định: sớm 30 phút, trễ 120 phút; cấu hình qua `trip.lifecycle.*`.
+- Khoảng bận dự kiến chỉ giữ độc quyền cho xe. Tài xế được lập kế hoạch cho nhiều chuyến; độc quyền tài xế chỉ áp dụng ở trạng thái đang chạy.
+- Không áp dụng cửa sổ giờ cho thao tác khởi hành chuyến hoặc bắt đầu mô phỏng.

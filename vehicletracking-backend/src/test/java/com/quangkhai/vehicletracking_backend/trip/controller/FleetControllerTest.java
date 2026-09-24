@@ -53,23 +53,27 @@ class FleetControllerTest {
                 .content("{\"plateNumber\":\"59X1-99999\",\"name\":\"Sai loại\",\"vehicleType\":\"AIRPLANE\"}"))
                 .andExpect(status().isBadRequest());
     }
-    @Test void tripRequiresPositiveIdsAndTimestamp() throws Exception {
+    @Test void tripRequiresPositiveVehicleAndRouteIds() throws Exception {
         mvc.perform(post("/api/v1/trips").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"vehicleId\":0,\"routeId\":-2}")).andExpect(status().isBadRequest());
-        mvc.perform(post("/api/v1/trips").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"vehicleId\":1,\"routeId\":2,\"scheduledDepartureAt\":\"invalid\"}")).andExpect(status().isBadRequest());
         verifyNoInteractions(trips);
     }
-    @Test void tripCreation_parsesOffsetAndReturnsLocation() throws Exception {
+    @Test void onDemandTripCreationDoesNotRequireDepartureTimeAndReturnsLocation() throws Exception {
         var schedule = Instant.parse("2026-09-14T01:00:00Z");
         var summary = new TripSummaryResponse(5L, 4L, "51B12345", 2L, "Tuyến A",
                 TripStatus.SCHEDULED, schedule, schedule.plusSeconds(600), null, null, Instant.now());
         when(trips.create(any())).thenReturn(new TripDetailResponse(summary, List.of(), null));
         mvc.perform(post("/api/v1/trips").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"vehicleId\":4,\"routeId\":2,\"scheduledDepartureAt\":\"2026-09-14T08:00:00+07:00\"}"))
+                .content("{\"vehicleId\":4,\"routeId\":2,\"driverId\":7}"))
                 .andExpect(status().isCreated()).andExpect(header().string("Location", "/api/v1/trips/5"))
-                .andExpect(jsonPath("$.trip.status").value("SCHEDULED"));
-        verify(trips).create(new TripCreateRequest(4L, 2L, schedule));
+                .andExpect(jsonPath("$.trip.status").value("SCHEDULED"))
+                .andExpect(jsonPath("$.trip.dispatchMode").value("ON_DEMAND"));
+        verify(trips).create(new TripCreateRequest(4L, 2L, 7L));
+    }
+    @Test void tripDepartureCannotBeEditedDirectly() throws Exception {
+        mvc.perform(put("/api/v1/trips/5").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"scheduledDepartureAt\":\"2026-09-14T08:00:00Z\"}"))
+                .andExpect(status().isMethodNotAllowed());
     }
     @Test void listTripsPassesVehicleFilter() throws Exception {
         when(trips.findAll(4L)).thenReturn(List.of());

@@ -13,6 +13,12 @@ const initialVehicleFilter = computed(() => {
   );
   return props.tab === 'trips' && Number.isInteger(value) && value > 0 ? value : null;
 });
+const initialRouteId = computed(() => {
+  const raw = Array.isArray(route.query.routeId) ? route.query.routeId[0] : route.query.routeId;
+  const value = Number(raw);
+  return raw && Number.isSafeInteger(value) && value > 0 ? value : null;
+});
+const openTripFromRoute = computed(() => route.query.create === '1' && initialRouteId.value !== null);
 watch(toast, (value, _old, cleanup) => {
   if (!value) return;
   const timer = window.setTimeout(() => {
@@ -23,6 +29,9 @@ watch(toast, (value, _old, cleanup) => {
 const operations = () => {
   void router.push('/operations');
 };
+const simulateTrip = (tripId: number) => {
+  void router.push({ path: '/operations', query: { mode: 'simulation', tripId: String(tripId) } });
+};
 </script>
 <template>
   <div class="business-page">
@@ -30,6 +39,9 @@ const operations = () => {
       <FleetWorkspace
         :initial-tab="tab"
         :initial-vehicle-filter="initialVehicleFilter"
+        :initial-route-id="initialRouteId"
+        :open-trip-from-route="openTripFromRoute"
+        :on-exit-route-prefill="() => router.replace('/trips')"
         :locked-tab="tab"
         :on-toast="(message) => (toast = message)"
         :on-focus-stop="operations"
@@ -43,7 +55,8 @@ const operations = () => {
             void router.push('/stations');
           }
         "
-        :on-simulate-trip="operations"
+        :on-simulate-trip="simulateTrip"
+        :on-view-route="(routeId) => router.push({ path: '/routes', query: { routeId: String(routeId) } })"
         :on-focus-vehicle="operations"
         :on-view-vehicle-trips="
           (vehicleId) => {

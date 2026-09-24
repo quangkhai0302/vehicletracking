@@ -12,8 +12,18 @@ Ngày kiểm tra: 2026-09-15. Working tree chưa commit; không thay đổi ho�
 | AC4 — realtime/ETA không dùng dữ liệu cũ | `OperationsSnapshotService`, `TrafficEtaService`, `RerouteEvaluationService` kiểm tra attempt hiện hành | Integration test snapshot rỗng ngay sau reset, rồi chỉ trả sample attempt 2 |
 | AC5 — validation trước khi ghi | `SimulationService.reset` | Unit test từ chối GPS, xe inactive, chuyến khác IN_PROGRESS; integration test xác nhận không tạo archive dở |
 
+## Bugfix 2026-09-24 — làm mới thời gian khi chạy lại
+
+- `TripEntity.simulationOriginAt()` tách mốc thực thi khỏi `scheduledDepartureAt`; simulator, check-in, ETA section và reroute cùng tính elapsed từ mốc này.
+- Reset lặp ở trạng thái `SCHEDULED/PAUSED/0` giữ nguyên attempt và archive nhưng cập nhật lại mốc giờ hiện tại.
+- `OperationsIntegrationTest` kiểm tra chuyến bắt đầu muộn nhiều ngày vẫn tạo telemetry/check-in theo giờ bắt đầu thực tế và replay đã để qua ba ngày được rebase trước khi chạy.
+- `TripDetailPanel.vue` hiển thị `actualArrivalAt` làm giờ nghiệp vụ, đồng thời giữ `simulatedArrivalAt` dưới nhãn riêng **Giờ mô phỏng**.
+
 ## Lệnh và kết quả
 
+- Bugfix làm mới thời gian, JDK 26 + Docker/PostgreSQL 17: `./mvnw -q test` — exit 0, 302 test, 0 failure, 0 error, 0 skipped.
+- Hai ca tích hợp hồi quy trọng tâm: `./mvnw -q -Dtest='OperationsIntegrationTest#simulatorStartsTripLongAfterPlannedDeparture+resetRetainsHistoryAndIsIdempotent' test` — exit 0, 2 test.
+- Frontend Node 24: `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:motion`, `npm run build` — tất cả exit 0; 97 unit test và 1 motion test đã qua.
 - Backend full suite, JDK 26 + Mockito javaagent + Docker/PostgreSQL 17: `./mvnw test -q -Dlogging.level.root=WARN` — exit 0, 194 test, 0 failure, 0 error, 0 skipped.
 - Riêng integration mục tiêu: `OperationsIntegrationTest` 13/13 và `OperationsHttpIntegrationTest` 2/2. Flyway V1–V9 chạy trên database Testcontainers; Hibernate `ddl-auto=validate` khởi động thành công.
 - Backend compile gồm test source: `./mvnw test -DskipTests -q` — exit 0.

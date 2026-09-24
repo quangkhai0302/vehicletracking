@@ -4,6 +4,7 @@ import com.quangkhai.vehicletracking_backend.config.ReportingProperties;
 import com.quangkhai.vehicletracking_backend.reporting.service.OperationalReportService;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
+import com.quangkhai.vehicletracking_backend.schedule.entity.TripScheduleEntity;
 import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySampleEntity;
 import com.quangkhai.vehicletracking_backend.telemetry.repository.TelemetryRepository;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
@@ -86,6 +87,7 @@ class OperationalReportServiceTest {
         when(trip.getId()).thenReturn(9L);
         when(trip.getRoute()).thenReturn(route);
         when(trip.getStatus()).thenReturn(TripStatus.COMPLETED);
+        when(trip.getSchedule()).thenReturn(org.mockito.Mockito.mock(TripScheduleEntity.class));
         when(trip.getStartedAt()).thenReturn(Instant.parse("2026-09-21T08:00:00Z"));
         when(trip.getEndedAt()).thenReturn(Instant.parse("2026-09-21T08:30:00Z"));
         when(trip.getScheduledDepartureAt()).thenReturn(Instant.parse("2026-09-21T08:00:00Z"));
@@ -99,6 +101,32 @@ class OperationalReportServiceTest {
         var result = service.operations(LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 21), null, null);
 
         assertThat(result.onTimeRatePercent()).isEqualTo(100d);
+        assertThat(result.lateTripCount()).isZero();
+    }
+
+    @Test
+    void excludesOnDemandTripsFromPunctualityAndLateMetrics() {
+        ReportingProperties properties = new ReportingProperties();
+        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock);
+        Instant now = Instant.parse("2026-09-21T12:00:00Z");
+        Instant from = Instant.parse("2026-09-21T00:00:00Z");
+        Instant toExclusive = Instant.parse("2026-09-22T00:00:00Z");
+        TripEntity onDemandTrip = org.mockito.Mockito.mock(TripEntity.class);
+        when(clock.instant()).thenReturn(now);
+        when(route.getTotalDistanceMeters()).thenReturn(10_000L);
+        when(onDemandTrip.getId()).thenReturn(10L);
+        when(onDemandTrip.getRoute()).thenReturn(route);
+        when(onDemandTrip.getStatus()).thenReturn(TripStatus.COMPLETED);
+        when(onDemandTrip.getStartedAt()).thenReturn(Instant.parse("2026-09-21T08:00:00Z"));
+        when(onDemandTrip.getEndedAt()).thenReturn(Instant.parse("2026-09-21T10:00:00Z"));
+        when(trips.findAllForOperationalReport(from, toExclusive, null, null)).thenReturn(List.of(onDemandTrip));
+
+        var result = service.operations(LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 21), null, null);
+
+        assertThat(result.tripCount()).isEqualTo(1);
+        assertThat(result.completedTripCount()).isEqualTo(1);
+        assertThat(result.totalRunningSeconds()).isEqualTo(7_200);
+        assertThat(result.onTimeRatePercent()).isZero();
         assertThat(result.lateTripCount()).isZero();
     }
 
@@ -145,6 +173,7 @@ class OperationalReportServiceTest {
         when(trip.getId()).thenReturn(id);
         when(trip.getRoute()).thenReturn(route);
         when(trip.getStatus()).thenReturn(status);
+        when(trip.getSchedule()).thenReturn(org.mockito.Mockito.mock(TripScheduleEntity.class));
         when(trip.getStartedAt()).thenReturn(Instant.parse(started));
         when(trip.getEndedAt()).thenReturn(ended == null ? null : Instant.parse(ended));
         when(trip.getScheduledDepartureAt()).thenReturn(Instant.parse(departure));

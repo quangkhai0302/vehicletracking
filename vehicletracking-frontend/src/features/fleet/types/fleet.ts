@@ -5,7 +5,8 @@ export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
   CAR: 'Ô tô',
   MOTORCYCLE: 'Xe máy',
 };
-export const vehicleTypeLabel = (type: VehicleType | undefined) => VEHICLE_TYPE_LABELS[type ?? 'CAR'];
+export const vehicleTypeLabel = (type: VehicleType | undefined) =>
+  VEHICLE_TYPE_LABELS[type ?? 'CAR'];
 export interface DriverSummary {
   id: number;
   fullName: string;
@@ -17,7 +18,11 @@ export interface Driver extends DriverSummary {
   createdAt: string;
   updatedAt: string;
 }
-export interface DriverInput { fullName: string; phoneNumber: string; licenseNumber: string }
+export interface DriverInput {
+  fullName: string;
+  phoneNumber: string;
+  licenseNumber: string;
+}
 export interface FleetVehicle {
   id: number;
   plateNumber: string;
@@ -29,25 +34,62 @@ export interface FleetVehicle {
   updatedAt: string;
   driver?: DriverSummary | null;
 }
-export interface VehicleInput { plateNumber: string; name: string; description: string | null; vehicleType: VehicleType; driverId: number | null }
+export interface VehicleInput {
+  plateNumber: string;
+  name: string;
+  description: string | null;
+  vehicleType: VehicleType;
+  driverId: number | null;
+}
 export type TripStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 export type TripAction = 'start' | 'complete' | 'cancel';
-export interface TripInput { vehicleId: number; routeId: number; scheduledDepartureAt: string; driverId: number | null }
-export interface TripUpdateInput { scheduledDepartureAt: string }
+export type TripDispatchMode = 'ON_DEMAND' | 'FIXED_SCHEDULE';
+export interface TripInput {
+  vehicleId: number;
+  routeId: number;
+  driverId: number | null;
+}
 export interface TripSummary {
   attemptNumber?: number;
-  id: number; vehicleId: number; vehiclePlateNumber: string; vehicleType: VehicleType; routeId: number; routeName: string;
-  status: TripStatus; scheduledDepartureAt: string; plannedEndAt: string;
-  startedAt: string | null; endedAt: string | null; createdAt: string; cancellationReason?: string | null;
+  id: number;
+  vehicleId: number;
+  vehiclePlateNumber: string;
+  vehicleType: VehicleType;
+  routeId: number;
+  routeName: string;
+  status: TripStatus;
+  scheduledDepartureAt: string;
+  plannedEndAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+  cancellationReason?: string | null;
+  dispatchMode: TripDispatchMode;
+  scheduleId: number | null;
+  scheduleName: string | null;
   driver?: DriverSummary | null;
 }
 export interface TripStop {
-  sequenceNumber: number; stationId: number; stationName: string;
-  latitude: number; longitude: number; checkinRadiusMeters: number; dwellDurationSeconds: number;
-  arrivalOffsetSeconds: number; departureOffsetSeconds: number;
-  plannedArrivalAt: string; plannedDepartureAt: string;
+  sequenceNumber: number;
+  stationId: number;
+  stationName: string;
+  latitude: number;
+  longitude: number;
+  checkinRadiusMeters: number;
+  dwellDurationSeconds: number;
+  arrivalOffsetSeconds: number;
+  departureOffsetSeconds: number;
+  plannedArrivalAt: string;
+  plannedDepartureAt: string;
 }
-export interface TripDetail { trip: TripSummary; stops: TripStop[]; route: RouteDetail }
+export interface TripDetail {
+  trip: TripSummary;
+  stops: TripStop[];
+  route: RouteDetail;
+}
 export const TRIP_STATUS_LABELS: Record<TripStatus, string> = {
-  SCHEDULED: 'Chờ khởi hành', IN_PROGRESS: 'Đang thực hiện', COMPLETED: 'Hoàn thành', CANCELLED: 'Đã hủy',
+  SCHEDULED: 'Chờ khởi hành',
+  IN_PROGRESS: 'Đang thực hiện',
+  COMPLETED: 'Hoàn thành',
+  CANCELLED: 'Đã hủy',
 };

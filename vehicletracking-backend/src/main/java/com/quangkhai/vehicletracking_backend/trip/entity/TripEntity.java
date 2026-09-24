@@ -84,11 +84,19 @@ public class TripEntity {
     public void replay(Instant departure) {
         attemptNumber = Math.incrementExact(attemptNumber);
         status = TripStatus.SCHEDULED; startedAt = null; endedAt = null; cancellationReason = null;
-        reschedule(departure);
+        if (schedule == null) reschedule(departure);
     }
     public void reschedule(Instant departure) {
         scheduledDepartureAt = departure;
         stops.forEach(stop -> stop.reschedule(departure));
+    }
+    /**
+     * The virtual clock belongs to the current execution attempt, not to the
+     * planning timestamp. Before an attempt starts, the planned timestamp is
+     * the only available preview anchor.
+     */
+    public Instant simulationOriginAt() {
+        return startedAt == null ? scheduledDepartureAt : startedAt;
     }
     public void assignDriver(DriverEntity driver) {
         this.driver = driver;

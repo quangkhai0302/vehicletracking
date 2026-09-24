@@ -2,7 +2,7 @@
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import { BookOpen, LogOut, Menu, Navigation, PanelLeftClose, PanelLeftOpen } from '@lucide/vue';
 import { RouterLink, RouterView, useRoute } from 'vue-router';
-import { findRoute, navigationGroups } from '../navigation';
+import { findRoute, matchesNavigationItem, navigationGroups, type NavigationItem } from '../navigation';
 import { useAuth } from '@/features/auth/composables/useAuth';
 import './application-shell.css';
 const location = useRoute(),
@@ -53,7 +53,7 @@ watch(
   { flush: 'post' },
 );
 onScopeDispose(() => cancelAnimationFrame(focusFrame));
-const activePath = (path: string) => location.path === path || location.path.startsWith(`${path}/`);
+const activePath = (item: NavigationItem) => matchesNavigationItem(item, location.path);
 </script>
 <template>
   <div
@@ -124,7 +124,7 @@ const activePath = (path: string) => location.path === path || location.path.sta
             :to="item.path"
             :title="route.fullBleed && !mapNavigationExpanded ? item.label : undefined"
             :aria-label="route.fullBleed && !mapNavigationExpanded ? item.label : undefined"
-            :class="activePath(item.path) ? 'active' : undefined"
+            :class="activePath(item) ? 'active' : undefined"
             @click="closeNavigation"
             ><component
               :is="item.icon"

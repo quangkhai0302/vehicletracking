@@ -53,17 +53,22 @@ public class OperationalReportService {
         long completedTripCount = matchingTrips.stream()
                 .filter(trip -> trip.getStatus() == TripStatus.COMPLETED)
                 .count();
+        long scheduledCompletedTripCount = matchingTrips.stream()
+                .filter(trip -> trip.getSchedule() != null)
+                .filter(trip -> trip.getStatus() == TripStatus.COMPLETED)
+                .count();
         long totalRunningSeconds = matchingTrips.stream()
                 .mapToLong(trip -> runningSeconds(trip, now))
                 .sum();
         long onTimeTripCount = matchingTrips.stream()
+                .filter(trip -> trip.getSchedule() != null)
                 .filter(trip -> trip.getStatus() == TripStatus.COMPLETED)
                 .filter(trip -> trip.getEndedAt() != null && !trip.getEndedAt().isAfter(plannedEndAt(trip)))
                 .count();
         long lateTripCount = matchingTrips.stream().filter(trip -> isLate(trip, now)).count();
-        double onTimeRatePercent = completedTripCount == 0
+        double onTimeRatePercent = scheduledCompletedTripCount == 0
                 ? 0d
-                : roundPercent((onTimeTripCount * 100d) / completedTripCount);
+                : roundPercent((onTimeTripCount * 100d) / scheduledCompletedTripCount);
 
         List<Long> tripIds = matchingTrips.stream().map(trip -> trip.getId()).toList();
         long offRouteEventCount = tripIds.isEmpty()
@@ -112,6 +117,7 @@ public class OperationalReportService {
     }
 
     private boolean isLate(TripEntity trip, Instant now) {
+        if (trip.getSchedule() == null) return false;
         Instant plannedEnd = plannedEndAt(trip);
         return trip.getStatus() == TripStatus.COMPLETED
                 ? trip.getEndedAt() != null && trip.getEndedAt().isAfter(plannedEnd)

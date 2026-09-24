@@ -2,11 +2,13 @@
 import { computed, ref } from 'vue';
 import {
   ArrowLeft,
-  CalendarClock,
+  BusFront,
   Check,
+  Clock3,
   MapPin,
   Play,
   RefreshCw,
+  Route as RouteIcon,
   Trash2,
   UserRound,
   X,
@@ -16,8 +18,10 @@ import {
   type Driver,
   type TripAction,
   type TripDetail,
+  type TripStop,
 } from '@/features/fleet/types/fleet';
-import { displayTripTime, toLocalDateTimeInput } from '@/features/fleet/utils/tripTime';
+import { displayTripTime } from '@/features/fleet/utils/tripTime';
+import { formatDuration } from '@/shared/utils/format';
 import FleetConfirmDialog from './FleetConfirmDialog.vue';
 import { useTripCheckIns } from '@/features/fleet/composables/useTripCheckIns';
 import type { OperationsSnapshot } from '@/features/tracking/types/operations';
@@ -34,21 +38,20 @@ const props = defineProps<{
   onClose: () => void;
   onRetry: () => void;
   onAction: (action: TripAction, reason?: string) => Promise<boolean>;
-  onUpdateSchedule?: (id: number, input: { scheduledDepartureAt: string }) => Promise<boolean>;
   onUpdateDriver?: (id: number, driverId: number | null) => Promise<boolean>;
   onDeleteTrip?: (id: number) => Promise<boolean>;
   onFocusStop: (position: [number, number], zoom?: number) => void;
   onSimulate?: (id: number) => void;
+  onViewRoute?: (id: number) => void;
   liveSnapshot?: OperationsSnapshot | null;
 }>();
 const confirm = ref<'complete' | 'cancel' | null>(null),
   cancelReason = ref(''),
-  editingSchedule = ref(false),
   editingDriver = ref(false),
   driverId = ref(''),
-  schedule = ref(''),
   confirmDelete = ref(false);
 const trip = computed(() => props.detail?.trip);
+const isFixedSchedule = computed(() => trip.value?.dispatchMode === 'FIXED_SCHEDULE');
 const checkins = useTripCheckIns(
   () => trip.value?.id ?? null,
   () => props.liveSnapshot ?? null,
@@ -60,6 +63,14 @@ const visitByStop = computed(
 const etaByStop = computed(
   () => new Map(eta.data?.stops.map((stop) => [stop.sequenceNumber, stop]) ?? []),
 );
+const completedStopCount = computed(
+  () =>
+    props.detail?.stops.filter((stop) => visitByStop.value.has(stop.sequenceNumber)).length ?? 0,
+);
+const checkInProgress = computed(() => {
+  const total = props.detail?.stops.length ?? 0;
+  return total ? Math.round((completedStopCount.value / total) * 100) : 0;
+});
 const canComplete = computed(() => {
   const stops = props.detail?.stops;
   const final = stops?.[stops.length - 1];
@@ -73,26 +84,13 @@ const canStart = computed(
     !!trip.value.driver &&
     props.drivers.some((driver) => driver.id === trip.value?.driver?.id && driver.active),
 );
-const etaLabel = computed(() =>
-  eta.data?.source === 'HERE_LIVE' && eta.data.status !== 'STALE'
-    ? 'Dự kiến đến (theo giao thông)'
-    : eta.data?.source === 'HERE_LAST_KNOWN' || eta.data?.status === 'STALE'
-      ? 'Dự kiến đến (dữ liệu gần nhất)'
-      : 'Dự kiến đến (theo lịch)',
-);
-function beginScheduleEdit() {
-  if (trip.value) {
-    schedule.value = toLocalDateTimeInput(new Date(trip.value.scheduledDepartureAt));
-    editingSchedule.value = true;
-  }
-}
-async function saveSchedule() {
-  if (!trip.value || !props.onUpdateSchedule) return;
-  const date = new Date(schedule.value);
-  if (!Number.isFinite(date.getTime())) return;
-  if (await props.onUpdateSchedule(trip.value.id, { scheduledDepartureAt: date.toISOString() }))
-    editingSchedule.value = false;
-}
+const etaLabel = computed(() => {
+  if (eta.data?.source === 'HERE_LIVE' && eta.data.status !== 'STALE')
+    return 'Dự kiến đến (theo giao thông)';
+  if (eta.data?.source === 'HERE_LAST_KNOWN' || eta.data?.status === 'STALE')
+    return 'Dự kiến đến (dữ liệu gần nhất)';
+  return isFixedSchedule.value ? 'Dự kiến đến (theo lịch)' : 'Dự kiến đến (theo tuyến)';
+});
 function beginDriverEdit() {
   if (trip.value) {
     driverId.value = trip.value.driver ? String(trip.value.driver.id) : '';
@@ -121,20 +119,23 @@ async function deleteTrip() {
   if (trip.value && props.onDeleteTrip && (await props.onDeleteTrip(trip.value.id)))
     confirmDelete.value = false;
 }
-function visitTime(visit: StopVisit) {
+const actualVisitTime = (visit: StopVisit) => displayTripTime(visit.actualArrivalAt);
+const simulatedVisitTime = (visit: StopVisit) => displayTripTime(visit.simulatedArrivalAt);
+function fallbackStopEta(stop: TripStop) {
+  if (isFixedSchedule.value) return displayTripTime(stop.plannedArrivalAt);
+  if (!trip.value?.startedAt)
+    return `Sau ${formatDuration(stop.arrivalOffsetSeconds)} từ lúc khởi hành`;
   return displayTripTime(
-    visit.source === 'SIMULATOR' && visit.simulatedArrivalAt
-      ? visit.simulatedArrivalAt
-      : visit.actualArrivalAt,
+    new Date(Date.parse(trip.value.startedAt) + stop.arrivalOffsetSeconds * 1000).toISOString(),
   );
 }
 </script>
 <template>
   <section
-    class="fleet-editor"
+    class="fleet-editor trip-detail-panel"
     aria-label="Chi tiết chuyến đi"
   >
-    <div class="fleet-heading">
+    <div class="fleet-heading trip-detail-heading">
       <button
         class="fleet-icon-button"
         :disabled="busy"
@@ -143,9 +144,17 @@ function visitTime(visit: StopVisit) {
       >
         <ArrowLeft :size="18" />
       </button>
-      <div>
-        <span class="panel-eyebrow">LỊCH TRÌNH CHUYẾN ĐI</span>
-        <h2>{{ trip ? `Chuyến #${trip.id}` : 'Chi tiết chuyến' }}</h2>
+      <div class="trip-detail-heading-copy">
+        <span class="panel-eyebrow">ĐIỀU HÀNH CHUYẾN ĐI</span>
+        <div class="trip-detail-heading-title">
+          <h2>{{ trip ? `Chi tiết chuyến #${trip.id}` : 'Chi tiết chuyến' }}</h2>
+          <span
+            v-if="trip"
+            :class="`trip-status ${trip.status.toLowerCase()}`"
+            >{{ TRIP_STATUS_LABELS[trip.status] }}</span
+          >
+        </div>
+        <p v-if="trip">Theo dõi phân công, thời gian và tiến độ qua từng điểm dừng.</p>
       </div>
       <button
         class="fleet-icon-button"
@@ -156,7 +165,7 @@ function visitTime(visit: StopVisit) {
         <RefreshCw :size="16" />
       </button>
     </div>
-    <div class="fleet-detail-body">
+    <div class="fleet-detail-body trip-detail-body">
       <p
         v-if="loading"
         role="status"
@@ -179,31 +188,77 @@ function visitTime(visit: StopVisit) {
         </button>
       </div>
       <template v-if="!loading && trip && detail">
-        <div class="trip-summary">
-          <span :class="`trip-status ${trip.status.toLowerCase()}`">{{
-            TRIP_STATUS_LABELS[trip.status]
-          }}</span>
-          <h3>{{ trip.vehiclePlateNumber }}</h3>
-          <p>{{ trip.routeName }}</p>
-          <p>
-            <UserRound :size="12" />
-            {{
-              trip.driver
-                ? `${trip.driver.fullName} · ${trip.driver.licenseNumber} · ${trip.driver.phoneNumber}`
-                : 'Chưa gán tài xế'
-            }}
-          </p>
-        </div>
-        <details class="trip-traffic-details">
-          <summary>Lịch trình dự kiến và thực tế</summary>
-          <dl class="trip-times">
+        <section
+          class="trip-summary"
+          aria-label="Tổng quan chuyến đi"
+        >
+          <div class="trip-summary-vehicle">
+            <span class="trip-summary-icon"><BusFront :size="22" /></span>
             <div>
+              <span class="trip-summary-label">Phương tiện thực hiện</span>
+              <h3>{{ trip.vehiclePlateNumber }}</h3>
+              <p>
+                Chuyến #{{ trip.id }} ·
+                {{ isFixedSchedule ? 'Theo lịch cố định' : 'Điều phối tức thời' }}
+              </p>
+            </div>
+          </div>
+          <div class="trip-summary-meta">
+            <div>
+              <span class="trip-summary-meta-icon"><RouteIcon :size="17" /></span>
+              <span>
+                <small>Tuyến đường</small>
+                <strong>{{ trip.routeName }}</strong>
+              </span>
+            </div>
+            <div>
+              <span class="trip-summary-meta-icon"><UserRound :size="17" /></span>
+              <span>
+                <small>Tài xế phụ trách</small>
+                <strong>{{ trip.driver?.fullName ?? 'Chưa phân công' }}</strong>
+                <small
+                  v-if="trip.driver"
+                  class="trip-driver-contact"
+                >
+                  {{ trip.driver.licenseNumber }} · {{ trip.driver.phoneNumber }}
+                </small>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section
+          class="trip-traffic-details"
+          aria-labelledby="trip-time-heading"
+        >
+          <div class="trip-card-heading">
+            <span><Clock3 :size="17" /></span>
+            <div>
+              <h3 id="trip-time-heading">Thời gian vận hành</h3>
+              <p>
+                {{
+                  isFixedSchedule
+                    ? `Kế hoạch từ ${trip.scheduleName || 'lịch chạy tự động'} và thời gian thực tế`
+                    : 'Chuyến không có giờ kế hoạch; hệ thống chỉ ghi nhận thời gian thực tế'
+                }}
+              </p>
+            </div>
+          </div>
+          <dl
+            class="trip-times"
+            :data-fixed-schedule="isFixedSchedule"
+          >
+            <div v-if="isFixedSchedule">
               <dt>Xuất phát kế hoạch</dt>
               <dd>{{ displayTripTime(trip.scheduledDepartureAt) }}</dd>
             </div>
-            <div>
+            <div v-if="isFixedSchedule">
               <dt>Hoàn thành theo lịch</dt>
               <dd>{{ displayTripTime(trip.plannedEndAt) }}</dd>
+            </div>
+            <div v-else>
+              <dt>Tạo chuyến tức thời</dt>
+              <dd>{{ displayTripTime(trip.createdAt) }}</dd>
             </div>
             <div>
               <dt>Khởi hành thực tế</dt>
@@ -214,48 +269,48 @@ function visitTime(visit: StopVisit) {
               <dd>{{ displayTripTime(trip.endedAt) }}</dd>
             </div>
           </dl>
-        </details>
+        </section>
         <p
           v-if="trip.status === 'CANCELLED' && trip.cancellationReason"
           class="fleet-help trip-cancellation-reason"
         >
           <strong>Lý do hủy:</strong> {{ trip.cancellationReason }}
         </p>
+
         <div
-          v-if="editingSchedule"
-          class="trip-schedule-editor"
+          class="trip-toolbar"
+          aria-label="Thao tác chuyến đi"
         >
-          <label
-            >Giờ xuất phát mới<input
-              v-model="schedule"
-              type="datetime-local"
-              min="2000-01-01T00:00"
-              max="2100-12-31T23:59"
-          /></label>
-          <div>
+          <div class="trip-toolbar-group">
             <button
-              class="btn-secondary"
+              v-if="trip.status === 'SCHEDULED' && onUpdateDriver && !editingDriver"
+              class="fleet-text-button"
               :disabled="busy"
-              @click="editingSchedule = false"
+              @click="beginDriverEdit"
             >
-              Hủy</button
-            ><button
-              class="btn-primary"
-              :disabled="busy || !schedule"
-              @click="saveSchedule"
+              <UserRound :size="15" />Đổi tài xế
+            </button>
+          </div>
+          <div class="trip-toolbar-group trip-toolbar-navigation">
+            <button
+              v-if="onViewRoute"
+              class="fleet-text-button"
+              :disabled="busy"
+              @click="onViewRoute(trip.routeId)"
             >
-              <CalendarClock :size="14" />Lưu giờ xuất phát
+              <MapPin :size="15" />Xem tuyến đường
+            </button>
+            <button
+              v-if="onSimulate"
+              class="fleet-text-button trip-simulation-button"
+              :disabled="busy"
+              @click="onSimulate(trip.id)"
+            >
+              <Play :size="15" />Mở điều khiển chuyến
             </button>
           </div>
         </div>
-        <button
-          v-else-if="trip.status === 'SCHEDULED' && onUpdateSchedule"
-          class="fleet-text-button"
-          :disabled="busy"
-          @click="beginScheduleEdit"
-        >
-          <CalendarClock :size="14" />Sửa giờ xuất phát
-        </button>
+
         <div
           v-if="editingDriver"
           class="trip-schedule-editor"
@@ -288,130 +343,181 @@ function visitTime(visit: StopVisit) {
             </button>
           </div>
         </div>
-        <button
-          v-else-if="trip.status === 'SCHEDULED' && onUpdateDriver"
-          class="fleet-text-button"
-          :disabled="busy"
-          @click="beginDriverEdit"
-        >
-          <UserRound :size="14" />Đổi tài xế
-        </button>
-        <div
-          class="trip-checkin-summary"
-          aria-live="polite"
-        >
-          <template v-if="checkins.loading">Đang tải ghi nhận check-in…</template
-          ><template v-else-if="checkins.error"
-            >{{ checkins.error }}
-            <button
-              class="fleet-text-button"
-              @click="checkins.retry"
-            >
-              Tải lại
-            </button></template
-          ><template v-else>{{
-            checkins.data?.revision === 0
-              ? 'Chưa có dữ liệu check-in cho chuyến này.'
-              : `Đã ghi nhận ${checkins.data?.visits.length ?? 0}/${detail.stops.length} điểm dừng.`
-          }}</template>
-        </div>
-        <p
-          v-if="trip.status === 'SCHEDULED' && !canStart"
-          class="fleet-prerequisite"
-        >
-          Gán tài xế active trước khi khởi hành chuyến này.
-        </p>
-        <p
-          v-if="trip.status === 'IN_PROGRESS' && !canComplete"
-          class="fleet-prerequisite"
-        >
-          Cần ghi nhận trạm cuối trước khi hoàn thành chuyến.
-        </p>
-        <div
-          class="trip-eta-summary"
-          aria-live="polite"
-        >
-          <template v-if="eta.loading && !eta.data">Đang tính ETA theo giao thông…</template
-          ><template v-else-if="eta.error"
-            >{{ eta.error }}
-            <button
-              class="fleet-text-button"
-              @click="eta.retry"
-            >
-              Thử lại ETA
-            </button></template
-          ><template v-else-if="eta.data"
-            ><strong>{{
-              eta.data.status === 'BLOCKED'
-                ? 'Đường phía trước bị chặn, chưa xác định giờ đến.'
-                : `Còn khoảng ${Math.ceil(eta.data.totalRemainingSeconds / 60)} phút đến cuối tuyến`
-            }}</strong
-            ><small v-if="eta.data.source !== 'HERE_LIVE' || eta.data.status === 'STALE'">{{
-              eta.data.status === 'STALE'
-                ? 'Ước tính theo dữ liệu giao thông gần nhất'
-                : trafficSourceLabel[eta.data.source]
-            }}</small></template
-          ><template v-else>Chưa có ETA traffic; đang dùng lịch tuyến đã lưu.</template>
-        </div>
-        <button
-          v-if="onSimulate"
-          class="fleet-text-button"
-          :disabled="busy"
-          @click="onSimulate(trip.id)"
-        >
-          <Play :size="14" />Mở điều khiển chuyến này
-        </button>
-        <ol class="trip-timeline">
-          <li
-            v-for="(stop, index) in detail.stops"
-            :key="stop.sequenceNumber"
+
+        <div class="trip-detail-content">
+          <section
+            class="trip-itinerary"
+            aria-labelledby="trip-itinerary-heading"
           >
-            <span
-              :class="`stop-order ${index === 0 ? 'start' : index === detail.stops.length - 1 ? 'end' : 'stop'}`"
-              >{{ stop.sequenceNumber }}</span
-            >
-            <div>
-              <button
-                class="fleet-stop-link"
-                @click="onFocusStop([stop.latitude, stop.longitude], 16)"
-              >
-                <span>{{ stop.stationName }}</span
-                ><MapPin :size="13" /></button
-              ><span class="fleet-help">{{
-                index === 0
-                  ? 'Điểm đầu'
-                  : index === detail.stops.length - 1
-                    ? 'Điểm cuối'
-                    : 'Trạm dừng'
-              }}</span
-              ><span
-                v-if="!visitByStop.has(stop.sequenceNumber)"
-                class="trip-eta-stop"
-                >{{ etaLabel }}:
-                {{
-                  etaByStop.get(stop.sequenceNumber)?.etaAt
-                    ? displayTripTime(etaByStop.get(stop.sequenceNumber)!.etaAt)
-                    : eta.data?.status === 'BLOCKED'
-                      ? 'Đường bị đóng'
-                      : displayTripTime(stop.plannedArrivalAt)
-                }}</span
-              ><span
-                v-if="visitByStop.has(stop.sequenceNumber)"
-                class="trip-checkin-done"
-                >Đã qua trạm lúc {{ visitTime(visitByStop.get(stop.sequenceNumber)!) }}</span
-              ><span
-                v-else
-                class="trip-checkin-pending"
-                >{{
-                  checkins.data?.awaitingExit === true &&
-                  checkins.data.nextStopSequence === stop.sequenceNumber
-                    ? 'Chờ ra khỏi vùng rồi vào lại'
-                    : 'Chưa ghi nhận'
-                }}</span
-              >
+            <div class="trip-itinerary-heading">
+              <div>
+                <span class="trip-summary-label">Hành trình</span>
+                <h3 id="trip-itinerary-heading">Các điểm dừng trên tuyến</h3>
+                <p>Chọn một trạm để xem vị trí trên bản đồ giám sát.</p>
+              </div>
+              <strong>{{ completedStopCount }}/{{ detail.stops.length }} trạm</strong>
             </div>
-          </li>
-        </ol>
+            <ol class="trip-timeline">
+              <li
+                v-for="(stop, index) in detail.stops"
+                :key="stop.sequenceNumber"
+                :data-visited="visitByStop.has(stop.sequenceNumber)"
+              >
+                <span
+                  :class="`stop-order ${index === 0 ? 'start' : index === detail.stops.length - 1 ? 'end' : 'stop'}`"
+                  >{{ stop.sequenceNumber }}</span
+                >
+                <div class="trip-stop-card">
+                  <div class="trip-stop-heading">
+                    <button
+                      class="fleet-stop-link"
+                      @click="onFocusStop([stop.latitude, stop.longitude], 16)"
+                    >
+                      <span>{{ stop.stationName }}</span
+                      ><MapPin :size="14" />
+                    </button>
+                    <span class="fleet-help">{{
+                      index === 0
+                        ? 'Điểm đầu'
+                        : index === detail.stops.length - 1
+                          ? 'Điểm cuối'
+                          : 'Trạm dừng'
+                    }}</span>
+                  </div>
+                  <div class="trip-stop-status">
+                    <span
+                      v-if="!visitByStop.has(stop.sequenceNumber)"
+                      class="trip-eta-stop"
+                      >{{ etaLabel }}:
+                      {{
+                        etaByStop.get(stop.sequenceNumber)?.etaAt
+                          ? displayTripTime(etaByStop.get(stop.sequenceNumber)!.etaAt)
+                          : eta.data?.status === 'BLOCKED'
+                            ? 'Đường bị đóng'
+                            : fallbackStopEta(stop)
+                      }}</span
+                    ><span
+                      v-if="visitByStop.has(stop.sequenceNumber)"
+                      class="trip-checkin-done"
+                      ><Check :size="14" />Ghi nhận thực tế lúc
+                      {{ actualVisitTime(visitByStop.get(stop.sequenceNumber)!) }}</span
+                    ><span
+                      v-if="
+                        visitByStop.get(stop.sequenceNumber)?.source === 'SIMULATOR' &&
+                        visitByStop.get(stop.sequenceNumber)?.simulatedArrivalAt
+                      "
+                      class="trip-checkin-simulated"
+                      >Giờ mô phỏng:
+                      {{ simulatedVisitTime(visitByStop.get(stop.sequenceNumber)!) }}</span
+                    ><span
+                      v-if="!visitByStop.has(stop.sequenceNumber)"
+                      class="trip-checkin-pending"
+                      >{{
+                        checkins.data?.awaitingExit === true &&
+                        checkins.data.nextStopSequence === stop.sequenceNumber
+                          ? 'Chờ ra khỏi vùng rồi vào lại'
+                          : 'Chưa ghi nhận'
+                      }}</span
+                    >
+                  </div>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          <aside
+            class="trip-detail-sidebar"
+            aria-label="Tình trạng vận hành"
+          >
+            <section class="trip-operation-card">
+              <div class="trip-operation-card-heading">
+                <span><Check :size="17" /></span>
+                <div>
+                  <small>Tiến độ chuyến</small>
+                  <strong>Ghi nhận điểm dừng</strong>
+                </div>
+                <b>{{ checkInProgress }}%</b>
+              </div>
+              <div
+                class="trip-progress"
+                aria-hidden="true"
+              >
+                <span :style="{ width: `${checkInProgress}%` }"></span>
+              </div>
+              <div
+                class="trip-checkin-summary"
+                aria-live="polite"
+              >
+                <template v-if="checkins.loading">Đang tải ghi nhận check-in…</template
+                ><template v-else-if="checkins.error"
+                  >{{ checkins.error }}
+                  <button
+                    class="fleet-text-button"
+                    @click="checkins.retry"
+                  >
+                    Tải lại
+                  </button></template
+                ><template v-else>{{
+                  checkins.data?.revision === 0
+                    ? 'Chưa có dữ liệu check-in cho chuyến này.'
+                    : `Đã ghi nhận ${completedStopCount}/${detail.stops.length} điểm dừng.`
+                }}</template>
+              </div>
+              <p
+                v-if="trip.status === 'SCHEDULED' && !canStart"
+                class="fleet-prerequisite"
+              >
+                Gán tài xế đang hoạt động trước khi khởi hành chuyến này.
+              </p>
+              <p
+                v-if="trip.status === 'IN_PROGRESS' && !canComplete"
+                class="fleet-prerequisite"
+              >
+                Cần ghi nhận trạm cuối trước khi hoàn thành chuyến.
+              </p>
+            </section>
+
+            <section class="trip-operation-card">
+              <div class="trip-operation-card-heading">
+                <span><Clock3 :size="17" /></span>
+                <div>
+                  <small>Dự báo vận hành</small>
+                  <strong>Thời gian còn lại</strong>
+                </div>
+              </div>
+              <div
+                class="trip-eta-summary"
+                aria-live="polite"
+              >
+                <template v-if="eta.loading && !eta.data">Đang tính ETA theo giao thông…</template
+                ><template v-else-if="eta.error"
+                  >{{ eta.error }}
+                  <button
+                    class="fleet-text-button"
+                    @click="eta.retry"
+                  >
+                    Thử lại ETA
+                  </button></template
+                ><template v-else-if="eta.data"
+                  ><strong>{{
+                    eta.data.status === 'BLOCKED'
+                      ? 'Đường phía trước bị chặn'
+                      : `${Math.ceil(eta.data.totalRemainingSeconds / 60)} phút`
+                  }}</strong
+                  ><small>{{
+                    eta.data.status === 'BLOCKED'
+                      ? 'Chưa xác định được giờ đến cuối tuyến.'
+                      : eta.data.status === 'STALE'
+                        ? 'Ước tính theo dữ liệu giao thông gần nhất'
+                        : eta.data.source === 'HERE_LIVE'
+                          ? 'Còn lại đến cuối tuyến theo giao thông trực tiếp'
+                          : trafficSourceLabel[eta.data.source]
+                  }}</small></template
+                ><template v-else>Chưa có ETA traffic; đang dùng dữ liệu lộ trình đã lưu.</template>
+              </div>
+            </section>
+          </aside>
+        </div>
         <RouteRevisionPanel :trip-id="trip.id" />
       </template>
     </div>
@@ -445,7 +551,7 @@ function visitTime(visit: StopVisit) {
       >
         <Check :size="14" />Hoàn thành</button
       ><button
-        v-if="trip.status === 'SCHEDULED' && onDeleteTrip"
+        v-if="trip.status === 'SCHEDULED' && trip.dispatchMode === 'ON_DEMAND' && onDeleteTrip"
         class="danger-action"
         :disabled="busy"
         @click="confirmDelete = true"

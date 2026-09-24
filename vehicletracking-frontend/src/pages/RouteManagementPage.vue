@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import {
   AlertCircle,
   ArrowRight,
@@ -29,6 +30,13 @@ import type {
 } from '@/features/routes/types/route';
 import type { Station } from '@/features/stations/types/station';
 
+const location = useRoute();
+const router = useRouter();
+const requestedRouteId = computed(() => {
+  const raw = Array.isArray(location.query.routeId) ? location.query.routeId[0] : location.query.routeId;
+  const value = Number(raw);
+  return raw && Number.isSafeInteger(value) && value > 0 ? value : null;
+});
 const routes = ref<RouteSummary[]>([]);
 const stations = ref<Station[]>([]);
 const loading = ref(true);
@@ -39,6 +47,7 @@ const sortBy = ref<'name_asc' | 'name_desc' | 'dist_asc' | 'dist_desc'>('name_as
 // Detail / View state
 const viewingRoute = ref<RouteDetail | null>(null);
 const loadingDetail = ref(false);
+const detailError = ref<string | null>(null);
 const detailDrawerOpen = ref(false);
 
 // Create route drawer state
@@ -120,31 +129,61 @@ function formatDistance(meters: number) {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-async function openDetail(route: RouteSummary) {
+let detailRequestId = 0;
+let openedRouteId: number | null = null;
+async function loadDetailById(id: number) {
+  const requestId = ++detailRequestId;
+  openedRouteId = id;
   detailDrawerOpen.value = true;
   loadingDetail.value = true;
   viewingRoute.value = null;
+  detailError.value = null;
   try {
-    viewingRoute.value = await fetchRouteById(route.id);
+    const detail = await fetchRouteById(id);
+    if (requestId === detailRequestId) viewingRoute.value = detail;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Không thể tải chi tiết tuyến.';
+    if (requestId === detailRequestId)
+      detailError.value = e instanceof Error ? e.message : 'Không thể tải chi tiết tuyến.';
   } finally {
-    loadingDetail.value = false;
+    if (requestId === detailRequestId) loadingDetail.value = false;
   }
+}
+function openDetail(route: RouteSummary) {
+  void router.push({ path: '/routes', query: { ...location.query, routeId: String(route.id) } });
+}
+watch(requestedRouteId, (id) => {
+  if (id !== null && openedRouteId !== id) void loadDetailById(id);
+  if (id === null && openedRouteId !== null) {
+    detailRequestId++;
+    openedRouteId = null;
+    detailDrawerOpen.value = false;
+  }
+}, { immediate: true });
+function closeDetail() {
+  detailRequestId++;
+  openedRouteId = null;
+  detailDrawerOpen.value = false;
+  detailError.value = null;
+  if (requestedRouteId.value !== null)
+    void router.replace({ path: '/routes', query: { ...location.query, routeId: undefined } });
+}
+function createTripFromRoute() {
+  if (viewingRoute.value)
+    void router.push({ path: '/trips', query: { routeId: String(viewingRoute.value.id), create: '1' } });
 }
 
 function openCreate() {
   form.name = '';
   form.stops = [
-    { stationId: stations.value[0]?.id || 0, dwellDurationSeconds: 30 },
-    { stationId: stations.value[1]?.id || 0, dwellDurationSeconds: 30 },
+    { stationId: stations.value[0]?.id || 0, dwellDurationSeconds: 0 },
+    { stationId: stations.value[1]?.id || 0, dwellDurationSeconds: 0 },
   ];
   formError.value = null;
   createDrawerOpen.value = true;
 }
 
 function addStop() {
-  form.stops.push({
+  form.stops.splice(form.stops.length - 1, 0, {
     stationId: stations.value[0]?.id || 0,
     dwellDurationSeconds: 30,
   });
@@ -156,6 +195,8 @@ function removeStop(index: number) {
     return;
   }
   form.stops.splice(index, 1);
+  form.stops[0].dwellDurationSeconds = 0;
+  form.stops[form.stops.length - 1].dwellDurationSeconds = 0;
 }
 
 async function saveRoute() {
@@ -435,7 +476,7 @@ async function confirmDeactivate() {
       class-name="schedule-editor"
       :label="viewingRoute?.name || 'Chi tiết tuyến đường'"
       :busy="loadingDetail"
-      :on-close="() => (detailDrawerOpen = false)"
+      :on-close="closeDetail"
     >
       <header>
         <div>
@@ -445,13 +486,17 @@ async function confirmDeactivate() {
         <button
           type="button"
           aria-label="Đóng chi tiết"
-          @click="detailDrawerOpen = false"
+          @click="closeDetail"
         >
           <X :size="18" />
         </button>
       </header>
 
       <div class="schedule-form-content">
+        <div v-if="detailError" class="fleet-error" role="alert">
+          {{ detailError }}
+          <button type="button" @click="requestedRouteId && loadDetailById(requestedRouteId)">Thử lại</button>
+        </div>
         <div v-if="loadingDetail" class="route-table-empty">
           Đang tải dữ liệu lộ trình…
         </div>
@@ -510,9 +555,17 @@ async function confirmDeactivate() {
         <button
           type="button"
           class="schedule-button-secondary"
-          @click="detailDrawerOpen = false"
+          @click="closeDetail"
         >
           Đóng
+        </button>
+        <button
+          v-if="viewingRoute && routes.some((route) => route.id === viewingRoute?.id)"
+          type="button"
+          class="schedule-button-primary"
+          @click="createTripFromRoute"
+        >
+          Tạo chuyến từ tuyến này
         </button>
       </footer>
     </SidePanel>
@@ -600,6 +653,7 @@ async function confirmDeactivate() {
                 <input
                   v-model.number="st.dwellDurationSeconds"
                   type="number"
+                  :disabled="idx === 0 || idx === form.stops.length - 1"
                   min="0"
                   max="600"
                   step="5"

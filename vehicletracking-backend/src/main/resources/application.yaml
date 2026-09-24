@@ -61,11 +61,6 @@ reroute:
   cooldown-seconds: ${REROUTE_COOLDOWN_SECONDS:300}
   consecutive-fetches: ${REROUTE_CONSECUTIVE_FETCHES:2}
 
-trip:
-  lifecycle:
-    early-start-window-seconds: ${TRIP_EARLY_START_WINDOW_SECONDS:1800}
-    late-start-window-seconds: ${TRIP_LATE_START_WINDOW_SECONDS:7200}
-
 offroute:
   enabled: ${OFFROUTE_ENABLED:true}
   threshold-meters: ${OFFROUTE_THRESHOLD_METERS:150}

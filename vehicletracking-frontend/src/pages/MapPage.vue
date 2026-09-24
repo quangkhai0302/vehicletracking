@@ -30,7 +30,10 @@ const changeWorkspace = (mode: WorkspaceMode) => {
   if (mode === 'routes' && route.path !== '/routes') void router.push('/routes');
   else if (mode === 'stations' && route.path !== '/stations') void router.push('/stations');
   else if (mode === 'tracking' || mode === 'simulation') {
-    const target = mode === 'simulation' ? '/operations?mode=simulation' : '/operations';
+    const target =
+      mode === 'simulation'
+        ? `/operations?mode=simulation${requestedTripId.value ? `&tripId=${requestedTripId.value}` : ''}`
+        : '/operations';
     if (
       route.path +
         (route.fullPath.includes('?') ? '?' + route.fullPath.split('?')[1].split('#')[0] : '') !==

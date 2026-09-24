@@ -707,9 +707,560 @@
   font-size: 12.5px;
   font-weight: 600;
 }
+.business-ui .business-management-surface .fleet-editor .trip-checkin-simulated {
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
 .business-ui .business-management-surface .fleet-editor .trip-checkin-pending {
   color: var(--text-muted);
   font-size: 12.5px;
+}
+
+/* Trip detail workspace */
+.business-ui .business-management-surface .trip-detail-panel {
+  width: 100%;
+  max-width: 1180px;
+  overflow: hidden;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-detail-heading {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-detail-heading-copy {
+  display: grid;
+  gap: 4px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-detail-heading-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-detail-heading-title h2 {
+  min-width: 0;
+  margin: 0;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-detail-heading-copy > p {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-detail-body {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 28px;
+  background: #f8fafc;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary {
+  display: grid;
+  grid-template-columns: minmax(250px, .8fr) minmax(0, 1.45fr);
+  align-items: stretch;
+  padding: 0;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px -20px rgba(15, 23, 42, .42);
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-vehicle {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 22px 24px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f2942 0%, #075985 100%);
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-icon {
+  display: grid;
+  flex: 0 0 48px;
+  height: 48px;
+  place-items: center;
+  color: #e0f2fe;
+  background: rgba(255, 255, 255, .12);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 12px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-label {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-vehicle .trip-summary-label {
+  color: #bae6fd;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-vehicle h3 {
+  margin: 3px 0 0;
+  color: #ffffff;
+  font-size: 24px;
+  line-height: 1.1;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-vehicle p:nth-of-type(1) {
+  margin-top: 5px;
+  color: #bae6fd;
+  font-size: 12px;
+  font-weight: 500;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-meta > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 22px 24px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-meta > div + div {
+  border-left: 1px solid var(--border-subtle);
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-meta-icon {
+  display: grid;
+  flex: 0 0 38px;
+  height: 38px;
+  place-items: center;
+  color: #0284c7;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 9px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-meta > div > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-meta small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-meta strong {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-summary-meta .trip-driver-contact {
+  color: var(--text-secondary);
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-traffic-details {
+  margin-top: 18px;
+  padding: 0;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-card-heading > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: #0284c7;
+  background: #f0f9ff;
+  border-radius: 8px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-card-heading h3 {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-card-heading p {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-times {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-times > div {
+  min-width: 0;
+  padding: 16px 20px 18px;
+  background: #ffffff;
+  border: 0;
+  border-radius: 0;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-times > div + div {
+  border-left: 1px solid var(--border-subtle);
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-times dt {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-times dd {
+  margin-top: 7px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-toolbar .fleet-text-button {
+  min-height: 38px;
+  margin: 0;
+  padding: 8px 13px;
+  background: #ffffff;
+  border-color: var(--border-default);
+  color: var(--text-secondary);
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-toolbar .fleet-text-button:hover:not(:disabled) {
+  color: #0284c7;
+  background: #f0f9ff;
+  border-color: #bae6fd;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-toolbar .trip-simulation-button {
+  color: #ffffff;
+  background: #0284c7;
+  border-color: #0284c7;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-toolbar .trip-simulation-button:hover:not(:disabled) {
+  color: #ffffff;
+  background: #0369a1;
+  border-color: #0369a1;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-schedule-editor {
+  margin-top: 12px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-detail-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 330px);
+  align-items: start;
+  gap: 18px;
+  margin-top: 18px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-itinerary {
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-itinerary-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-itinerary-heading h3 {
+  margin-top: 4px;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-itinerary-heading p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-itinerary-heading > strong {
+  flex: none;
+  padding: 5px 9px;
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 7px;
+  font-size: 11px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 22px 0 4px;
+  border-left: 0;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-timeline li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 14px;
+  padding: 0 22px 18px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-timeline li:not(:last-child)::before {
+  top: 32px;
+  bottom: -1px;
+  left: 37px;
+  width: 2px;
+  background: #dbe5ef;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-timeline .stop-order {
+  position: relative;
+  z-index: 1;
+  top: auto;
+  left: auto;
+  width: 32px;
+  height: 32px;
+  color: #ffffff;
+  font-size: 11px;
+  box-shadow: 0 0 0 4px #ffffff;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-timeline .stop-order.start {
+  background: #059669;
+  box-shadow: 0 0 0 4px #ecfdf5;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-timeline .stop-order.stop {
+  background: #0284c7;
+  box-shadow: 0 0 0 4px #f0f9ff;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-timeline .stop-order.end {
+  background: #d97706;
+  box-shadow: 0 0 0 4px #fffbeb;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-stop-card {
+  min-width: 0;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-timeline li[data-visited=true] .trip-stop-card {
+  background: linear-gradient(90deg, #f0fdf8 0%, #ffffff 38%);
+  border-color: #bbf7d0;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-stop-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-stop-heading .fleet-stop-link {
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-decoration: none;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-stop-heading .fleet-stop-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-stop-heading .fleet-help {
+  flex: none;
+  margin: 0;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-stop-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 14px;
+  margin-top: 8px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-stop-status > span {
+  margin: 0;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-stop-status .trip-checkin-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-detail-sidebar {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 12px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card {
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card-heading {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card-heading > span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  color: #0284c7;
+  background: #f0f9ff;
+  border-radius: 9px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card-heading > div {
+  display: grid;
+  gap: 2px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card-heading small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card-heading strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card-heading > b {
+  color: #059669;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-progress {
+  height: 7px;
+  margin-top: 16px;
+  overflow: hidden;
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-progress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: inherit;
+  transition: width 180ms ease;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card .trip-checkin-summary {
+  margin: 12px 0 0;
+  padding: 0;
+  color: var(--text-secondary) !important;
+  background: transparent !important;
+  border: 0 !important;
+  font-size: 12px;
+  font-weight: 500;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card .fleet-prerequisite {
+  margin: 12px 0 0;
+  padding: 10px 11px;
+  font-size: 11.5px;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card .trip-eta-summary {
+  margin: 14px 0 0;
+  padding: 0;
+  color: var(--text-secondary) !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card .trip-eta-summary strong {
+  color: var(--text-primary) !important;
+  font-size: 25px;
+  line-height: 1.1;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card .trip-eta-summary small {
+  margin-top: 3px;
+  line-height: 1.5;
+}
+.business-ui .business-management-surface .trip-detail-panel .trip-operation-card .fleet-text-button {
+  min-height: 30px;
+  margin: 8px 0 0;
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+@media (max-width: 980px) {
+  .business-ui .business-management-surface .trip-detail-panel .trip-summary {
+    grid-template-columns: 1fr;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-summary-meta > div:first-child {
+    border-left: 0;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-times {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-times > div:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-times > div:nth-child(4) {
+    border-top: 1px solid var(--border-subtle);
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-detail-content {
+    grid-template-columns: 1fr;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-detail-sidebar {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .business-ui .business-management-surface .trip-detail-panel .trip-detail-heading-title {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-detail-heading-copy > p {
+    display: none;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-detail-body {
+    padding: 16px;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-summary-meta,
+  .business-ui .business-management-surface .trip-detail-panel .trip-detail-sidebar {
+    grid-template-columns: 1fr;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-summary-meta > div + div {
+    border-top: 1px solid var(--border-subtle);
+    border-left: 0;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-toolbar-group {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-toolbar .fleet-text-button {
+    justify-content: center;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-itinerary-heading {
+    padding: 17px;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-timeline li {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-timeline li:not(:last-child)::before {
+    left: 31px;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-stop-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+}
+
+@media (max-width: 480px) {
+  .business-ui .business-management-surface .trip-detail-panel .trip-times {
+    grid-template-columns: 1fr;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-times > div + div {
+    border-top: 1px solid var(--border-subtle);
+    border-left: 0;
+  }
+  .business-ui .business-management-surface .trip-detail-panel .trip-itinerary-heading > strong {
+    display: none;
+  }
 }
 
 /* Fleet editor footer */
@@ -1599,28 +2150,6 @@
   .business-ui .auth-form-pane { flex: 1; padding: 28px 20px; }
   .business-ui .auth-heading h1 { font-size: 26px; }
   .business-ui .auth-pane-footer { margin-top: 24px; }
-}
-.business-ui .panel-launchers .launcher-connection {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-default);
-  border-radius: 9999px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #059669;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-.business-ui .panel-launchers .launcher-connection .live-beacon-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
 }
 
 @media (prefers-reduced-motion: reduce) {

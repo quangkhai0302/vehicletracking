@@ -118,8 +118,8 @@ public class CheckInService {
             return pointIfInside(stop, current, radius);
         if (current.getSource()==TelemetrySource.SIMULATOR) {
             if (current.getSimulatedAt()==null || previous.getSimulatedAt()==null) return pointIfInside(stop,current,radius);
-            double fromElapsed=Duration.between(trip.getScheduledDepartureAt(),previous.getSimulatedAt()).toNanos()/1_000_000_000d;
-            double toElapsed=Duration.between(trip.getScheduledDepartureAt(),current.getSimulatedAt()).toNanos()/1_000_000_000d;
+            double fromElapsed=Duration.between(trip.simulationOriginAt(),previous.getSimulatedAt()).toNanos()/1_000_000_000d;
+            double toElapsed=Duration.between(trip.simulationOriginAt(),current.getSimulatedAt()).toNanos()/1_000_000_000d;
             if (toElapsed<=fromElapsed) return GeofenceCrossing.inside(now,stop.getLatitude().doubleValue(),stop.getLongitude().doubleValue(),radius)
                 ? Optional.of(new Evidence(1,current.getLatitude(),current.getLongitude(),CheckInEvidenceKind.POINT)) : Optional.empty();
             var crossing=geometry.resolve(trip).motion().firstEntryBetween(fromElapsed,toElapsed,

@@ -71,7 +71,7 @@ class OperationsIntegrationTest {
         var route=routes.saveAndFlush(SimulationFixtures.route(a,b));
         int id=ids.incrementAndGet();
         var vehicle=vehicles.saveAndFlush(new VehicleEntity("SIM"+id,"Xe thử 006",null));
-        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get(),driver(id).getId()));
+        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),driver(id).getId()));
     }
     private TripDetailResponse createAligned() {
         var a=stations.saveAndFlush(new StationEntity("A aligned",null,new BigDecimal("10.770000"),new BigDecimal("106.700000"),50));
@@ -79,7 +79,7 @@ class OperationsIntegrationTest {
         var route=routes.saveAndFlush(SimulationFixtures.route(a,b));
         int id=ids.incrementAndGet();
         var vehicle=vehicles.saveAndFlush(new VehicleEntity("CHK"+id,"Xe check-in",null));
-        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get(),driver(id).getId()));
+        return trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),driver(id).getId()));
     }
     private TelemetryRequest gps(TripDetailResponse trip,UUID event,Instant recorded,double latitude) {
         return new TelemetryRequest(event,trip.trip().vehicleId(),trip.trip().id(),recorded,latitude,106.7,30d,45d,5d,TelemetrySource.GPS);
@@ -118,6 +118,45 @@ class OperationsIntegrationTest {
         trips.start(trip.trip().id());
         var wrong=new TelemetryRequest(UUID.randomUUID(),trip.trip().vehicleId()+9999,trip.trip().id(),time.get(),10.77,106.7,0d,0d,0d,TelemetrySource.GPS);
         conflict(()->telemetry.ingestGps(wrong));
+    }
+    @Test void simulatorStartsOnDemandTripLongAfterItWasCreated() {
+        var trip=create(); long id=trip.trip().id();
+        var dispatchAnchor=trip.trip().scheduledDepartureAt();
+        seconds(Duration.ofDays(3).toSeconds());
+
+        var run=simulator.play(id);
+
+        assertThat(run.status()).isEqualTo(SimulationStatus.RUNNING);
+        assertThat(trips.findById(id).trip().status()).isEqualTo(TripStatus.IN_PROGRESS);
+        assertThat(trips.findById(id).trip().scheduledDepartureAt()).isEqualTo(dispatchAnchor);
+        assertThat(run.simulatedAt()).isEqualTo(time.get());
+        assertThat(snapshots.snapshot().positions()).filteredOn(p->p.tripId()==id).singleElement()
+            .satisfies(p->{
+                assertThat(p.source()).isEqualTo(TelemetrySource.SIMULATOR);
+                assertThat(p.recordedAt()).isEqualTo(time.get());
+                assertThat(p.simulatedAt()).isEqualTo(time.get());
+            });
+        assertThat(checkIns.find(id).visits()).singleElement().satisfies(visit->{
+            assertThat(visit.actualArrivalAt()).isEqualTo(time.get());
+            assertThat(visit.simulatedArrivalAt()).isEqualTo(time.get());
+        });
+    }
+    @Test void driverMayOwnOverlappingTripsButOnlyOneSimulationCanRun() {
+        var first=create();
+        int id=ids.incrementAndGet();
+        var secondVehicle=vehicles.saveAndFlush(new VehicleEntity("DRV"+id,"Xe thử trùng tài xế",null));
+        var second=trips.create(new TripCreateRequest(secondVehicle.getId(),first.trip().routeId(),
+            first.trip().driver().id()));
+
+        assertThat(second.trip().driver().id()).isEqualTo(first.trip().driver().id());
+        assertThat(simulator.play(first.trip().id()).status()).isEqualTo(SimulationStatus.RUNNING);
+        assertThatThrownBy(()->simulator.play(second.trip().id()))
+            .isInstanceOfSatisfying(ResponseStatusException.class,ex->{
+                assertThat(ex.getStatusCode().value()).isEqualTo(409);
+                assertThat(ex.getReason()).isEqualTo("Tài xế đang chạy một chuyến khác.");
+            });
+        assertThat(trips.findById(second.trip().id()).trip().status()).isEqualTo(TripStatus.SCHEDULED);
+        assertThat(runs.findByTripId(second.trip().id())).isEmpty();
     }
     @Test void clockPauseResumeMultiplierAndCompletionKeepBaseline() {
         var trip=create();long id=trip.trip().id();
@@ -185,9 +224,11 @@ class OperationsIntegrationTest {
         assertThat(replay.tripId()).isEqualTo(id); assertThat(replay.id()).isEqualTo(first.id());
         assertThat(replay.attemptNumber()).isEqualTo(2); assertThat(replay.elapsedSeconds()).isZero();
         assertThat(replay.status()).isEqualTo(SimulationStatus.PAUSED);
+        seconds(Duration.ofDays(3).toSeconds());
         assertThat(simulator.reset(id).attemptNumber()).isEqualTo(2);
         assertThat(simulator.attempts(id)).hasSize(1);
         assertThat(trips.findById(id).trip().status()).isEqualTo(TripStatus.SCHEDULED);
+        assertThat(trips.findById(id).trip().scheduledDepartureAt()).isEqualTo(time.get());
         assertThat(trips.findById(id).trip().startedAt()).isNull();
         assertThat(trips.findById(id).trip().endedAt()).isNull();
         assertThat(trips.findById(id).trip().routeId()).isEqualTo(trip.trip().routeId());
@@ -202,6 +243,8 @@ class OperationsIntegrationTest {
         assertThat(checkIns.find(id).visits()).singleElement().satisfies(v -> {
             assertThat(v.stopSequence()).isEqualTo(1); assertThat(v.attemptNumber()).isEqualTo(2);
             assertThat(v.fromSampleId()).isNull();
+            assertThat(v.actualArrivalAt()).isEqualTo(time.get());
+            assertThat(v.simulatedArrivalAt()).isEqualTo(time.get());
         });
         assertThat(checkIns.findAttempt(id,1).visits()).isEqualTo(oldVisits);
         assertThat(history.find(id,null,null,null,null,0,100,2).totalElements()).isEqualTo(1);
@@ -211,7 +254,7 @@ class OperationsIntegrationTest {
     @Test void resetRejectsAnotherRunningTripWithoutArchiving() {
         var trip=create(); long id=trip.trip().id(); simulator.play(id); simulator.stop(id);
         int driverId=ids.incrementAndGet();
-        var other=trips.create(new TripCreateRequest(trip.trip().vehicleId(),trip.trip().routeId(),time.get(),driver(driverId).getId()));
+        var other=trips.create(new TripCreateRequest(trip.trip().vehicleId(),trip.trip().routeId(),driver(driverId).getId()));
         trips.start(other.trip().id());
         conflict(()->simulator.reset(id));
         assertThat(simulator.attempts(id)).isEmpty();
@@ -246,12 +289,13 @@ class OperationsIntegrationTest {
             assertThat(first.get(15,TimeUnit.SECONDS)).isEqualTo(second.get(15,TimeUnit.SECONDS));
         }
         int driverId=ids.incrementAndGet();
-        conflict(()->trips.create(new TripCreateRequest(trip.trip().vehicleId(),trip.trip().routeId(),time.get(),driver(driverId).getId())));
+        var waiting = trips.create(new TripCreateRequest(trip.trip().vehicleId(),trip.trip().routeId(),driver(driverId).getId()));
+        conflict(()->trips.start(waiting.trip().id()));
     }
     @Test void corruptRouteCannotStartOrCreateRun() {
         var a=stations.saveAndFlush(TripFixtures.station("Bad A"));var b=stations.saveAndFlush(TripFixtures.station("Bad B"));
         var route=routes.saveAndFlush(TripFixtures.route(a,b));var vehicle=vehicles.saveAndFlush(new VehicleEntity("BAD"+ids.incrementAndGet(),"Bad",null));
-        var trip=trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),time.get()));
+        var trip=trips.create(new TripCreateRequest(vehicle.getId(),route.getId(),null));
         conflict(()->simulator.play(trip.trip().id()));
         assertThat(trips.findById(trip.trip().id()).trip().status()).isEqualTo(TripStatus.SCHEDULED);
         assertThat(runs.findByTripId(trip.trip().id())).isEmpty();
