@@ -50,4 +50,4 @@ Browser smoke dùng API fixture, không kiểm tra backend thật: chạy server
 
 ## Hướng dẫn người sử dụng
 
-Sau khi chạy frontend, mở `/huong-dan/` để xem tài liệu hướng dẫn HTML/CSS. Trong ứng dụng, bấm **Hướng dẫn** trên thanh điều hướng để mở tài liệu ở tab mới. Trang có mục lục, hướng dẫn quản lý xe/trạm/tuyến, kéo chỉnh đường đi, tạo chuyến, mô phỏng, giao thông và xử lý lỗi; dùng Ctrl/Command + P để lưu PDF.
+Sau khi chạy frontend, mở `/huong-dan/` để xem [hướng dẫn sử dụng](public/huong-dan/index.html) dành cho quản trị viên và tài xế. Trong giao diện quản trị, bấm **Hướng dẫn sử dụng** trên thanh điều hướng để mở tài liệu ở tab mới. Tài liệu bao gồm đăng nhập, dashboard, phương tiện, tài xế, trạm, tuyến, chuyến, lịch chạy tự động, bản đồ, mô phỏng, cảnh báo, báo cáo, phân quyền và cách xử lý sự cố; dùng Ctrl/Command + P để lưu PDF.

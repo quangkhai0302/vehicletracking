@@ -15,9 +15,9 @@
 
 .dashboard-welcome span {
   display: inline-block;
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
   color: var(--accent-cyan);
   text-transform: uppercase;
 }
@@ -56,6 +56,18 @@
   background: linear-gradient(135deg, #7dd3fc 0%, #38bdf8 100%);
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5);
+}
+
+/* Section label để phân tách các khu vực trong dashboard */
+.dashboard-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .dashboard-error {
@@ -329,8 +341,8 @@
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -471,7 +483,7 @@
 .dashboard-alert-row small {
   margin-top: 2px;
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 11px;
 }
 
 .dashboard-alert-row > svg {
@@ -522,9 +534,9 @@
 
 .roadmap-hero > div > span {
   color: var(--accent-cyan);
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
 }
 
@@ -630,9 +642,9 @@
   display: block;
   margin-top: 16px;
   color: var(--accent-cyan);
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
 }
 

@@ -12,6 +12,7 @@ import UserManagementPage from '@/pages/UserManagementPage.vue';
 import AdminRegistrationPage from '@/pages/AdminRegistrationPage.vue';
 import NotFoundPage from '@/pages/NotFoundPage.vue';
 import MapPage from '@/pages/MapPage.vue';
+import RouteManagementPage from '@/pages/RouteManagementPage.vue';
 
 export function createApplicationRouter(history: RouterHistory = createWebHistory()) {
   return createRouter({ history, linkActiveClass: '', linkExactActiveClass: '', routes: [
@@ -22,7 +23,7 @@ export function createApplicationRouter(history: RouterHistory = createWebHistor
       { path: '', redirect: '/dashboard' },
       { path: 'dashboard', component: DashboardPage },
       { path: 'operations', component: MapPage, props: { workspace: 'tracking', mapKey: 'operations-map' } },
-      { path: 'routes', component: MapPage, props: { workspace: 'routes', mapKey: 'routes-map' } },
+      { path: 'routes', component: RouteManagementPage },
       { path: 'stations', component: MapPage, props: { workspace: 'stations', mapKey: 'stations-map' } },
       // Distinct wrappers retain React's explicit per-tab remount/reset boundary.
       ...(['vehicles', 'drivers', 'trips'] as const).map(tab => ({ path: tab, component: { render: () => h(FleetManagementPage, { key: `${tab}-page`, tab }) } })),

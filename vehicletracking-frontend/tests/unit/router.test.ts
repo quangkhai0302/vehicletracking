@@ -73,8 +73,13 @@ test('map deep links, repeated query values and back/forward reuse the operation
   expect(map().attributes('data-trip')).toBe('8'); expect(map().attributes('data-workspace')).toBe('simulation');
   await router.push('/operations?tripId=-1'); await flushPromises(); expect(map().attributes('data-trip')).toBeUndefined();
   expect(lifecycle.mounted).toHaveBeenCalledTimes(1); expect(lifecycle.unmounted).not.toHaveBeenCalled();
-  await router.push('/routes?tripId=7'); await flushPromises(); expect(map().attributes('data-workspace')).toBe('routes'); expect(map().attributes('data-trip')).toBeUndefined();
-  expect(lifecycle.mounted).toHaveBeenCalledTimes(2); expect(lifecycle.unmounted).toHaveBeenCalledTimes(1);
+  await router.push('/routes?tripId=7'); await flushPromises();
+  expect(wrapper.find('[data-workspace]').exists()).toBe(false);
+  expect(wrapper.find('.routes-page').exists()).toBe(true);
+  expect(lifecycle.unmounted).toHaveBeenCalledTimes(1);
+  await router.push('/operations'); await flushPromises();
+  expect(wrapper.find('[data-workspace]').exists()).toBe(true);
+  expect(lifecycle.mounted).toHaveBeenCalledTimes(2);
 });
 
 test('fleet query updates reuse a page; changing tabs resets the workspace owner', async () => {

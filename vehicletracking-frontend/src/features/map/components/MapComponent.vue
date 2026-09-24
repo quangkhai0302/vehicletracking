@@ -11,7 +11,6 @@ import {
 import L from 'leaflet';
 import { decodeFlexiblePolyline } from '@/features/map/utils/polyline';
 import type { MapTheme } from '@/features/map/types/map';
-import type { TripDetail } from '@/features/fleet/types/fleet';
 import type { RouteDetail, RouteDraftStop } from '@/features/routes/types/route';
 import type { WorkspaceMode } from '@/shared/types/workspace';
 import { useLiveOperations } from '@/features/tracking/composables/useLiveOperations';
@@ -32,20 +31,21 @@ import { makeMotionPath, type MotionPath } from '@/features/fleet/utils/vehicleM
 import MapControls from './MapControls.vue';
 import StationDrawer from '@/features/stations/components/StationDrawer.vue';
 import StationPanel from '@/features/stations/components/StationPanel.vue';
-import FleetWorkspace from '@/features/fleet/components/FleetWorkspace.vue';
 import RouteWorkspace from '@/features/routes/components/RouteWorkspace.vue';
 import '@/features/routes/styles/route.css';
 import {
   Bell,
+  BusFront,
   ChevronDown,
   ChevronUp,
   Crosshair,
   List,
+  MapPin,
   PanelLeftClose,
   Play,
+  Radio,
   X,
 } from '@lucide/vue';
-import ModeBar from '@/features/tracking/components/ModeBar.vue';
 import SimulatorPanel from '@/features/simulation/components/SimulatorPanel.vue';
 import TripTrafficSummary from '@/features/tracking/components/TripTrafficSummary.vue';
 import AlertStream from '@/features/tracking/components/AlertStream.vue';
@@ -73,13 +73,12 @@ const rootRef = shallowRef<HTMLElement | null>(null),
 const workspace = ref<WorkspaceMode>(props.initialWorkspace),
   compact = useCompactLayout();
 const activePanel = ref<'context' | 'simulator' | 'alerts' | null>('context'),
-  drawerOpen = ref(true),
+  drawerOpen = ref(props.initialWorkspace !== 'tracking'),
   sheetExpanded = ref(false);
 const simulatorExpanded = ref(true),
   alertsOpen = ref(false),
   alertCloseButtonRef = shallowRef<HTMLButtonElement | null>(null);
-let alertOpener: 'mode' | 'launcher' = 'mode',
-  alertPreviousPanel: 'context' | 'simulator' | null = null,
+let alertPreviousPanel: 'context' | 'simulator' | null = null,
   alertFocusFrame = 0;
 const alertUnreadOverride = shallowRef<{ serverTime: string; count: number } | null>(null);
 const showStations = ref(true),
@@ -91,6 +90,7 @@ watch(
   () => props.initialWorkspace,
   (mode) => {
     workspace.value = mode;
+    drawerOpen.value = mode !== 'tracking';
     activePanel.value = mode === 'simulation' ? 'simulator' : 'context';
     if (mode === 'simulation') simulatorExpanded.value = true;
   },
@@ -178,6 +178,7 @@ const {
 const contextVisible = computed(
   () =>
     drawerOpen.value &&
+    workspace.value !== 'tracking' &&
     !(pickingLocation.value && workspace.value === 'stations') &&
     (!compact.value || activePanel.value === 'context'),
 );
@@ -193,10 +194,9 @@ const reportUnreadAlertCount = (count: number) => {
 const closeAlerts = () => {
   alertsOpen.value = false;
   activePanel.value = compact.value ? alertPreviousPanel : 'context';
-  const selector = alertOpener === 'launcher' ? '.panel-alert-launcher' : '.mode-alert-trigger';
   cancelAnimationFrame(alertFocusFrame);
   alertFocusFrame = requestAnimationFrame(() =>
-    rootRef.value?.querySelector<HTMLButtonElement>(selector)?.focus(),
+    rootRef.value?.querySelector<HTMLButtonElement>('.panel-alert-launcher')?.focus(),
   );
 };
 watch(alertsOpen, (open, _old, cleanup) => {
@@ -222,7 +222,7 @@ const selectMode = (mode: WorkspaceMode) => {
   workspace.value = mode;
   props.onWorkspaceChange?.(mode);
   sheetExpanded.value = false;
-  drawerOpen.value = true;
+  drawerOpen.value = mode !== 'tracking';
   activePanel.value = mode === 'simulation' ? 'simulator' : 'context';
   if (mode === 'simulation') simulatorExpanded.value = true;
 };
@@ -240,33 +240,11 @@ const openPanel = (panel: 'context' | 'simulator' | 'alerts') => {
     alertsOpen.value = true;
   }
 };
-const openAlerts = (opener: 'mode' | 'launcher') => {
-  alertOpener = opener;
+const openAlerts = () => {
   openPanel('alerts');
 };
 const editorRoute = shallowRef<RouteDetail | null>(null),
   createdVehicleAnchors = shallowRef<VehicleMarkerAnchor[]>([]);
-const handleTripCreated = (detail: TripDetail) => {
-  const start = [...detail.stops].sort((a, b) => a.sequenceNumber - b.sequenceNumber)[0];
-  if (!start || !Number.isFinite(start.latitude) || !Number.isFinite(start.longitude)) {
-    setToast('Chuyến đã tạo nhưng chưa có tọa độ trạm đầu để hiển thị xe.');
-    return;
-  }
-  createdVehicleAnchors.value = [
-    ...createdVehicleAnchors.value.filter(
-      (anchor) => anchor.vehicleId !== detail.trip.vehicleId && anchor.tripId !== detail.trip.id,
-    ),
-    {
-      vehicleId: detail.trip.vehicleId,
-      tripId: detail.trip.id,
-      vehiclePlateNumber: detail.trip.vehiclePlateNumber,
-      vehicleType: detail.trip.vehicleType,
-      latitude: start.latitude,
-      longitude: start.longitude,
-    },
-  ];
-  focusLocation([start.latitude, start.longitude], 16);
-};
 const selectedVehicleId = ref<number | null>(null),
   tripSelection = shallowRef<{ tripId: number | null } | null>(null),
   followingVehicle = ref(false);
@@ -578,10 +556,6 @@ const collapseContext = () => {
   activePanel.value = null;
   rootRef.value?.querySelector<HTMLButtonElement>('.panel-launchers button')?.focus();
 };
-const toggleSimulator = () => {
-  if (compact.value) activePanel.value = null;
-  else simulatorExpanded.value = !simulatorExpanded.value;
-};
 const showSimulatorRoute = () => {
   workspace.value = 'simulation';
   props.onWorkspaceChange?.('simulation');
@@ -650,15 +624,6 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       "
       :traffic-enabled="showTraffic"
     />
-    <ModeBar
-      :mode="workspace"
-      :on-change="selectMode"
-      :connection-label="connectionLabel"
-      :embedded="embedded"
-      :alert-count="unreadAlertCount"
-      :alerts-open="alertsOpen"
-      :on-open-alerts="() => openAlerts('mode')"
-    />
     <div
       class="live-follow glass-panel"
       data-map-edge="top"
@@ -669,6 +634,12 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
         class="live-follow-actions"
       >
         <span>{{ selectedWaitingVehicle.trip.vehiclePlateNumber }} · Chờ mô phỏng</span
+        ><button
+          type="button"
+          :disabled="simulator.busy"
+          @click="openSimulation(selectedWaitingVehicle.trip.id)"
+        >
+          Chạy mô phỏng</button
         ><button
           aria-label="Bỏ chọn xe"
           :disabled="simulator.busy"
@@ -735,8 +706,12 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     >
       <div class="floating-panel-heading">
         <span
-          ><List :size="15" />{{
-            workspace === 'tracking' || workspace === 'simulation' ? 'ĐỘI XE' : 'THIẾT LẬP LỘ TRÌNH'
+          ><MapPin v-if="workspace === 'stations'" :size="15" /><Play v-else-if="workspace === 'simulation'" :size="15" /><List v-else :size="15" />{{
+            workspace === 'simulation'
+              ? 'MÔ PHỎNG CHUYẾN ĐI'
+              : workspace === 'stations'
+                ? 'QUẢN LÝ TRẠM DỪNG'
+                : 'VẬN HÀNH'
           }}</span
         >
         <div>
@@ -762,7 +737,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       </div>
       <div
         class="planning-tabs"
-        :hidden="workspace !== 'stations' && workspace !== 'routes'"
+        :hidden="workspace !== 'routes'"
         aria-label="Dữ liệu lộ trình"
       >
         <button
@@ -778,19 +753,22 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
         </button>
       </div>
       <div
-        class="context-content"
-        :hidden="workspace !== 'tracking' && workspace !== 'simulation'"
+        class="context-content simulator-workspace"
+        :hidden="workspace !== 'simulation'"
       >
-        <FleetWorkspace
-          :live-snapshot="live.snapshot"
-          :trip-selection="tripSelection"
-          :on-trip-created="handleTripCreated"
-          :on-simulate-trip="openSimulation"
-          :on-focus-vehicle="focusVehicle"
-          :on-toast="setToast"
-          :on-focus-stop="focusLocation"
-          :on-manage-routes="() => selectMode('routes')"
-          :on-manage-stations="() => selectMode('stations')"
+        <SimulatorPanel
+          :key="`${simulator.tripId ?? 'none'}:${simulator.run?.attemptNumber ?? 1}`"
+          :simulator="simulator"
+          :snapshot="live.snapshot"
+          :now="live.now"
+          :connection="live.connection"
+          :connection-error="live.error"
+          :on-reconnect="live.reconnect"
+          :fleet="simulationFleet"
+          :on-select-vehicle="selectSimulationVehicle"
+          :on-fit-fleet="fitSimulationFleet"
+          :on-manage-fleet="() => selectMode('tracking')"
+          :on-show-route="showSimulatorRoute"
         />
       </div>
       <div
@@ -864,66 +842,6 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
         }}
       </div>
     </aside>
-    <div
-      class="operations-dock"
-      data-map-edge="right"
-      :hidden="alertsOpen || (compact && activePanel !== 'simulator')"
-    >
-      <div
-        class="floating-panel glass-panel"
-        :hidden="compact && activePanel !== 'simulator'"
-      >
-        <div class="floating-panel-heading">
-          <span><Play :size="15" />MÔ PHỎNG XE</span>
-          <div>
-            <button
-              class="sheet-expand"
-              :aria-label="sheetExpanded ? 'Thu chiều cao bảng' : 'Mở rộng bảng'"
-              @click="sheetExpanded = !sheetExpanded"
-            >
-              <ChevronDown
-                v-if="sheetExpanded"
-                :size="16"
-              /><ChevronUp
-                v-else
-                :size="16"
-              /></button
-            ><button
-              :aria-label="simulatorExpanded ? 'Thu bảng mô phỏng' : 'Mở bảng mô phỏng'"
-              :aria-expanded="simulatorExpanded"
-              @click="toggleSimulator"
-            >
-              <ChevronDown :size="16" />
-            </button>
-          </div>
-        </div>
-        <div
-          class="floating-panel-body"
-          :hidden="!simulatorExpanded"
-        >
-          <SimulatorPanel
-            :key="`${simulator.tripId ?? 'none'}:${simulator.run?.attemptNumber ?? 1}`"
-            :simulator="simulator"
-            :snapshot="live.snapshot"
-            :now="live.now"
-            :connection="live.connection"
-            :connection-error="live.error"
-            :on-reconnect="live.reconnect"
-            :fleet="workspace === 'simulation' ? simulationFleet : undefined"
-            :on-select-vehicle="selectSimulationVehicle"
-            :on-fit-fleet="fitSimulationFleet"
-            :on-manage-fleet="
-              () => {
-                selectMode('tracking');
-                drawerOpen = true;
-                activePanel = 'context';
-              }
-            "
-            :on-show-route="showSimulatorRoute"
-          />
-        </div>
-      </div>
-    </div>
     <aside
       id="operations-alert-drawer"
       class="alert-drawer glass-panel"
@@ -976,27 +894,62 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       aria-label="Mở bảng công cụ"
     >
       <button
-        :aria-pressed="contextVisible"
-        @click="openPanel('context')"
+        v-if="workspace === 'stations'"
+        :aria-pressed="drawerOpen"
+        @click="
+          drawerOpen = !drawerOpen;
+          activePanel = 'context';
+        "
       >
-        <List :size="16" /><span>{{
-          workspace === 'tracking' || workspace === 'simulation' ? 'Đội xe' : 'Tuyến & trạm'
-        }}</span></button
-      ><button
-        :aria-pressed="compact ? activePanel === 'simulator' : simulatorExpanded"
-        @click="openPanel('simulator')"
+        <MapPin :size="16" /><span>Danh sách trạm</span>
+      </button>
+
+      <button
+        v-if="workspace !== 'stations'"
+        :aria-pressed="workspace === 'tracking'"
+        @click="
+          selectMode('tracking');
+          drawerOpen = false;
+        "
       >
-        <Play :size="16" /><span>Mô phỏng</span></button
-      ><button
+        <BusFront :size="16" /><span>Theo dõi trực tiếp</span>
+      </button>
+
+      <button
+        v-if="workspace !== 'stations'"
+        :aria-pressed="workspace === 'simulation' && drawerOpen"
+        @click="
+          if (workspace === 'simulation' && drawerOpen) {
+            selectMode('tracking');
+            drawerOpen = false;
+          } else {
+            selectMode('simulation');
+            drawerOpen = true;
+            activePanel = 'context';
+          }
+        "
+      >
+        <Play :size="16" /><span>Mô phỏng xe</span>
+      </button>
+
+      <button
         class="panel-alert-launcher"
         :aria-pressed="alertsOpen"
-        @click="openAlerts('launcher')"
+        @click="openAlerts"
       >
         <Bell :size="16" /><span>Cảnh báo</span
         ><b v-if="unreadAlertCount !== null && unreadAlertCount > 0">{{
           unreadAlertCount > 99 ? '99+' : unreadAlertCount
         }}</b>
       </button>
+      <span
+        v-if="workspace === 'tracking' || workspace === 'simulation'"
+        class="launcher-connection"
+      >
+        <span class="live-beacon-dot" aria-hidden="true" />
+        <Radio :size="13" />
+        <span>{{ connectionLabel }}</span>
+      </span>
     </div>
     <div
       class="map-picking-banner"

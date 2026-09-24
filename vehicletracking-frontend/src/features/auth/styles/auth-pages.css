@@ -48,9 +48,9 @@
 
 .auth-brand small {
   color: var(--accent-cyan);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
 }
 
@@ -60,9 +60,9 @@
 
 .auth-heading > span {
   color: var(--accent-cyan);
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
 }
 

@@ -25,6 +25,8 @@ import type { RouteSummary } from '@/features/routes/types/route';
 import type { TripSchedule, TripScheduleInput } from '@/features/schedules/types/schedule';
 import PageHeading from '@/shared/components/PageHeading.vue';
 import SidePanel from '@/shared/components/SidePanel.vue';
+import AppSelect from '@/shared/components/AppSelect.vue';
+import AppDatePicker from '@/shared/components/AppDatePicker.vue';
 import ScheduleConfirm from '@/features/schedules/components/ScheduleConfirm.vue';
 import '@/features/schedules/styles/schedule-management.css';
 interface ScheduleData {
@@ -134,6 +136,38 @@ const activeVehicles = computed(
   () => data.value?.vehicles.filter((vehicle) => vehicle.active) ?? [],
 );
 const activeDrivers = computed(() => data.value?.drivers.filter((driver) => driver.active) ?? []);
+
+const routeFilterOptions = computed(() => [
+  { value: '', label: 'Tất cả tuyến' },
+  ...(data.value?.routes ?? []).map((r) => ({ value: String(r.id), label: r.name })),
+]);
+
+const statusFilterOptions = [
+  { value: 'ALL', label: 'Tất cả trạng thái' },
+  { value: 'ENABLED', label: 'Đang hoạt động' },
+  { value: 'DISABLED', label: 'Đã tạm dừng' },
+];
+
+const routeSelectOptions = computed(() => [
+  { value: 0, label: 'Chọn tuyến', disabled: true },
+  ...activeRoutes.value.map((r) => ({ value: r.id, label: r.name })),
+]);
+
+const vehicleSelectOptions = computed(() => [
+  { value: 0, label: 'Chọn xe', disabled: true },
+  ...activeVehicles.value.map((v) => ({
+    value: v.id,
+    label: `${v.plateNumber} · ${v.name}`,
+  })),
+]);
+
+const driverSelectOptions = computed(() => [
+  { value: 0, label: 'Chọn tài xế', disabled: true },
+  ...activeDrivers.value.map((d) => ({
+    value: d.id,
+    label: `${d.fullName} · ${d.licenseNumber}`,
+  })),
+]);
 function openCreate() {
   form.value = blankForm();
   formError.value = null;
@@ -156,12 +190,6 @@ function openEdit(s: TripSchedule) {
   };
   formError.value = null;
   editorOpen.value = true;
-}
-function updateId(key: 'routeId' | 'vehicleId' | 'driverId', event: Event) {
-  form.value[key] = Number((event.target as HTMLSelectElement).value);
-}
-function updateNullableDate(key: 'scheduledDate' | 'effectiveUntil', event: Event) {
-  form.value[key] = (event.target as HTMLInputElement).value || null;
 }
 async function save() {
   if (saving.value) return;
@@ -312,25 +340,25 @@ async function toggle() {
         <span>{{ loading ? 'Đang tải…' : `${schedules.length} lịch` }}</span>
       </div>
       <div class="schedule-filters">
-        <label
-          >Tuyến<select v-model="routeFilter">
-            <option value="">Tất cả tuyến</option>
-            <option
-              v-for="route in data?.routes"
-              :key="route.id"
-              :value="String(route.id)"
-            >
-              {{ route.name }}
-            </option>
-          </select></label
-        ><label
-          >Trạng thái<select v-model="statusFilter">
-            <option value="ALL">Tất cả trạng thái</option>
-            <option value="ENABLED">Đang hoạt động</option>
-            <option value="DISABLED">Đã tạm dừng</option>
-          </select></label
-        ><button
+        <label class="schedule-filter-item">
+          <span class="schedule-filter-label">Tuyến</span>
+          <AppSelect
+            v-model="routeFilter"
+            :options="routeFilterOptions"
+            placeholder="Tất cả tuyến"
+          />
+        </label>
+        <label class="schedule-filter-item">
+          <span class="schedule-filter-label">Trạng thái</span>
+          <AppSelect
+            v-model="statusFilter"
+            :options="statusFilterOptions"
+            placeholder="Tất cả trạng thái"
+          />
+        </label>
+        <button
           v-if="routeFilter || statusFilter !== 'ALL'"
+          type="button"
           class="schedule-clear-filter"
           @click="
             routeFilter = '';
@@ -461,143 +489,163 @@ async function toggle() {
           <X :size="18" />
         </button>
       </header>
-      <form @submit.prevent="save">
-        <p
-          v-if="formError"
-          class="schedule-inline-error"
-          role="alert"
-        >
-          {{ formError }}
-        </p>
-        <label
-          >Tên lịch
-          <input
-            v-model="form.name"
-            maxlength="150"
-            placeholder="Ví dụ: Tuyến sáng ngày thường"
-        /></label>
-        <div class="schedule-form-grid">
-          <label
-            >Tuyến đường<select
-              required
-              :value="form.routeId || ''"
-              @change="updateId('routeId', $event)"
-            >
-              <option value="">Chọn tuyến</option>
-              <option
-                v-for="route in activeRoutes"
-                :key="route.id"
-                :value="route.id"
-              >
-                {{ route.name }}
-              </option>
-            </select></label
-          ><label
-            >Phương tiện<select
-              required
-              :value="form.vehicleId || ''"
-              @change="updateId('vehicleId', $event)"
-            >
-              <option value="">Chọn xe</option>
-              <option
-                v-for="vehicle in activeVehicles"
-                :key="vehicle.id"
-                :value="vehicle.id"
-              >
-                {{ vehicle.plateNumber }} · {{ vehicle.name }}
-              </option>
-            </select></label
-          ><label
-            >Tài xế<select
-              required
-              :value="form.driverId || ''"
-              @change="updateId('driverId', $event)"
-            >
-              <option value="">Chọn tài xế</option>
-              <option
-                v-for="driver in activeDrivers"
-                :key="driver.id"
-                :value="driver.id"
-              >
-                {{ driver.fullName }} · {{ driver.licenseNumber }}
-              </option>
-            </select></label
-          ><label
-            >Múi giờ<input
-              v-model="form.timezone"
-              required
-              placeholder="Asia/Ho_Chi_Minh"
-          /></label>
-        </div>
-        <fieldset>
-          <legend>Tần suất</legend>
-          <div class="schedule-frequency">
-            <label
-              ><input
-                type="radio"
-                :checked="form.frequency === 'ONCE'"
-                @change="form.frequency = 'ONCE'"
-              />Một lần</label
-            ><label
-              ><input
-                type="radio"
-                :checked="form.frequency === 'WEEKLY'"
-                @change="form.frequency = 'WEEKLY'"
-              />Hàng tuần</label
-            >
-          </div>
-          <label v-if="form.frequency === 'ONCE'"
-            >Ngày chạy<input
-              required
-              type="date"
-              :value="form.scheduledDate ?? ''"
-              @input="updateNullableDate('scheduledDate', $event)"
-          /></label>
-          <div
-            v-else
-            class="schedule-weekdays"
-            aria-label="Ngày chạy trong tuần"
+      <form class="schedule-editor-form" @submit.prevent="save">
+        <div class="schedule-form-content">
+          <p
+            v-if="formError"
+            class="schedule-inline-error"
+            role="alert"
           >
-            <label
-              v-for="day in weekdays"
-              :key="day.bit"
-              ><input
-                type="checkbox"
-                :checked="(form.weekdaysMask & day.bit) !== 0"
-                @change="form.weekdaysMask ^= day.bit"
-              /><span>{{ day.label }}</span></label
-            >
+            {{ formError }}
+          </p>
+          <label>
+            <span class="schedule-label-title">Tên lịch</span>
+            <input
+              v-model="form.name"
+              maxlength="150"
+              placeholder="Ví dụ: Tuyến sáng ngày thường"
+            />
+          </label>
+          <div class="schedule-form-grid">
+            <label>
+              <span class="schedule-label-title">Tuyến đường *</span>
+              <AppSelect
+                :model-value="form.routeId"
+                :options="routeSelectOptions"
+                placeholder="Chọn tuyến"
+                @update:model-value="form.routeId = Number($event)"
+              />
+            </label>
+            <label>
+              <span class="schedule-label-title">Phương tiện *</span>
+              <AppSelect
+                :model-value="form.vehicleId"
+                :options="vehicleSelectOptions"
+                placeholder="Chọn xe"
+                @update:model-value="form.vehicleId = Number($event)"
+              />
+            </label>
+            <label>
+              <span class="schedule-label-title">Tài xế *</span>
+              <AppSelect
+                :model-value="form.driverId"
+                :options="driverSelectOptions"
+                placeholder="Chọn tài xế"
+                @update:model-value="form.driverId = Number($event)"
+              />
+            </label>
+            <label>
+              <span class="schedule-label-title">Múi giờ *</span>
+              <input
+                v-model="form.timezone"
+                required
+                placeholder="Asia/Ho_Chi_Minh"
+              />
+            </label>
           </div>
-        </fieldset>
-        <div class="schedule-form-grid">
-          <label
-            >Giờ khởi hành<input
-              v-model="form.departureTime"
-              required
-              type="time" /></label
-          ><label
-            >Hiệu lực từ<input
-              v-model="form.effectiveFrom"
-              required
-              type="date" /></label
-          ><label
-            >Hiệu lực đến <small>(không bắt buộc)</small
-            ><input
-              type="date"
-              :value="form.effectiveUntil ?? ''"
-              :min="form.effectiveFrom"
-              @input="updateNullableDate('effectiveUntil', $event)"
-          /></label>
+          <fieldset class="schedule-frequency-fieldset">
+            <legend>Tần suất</legend>
+            <div class="schedule-frequency">
+              <label
+                class="schedule-frequency-pill"
+                :class="{ 'is-selected': form.frequency === 'ONCE' }"
+              >
+                <input
+                  type="radio"
+                  name="schedule-freq"
+                  :checked="form.frequency === 'ONCE'"
+                  @change="form.frequency = 'ONCE'"
+                />
+                <span>Một lần</span>
+              </label>
+              <label
+                class="schedule-frequency-pill"
+                :class="{ 'is-selected': form.frequency === 'WEEKLY' }"
+              >
+                <input
+                  type="radio"
+                  name="schedule-freq"
+                  :checked="form.frequency === 'WEEKLY'"
+                  @change="form.frequency = 'WEEKLY'"
+                />
+                <span>Hàng tuần</span>
+              </label>
+            </div>
+            <label
+              v-if="form.frequency === 'ONCE'"
+              class="schedule-date-field"
+            >
+              <span class="schedule-label-title">Ngày chạy *</span>
+              <AppDatePicker
+                required
+                :model-value="form.scheduledDate"
+                placeholder="Chọn ngày chạy"
+                @update:model-value="form.scheduledDate = $event || null"
+              />
+            </label>
+            <div
+              v-else
+              class="schedule-weekdays"
+              aria-label="Ngày chạy trong tuần"
+            >
+              <label
+                v-for="day in weekdays"
+                :key="day.bit"
+                class="schedule-weekday-chip"
+              >
+                <input
+                  type="checkbox"
+                  :checked="(form.weekdaysMask & day.bit) !== 0"
+                  @change="form.weekdaysMask ^= day.bit"
+                />
+                <span>{{ day.label }}</span>
+              </label>
+            </div>
+          </fieldset>
+          <div class="schedule-form-grid">
+            <label>
+              <span class="schedule-label-title">Giờ khởi hành *</span>
+              <input
+                v-model="form.departureTime"
+                required
+                type="time"
+                lang="vi-VN"
+              />
+            </label>
+            <label>
+              <span class="schedule-label-title">Hiệu lực từ *</span>
+              <AppDatePicker
+                required
+                :model-value="form.effectiveFrom"
+                placeholder="dd/mm/yyyy"
+                @update:model-value="form.effectiveFrom = $event"
+              />
+            </label>
+            <label>
+              <span class="schedule-label-title">
+                Hiệu lực đến
+                <span class="schedule-optional-hint">(không bắt buộc)</span>
+              </span>
+              <AppDatePicker
+                :model-value="form.effectiveUntil"
+                :min="form.effectiveFrom"
+                placeholder="dd/mm/yyyy"
+                @update:model-value="form.effectiveUntil = $event || null"
+              />
+            </label>
+          </div>
         </div>
-        <footer>
+        <footer class="schedule-editor-footer">
           <button
             type="button"
             class="schedule-button-secondary"
             :disabled="saving"
             @click="editorOpen = false"
           >
-            Hủy</button
-          ><button
+            Hủy
+          </button>
+          <button
+            type="submit"
             class="schedule-button-primary"
             :disabled="saving"
           >

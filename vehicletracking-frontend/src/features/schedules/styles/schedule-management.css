@@ -19,9 +19,9 @@
 .schedule-editor header span {
   display: inline-block;
   color: var(--accent-cyan);
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
 }
 
@@ -46,11 +46,11 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 38px;
+  min-height: var(--control-md);
   padding: 8px 16px;
   border: 1px solid transparent;
-  border-radius: 9px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: all 160ms ease;
@@ -238,46 +238,51 @@
   background: rgba(14, 165, 233, 0.15);
   border: 1px solid rgba(56, 189, 248, 0.25);
   border-radius: 999px;
-  font-size: 9.5px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .schedule-filters {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
-  padding: 14px 22px;
+  gap: 16px;
+  padding: 16px 24px;
   background: rgba(8, 14, 26, 0.6);
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.schedule-filters label {
+.schedule-filters .schedule-filter-item {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.schedule-filter-label {
   color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .schedule-filters select,
 .schedule-editor input,
 .schedule-editor select {
   min-width: 170px;
-  min-height: 38px;
+  min-height: var(--control-md, 40px);
   padding: 8px 12px;
   color: var(--text-primary);
   background: rgba(8, 14, 26, 0.75);
   border: 1px solid var(--border-default);
-  border-radius: 9px;
-  font-size: 12px;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 13.5px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .schedule-filters select:focus,
 .schedule-editor input:focus,
 .schedule-editor select:focus {
   border-color: #38bdf8;
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.18);
   outline: none;
 }
 
@@ -393,8 +398,8 @@
 .schedule-status {
   padding: 4px 9px;
   border-radius: 999px;
-  font-size: 9px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 700;
   letter-spacing: 0.02em;
 }
 
@@ -558,11 +563,21 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
-.schedule-editor form {
+.schedule-editor-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+}
+
+.schedule-form-content {
+  flex: 1;
+  overflow-y: auto;
   padding: 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .schedule-editor label {
@@ -570,14 +585,22 @@
   min-width: 0;
   flex-direction: column;
   gap: 6px;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 700;
 }
 
-.schedule-editor label small {
+.schedule-label-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.schedule-optional-hint {
   color: var(--text-muted);
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .schedule-editor input,
@@ -590,40 +613,58 @@
 .schedule-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 16px;
 }
 
-.schedule-editor fieldset {
-  padding: 14px;
+.schedule-frequency-fieldset {
+  padding: 16px 18px;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   background: rgba(8, 14, 26, 0.4);
+  margin: 0;
 }
 
 .schedule-editor legend {
   padding: 0 6px;
   color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .schedule-frequency {
   display: flex;
-  gap: 18px;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
-.schedule-frequency label,
-.schedule-weekdays label {
-  flex-direction: row;
+.schedule-frequency-pill {
+  display: inline-flex;
   align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(8, 14, 26, 0.6);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.schedule-frequency-pill.is-selected {
+  background: rgba(14, 165, 233, 0.18);
+  border-color: #38bdf8;
+  color: #e0f2fe;
   font-weight: 600;
 }
 
-.schedule-frequency input,
-.schedule-weekdays input {
-  width: auto;
-  min-height: 0;
+.schedule-frequency-pill input {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 .schedule-weekdays {
@@ -632,40 +673,61 @@
   gap: 8px;
 }
 
-.schedule-weekdays label {
+.schedule-weekday-chip {
   position: relative;
+  display: inline-flex;
+  cursor: pointer;
 }
 
-.schedule-weekdays input {
+.schedule-weekday-chip input {
   position: absolute;
   opacity: 0;
+  pointer-events: none;
 }
 
-.schedule-weekdays span {
-  min-width: 36px;
-  padding: 7px 8px;
+.schedule-weekday-chip span {
+  min-width: 40px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0 10px;
   color: var(--text-secondary);
   background: rgba(8, 14, 26, 0.6);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  font-size: 10.5px;
+  font-size: 12.5px;
+  font-weight: 600;
   text-align: center;
   cursor: pointer;
   transition: all 140ms ease;
+  user-select: none;
 }
 
-.schedule-weekdays input:checked + span {
+.schedule-weekday-chip:hover span {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(8, 14, 26, 0.8);
+}
+
+.schedule-weekday-chip input:checked + span {
   color: #e0f2fe;
   background: rgba(14, 165, 233, 0.22);
   border-color: #38bdf8;
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
 }
 
-.schedule-editor footer {
+.schedule-weekday-chip input:focus-visible + span {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.schedule-editor-footer {
+  flex-shrink: 0;
+  padding: 16px 26px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-base);
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding-top: 8px;
+  gap: 12px;
 }
 
 .schedule-inline-error {

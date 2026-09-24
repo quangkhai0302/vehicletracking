@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Bell, BookOpen, BusFront, Navigation, Play, Route, Radio } from '@lucide/vue';
+import { Bell, BookOpen, BusFront, Navigation, Play, Radio } from '@lucide/vue';
 import type { WorkspaceMode } from '@/shared/types/workspace';
 withDefaults(
   defineProps<{
@@ -32,12 +32,6 @@ withDefaults(
         @click="onChange('tracking')"
       >
         <BusFront :size="16" /><span>Theo dõi</span>
-      </button>
-      <button
-        :aria-pressed="mode === 'routes' || mode === 'stations'"
-        @click="onChange('routes')"
-      >
-        <Route :size="16" /><span>Tuyến &amp; trạm</span>
       </button>
       <button
         :aria-pressed="mode === 'simulation'"

@@ -18,6 +18,7 @@ import { fetchOperationalReport } from '@/features/reports/api/reports';
 import type { Driver, FleetVehicle } from '@/features/fleet/types/fleet';
 import type { OperationalReport, OperationalReportFilters } from '@/features/reports/types/reports';
 import PageHeading from '@/shared/components/PageHeading.vue';
+import AppDatePicker from '@/shared/components/AppDatePicker.vue';
 import '@/features/reports/styles/reports.css';
 function dateInUtc(offset: number) {
   const date = new Date();
@@ -86,9 +87,6 @@ function applyFilters(next: OperationalReportFilters) {
     if (data.value) data.value = { ...data.value, report: undefined };
   }
   filters.value = next;
-}
-function dateFilter(key: 'from' | 'to', event: Event) {
-  applyFilters({ ...filters.value, [key]: (event.target as HTMLInputElement).value });
 }
 function idFilter(key: 'vehicleId' | 'driverId', event: Event) {
   const value = (event.target as HTMLSelectElement).value;
@@ -187,21 +185,23 @@ const metrics = computed(() => {
       <div class="reports-filters">
         <label
           ><span>Từ ngày</span
-          ><input
+          ><AppDatePicker
             required
-            type="date"
-            :value="filters.from"
+            :model-value="filters.from"
             :max="filters.to"
-            @change="dateFilter('from', $event)"
+            placeholder="Từ ngày"
+            @update:model-value="applyFilters({ ...filters, from: $event })"
+            @change="applyFilters({ ...filters, from: $event })"
         /></label>
         <label
           ><span>Đến ngày</span
-          ><input
+          ><AppDatePicker
             required
-            type="date"
-            :value="filters.to"
+            :model-value="filters.to"
             :min="filters.from"
-            @change="dateFilter('to', $event)"
+            placeholder="Đến ngày"
+            @update:model-value="applyFilters({ ...filters, to: $event })"
+            @change="applyFilters({ ...filters, to: $event })"
         /></label>
         <label
           ><span>Phương tiện</span
