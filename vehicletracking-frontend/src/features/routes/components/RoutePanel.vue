@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { AlertCircle, Clock, MapPin, Milestone, Plus, RefreshCw, Route, Search } from '@lucide/vue';
+import { Clock, MapPin, Milestone, Plus, RefreshCw, Route, Search } from '@lucide/vue';
 import type { RouteSummary } from '@/features/routes/types/route';
 import { formatDuration } from '@/shared/utils/format';
 const props = withDefaults(
@@ -81,24 +81,14 @@ const selectKey = (event: KeyboardEvent, route: RouteSummary) => {
           class="animate-spin"
         /><span>Đang tải danh sách tuyến đường...</span>
       </div>
-      <div
+      <button
         v-if="!loading && error"
-        class="panel-error"
-        role="alert"
+        type="button"
+        class="btn-retry"
+        @click="onRetry"
       >
-        <AlertCircle :size="20" />
-        <div class="panel-error-content">
-          <strong>Không thể tải dữ liệu</strong>
-          <p>{{ error }}</p>
-          <button
-            type="button"
-            class="btn-retry"
-            @click="onRetry"
-          >
-            <RefreshCw :size="14" /> Thử lại
-          </button>
-        </div>
-      </div>
+        <RefreshCw :size="14" /> Tải lại danh sách tuyến
+      </button>
       <div
         v-if="!loading && !error && filteredRoutes.length === 0"
         class="panel-empty"

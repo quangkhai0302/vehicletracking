@@ -83,6 +83,7 @@ const assignedVehicle = (id: number) =>
           ><tr
             v-for="vehicle in vehicles"
             :key="vehicle.id"
+            :class="{ 'is-inactive': !vehicle.active }"
           >
             <td data-label="Phương tiện">
               <div class="management-identity">
@@ -139,6 +140,7 @@ const assignedVehicle = (id: number) =>
           ><tr
             v-for="driver in drivers"
             :key="driver.id"
+            :class="{ 'is-inactive': !driver.active }"
           >
             <td data-label="Tài xế">
               <div class="management-identity">
@@ -192,6 +194,7 @@ const assignedVehicle = (id: number) =>
           ><tr
             v-for="trip in trips"
             :key="trip.id"
+            :class="['trip-row', trip.status.toLowerCase()]"
           >
             <td data-label="Chuyến đi / Tuyến">
               <div class="management-trip">

@@ -4,7 +4,7 @@ const createDraftStopId = () => `draft-stop-${++nextDraftStopId}`;
 </script>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useId, watch } from 'vue';
-import { AlertCircle, Car, CheckCircle2, Plus, RefreshCw, X } from '@lucide/vue';
+import { Car, CheckCircle2, Plus, RefreshCw, X } from '@lucide/vue';
 import type { RouteCreateInput, RouteDetail, RouteDraftStop } from '@/features/routes/types/route';
 import type { Station } from '@/features/stations/types/station';
 import SortableStopList from './SortableStopList.vue';
@@ -12,7 +12,6 @@ const props = defineProps<{
   initialRoute?: RouteDetail;
   stations: Station[];
   saving: boolean;
-  error: string | null;
   onClose: () => void;
   onSaveRoute: (input: RouteCreateInput) => void;
   onDraftStopsChange: (stops: RouteDraftStop[]) => void;
@@ -166,13 +165,6 @@ const submit = () => {
           Bỏ bản nháp
         </button>
       </div>
-    </div>
-    <div
-      v-if="error"
-      class="route-error-banner"
-      role="alert"
-    >
-      <AlertCircle :size="16" /><span>{{ error }}</span>
     </div>
     <form
       id="route-create-form"

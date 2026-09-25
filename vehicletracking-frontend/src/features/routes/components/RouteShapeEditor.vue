@@ -6,6 +6,7 @@ import { decodeFlexiblePolyline } from '@/features/map/utils/polyline';
 import { shapeRoute } from '@/features/routes/api/routes';
 import { formatDuration } from '@/shared/utils/format';
 import FleetConfirmDialog from '@/features/fleet/components/FleetConfirmDialog.vue';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
 const props = defineProps<{
   route: RouteDetail;
   map: L.Map | null;
@@ -17,6 +18,7 @@ const points = shallowRef<RouteShapePoint[]>(props.route.shapingPoints ?? []),
 const previewKey = ref(JSON.stringify(points.value)),
   busy = ref(false),
   error = ref<string | null>(null);
+useErrorToast(error);
 const confirmClose = ref(false),
   copy = ref(false);
 let alive = true,
@@ -220,13 +222,6 @@ const moveUp = (index: number) =>
         {{ formatDuration(preview.estimatedTripDurationSeconds)
         }}{{ !previewCurrent ? ' · Cần tính lại sau khi kéo điểm' : '' }}
       </p>
-      <div
-        v-if="error"
-        class="route-error-banner"
-        role="alert"
-      >
-        {{ error }}
-      </div>
       <ol class="route-shape-points">
         <li
           v-for="(point, index) in points"
@@ -300,7 +295,6 @@ const moveUp = (index: number) =>
       message="Các điểm bạn vừa kéo chưa được lưu."
       confirm-label="Bỏ thay đổi"
       :busy="false"
-      :error="null"
       :on-close="
         () => {
           confirmClose = false;

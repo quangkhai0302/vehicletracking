@@ -12,6 +12,7 @@ import VehicleEditor from '@/features/fleet/components/VehicleEditor.vue';
 import DriverEditor from '@/features/fleet/components/DriverEditor.vue';
 import TripEditor from '@/features/fleet/components/TripEditor.vue';
 import TripDetailPanel from '@/features/fleet/components/TripDetailPanel.vue';
+import FleetWorkspace from '@/features/fleet/components/FleetWorkspace.vue';
 import type { Driver, FleetVehicle, TripDetail, TripSummary } from '@/features/fleet/types/fleet';
 import type { OperationsSnapshot } from '@/features/tracking/types/operations';
 import type { TripEta } from '@/features/fleet/types/eta';
@@ -157,6 +158,49 @@ beforeEach(() => {
 afterEach(() => {
   scopes.splice(0).forEach((scope) => scope.stop());
   vi.useRealTimers();
+});
+
+test('trip detail replaces the list as a full-page workspace and returns without a modal', async () => {
+  const wrapper = mount(FleetWorkspace, {
+    props: {
+      initialTab: 'trips',
+      lockedTab: 'trips',
+      onToast: vi.fn(),
+      onFocusStop: vi.fn(),
+      onManageRoutes: vi.fn(),
+      onManageStations: vi.fn(),
+    },
+    global: {
+      stubs: {
+        TripDetailPanel: {
+          props: ['onClose'],
+          template:
+            '<section class="trip-detail-panel-stub"><button aria-label="Đóng chi tiết chuyến" @click="onClose()">Quay lại</button></section>',
+        },
+      },
+    },
+  });
+  await flushPromises();
+
+  expect(wrapper.findAll('.fleet-summary-card')).toHaveLength(4);
+  expect(wrapper.text()).toContain('Tổng chuyến đi');
+  expect(wrapper.text()).toContain('Chờ khởi hành');
+  expect(wrapper.text()).toContain('Đã hoàn thành');
+
+  expect(wrapper.get('.fleet-list-view').attributes('hidden')).toBeUndefined();
+  await wrapper.get('[aria-label="Mở chi tiết chuyến 1, Fixture route"]').trigger('click');
+  await flushPromises();
+
+  expect(wrapper.get('.fleet-list-view').attributes('hidden')).toBe('');
+  expect(wrapper.find('.trip-detail-panel-stub').exists()).toBe(true);
+  expect(wrapper.find('.business-side-panel').exists()).toBe(false);
+
+  await wrapper.get('[aria-label="Đóng chi tiết chuyến"]').trigger('click');
+  await nextTick();
+
+  expect(wrapper.get('.fleet-list-view').attributes('hidden')).toBeUndefined();
+  expect(wrapper.find('.trip-detail-panel-stub').exists()).toBe(false);
+  wrapper.unmount();
 });
 
 test('detail A cannot overwrite B; disposal aborts outstanding reads', async () => {

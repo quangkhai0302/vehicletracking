@@ -36,9 +36,11 @@ class RouteMotionTest {
     @Test void dwellAndLoopRespectStopOccurrence() {
         var motion=motion(); var dwelling=motion.at(22);
         assertThat(dwelling.dwelling()).isTrue(); assertThat(dwelling.speedKmh()).isZero();
+        assertThat(dwelling.dwellRemainingSeconds()).isEqualTo(2);
         assertThat(dwelling.latitude()).isEqualTo(10.771); assertThat(dwelling.nextStopSequence()).isEqualTo(3);
         assertThat(dwelling.nextStopEtaSeconds()).isEqualTo(22);
         assertThat(motion.at(24).dwelling()).isFalse();
+        assertThat(motion.at(24).dwellRemainingSeconds()).isZero();
         assertThat(motion.at(44).finished()).isTrue();
         assertThat(motion.at(44).latitude()).isEqualTo(10.77);
         assertThat(motion.at(44).progressPercent()).isEqualTo(100);

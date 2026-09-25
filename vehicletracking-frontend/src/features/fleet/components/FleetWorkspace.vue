@@ -6,7 +6,10 @@ import {
   CalendarDays,
   CarFront,
   CheckCircle2,
+  CircleOff,
+  Clock3,
   Edit3,
+  ListChecks,
   Plus,
   RefreshCw,
   Scooter,
@@ -33,6 +36,8 @@ import FleetConfirmDialog from './FleetConfirmDialog.vue';
 import DriverEditor from './DriverEditor.vue';
 import FleetManagementTable from './FleetManagementTable.vue';
 import type { OperationsSnapshot } from '@/features/tracking/types/operations';
+import SidePanel from '@/shared/components/SidePanel.vue';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
 import '@/features/fleet/styles/fleet.css';
 const props = withDefaults(
   defineProps<{
@@ -65,6 +70,7 @@ const fleet = useFleetWorkspace(
   props.initialTab,
   props.initialVehicleFilter,
 );
+useErrorToast(() => fleet.error);
 watch(
   [() => props.initialRouteId, () => props.openTripFromRoute],
   ([routeId, open]) => {
@@ -169,20 +175,104 @@ const moduleCopy = computed(() =>
           primaryAction: fleet.openTripForm,
         },
 );
-const activeCount = computed(() =>
-  activeTab.value === 'vehicles'
-    ? fleet.vehicles.filter((vehicle) => vehicle.active).length
-    : activeTab.value === 'drivers'
-      ? fleet.drivers.filter((driver) => driver.active).length
-      : fleet.trips.filter((trip) => trip.status === 'IN_PROGRESS').length,
-);
-const activeLabel = computed(() =>
-  activeTab.value === 'vehicles'
-    ? 'đang sử dụng'
-    : activeTab.value === 'drivers'
-      ? 'đang hoạt động'
-      : 'đang chạy',
-);
+const summaryCards = computed(() => {
+  if (activeTab.value === 'vehicles') {
+    return [
+      {
+        label: 'Tổng phương tiện',
+        value: fleet.vehicles.length,
+        hint: 'Trong danh mục đội xe',
+        tone: 'total',
+        icon: BusFront,
+      },
+      {
+        label: 'Đang sử dụng',
+        value: fleet.vehicles.filter((vehicle) => vehicle.active).length,
+        hint: 'Sẵn sàng điều phối',
+        tone: 'active',
+        icon: CheckCircle2,
+      },
+      {
+        label: 'Đã ngừng sử dụng',
+        value: fleet.vehicles.filter((vehicle) => !vehicle.active).length,
+        hint: 'Không tham gia vận hành',
+        tone: 'inactive',
+        icon: CircleOff,
+      },
+      {
+        label: 'Đã phân công tài xế',
+        value: fleet.vehicles.filter((vehicle) => vehicle.active && vehicle.driver).length,
+        hint: 'Trên số xe đang sử dụng',
+        tone: 'assigned',
+        icon: UserRound,
+      },
+    ];
+  }
+  if (activeTab.value === 'drivers') {
+    return [
+      {
+        label: 'Tổng tài xế',
+        value: fleet.drivers.length,
+        hint: 'Hồ sơ trong hệ thống',
+        tone: 'total',
+        icon: UserRound,
+      },
+      {
+        label: 'Đang hoạt động',
+        value: fleet.drivers.filter((driver) => driver.active).length,
+        hint: 'Có thể nhận phân công',
+        tone: 'active',
+        icon: CheckCircle2,
+      },
+      {
+        label: 'Đã ngừng hoạt động',
+        value: fleet.drivers.filter((driver) => !driver.active).length,
+        hint: 'Không thể nhận chuyến',
+        tone: 'inactive',
+        icon: CircleOff,
+      },
+      {
+        label: 'Đang được gán xe',
+        value: fleet.drivers.filter((driver) =>
+          fleet.vehicles.some((vehicle) => vehicle.active && vehicle.driver?.id === driver.id),
+        ).length,
+        hint: 'Phân công phương tiện hiện tại',
+        tone: 'assigned',
+        icon: CarFront,
+      },
+    ];
+  }
+  return [
+    {
+      label: 'Tổng chuyến đi',
+      value: fleet.trips.length,
+      hint: 'Toàn bộ chuyến đã tạo',
+      tone: 'total',
+      icon: ListChecks,
+    },
+    {
+      label: 'Đang thực hiện',
+      value: fleet.trips.filter((trip) => trip.status === 'IN_PROGRESS').length,
+      hint: 'Đang vận hành trên tuyến',
+      tone: 'active',
+      icon: CarFront,
+    },
+    {
+      label: 'Chờ khởi hành',
+      value: fleet.trips.filter((trip) => trip.status === 'SCHEDULED').length,
+      hint: 'Sẵn sàng bắt đầu',
+      tone: 'waiting',
+      icon: Clock3,
+    },
+    {
+      label: 'Đã hoàn thành',
+      value: fleet.trips.filter((trip) => trip.status === 'COMPLETED').length,
+      hint: 'Kết thúc hành trình',
+      tone: 'completed',
+      icon: CheckCircle2,
+    },
+  ];
+});
 const filteredCount = computed(() =>
   activeTab.value === 'vehicles'
     ? vehicles.value.length
@@ -236,7 +326,7 @@ async function removeDriver() {
   <div class="fleet-workspace">
     <div
       class="fleet-list-view"
-      :hidden="screen.kind !== 'list'"
+      :hidden="screen.kind === 'trip-detail'"
     >
       <header class="fleet-module-header">
         <div class="fleet-module-title">
@@ -252,14 +342,23 @@ async function removeDriver() {
           </div>
         </div>
         <div class="fleet-module-summary">
-          <div>
-            <strong>{{ activeCount }}</strong
-            ><span>{{ activeLabel }}</span>
-          </div>
-          <div>
-            <strong>{{ moduleCopy.total }}</strong
-            ><span>tổng danh mục</span>
-          </div>
+          <article
+            v-for="card in summaryCards"
+            :key="card.label"
+            :class="['fleet-summary-card', card.tone]"
+          >
+            <span class="fleet-summary-icon">
+              <component
+                :is="card.icon"
+                :size="20"
+              />
+            </span>
+            <div>
+              <span>{{ card.label }}</span>
+              <strong>{{ card.value }}</strong>
+              <small>{{ card.hint }}</small>
+            </div>
+          </article>
         </div>
         <div class="fleet-module-actions">
           <button
@@ -397,19 +496,6 @@ async function removeDriver() {
         >
           Đang tải xe và chuyến đi…
         </p>
-        <div
-          v-if="fleet.error && !deactivate && !deactivateDriver"
-          class="fleet-error"
-          role="alert"
-        >
-          {{ fleet.error
-          }}<button
-            class="fleet-text-button"
-            @click="fleet.reload"
-          >
-            Thử lại
-          </button>
-        </div>
         <FleetManagementTable
           v-if="!fleet.loading && !fleet.error && lockedTab"
           :tab="activeTab"
@@ -631,45 +717,62 @@ async function removeDriver() {
         Thêm ít nhất một xe đang sử dụng ở mục Phương tiện.
       </p>
     </div>
-    <VehicleEditor
+    <SidePanel
       v-if="screen.kind === 'vehicle-form'"
-      :key="screen.vehicle?.id ?? 'new'"
-      :vehicle="screen.vehicle"
-      :drivers="fleet.drivers"
+      class-name="fleet-workspace-modal fleet-form-modal"
+      :label="screen.vehicle ? 'Chỉnh sửa phương tiện' : 'Thêm phương tiện'"
       :busy="fleet.busy"
-      :error="fleet.error"
-      :on-save="saveVehicle"
-      :on-close="fleet.close"
-    />
-    <DriverEditor
+      :on-close="() => undefined"
+    >
+      <VehicleEditor
+        :key="screen.vehicle?.id ?? 'new'"
+        :vehicle="screen.vehicle"
+        :drivers="fleet.drivers"
+        :busy="fleet.busy"
+        :on-save="saveVehicle"
+        :on-close="fleet.close"
+      />
+    </SidePanel>
+    <SidePanel
       v-if="screen.kind === 'driver-form'"
-      :key="screen.driver?.id ?? 'new'"
-      :driver="screen.driver"
+      class-name="fleet-workspace-modal fleet-form-modal"
+      :label="screen.driver ? 'Chỉnh sửa tài xế' : 'Thêm tài xế'"
       :busy="fleet.busy"
-      :error="fleet.error"
-      :on-save="saveDriver"
-      :on-close="fleet.close"
-    />
-    <TripEditor
+      :on-close="() => undefined"
+    >
+      <DriverEditor
+        :key="screen.driver?.id ?? 'new'"
+        :driver="screen.driver"
+        :busy="fleet.busy"
+        :on-save="saveDriver"
+        :on-close="fleet.close"
+      />
+    </SidePanel>
+    <SidePanel
       v-if="screen.kind === 'trip-form'"
-      :key="`${screen.vehicleId ?? 'none'}:${initialRouteId ?? 'none'}`"
-      :vehicles="fleet.vehicles"
-      :drivers="fleet.drivers"
-      :initial-vehicle-id="screen.vehicleId"
-      :initial-route-id="initialRouteId"
+      class-name="fleet-workspace-modal fleet-form-modal"
+      label="Điều phối chuyến đi"
       :busy="fleet.busy"
-      :error="fleet.error"
-      :on-save="fleet.saveTrip"
-      :on-close="fleet.close"
-      :on-manage-routes="onManageRoutes"
-    />
+      :on-close="() => undefined"
+    >
+      <TripEditor
+        :key="`${screen.vehicleId ?? 'none'}:${initialRouteId ?? 'none'}`"
+        :vehicles="fleet.vehicles"
+        :drivers="fleet.drivers"
+        :initial-vehicle-id="screen.vehicleId"
+        :initial-route-id="initialRouteId"
+        :busy="fleet.busy"
+        :on-save="fleet.saveTrip"
+        :on-close="fleet.close"
+        :on-manage-routes="onManageRoutes"
+      />
+    </SidePanel>
     <TripDetailPanel
       v-if="screen.kind === 'trip-detail'"
       :key="`${screen.id}:${fleet.detail?.trip.attemptNumber ?? 'loading'}`"
       :detail="fleet.detail"
       :loading="fleet.loadingDetail"
       :busy="fleet.busy"
-      :error="fleet.error"
       :on-close="fleet.close"
       :drivers="fleet.drivers"
       :on-retry="retryTrip"
@@ -687,7 +790,6 @@ async function removeDriver() {
       message="Các chuyến chưa kết thúc phải được hoàn thành hoặc hủy trước. Lịch sử xe và chuyến đi vẫn được lưu."
       confirm-label="Xác nhận ngừng sử dụng xe"
       :busy="fleet.busy"
-      :error="fleet.error"
       :on-close="() => (deactivate = null)"
       :on-confirm="removeVehicle"
     />
@@ -697,7 +799,6 @@ async function removeDriver() {
       message="Tài xế phải được bỏ gán khỏi xe và các chuyến chưa kết thúc. Lịch sử chuyến đã hoàn thành vẫn được giữ."
       confirm-label="Xác nhận ngừng tài xế"
       :busy="fleet.busy"
-      :error="fleet.error"
       :on-close="() => (deactivateDriver = null)"
       :on-confirm="removeDriver"
     />

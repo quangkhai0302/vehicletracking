@@ -11,7 +11,6 @@ defineProps<{
   stations: Station[];
   loadingDetail: boolean;
   saving: boolean;
-  error: string | null;
   onClose: () => void;
   onSaveRoute: (input: RouteCreateInput) => void;
   onEdit: () => void;
@@ -42,7 +41,6 @@ defineProps<{
       :on-focus-draft-stop="onFocusDraftStop"
       :stations="stations"
       :saving="saving"
-      :error="error"
       :on-close="onClose"
       :on-save-route="onSaveRoute"
     />
@@ -56,7 +54,6 @@ defineProps<{
       :on-focus-stop="onFocusStop"
       :route-detail="routeDetail"
       :loading-detail="loadingDetail"
-      :error="error"
       :on-close="onClose"
     />
   </aside>

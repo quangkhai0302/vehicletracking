@@ -1,21 +1,20 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ArrowRight, LockKeyhole, Navigation, TriangleAlert, UserRound } from '@lucide/vue';
+import { ArrowRight, LockKeyhole, Navigation, UserRound } from '@lucide/vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { useAuth } from '@/features/auth/composables/useAuth';
 import { roleHome } from '@/app/router/guards';
 import AuthLayout from '@/app/layouts/AuthLayout.vue';
+import { notifyError } from '@/shared/notifications/toast';
 import '@/features/auth/styles/auth-pages.css';
 const auth = useAuth();
 const router = useRouter();
 const username = ref(''),
   password = ref(''),
-  busy = ref(false),
-  error = ref<string | null>(null);
+  busy = ref(false);
 async function submit() {
   if (busy.value) return;
   busy.value = true;
-  error.value = null;
   const requested: unknown = window.history.state?.from;
   try {
     const next = await auth.login({ username: username.value.trim(), password: password.value });
@@ -25,7 +24,7 @@ async function submit() {
         : roleHome(next.role),
     );
   } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : 'Không thể đăng nhập.';
+    notifyError(reason instanceof Error ? reason.message : 'Không thể đăng nhập.');
   } finally {
     busy.value = false;
   }
@@ -41,13 +40,6 @@ async function submit() {
       <span>ĐĂNG NHẬP HỆ THỐNG</span>
       <h1>Chào mừng trở lại</h1>
       <p>Đăng nhập để xem đúng không gian được phân quyền.</p>
-    </div>
-    <div
-      v-if="error"
-      class="auth-error"
-      role="alert"
-    >
-      <TriangleAlert :size="17" /><span>{{ error }}</span>
     </div>
     <form
       class="auth-form"

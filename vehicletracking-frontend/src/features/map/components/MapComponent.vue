@@ -14,6 +14,7 @@ import type { MapTheme } from '@/features/map/types/map';
 import type { RouteDetail, RouteDraftStop } from '@/features/routes/types/route';
 import type { WorkspaceMode } from '@/shared/types/workspace';
 import { useLiveOperations } from '@/features/tracking/composables/useLiveOperations';
+import { useCheckInNotifications } from '@/features/tracking/composables/useCheckInNotifications';
 import { useSimulator } from '@/features/simulation/composables/useSimulator';
 import { useSimulationFleet } from '@/features/simulation/composables/useSimulationFleet';
 import {
@@ -26,6 +27,8 @@ import { useMapCamera } from '@/features/map/composables/useMapCamera';
 import { useMapLayers } from '@/features/map/composables/useMapLayers';
 import { useStationWorkspace } from '@/features/stations/composables/useStationWorkspace';
 import { useCompactLayout } from '@/shared/composables/useCompactLayout';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
+import { notifyError, notifyLegacy } from '@/shared/notifications/toast';
 import { useTraffic } from '@/features/traffic/composables/useTraffic';
 import { makeMotionPath, type MotionPath } from '@/features/fleet/utils/vehicleMotion';
 import MapControls from './MapControls.vue';
@@ -51,7 +54,9 @@ import TrackingVehicleCard from '@/features/tracking/components/TrackingVehicleC
 import AlertStream from '@/features/tracking/components/AlertStream.vue';
 import ConfirmStationDelete from '@/features/stations/components/ConfirmStationDelete.vue';
 import TrafficLayer from '@/features/traffic/components/TrafficLayer.vue';
-const RouteInspectionLayer = defineAsyncComponent(() => import('@/features/routes/components/RouteInspectionLayer.vue'));
+const RouteInspectionLayer = defineAsyncComponent(
+  () => import('@/features/routes/components/RouteInspectionLayer.vue'),
+);
 const SimulationFleetLayer = defineAsyncComponent(
   () => import('@/features/simulation/components/SimulationFleetLayer.vue'),
 );
@@ -97,19 +102,22 @@ watch(
   { immediate: true },
 );
 const mapReady = computed(() => mapInstanceRef.value !== null),
-  theme = ref<MapTheme>('google-roadmap'),
-  toast = ref<string | null>(null);
-const setToast = (message: string) => {
-  toast.value = message;
-};
+  theme = ref<MapTheme>('google-roadmap');
+const setToast = notifyLegacy;
 const live = useLiveOperations(),
   simulator = useSimulator(() => live.snapshot, setToast);
+useCheckInNotifications(() => live.snapshot);
+useErrorToast(() => live.error);
+useErrorToast(() => simulator.error);
 const simulationFleet = useSimulationFleet(
   () => live.snapshot,
   () => workspace.value === 'simulation',
 );
 const persistedVehicleAnchors = usePlannedVehicleAnchors(() => live.snapshot);
 const traffic = useTraffic(mapInstanceRef, showTraffic, mapReady);
+useErrorToast(() =>
+  traffic.error === 'Phóng to bản đồ để xem sự cố giao thông.' ? null : traffic.error,
+);
 const trafficStatus = computed(() => traffic.flow?.status ?? traffic.incidents?.status);
 const trafficMessage = computed(() =>
   traffic.loading
@@ -163,6 +171,7 @@ const {
   deleteCandidate,
   selectedStation,
 } = toRefs(stationWorkspace);
+useErrorToast(stationError);
 const {
   setStationForm,
   setPickingLocation,
@@ -320,12 +329,74 @@ const selectedTrip = computed(
 const selectedRun = computed(() =>
   live.snapshot?.simulations.find((run) => run.tripId === selectedTripId.value),
 );
+const selectedVisitedStopSequences = computed(() => {
+  const checkIns = live.snapshot?.checkIns.find((item) => item.tripId === selectedTripId.value);
+  if (!checkIns) return [];
+  const attemptNumber = selectedRun.value?.attemptNumber ?? selectedTrip.value?.attemptNumber;
+  return [
+    ...new Set(
+      checkIns.visits
+        .filter(
+          (visit) =>
+            attemptNumber === undefined ||
+            visit.attemptNumber === undefined ||
+            visit.attemptNumber === attemptNumber,
+        )
+        .map((visit) => visit.stopSequence),
+    ),
+  ];
+});
+useErrorToast(() =>
+  selectedRun.value?.status === 'FAILED'
+    ? selectedRun.value.errorMessage || 'Mô phỏng gặp lỗi. Hãy kiểm tra tuyến và chạy lại.'
+    : null,
+);
+useErrorToast(() =>
+  simulationFleet.routeFailures.length
+    ? `Chưa hiển thị được tuyến của ${simulationFleet.routeFailures.map((item) => item.trip.vehiclePlateNumber).join(', ')}.`
+    : null,
+);
+useErrorToast(() =>
+  simulationFleet.failures.length
+    ? `${simulationFleet.failures.length} xe chưa tải được vị trí trạm đầu.`
+    : null,
+);
 const simulationDisabledReason = computed(() => {
   if (!selectedTrip.value || selectedTrip.value.status !== 'SCHEDULED') return null;
-  if (!selectedTrip.value.driver) return 'Cần phân công tài xế cho chuyến trước khi bắt đầu mô phỏng.';
-  if (selectedVehicle.value?.source === 'GPS') return 'Xe đã có vị trí GPS nên không thể chạy mô phỏng.';
+  if (!selectedTrip.value.driver)
+    return 'Cần phân công tài xế cho chuyến trước khi bắt đầu mô phỏng.';
+  if (selectedVehicle.value?.source === 'GPS')
+    return 'Xe đã có vị trí GPS nên không thể chạy mô phỏng.';
   if (selectedRun.value && selectedRun.value.status !== 'PAUSED')
     return 'Chuyến đã có phiên mô phỏng. Mở bảng mô phỏng để kiểm tra.';
+  if (live.connection !== 'live') return 'Đang kết nối dữ liệu trực tiếp. Vui lòng thử lại sau.';
+  return null;
+});
+const simulationReplayAvailable = computed(
+  () =>
+    selectedRun.value?.status === 'COMPLETED' ||
+    selectedRun.value?.status === 'STOPPED' ||
+    selectedRun.value?.status === 'FAILED',
+);
+const simulationReplayDisabledReason = computed(() => {
+  if (!selectedTrip.value || !simulationReplayAvailable.value) return null;
+  if (!selectedTrip.value.driver) return 'Cần phân công tài xế cho chuyến trước khi mô phỏng lại.';
+  if (selectedVehicle.value?.source === 'GPS')
+    return 'Chuyến đã nhận dữ liệu GPS nên không thể mô phỏng lại.';
+  const competingTrip = live.snapshot?.trips.find(
+    (trip) =>
+      trip.id !== selectedTrip.value?.id &&
+      trip.vehicleId === selectedTrip.value?.vehicleId &&
+      trip.status === 'IN_PROGRESS',
+  );
+  if (competingTrip) return `Xe đang thực hiện chuyến #${competingTrip.id}.`;
+  const competingDriverTrip = live.snapshot?.trips.find(
+    (trip) =>
+      trip.id !== selectedTrip.value?.id &&
+      trip.driver?.id === selectedTrip.value?.driver?.id &&
+      trip.status === 'IN_PROGRESS',
+  );
+  if (competingDriverTrip) return `Tài xế đang thực hiện chuyến #${competingDriverTrip.id}.`;
   if (live.connection !== 'live') return 'Đang kết nối dữ liệu trực tiếp. Vui lòng thử lại sau.';
   return null;
 });
@@ -441,10 +512,28 @@ const openSimulation = (id: number) => {
   selectMode('simulation');
 };
 const startSelectedSimulation = (id: number) => {
-  if (selectedTrip.value?.id !== id || selectedTrip.value.status !== 'SCHEDULED'
-    || simulationDisabledReason.value || simulator.busy) return;
+  if (
+    selectedTrip.value?.id !== id ||
+    selectedTrip.value.status !== 'SCHEDULED' ||
+    simulationDisabledReason.value ||
+    simulator.busy
+  )
+    return;
   openSimulation(id);
   void simulator.command('play');
+};
+const replaySelectedSimulation = async (id: number) => {
+  if (
+    selectedTrip.value?.id !== id ||
+    !simulationReplayAvailable.value ||
+    simulationReplayDisabledReason.value ||
+    simulator.busy
+  )
+    return false;
+  if (simulator.tripId !== id) simulator.select(id);
+  const replayed = await simulator.command('reset');
+  if (replayed) selectMode('simulation');
+  return replayed;
 };
 const selectSimulationVehicle = (tripId: number) => {
   if (simulator.busy) return;
@@ -490,41 +579,45 @@ const fitSimulationFleet = () => {
     fitBounds(L.latLngBounds(fleetPoints.value));
   }
 };
-watch(toast, (message, _old, cleanup) => {
-  if (!message) return;
-  const timer = window.setTimeout(() => {
-    toast.value = null;
-  }, 3500);
-  cleanup(() => window.clearTimeout(timer));
+const { plannedRouteBounds, basemapStatus, retryBasemap } = useMapLayers(
+  mapContainerRef,
+  mapInstanceRef,
+  () => ({
+    workspace: workspace.value,
+    showStations: showStations.value,
+    showRoutes: showRoutes.value,
+    showTraffic: showTraffic.value,
+    theme: theme.value,
+    plannedRoute: plannedRoute.value,
+    hasSimulationRoute: hasSimulationRoute.value,
+    draftStops: draftStops.value,
+    selectedDraftStopId: selectedDraftStopId.value,
+    stationWorkspace,
+    setSelectedDraftStopId: (id) => {
+      selectedDraftStopId.value = id;
+    },
+    setDrawerOpen: (open) => {
+      drawerOpen.value = open;
+    },
+    setActivePanel: (panel) => {
+      activePanel.value = panel;
+    },
+    setFollowingVehicle: (value) => {
+      followingVehicle.value = value;
+    },
+    releaseFocus,
+    setToast,
+    focusLocation,
+    fitBounds,
+  }),
+);
+watch(basemapStatus, (status) => {
+  if (status === 'error')
+    notifyError('Không tải được bản đồ nền. Nhấn thông báo để thử lại.', {
+      onClick: retryBasemap,
+      toastId: 'basemap-error',
+    });
 });
-const { plannedRouteBounds, basemapStatus, retryBasemap } = useMapLayers(mapContainerRef, mapInstanceRef, () => ({
-  workspace: workspace.value,
-  showStations: showStations.value,
-  showRoutes: showRoutes.value,
-  showTraffic: showTraffic.value,
-  theme: theme.value,
-  plannedRoute: plannedRoute.value,
-  hasSimulationRoute: hasSimulationRoute.value,
-  draftStops: draftStops.value,
-  selectedDraftStopId: selectedDraftStopId.value,
-  stationWorkspace,
-  setSelectedDraftStopId: (id) => {
-    selectedDraftStopId.value = id;
-  },
-  setDrawerOpen: (open) => {
-    drawerOpen.value = open;
-  },
-  setActivePanel: (panel) => {
-    activePanel.value = panel;
-  },
-  setFollowingVehicle: (value) => {
-    followingVehicle.value = value;
-  },
-  releaseFocus,
-  setToast,
-  focusLocation,
-  fitBounds,
-}));
 const focusDraftStop = (id: string) => {
   selectedDraftStopId.value = id;
   const stop = draftStops.value.find((item) => item.id === id),
@@ -613,11 +706,6 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       aria-label="Bản đồ tương tác"
       :tabindex="-1"
     />
-    <div v-if="basemapStatus === 'error'" class="basemap-error glass-panel" role="alert">
-      <strong>Không tải được bản đồ nền</strong>
-      <p>Biểu tượng xe vẫn hiển thị, nhưng chưa thể xem đường và địa điểm. Kiểm tra kết nối rồi thử lại.</p>
-      <button type="button" @click="retryBasemap">Tải lại bản đồ</button>
-    </div>
     <TrafficLayer
       :map="mapInstanceRef"
       :map-ready="mapReady"
@@ -653,7 +741,10 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     <div
       class="live-follow glass-panel"
       data-map-edge="top"
-      :hidden="(!selectedVehicle && !selectedWaitingVehicle && !selectedPlannedVehicle) || (workspace === 'tracking' && contextVisible && !!selectedPlannedVehicle && !selectedVehicle)"
+      :hidden="
+        (!selectedVehicle && !selectedWaitingVehicle && !selectedPlannedVehicle) ||
+        (workspace === 'tracking' && contextVisible && !!selectedPlannedVehicle && !selectedVehicle)
+      "
     >
       <div
         v-if="!selectedVehicle && selectedWaitingVehicle"
@@ -732,7 +823,19 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     >
       <div class="floating-panel-heading">
         <span
-          ><MapPin v-if="workspace === 'stations'" :size="15" /><Play v-else-if="workspace === 'simulation'" :size="15" /><BusFront v-else-if="workspace === 'tracking'" :size="15" /><List v-else :size="15" />{{
+          ><MapPin
+            v-if="workspace === 'stations'"
+            :size="15"
+          /><Play
+            v-else-if="workspace === 'simulation'"
+            :size="15"
+          /><BusFront
+            v-else-if="workspace === 'tracking'"
+            :size="15"
+          /><List
+            v-else
+            :size="15"
+          />{{
             workspace === 'simulation'
               ? 'MÔ PHỎNG CHUYẾN ĐI'
               : workspace === 'stations'
@@ -780,13 +883,20 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
           Trạm dừng <span>{{ stations.length }}</span>
         </button>
       </div>
-      <div class="context-content" :hidden="workspace !== 'tracking'">
+      <div
+        class="context-content"
+        :hidden="workspace !== 'tracking'"
+      >
         <TrackingVehicleCard
           :trip="selectedTrip"
-          :position="selectedVehicle"
+          :route="vehicleRoute"
+          :visited-stop-sequences="selectedVisitedStopSequences"
           :simulation-busy="simulator.busy"
           :simulation-disabled-reason="simulationDisabledReason"
+          :simulation-replay-available="simulationReplayAvailable"
+          :simulation-replay-disabled-reason="simulationReplayDisabledReason"
           :on-start-simulation="startSelectedSimulation"
+          :on-replay-simulation="replaySelectedSimulation"
           :on-clear="clearVehicleSelection"
         />
       </div>
@@ -835,7 +945,6 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
           :mode="formMode"
           :form="stationForm"
           :saving="savingStation"
-          :error="stationError"
           :picking-location="pickingLocation"
           :on-close="handleCloseStationDrawer"
           :on-begin-edit="() => handleBeginEdit()"
@@ -912,9 +1021,15 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
           class="alert-drawer-status"
         >
           <Bell :size="22" /><strong>{{
-            live.error ? 'Chưa tải được thông báo' : 'Đang tải thông báo vận hành…'
+            live.error ? 'Kết nối dữ liệu bị gián đoạn' : 'Đang tải thông báo vận hành…'
           }}</strong>
-          <p>{{ live.error ?? 'Đang chờ dữ liệu vận hành đầu tiên từ máy chủ.' }}</p>
+          <p>
+            {{
+              live.error
+                ? 'Hãy thử kết nối lại để tiếp tục nhận dữ liệu mới.'
+                : 'Đang chờ dữ liệu vận hành đầu tiên từ máy chủ.'
+            }}
+          </p>
           <button
             v-if="live.error"
             type="button"
@@ -954,7 +1069,11 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       >
         <BusFront :size="16" />
         <span class="launcher-label-full">Theo dõi trực tiếp</span>
-        <span class="launcher-label-compact" aria-hidden="true">Theo dõi</span>
+        <span
+          class="launcher-label-compact"
+          aria-hidden="true"
+          >Theo dõi</span
+        >
       </button>
 
       <button
@@ -974,7 +1093,11 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       >
         <Play :size="16" />
         <span class="launcher-label-full">Mô phỏng xe</span>
-        <span class="launcher-label-compact" aria-hidden="true">Mô phỏng</span>
+        <span
+          class="launcher-label-compact"
+          aria-hidden="true"
+          >Mô phỏng</span
+        >
       </button>
 
       <button
@@ -996,7 +1119,10 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
         :title="connectionLabel"
         role="status"
       >
-        <span class="live-beacon-dot" aria-hidden="true" />
+        <span
+          class="live-beacon-dot"
+          aria-hidden="true"
+        />
         <span class="launcher-connection-label">{{ connectionLabel }}</span>
       </span>
     </div>
@@ -1074,12 +1200,5 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       :on-cancel="() => setDeleteCandidate(null)"
       :on-confirm="handleDeactivate"
     />
-    <div
-      v-if="toast"
-      class="application-toast"
-      role="status"
-    >
-      {{ toast }}
-    </div>
   </section>
 </template>

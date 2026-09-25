@@ -7,7 +7,6 @@ const props = defineProps<{
   vehicle: FleetVehicle | null;
   drivers: Driver[];
   busy: boolean;
-  error: string | null;
   onSave: (input: VehicleInput, id?: number) => Promise<boolean>;
   onClose: () => void;
 }>();
@@ -70,13 +69,6 @@ function submit() {
       @submit.prevent="submit"
     >
       <fieldset :disabled="busy">
-        <p
-          v-if="error"
-          role="alert"
-          class="fleet-error"
-        >
-          {{ error }}
-        </p>
         <fieldset class="vehicle-type-field">
           <legend>Loại phương tiện *</legend>
           <div class="vehicle-type-options">

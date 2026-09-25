@@ -2,7 +2,6 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  AlertCircle,
   ArrowRight,
   CheckCircle2,
   Clock,
@@ -16,6 +15,7 @@ import {
 } from '@lucide/vue';
 import PageHeading from '@/shared/components/PageHeading.vue';
 import SidePanel from '@/shared/components/SidePanel.vue';
+import RouteDeactivateConfirm from '@/features/routes/components/RouteDeactivateConfirm.vue';
 import {
   createRoute,
   deactivateRoute,
@@ -29,6 +29,8 @@ import type {
   RouteSummary,
 } from '@/features/routes/types/route';
 import type { Station } from '@/features/stations/types/station';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
+import { notifyError, notifySuccess } from '@/shared/notifications/toast';
 
 const location = useRoute();
 const router = useRouter();
@@ -63,6 +65,9 @@ const form = reactive({
 const deactivatingRoute = ref<RouteSummary | null>(null);
 const deactivating = ref(false);
 const deactivateError = ref<string | null>(null);
+useErrorToast(error);
+useErrorToast(detailError);
+useErrorToast(deactivateError);
 
 async function loadData() {
   loading.value = true;
@@ -249,8 +254,9 @@ async function saveRoute() {
       active: true,
     });
     createDrawerOpen.value = false;
+    notifySuccess(`Đã tạo tuyến đường “${created.name}”.`);
   } catch (e) {
-    formError.value = e instanceof Error ? e.message : 'Không thể tạo tuyến đường.';
+    notifyError(e instanceof Error ? e.message : 'Không thể tạo tuyến đường.');
   } finally {
     saving.value = false;
   }
@@ -270,6 +276,7 @@ async function confirmDeactivate() {
     const target = routes.value.find((r) => r.id === deactivatingRoute.value?.id);
     if (target) target.active = false;
     deactivatingRoute.value = null;
+    notifySuccess('Đã tạm dừng tuyến đường.');
   } catch (e) {
     deactivateError.value = e instanceof Error ? e.message : 'Không thể dừng tuyến.';
   } finally {
@@ -326,21 +333,6 @@ async function confirmDeactivate() {
       </article>
     </div>
 
-    <!-- Error state -->
-    <div
-      v-if="error"
-      class="fleet-error"
-      role="alert"
-    >
-      <AlertCircle :size="16" />
-      <span>{{ error }}</span>
-      <button
-        type="button"
-        @click="loadData"
-      >
-        Thử lại
-      </button>
-    </div>
 
     <!-- Table Section -->
     <section class="business-surface business-management-surface">
@@ -493,10 +485,6 @@ async function confirmDeactivate() {
       </header>
 
       <div class="schedule-form-content">
-        <div v-if="detailError" class="fleet-error" role="alert">
-          {{ detailError }}
-          <button type="button" @click="requestedRouteId && loadDetailById(requestedRouteId)">Thử lại</button>
-        </div>
         <div v-if="loadingDetail" class="route-table-empty">
           Đang tải dữ liệu lộ trình…
         </div>
@@ -694,44 +682,13 @@ async function confirmDeactivate() {
       </form>
     </SidePanel>
 
-    <!-- Confirm Deactivate Dialog -->
-    <dialog
+    <RouteDeactivateConfirm
       v-if="deactivatingRoute"
-      open
-      class="schedule-confirm"
-      aria-label="Xác nhận dừng tuyến"
-    >
-      <h2>Xác nhận tạm dừng tuyến</h2>
-      <p>
-        Bạn có chắc muốn tạm dừng tuyến <strong>{{ deactivatingRoute.name }}</strong>? Các chuyến đi theo lịch trình của tuyến này sẽ không thể khởi hành.
-      </p>
-      <p
-        v-if="deactivateError"
-        class="schedule-inline-error"
-        role="alert"
-        style="margin-top: 12px"
-      >
-        {{ deactivateError }}
-      </p>
-      <div class="dialog-actions">
-        <button
-          type="button"
-          class="schedule-button-secondary"
-          :disabled="deactivating"
-          @click="deactivatingRoute = null"
-        >
-          Hủy
-        </button>
-        <button
-          type="button"
-          class="schedule-button-danger"
-          :disabled="deactivating"
-          @click="confirmDeactivate"
-        >
-          {{ deactivating ? 'Đang xử lý…' : 'Tạm dừng tuyến' }}
-        </button>
-      </div>
-    </dialog>
+      :route="deactivatingRoute"
+      :busy="deactivating"
+      :on-close="() => (deactivatingRoute = null)"
+      :on-confirm="confirmDeactivate"
+    />
   </div>
 </template>
 

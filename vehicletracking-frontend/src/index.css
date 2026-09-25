@@ -1,9 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-@import "leaflet/dist/leaflet.css";
+@import 'leaflet/dist/leaflet.css';
 
 :root {
   /* Typography from docs/design.md */
-  --font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family:
+    'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-display: var(--font-family);
   --font-body: var(--font-family);
 
@@ -45,7 +46,7 @@
   /* Unified Operations Design System Tokens (Feature 030) */
   --app-bg: #070b14;
   --app-canvas: #090e1c;
-  
+
   --surface-base: rgba(13, 21, 38, 0.72);
   --surface-elevated: rgba(18, 30, 54, 0.85);
   --surface-overlay: rgba(22, 38, 68, 0.95);
@@ -156,7 +157,7 @@ h3 {
 
 .tabular-numbers {
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
+  font-feature-settings: 'tnum';
 }
 
 .application-shell,
@@ -312,8 +313,12 @@ h3 {
   font-size: 0.7rem;
 }
 
-.status-badge.ready svg { color: var(--emerald); }
-.status-badge.waiting svg { color: var(--amber); }
+.status-badge.ready svg {
+  color: var(--emerald);
+}
+.status-badge.waiting svg {
+  color: var(--amber);
+}
 
 /* Shared panels and actions */
 .operations-panel,
@@ -524,9 +529,17 @@ h3 {
   border-radius: 8px;
 }
 
-.fleet-metrics svg { color: var(--cyan); }
-.fleet-metrics strong { color: var(--text); font-size: 1rem; }
-.fleet-metrics span { font-size: 11px; white-space: nowrap; }
+.fleet-metrics svg {
+  color: var(--cyan);
+}
+.fleet-metrics strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+.fleet-metrics span {
+  font-size: 11px;
+  white-space: nowrap;
+}
 
 .operations-empty {
   min-height: 245px;
@@ -551,7 +564,9 @@ h3 {
   border-radius: 12px;
 }
 
-.operations-empty strong { font-size: 0.86rem; }
+.operations-empty strong {
+  font-size: 0.86rem;
+}
 .operations-empty p {
   max-width: 260px;
   margin-top: 7px;
@@ -570,7 +585,6 @@ h3 {
   border-top: 1px solid rgba(255, 255, 255, 0.07);
   font-size: 12px;
 }
-
 
 /* Station search */
 .station-search {
@@ -641,7 +655,10 @@ h3 {
   border-radius: 8px;
   text-align: left;
   cursor: pointer;
-  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .station-card:hover {
@@ -733,7 +750,9 @@ h3 {
   gap: 6px;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 150ms ease, visibility 150ms ease;
+  transition:
+    opacity 150ms ease,
+    visibility 150ms ease;
 }
 
 .station-card:hover .station-card-actions,
@@ -820,9 +839,16 @@ h3 {
   text-align: center;
 }
 
-.station-empty svg { color: var(--cyan); }
-.station-empty strong { color: var(--text-secondary); font-size: 0.8rem; }
-.station-empty.compact { min-height: 90px; }
+.station-empty svg {
+  color: var(--cyan);
+}
+.station-empty strong {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+.station-empty.compact {
+  min-height: 90px;
+}
 
 /* Nút "Thêm trạm" cố định ở cuối, viền đứt nét */
 .station-panel-bottom {
@@ -1102,7 +1128,9 @@ h3 {
 .station-map-marker.selected {
   background: #0284c7;
   border-color: white;
-  box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.25), 0 6px 16px rgba(2, 8, 23, 0.5);
+  box-shadow:
+    0 0 0 6px rgba(56, 189, 248, 0.25),
+    0 6px 16px rgba(2, 8, 23, 0.5);
   transform: rotate(-45deg) scale(1.18);
 }
 
@@ -1114,13 +1142,20 @@ h3 {
 .station-map-marker.draft {
   background: var(--amber);
   border-color: #fef3c7;
-  box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.25), 0 6px 16px rgba(2, 8, 23, 0.5);
+  box-shadow:
+    0 0 0 6px rgba(245, 158, 11, 0.25),
+    0 6px 16px rgba(2, 8, 23, 0.5);
   animation: draftPulse 1.8s ease-in-out infinite;
 }
 
 @keyframes draftPulse {
-  0%, 100% { transform: rotate(-45deg) scale(1); }
-  50% { transform: rotate(-45deg) scale(1.12); }
+  0%,
+  100% {
+    transform: rotate(-45deg) scale(1);
+  }
+  50% {
+    transform: rotate(-45deg) scale(1.12);
+  }
 }
 
 .station-picking {
@@ -1128,7 +1163,9 @@ h3 {
 }
 
 .station-picking.leaflet-drag-target,
-.station-picking:active { cursor: grabbing !important; }
+.station-picking:active {
+  cursor: grabbing !important;
+}
 
 .map-picking-banner {
   position: absolute;
@@ -1331,21 +1368,6 @@ h3 {
   margin-top: 20px;
 }
 
-.application-toast {
-  position: fixed;
-  z-index: 2100;
-  right: 24px;
-  bottom: 24px;
-  padding: 10px 16px;
-  color: #d1fae5;
-  background: rgba(6, 78, 59, 0.96);
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
 /* ==========================================================================
    VEHICLE TRACKING & SIMULATOR STYLES
    ========================================================================== */
@@ -1362,8 +1384,15 @@ h3 {
 }
 
 @keyframes pulseBeacon {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.92); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
 }
 
 /* Vehicle Drawer */
@@ -1812,8 +1841,12 @@ h3 {
 }
 
 @keyframes spinSubtle {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Vehicle Map Marker */
@@ -1845,8 +1878,14 @@ h3 {
 }
 
 @keyframes markerPulse {
-  0% { transform: scale(0.85); opacity: 0.8; }
-  100% { transform: scale(1.6); opacity: 0; }
+  0% {
+    transform: scale(0.85);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
 }
 
 .vehicle-marker-body {
@@ -2027,9 +2066,15 @@ h3 {
 }
 
 /* Metric boxes */
-.fleet-metrics .metric-box.success strong { color: #6ee7b7; }
-.fleet-metrics .metric-box.warning strong { color: #fde68a; }
-.fleet-metrics .metric-box.info strong { color: #38bdf8; }
+.fleet-metrics .metric-box.success strong {
+  color: #6ee7b7;
+}
+.fleet-metrics .metric-box.warning strong {
+  color: #fde68a;
+}
+.fleet-metrics .metric-box.info strong {
+  color: #38bdf8;
+}
 
 /* Simulator Controls Bar */
 .simulator-controls-bar {
@@ -2210,7 +2255,9 @@ h3 {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 2px 6px;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .radius-input-wrapper:focus-within {
@@ -2565,7 +2612,7 @@ h3 {
     right: 8px;
     bottom: 8px;
   }
-  [data-workspace="stations"] .map-controls-panel,
+  [data-workspace='stations'] .map-controls-panel,
   .bottom-left-bar {
     display: none;
   }
@@ -2576,12 +2623,6 @@ h3 {
     bottom: 20px;
     width: max-content;
     max-width: calc(100vw - 32px);
-    text-align: center;
-  }
-  .application-toast {
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
     text-align: center;
   }
 }
@@ -2602,4 +2643,39 @@ h3 {
   .location-picker-status button {
     grid-column: 1 / -1;
   }
+}
+
+/* Toastify normally mounts below body, while showModal() uses the browser top layer. */
+.Toastify[popover='manual'] {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+}
+
+.Toastify[popover='manual']::backdrop {
+  background: transparent;
+  pointer-events: none;
+}
+
+.Toastify[popover='manual'] .Toastify__toast-container {
+  pointer-events: auto;
+}
+
+/* Fallback for browsers that do not expose the Popover API. */
+dialog > .Toastify .Toastify__toast-container {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  left: auto;
+  width: min(var(--toastify-toast-width), calc(100% - 32px));
 }

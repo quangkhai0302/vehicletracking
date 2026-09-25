@@ -10,8 +10,13 @@ import type { AuthUser } from '@/features/auth/types/auth';
 import LoginPage from '../../src/pages/LoginPage.vue';
 import AdminRegistrationPage from '../../src/pages/AdminRegistrationPage.vue';
 import SidePanel from '@/shared/components/SidePanel.vue';
+import { notifyError, notifySuccess } from '@/shared/notifications/toast';
 
 vi.mock('@/features/auth/api/auth', () => ({ fetchCurrentUser: vi.fn(), login: vi.fn(), logout: vi.fn(), registerAdmin: vi.fn() }));
+vi.mock('@/shared/notifications/toast', () => ({
+  notifyError: vi.fn(),
+  notifySuccess: vi.fn(),
+}));
 const admin: AuthUser = { accountId: 1, username: 'admin.fixture', role: 'ADMIN', active: true, driverId: null, driverName: null };
 const driver: AuthUser = { ...admin, role: 'DRIVER', driverId: 1, driverName: 'Fixture driver' };
 const Page = defineComponent({ template: '<div />' });
@@ -63,16 +68,19 @@ test('login trims username, retains password and returns admin to requested rout
   expect(router.currentRoute.value.path).toBe('/reports'); wrapper.unmount();
 });
 
-test('registration mismatch does not call API; success shows normalized account name', async () => {
+test('registration mismatch and success use toast notifications', async () => {
   const router = makeRouter(); await router.push('/register');
   const wrapper = mount(AdminRegistrationPage, { global: { plugins: [router] } });
   const inputs = wrapper.findAll('input');
   await inputs[0].setValue(' New.Admin '); await inputs[1].setValue('fixture-password'); await inputs[2].setValue('different');
   await wrapper.find('form').trigger('submit'); expect(registerAdmin).not.toHaveBeenCalled();
-  expect(wrapper.get('[role=alert]').text()).toContain('không khớp');
+  expect(notifyError).toHaveBeenCalledWith('Mật khẩu xác nhận không khớp.');
   await inputs[2].setValue('fixture-password'); await wrapper.find('form').trigger('submit'); await flushPromises();
   expect(registerAdmin).toHaveBeenCalledWith({ username: 'New.Admin', password: 'fixture-password' });
-  expect(wrapper.get('[role=status]').text()).toContain('new.admin'); wrapper.unmount();
+  expect(notifySuccess).toHaveBeenCalledWith(
+    'Đã tạo tài khoản new.admin. Bạn có thể đăng nhập ngay.',
+  );
+  expect(router.currentRoute.value.path).toBe('/login'); wrapper.unmount();
 });
 
 test('side panel requests native modal, blocks busy Escape and restores opener', async () => {

@@ -81,13 +81,6 @@ const selectKey = (event: KeyboardEvent, station: Station) => {
       </button>
     </div>
     <div
-      v-if="error"
-      class="station-alert"
-      role="alert"
-    >
-      {{ error }}
-    </div>
-    <div
       class="station-list"
       aria-live="polite"
     >

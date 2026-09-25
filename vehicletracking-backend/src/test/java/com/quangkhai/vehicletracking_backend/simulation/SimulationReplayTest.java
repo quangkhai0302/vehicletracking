@@ -61,6 +61,7 @@ class SimulationReplayTest {
         when(trips.findAllByVehicleIdOrderByScheduledDepartureAtDescIdDesc(1L)).thenReturn(List.of(trip));
         when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
         when(runs.findByTripId(5L)).thenReturn(Optional.of(run));
+        when(eta.cachedSimulationRate(eq(5L),anyDouble())).thenReturn(1d);
         service=new SimulationService(runs,trips,vehicles,tripService,telemetry,samples,positions,Clock.fixed(now,ZoneOffset.UTC),eta,
             attempts,checkpoints,alerts,revisions,new com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService(revisions));
     }
@@ -80,7 +81,7 @@ class SimulationReplayTest {
             com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse.from(route));
         double rate=37d/motion.at(0).speedKmh();
         assertThat(rate).isGreaterThan(1.5d);
-        when(eta.simulationRate(eq(5L),anyDouble())).thenReturn(rate);
+        when(eta.cachedSimulationRate(eq(5L),anyDouble())).thenReturn(rate);
         run.advance(0,now.minusSeconds(1)); run.changeMultiplier(1,now.minusSeconds(1));
         service.tick(5L);
         var request=ArgumentCaptor.forClass(com.quangkhai.vehicletracking_backend.telemetry.dto.TelemetryRequest.class);

@@ -6,7 +6,6 @@ import FleetConfirmDialog from './FleetConfirmDialog.vue';
 const props = defineProps<{
   driver: Driver | null;
   busy: boolean;
-  error: string | null;
   onSave: (input: DriverInput, id?: number) => Promise<boolean>;
   onClose: () => void;
 }>();
@@ -68,13 +67,6 @@ function submit() {
       @submit.prevent="submit"
     >
       <fieldset :disabled="busy">
-        <p
-          v-if="error"
-          role="alert"
-          class="fleet-error"
-        >
-          {{ error }}
-        </p>
         <label
           >Họ và tên *<input
             v-model="fullName"

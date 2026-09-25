@@ -64,6 +64,19 @@ public class TrafficQueryService {
         }
     }
 
+    /**
+     * Returns the most recent traffic observation without waiting for HERE.
+     * Simulator clock ticks use these methods so an upstream timeout cannot
+     * freeze the vehicle and then make the next tick jump forward.
+     */
+    public TrafficEnvelope<TrafficFlowSegment> cachedFlowForEta(TrafficBounds bounds) {
+        return cached("flow:" + bounds.cacheKey());
+    }
+
+    public TrafficEnvelope<TrafficIncident> cachedIncidentsForEta(TrafficBounds bounds) {
+        return cached("incidents:" + bounds.cacheKey());
+    }
+
     private final Map<String, TileCacheEntry> tileCache = new ConcurrentHashMap<>();
     private final Map<String, MapTileCacheEntry> mapTileCache = new ConcurrentHashMap<>();
     private final Map<String, MapTileCacheEntry> vectorCache = new ConcurrentHashMap<>();
@@ -168,6 +181,25 @@ public class TrafficQueryService {
             lock.lock.unlock();
             releaseLock(key, lock);
         }
+    }
+
+    private <T> TrafficEnvelope<T> cached(String key) {
+        if (!properties.isEnabled() || properties.getApiKey() == null || properties.getApiKey().isBlank()) {
+            return unavailable();
+        }
+        Instant now = now();
+        TrafficCache.Entry<T> existing = cache.get(key);
+        if (existing == null) return unavailable();
+        long age = ageSeconds(existing.fetchedAt(), now);
+        if (age <= properties.getCacheTtlSeconds()) {
+            return envelope(existing.payload(), existing.fetchedAt(), now, TrafficSource.HERE_LIVE,
+                    TrafficStatus.AVAILABLE, null);
+        }
+        if (age <= properties.getStaleTtlSeconds()) {
+            return envelope(existing.payload(), existing.fetchedAt(), now, TrafficSource.HERE_LAST_KNOWN,
+                    TrafficStatus.STALE, "Traffic data is stale; using last known data");
+        }
+        return unavailable();
     }
 
     private LockReference acquireLock(String key) {

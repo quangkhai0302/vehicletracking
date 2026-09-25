@@ -13,7 +13,8 @@ export interface TelemetryPosition {
 export type SimulationStatus = 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'STOPPED' | 'FAILED';
 export interface SimulationFrame {
   latitude: number; longitude: number; heading: number; speedKmh: number; progressPercent: number;
-  nextStopSequence: number; nextStopEtaSeconds: number; dwelling: boolean; finished: boolean;
+  nextStopSequence: number; nextStopEtaSeconds: number; dwellRemainingSeconds: number;
+  dwelling: boolean; finished: boolean;
 }
 export interface SimulationRun {
   routeRevisionId?: number | null;

@@ -23,11 +23,13 @@ import {
   tripReferenceTime,
 } from '@/features/fleet/utils/tripTime';
 import PageHeading from '@/shared/components/PageHeading.vue';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
 import '@/features/reports/styles/business-pages.css';
 const data = shallowRef<{ summary: DashboardSummary; trips: TripSummary[] } | null>(null);
 const loading = ref(true),
   error = ref<string | null>(null),
   attempt = ref(0);
+useErrorToast(error);
 watch(
   attempt,
   (_, _old, cleanup) => {
@@ -73,11 +75,6 @@ function isOverdue(trip: TripSummary) {
     Date.parse(trip.plannedEndAt) <
       Date.parse(data.value?.summary.serverTime ?? new Date().toISOString())
   );
-}
-function retry() {
-  loading.value = true;
-  error.value = null;
-  attempt.value++;
 }
 const metricCards = computed(() => [
   {
@@ -161,18 +158,6 @@ const metricCards = computed(() => [
     <div class="dashboard-section-label">
       <h3>Hoạt động đội xe</h3>
       <span>Cập nhật mỗi 15 giây</span>
-    </div>
-    <div
-      v-if="error"
-      class="dashboard-error"
-      role="alert"
-    >
-      <AlertTriangle :size="19" />
-      <div>
-        <strong>Chưa tải được dữ liệu dashboard</strong>
-        <p>{{ error }}</p>
-      </div>
-      <button @click="retry">Thử lại</button>
     </div>
     <section
       class="dashboard-metrics"

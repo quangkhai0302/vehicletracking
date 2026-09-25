@@ -8,6 +8,8 @@ import {
   markNotificationRead,
 } from '@/features/reports/api/notifications';
 import FleetConfirmDialog from '@/features/fleet/components/FleetConfirmDialog.vue';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
+import { notifySuccess } from '@/shared/notifications/toast';
 const props = defineProps<{
   notifications: NotificationItem[];
   onUnreadCountChange?: (count: number) => void;
@@ -17,6 +19,7 @@ const readIds = ref(new Set<number>()),
 const busy = ref(false),
   error = ref<string | null>(null),
   confirmDelete = shallowRef<NotificationItem | null>(null);
+useErrorToast(error);
 let alive = true;
 onScopeDispose(() => {
   alive = false;
@@ -40,7 +43,10 @@ const read = async (id: number) => {
   error.value = null;
   try {
     const updated = await markNotificationRead(id);
-    if (alive) readIds.value.add(updated.id);
+    if (alive) {
+      readIds.value.add(updated.id);
+      notifySuccess('Đã đánh dấu thông báo là đã đọc.');
+    }
   } catch (err) {
     if (alive) error.value = err instanceof Error ? err.message : 'Không thể cập nhật thông báo.';
   } finally {
@@ -54,7 +60,10 @@ const readAll = async () => {
   error.value = null;
   try {
     await markAllNotificationsRead();
-    if (alive) ids.forEach((id) => readIds.value.add(id));
+    if (alive) {
+      ids.forEach((id) => readIds.value.add(id));
+      notifySuccess('Đã đánh dấu tất cả thông báo là đã đọc.');
+    }
   } catch (err) {
     if (alive) error.value = err instanceof Error ? err.message : 'Không thể đánh dấu thông báo.';
   } finally {
@@ -71,6 +80,7 @@ const remove = async () => {
     if (alive) {
       deletedIds.value.add(candidate.id);
       confirmDelete.value = null;
+      notifySuccess('Đã xóa thông báo.');
     }
   } catch (err) {
     if (alive) error.value = err instanceof Error ? err.message : 'Không thể xóa thông báo.';
@@ -95,13 +105,6 @@ const remove = async () => {
           <CheckCheck :size="13" />Đọc tất cả
         </button></span
       >
-    </div>
-    <div
-      v-if="error"
-      class="fleet-error"
-      role="alert"
-    >
-      {{ error }}
     </div>
     <div
       v-if="items.length === 0"
@@ -168,7 +171,6 @@ const remove = async () => {
       message="Thông báo sẽ bị xóa khỏi danh sách. Dữ liệu chuyến và revision không bị ảnh hưởng."
       confirm-label="Xác nhận xóa"
       :busy="busy"
-      :error="error"
       :on-close="
         () => {
           confirmDelete = null;

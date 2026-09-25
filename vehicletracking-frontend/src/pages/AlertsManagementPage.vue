@@ -20,6 +20,8 @@ import {
 } from '@/features/reports/api/notifications';
 import type { NotificationItem } from '@/features/reports/types/notifications';
 import PageHeading from '@/shared/components/PageHeading.vue';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
+import { notifySuccess } from '@/shared/notifications/toast';
 import '@/features/reports/styles/alerts-management.css';
 type TypeFilter = 'ALL' | 'OFF_ROUTE_DETECTED' | 'REROUTE';
 type SeverityFilter = 'ALL' | 'CRITICAL' | 'MAJOR';
@@ -53,6 +55,8 @@ const typeFilter = ref<TypeFilter>('ALL'),
 const busyId = ref<number | null>(null),
   confirmDelete = shallowRef<NotificationItem | null>(null),
   deleteError = ref<string | null>(null);
+useErrorToast(error);
+useErrorToast(deleteError);
 let disposed = false;
 onScopeDispose(() => {
   disposed = true;
@@ -107,7 +111,10 @@ async function read(item: NotificationItem) {
   error.value = null;
   try {
     const updated = await markNotificationRead(item.id);
-    if (!disposed) items.value = items.value.map((row) => (row.id === updated.id ? updated : row));
+    if (!disposed) {
+      items.value = items.value.map((row) => (row.id === updated.id ? updated : row));
+      notifySuccess('Đã đánh dấu cảnh báo là đã xử lý.');
+    }
   } catch (reason) {
     if (!disposed)
       error.value = reason instanceof Error ? reason.message : 'Không thể cập nhật cảnh báo.';
@@ -124,6 +131,7 @@ async function readAll() {
     if (!disposed) {
       const now = new Date().toISOString();
       items.value = items.value.map((item) => (item.readAt ? item : { ...item, readAt: now }));
+      notifySuccess('Đã đánh dấu tất cả cảnh báo là đã đọc.');
     }
   } catch (reason) {
     if (!disposed)
@@ -142,6 +150,7 @@ async function remove() {
     if (!disposed) {
       items.value = items.value.filter((item) => item.id !== id);
       confirmDelete.value = null;
+      notifySuccess('Đã xóa thông báo.');
     }
   } catch (reason) {
     if (!disposed)
@@ -191,18 +200,6 @@ async function remove() {
           <span>Lệch tuyến</span><strong>{{ loading ? '—' : offRouteCount }}</strong>
         </div>
       </article>
-    </section>
-    <section
-      v-if="error"
-      class="alerts-error"
-      role="alert"
-    >
-      <AlertTriangle :size="18" />
-      <div>
-        <strong>Không thể tải cảnh báo</strong>
-        <p>{{ error }}</p>
-      </div>
-      <button @click="attempt++">Thử lại</button>
     </section>
     <section class="business-surface alerts-list-panel">
       <div class="alerts-list-heading">
@@ -313,7 +310,6 @@ async function remove() {
       message="Cảnh báo sẽ bị xóa khỏi danh sách. Dữ liệu telemetry và trip không bị ảnh hưởng."
       confirm-label="Xác nhận xóa"
       :busy="busyId !== null"
-      :error="deleteError"
       :on-close="() => (confirmDelete = null)"
       :on-confirm="remove"
     />

@@ -8,6 +8,7 @@ import {
   LogOut,
   MapPin,
   Navigation,
+  RefreshCw,
   Route,
   UserRound,
   X,
@@ -24,6 +25,7 @@ import { tripDispatchLabel, tripReferenceTime } from '@/features/fleet/utils/tri
 import type { TripSchedule } from '@/features/schedules/types/schedule';
 import SidePanel from '@/shared/components/SidePanel.vue';
 import { formatDuration } from '@/shared/utils/format';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
 import '@/features/fleet/styles/driver-portal.css';
 const BUSINESS_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const dateTime = (value: string | null) =>
@@ -56,6 +58,7 @@ const trips = shallowRef<TripSummary[]>([]),
 const loading = ref(true),
   error = ref<string | null>(null),
   attempt = ref(0);
+useErrorToast(error);
 const schedulesView = computed(() => route.path.endsWith('/schedules'));
 watch(
   attempt,
@@ -144,14 +147,6 @@ async function signOut() {
           ><CalendarClock :size="16" />Lịch chạy</RouterLink
         >
       </nav>
-      <div
-        v-if="error"
-        class="driver-error"
-        role="alert"
-      >
-        <span>{{ error }}</span
-        ><button @click="attempt++">Thử lại</button>
-      </div>
       <template v-if="!schedulesView"
         ><section class="driver-summary-grid">
           <article>
@@ -180,7 +175,16 @@ async function signOut() {
               <h2>Chuyến được phân công</h2>
               <p>Chọn một chuyến để xem lịch trình và các điểm dừng.</p>
             </div>
-            <span>{{ loading ? 'Đang tải…' : `${trips.length} chuyến` }}</span>
+            <span>{{ loading ? 'Đang tải…' : `${trips.length} chuyến` }}</span
+            ><button
+              type="button"
+              class="driver-panel-refresh"
+              :disabled="loading"
+              aria-label="Tải lại chuyến được phân công"
+              @click="attempt++"
+            >
+              <RefreshCw :size="14" />
+            </button>
           </div>
           <p
             v-if="loading"
@@ -228,7 +232,16 @@ async function signOut() {
             <h2>Lịch chạy được giao</h2>
             <p>Lịch cố định có tài xế là bạn.</p>
           </div>
-          <span>{{ loading ? 'Đang tải…' : `${schedules.length} lịch` }}</span>
+          <span>{{ loading ? 'Đang tải…' : `${schedules.length} lịch` }}</span
+          ><button
+            type="button"
+            class="driver-panel-refresh"
+            :disabled="loading"
+            aria-label="Tải lại lịch chạy"
+            @click="attempt++"
+          >
+            <RefreshCw :size="14" />
+          </button>
         </div>
         <p
           v-if="loading"

@@ -113,6 +113,14 @@ class RerouteSimulationIntegrationTest {
         long id = create().trip().id();
         simulator.play(id);
         // afterCommit errors are best-effort: checking RUNNING alone would miss the original bug.
+        for (int attempt = 0; attempt < 100 && states.findById(id).isEmpty(); attempt++) {
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                fail("Interrupted while waiting for background traffic evaluation");
+            }
+        }
         assertThat(states.findById(id)).isPresent();
         assertThat(etaController.calculate(id).source()).isEqualTo(TrafficSource.HERE_LIVE);
         time.updateAndGet(t -> t.plusSeconds(5));

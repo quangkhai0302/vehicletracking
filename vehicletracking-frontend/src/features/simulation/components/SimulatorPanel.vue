@@ -31,8 +31,7 @@ const trip = computed(() => props.simulator.trip),
   run = computed(() => props.simulator.run),
   detail = computed(() => props.simulator.detail);
 const busy = computed(() => props.simulator.busy),
-  loading = computed(() => props.simulator.loading),
-  error = computed(() => props.simulator.error);
+  loading = computed(() => props.simulator.loading);
 const running = computed(() => run.value?.status === 'RUNNING');
 const active = computed(
   () => trip.value?.status === 'SCHEDULED' || trip.value?.status === 'IN_PROGRESS',
@@ -51,6 +50,14 @@ const canPlay = computed(
 );
 const frame = computed(() => run.value?.frame),
   options = computed(() => props.snapshot?.trips ?? []);
+const dwellTime = computed(() => {
+  if (!frame.value?.dwelling || !run.value) return null;
+  const simulatedSeconds = Math.max(0, Math.ceil(frame.value.dwellRemainingSeconds));
+  return {
+    simulatedSeconds,
+    realSeconds: Math.max(0, Math.ceil(simulatedSeconds / run.value.multiplier)),
+  };
+});
 const canControl = computed(() => !busy.value && !loading.value && props.connection === 'live');
 const playLabel = computed(() =>
   running.value
@@ -96,13 +103,6 @@ const confirmCommand = () => {
         Kết nối lại
       </button>
     </div>
-    <p
-      v-if="connectionError"
-      class="simulation-error"
-      role="alert"
-    >
-      {{ connectionError }}
-    </p>
     <SimulationFleetList
       v-if="fleet && onSelectVehicle && onFitFleet && onManageFleet"
       :fleet="fleet"
@@ -153,19 +153,6 @@ const confirmCommand = () => {
     >
       Đang tải tuyến mô phỏng…
     </p>
-    <div
-      v-if="error && !confirm"
-      class="simulation-error"
-      role="alert"
-    >
-      {{ error }}
-      <button
-        :disabled="busy"
-        @click="simulator.retry"
-      >
-        Tải lại chuyến
-      </button>
-    </div>
     <div
       v-if="trip"
       class="simulation-summary"
@@ -274,7 +261,10 @@ const confirmCommand = () => {
       v-if="run"
       class="simulation-times"
     >
-      <div>
+      <div
+        :class="{ 'simulation-dwell-status': frame?.dwelling }"
+        role="status"
+      >
         {{
           frame?.finished
             ? 'Đã đi hết tuyến'
@@ -282,6 +272,10 @@ const confirmCommand = () => {
               ? 'Đang dừng tại trạm theo lịch tuyến'
               : 'Xe di chuyển theo tuyến của chuyến'
         }}
+        <span v-if="dwellTime">
+          Còn {{ dwellTime.simulatedSeconds }} giây mô phỏng · khoảng
+          {{ dwellTime.realSeconds }} giây thực ở {{ run.multiplier }}×
+        </span>
       </div>
       <details class="trip-traffic-details">
         <summary>Thông tin kỹ thuật</summary>
@@ -295,25 +289,6 @@ const confirmCommand = () => {
           {{ run.durationSeconds }} giây mô phỏng
         </div>
       </details>
-      <div
-        v-if="run.status === 'FAILED' && run.errorMessage"
-        class="simulation-error"
-        role="alert"
-      >
-        <span>Mô phỏng gặp lỗi. Kiểm tra tuyến rồi chọn Chạy lại.</span>
-        <details>
-          <summary>Chi tiết lỗi</summary>
-          {{ run.errorMessage }}
-        </details>
-        <button
-          type="button"
-          class="simulation-retry-action"
-          :disabled="!canControl"
-          @click="confirm = 'reset'"
-        >
-          Chạy lại chuyến
-        </button>
-      </div>
     </div>
     <div class="trip-progress">
       <span
@@ -340,7 +315,6 @@ const confirmCommand = () => {
       "
       :confirm-label="confirm === 'stop' ? 'Xác nhận dừng chuyến' : 'Đặt lại chuyến'"
       :busy="busy"
-      :error="error"
       :on-close="
         () => {
           confirm = null;

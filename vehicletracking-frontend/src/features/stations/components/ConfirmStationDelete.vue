@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, shallowRef } from 'vue';
 import type { Station } from '@/features/stations/types/station';
+import { registerToastModal } from '@/shared/notifications/toastLayer';
 defineProps<{ station: Station; saving: boolean; onCancel: () => void; onConfirm: () => void }>();
 const dialog = shallowRef<HTMLDialogElement | null>(null);
-onMounted(() => dialog.value?.showModal());
-onBeforeUnmount(() => dialog.value?.close());
+let releaseToastLayer: (() => void) | null = null;
+onMounted(() => {
+  if (!dialog.value) return;
+  dialog.value.showModal();
+  releaseToastLayer = registerToastModal(dialog.value);
+});
+onBeforeUnmount(() => {
+  releaseToastLayer?.();
+  dialog.value?.close();
+});
 </script>
 <template>
   <dialog

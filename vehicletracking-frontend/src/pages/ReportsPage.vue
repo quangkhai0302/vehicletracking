@@ -19,6 +19,8 @@ import type { Driver, FleetVehicle } from '@/features/fleet/types/fleet';
 import type { OperationalReport, OperationalReportFilters } from '@/features/reports/types/reports';
 import PageHeading from '@/shared/components/PageHeading.vue';
 import AppDatePicker from '@/shared/components/AppDatePicker.vue';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
+import { notifyError } from '@/shared/notifications/toast';
 import '@/features/reports/styles/reports.css';
 function dateInUtc(offset: number) {
   const date = new Date();
@@ -49,6 +51,7 @@ const data = shallowRef<{
 const loading = ref(true),
   error = ref<string | null>(null),
   attempt = ref(0);
+useErrorToast(error);
 watch(
   [filters, attempt],
   (_, _old, cleanup) => {
@@ -80,7 +83,8 @@ watch(
 function applyFilters(next: OperationalReportFilters) {
   if (!next.from || !next.to) {
     loading.value = false;
-    error.value = 'Hãy chọn đầy đủ ngày bắt đầu và ngày kết thúc.';
+    error.value = null;
+    notifyError('Hãy chọn đầy đủ ngày bắt đầu và ngày kết thúc.');
   } else {
     loading.value = true;
     error.value = null;
@@ -94,11 +98,6 @@ function idFilter(key: 'vehicleId' | 'driverId', event: Event) {
 }
 function resetFilters() {
   applyFilters({ from: dateInUtc(-29), to: dateInUtc(0) });
-}
-function retry() {
-  loading.value = true;
-  error.value = null;
-  attempt.value++;
 }
 const report = computed(() => data.value?.report);
 const metrics = computed(() => {
@@ -164,7 +163,18 @@ const metrics = computed(() => {
       eyebrow="PHÂN TÍCH HIỆU SUẤT"
       title="Báo cáo và thống kê"
       description="Đối soát hiệu suất chuyến đi theo thời gian, phương tiện và tài xế."
-    />
+    >
+      <template #actions>
+        <button
+          type="button"
+          class="business-button reports-refresh"
+          :disabled="loading || !filters.from || !filters.to"
+          @click="attempt++"
+        >
+          <RefreshCw :size="16" />Làm mới
+        </button>
+      </template>
+    </PageHeading>
     <section
       class="business-surface reports-filter-panel"
       aria-label="Bộ lọc báo cáo"
@@ -247,24 +257,6 @@ const metrics = computed(() => {
           {{ filters.driverId ? 'Đã lọc theo tài xế' : 'Toàn bộ tài xế' }}</span
         >
       </div>
-    </section>
-    <section
-      v-if="error"
-      class="reports-error"
-      role="alert"
-    >
-      <AlertTriangle :size="19" />
-      <div>
-        <strong>Không thể tải báo cáo</strong>
-        <p>{{ error }}</p>
-      </div>
-      <button
-        v-if="filters.from && filters.to"
-        type="button"
-        @click="retry"
-      >
-        <RefreshCw :size="14" />Thử lại
-      </button>
     </section>
     <section
       class="reports-metrics"

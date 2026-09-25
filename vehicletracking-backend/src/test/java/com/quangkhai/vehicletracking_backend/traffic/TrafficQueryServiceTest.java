@@ -55,6 +55,40 @@ class TrafficQueryServiceTest {
     }
 
     @Test
+    void cachedFlowNeverCallsProviderAndExpiresBeyondTheStaleWindow() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-09T08:00:00Z"));
+        HereTrafficProperties properties = properties();
+        properties.setCacheTtlSeconds(60);
+        properties.setStaleTtlSeconds(300);
+        AtomicInteger calls = new AtomicInteger();
+        TrafficProvider provider = new TrafficProvider() {
+            @Override
+            public TrafficPayload<TrafficFlowSegment> fetchFlow(TrafficBounds bounds) {
+                calls.incrementAndGet();
+                return new TrafficPayload<>(clock.instant(), List.of(new TrafficFlowSegment("flow-1", "Test", 100,
+                        List.of(List.of(10.0, 106.0), List.of(10.001, 106.001)), 30, 40, 2, "open", 1.0)));
+            }
+
+            @Override
+            public TrafficPayload<TrafficIncident> fetchIncidents(TrafficBounds bounds) {
+                throw new AssertionError("cached flow must not request incidents");
+            }
+        };
+        TrafficQueryService service = new TrafficQueryService(provider, properties, clock);
+        TrafficBounds bounds = TrafficBounds.of(106, 10, 106.01, 10.01, 100);
+
+        assertThat(service.cachedFlowForEta(bounds).status()).isEqualTo(TrafficStatus.UNAVAILABLE);
+        assertThat(calls).hasValue(0);
+        service.flow(bounds);
+        assertThat(service.cachedFlowForEta(bounds).results()).hasSize(1);
+        assertThat(calls).hasValue(1);
+
+        clock.advanceSeconds(301);
+        assertThat(service.cachedFlowForEta(bounds).status()).isEqualTo(TrafficStatus.UNAVAILABLE);
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
     void flow_whenDisabled_returnsControlledUnavailableError() {
         HereTrafficProperties properties = properties();
         properties.setEnabled(false);

@@ -46,5 +46,12 @@ class TrafficSimulationSpeedTest {
         when(traffic.incidentsForEta(any())).thenReturn(new TrafficEnvelope<>(TrafficSource.HERE_LIVE,TrafficStatus.AVAILABLE,now,now,60,null,List.of()));
         assertThat(frame.speedKmh()).isCloseTo(10,within(.1));
         assertThat(frame.speedKmh()*service.simulationRate(1,80)).isCloseTo(37,within(.001));
+
+        reset(traffic);
+        when(traffic.cachedFlowForEta(any())).thenReturn(new TrafficEnvelope<>(TrafficSource.HERE_LIVE,TrafficStatus.AVAILABLE,now,now,60,null,List.of(flow)));
+        when(traffic.cachedIncidentsForEta(any())).thenReturn(new TrafficEnvelope<>(TrafficSource.HERE_LIVE,TrafficStatus.AVAILABLE,now,now,60,null,List.of()));
+        assertThat(frame.speedKmh()*service.cachedSimulationRate(1,80)).isCloseTo(37,within(.001));
+        verify(traffic,never()).flowForEta(any());
+        verify(traffic,never()).incidentsForEta(any());
     }
 }

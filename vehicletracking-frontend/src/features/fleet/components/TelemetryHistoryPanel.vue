@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, History, RefreshCw } from '@lucide/vue';
 import { fetchTelemetryHistory, type TelemetryHistoryQuery } from '@/features/fleet/api/telemetry';
 import type { TelemetryPage } from '@/features/fleet/types/telemetry';
 import { displayTripTime } from '@/features/fleet/utils/tripTime';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
 const props = defineProps<{
   tripId: number;
   onFocusPosition: (position: [number, number]) => void;
@@ -16,6 +17,7 @@ const from = ref(''),
   loading = ref(true),
   error = ref<string | null>(null),
   attempt = ref(0);
+useErrorToast(error);
 watch(
   [() => props.tripId, source, from, to, pageNumber, attempt],
   (_, _old, cleanup) => {
@@ -97,19 +99,6 @@ function applyFilter(key: 'source' | 'from' | 'to', event: Event) {
           :value="to"
           @input="applyFilter('to', $event)"
       /></label>
-    </div>
-    <div
-      v-if="error"
-      class="fleet-error"
-      role="alert"
-    >
-      {{ error
-      }}<button
-        class="fleet-text-button"
-        @click="retry"
-      >
-        Thử lại
-      </button>
     </div>
     <p
       v-if="loading"

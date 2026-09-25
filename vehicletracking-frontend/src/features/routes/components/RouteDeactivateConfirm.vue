@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, shallowRef } from 'vue';
-import type { TripSchedule } from '../types/schedule';
+import { onBeforeUnmount, onMounted, shallowRef } from 'vue';
+import type { RouteSummary } from '@/features/routes/types/route';
 import { registerToastModal } from '@/shared/notifications/toastLayer';
+
 const props = defineProps<{
-  schedule: TripSchedule;
+  route: RouteSummary;
   busy: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }>();
+
 const dialog = shallowRef<HTMLDialogElement | null>(null);
-const action = computed(() => (props.schedule.enabled ? 'Tạm dừng' : 'Bật lại'));
 let releaseToastLayer: (() => void) | null = null;
+
 onMounted(() => {
   if (!dialog.value) return;
   dialog.value.showModal();
@@ -21,22 +23,20 @@ onBeforeUnmount(() => {
   dialog.value?.close();
 });
 </script>
+
 <template>
   <dialog
     ref="dialog"
     class="schedule-confirm"
-    aria-labelledby="schedule-confirm-title"
-    @cancel.prevent="!busy && onClose()"
+    aria-labelledby="route-deactivate-title"
+    @cancel.prevent="!props.busy && props.onClose()"
   >
-    <h2 id="schedule-confirm-title">{{ action }} lịch chạy?</h2>
+    <h2 id="route-deactivate-title">Xác nhận tạm dừng tuyến</h2>
     <p>
-      {{
-        schedule.enabled
-          ? 'Hệ thống sẽ không tạo thêm chuyến mới từ lịch này. Những chuyến đã tạo vẫn được giữ nguyên.'
-          : 'Hệ thống sẽ xét tạo chuyến mới theo cấu hình lịch này.'
-      }}
+      Bạn có chắc muốn tạm dừng tuyến <strong>{{ route.name }}</strong
+      >? Các chuyến đi theo lịch trình của tuyến này sẽ không thể khởi hành.
     </p>
-    <div>
+    <div class="dialog-actions">
       <button
         type="button"
         class="schedule-button-secondary"
@@ -44,14 +44,15 @@ onBeforeUnmount(() => {
         autofocus
         @click="onClose"
       >
-        Quay lại</button
-      ><button
+        Hủy
+      </button>
+      <button
         type="button"
-        :class="schedule.enabled ? 'schedule-button-danger' : 'schedule-button-primary'"
+        class="schedule-button-danger"
         :disabled="busy"
         @click="onConfirm"
       >
-        {{ busy ? 'Đang xử lý…' : action }}
+        {{ busy ? 'Đang xử lý…' : 'Tạm dừng tuyến' }}
       </button>
     </div>
   </dialog>

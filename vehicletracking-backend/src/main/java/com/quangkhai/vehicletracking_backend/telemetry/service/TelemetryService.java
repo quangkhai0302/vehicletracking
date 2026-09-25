@@ -12,6 +12,7 @@ import com.quangkhai.vehicletracking_backend.reroute.service.RerouteEvaluationSe
 import com.quangkhai.vehicletracking_backend.reroute.service.OffRouteEvaluationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -20,6 +21,9 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.dao.DataIntegrityViolationException;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import static org.springframework.http.HttpStatus.*;
 
 @Service @RequiredArgsConstructor @Slf4j
@@ -33,6 +37,7 @@ public class TelemetryService {
     private final CheckInService checkIns;
     private final RerouteEvaluationService reroutes;
     private final OffRouteEvaluationService offRoutes;
+    private final ExecutorService evaluationExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     @Transactional
     public TelemetryResponse ingestGps(TelemetryRequest input) {
@@ -84,8 +89,7 @@ public class TelemetryService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    evaluateRerouteNow(tripId);
-                    evaluateOffRouteSafely(tripId);
+                    enqueueEvaluation(tripId);
                 }
             });
             return;
@@ -94,6 +98,22 @@ public class TelemetryService {
         // (for example, a small unit test or an internal maintenance command).
         evaluateRerouteNow(tripId);
         evaluateOffRouteSafely(tripId);
+    }
+
+    private void enqueueEvaluation(long tripId) {
+        try {
+            evaluationExecutor.execute(() -> {
+                evaluateRerouteNow(tripId);
+                evaluateOffRouteSafely(tripId);
+            });
+        } catch (RejectedExecutionException ex) {
+            log.debug("Bỏ qua đánh giá nền khi ứng dụng đang dừng cho chuyến {}", tripId);
+        }
+    }
+
+    @PreDestroy
+    void closeEvaluationExecutor() {
+        evaluationExecutor.shutdownNow();
     }
 
     private void evaluateOffRouteSafely(long tripId) {

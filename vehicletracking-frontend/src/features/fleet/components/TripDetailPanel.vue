@@ -29,11 +29,11 @@ import type { StopVisit } from '@/features/fleet/types/checkin';
 import { useTripEta } from '@/features/fleet/composables/useTripEta';
 import { trafficSourceLabel } from '@/features/traffic/utils/tripTraffic';
 import RouteRevisionPanel from './RouteRevisionPanel.vue';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
 const props = defineProps<{
   detail: TripDetail | null;
   loading: boolean;
   busy: boolean;
-  error: string | null;
   drivers: Driver[];
   onClose: () => void;
   onRetry: () => void;
@@ -57,6 +57,8 @@ const checkins = useTripCheckIns(
   () => props.liveSnapshot ?? null,
 );
 const eta = useTripEta(() => trip.value?.id ?? null);
+useErrorToast(() => checkins.error);
+useErrorToast(() => eta.error);
 const visitByStop = computed(
   () => new Map(checkins.data?.visits.map((visit) => [visit.stopSequence, visit]) ?? []),
 );
@@ -173,20 +175,6 @@ function fallbackStopEta(stop: TripStop) {
       >
         Đang tải lịch trình…
       </p>
-      <div
-        v-if="error && !confirm"
-        class="fleet-error"
-        role="alert"
-      >
-        {{ error
-        }}<button
-          class="fleet-text-button"
-          :disabled="busy || loading"
-          @click="onRetry"
-        >
-          Tải lại trạng thái chuyến
-        </button>
-      </div>
       <template v-if="!loading && trip && detail">
         <section
           class="trip-summary"
@@ -450,12 +438,12 @@ function fallbackStopEta(stop: TripStop) {
               >
                 <template v-if="checkins.loading">Đang tải ghi nhận check-in…</template
                 ><template v-else-if="checkins.error"
-                  >{{ checkins.error }}
+                  >
                   <button
                     class="fleet-text-button"
                     @click="checkins.retry"
                   >
-                    Tải lại
+                    Tải lại dữ liệu check-in
                   </button></template
                 ><template v-else>{{
                   checkins.data?.revision === 0
@@ -491,7 +479,7 @@ function fallbackStopEta(stop: TripStop) {
               >
                 <template v-if="eta.loading && !eta.data">Đang tính ETA theo giao thông…</template
                 ><template v-else-if="eta.error"
-                  >{{ eta.error }}
+                  >
                   <button
                     class="fleet-text-button"
                     @click="eta.retry"
@@ -569,7 +557,6 @@ function fallbackStopEta(stop: TripStop) {
       "
       :confirm-label="confirm === 'cancel' ? 'Xác nhận hủy chuyến' : 'Xác nhận hoàn thành'"
       :busy="busy"
-      :error="error"
       :confirm-disabled="confirm === 'cancel' && cancelReason.trim().length < 3"
       :on-close="() => (confirm = null)"
       :on-confirm="confirmAction"
@@ -589,7 +576,6 @@ function fallbackStopEta(stop: TripStop) {
       message="Chỉ chuyến SCHEDULED chưa có dữ liệu vận hành mới xóa được. Hành động này không thể hoàn tác."
       confirm-label="Xác nhận xóa chuyến"
       :busy="busy"
-      :error="error"
       :on-close="() => (confirmDelete = false)"
       :on-confirm="deleteTrip"
     />

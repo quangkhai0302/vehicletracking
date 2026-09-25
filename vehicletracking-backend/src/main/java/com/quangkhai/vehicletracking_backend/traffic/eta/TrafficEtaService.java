@@ -202,7 +202,20 @@ public class TrafficEtaService {
     public double simulationRate(long tripId, double baselineRemainingSeconds) {
         if (!Double.isFinite(baselineRemainingSeconds) || baselineRemainingSeconds <= 0) return 1d;
         try {
-            return currentSectionRate(tripId);
+            return currentSectionRate(tripId, false);
+        } catch (RuntimeException ignored) {
+            return 1d;
+        }
+    }
+
+    /**
+     * Non-blocking variant for the simulator clock. It preserves section-level
+     * speed matching but only consumes traffic already refreshed by ETA work.
+     */
+    public double cachedSimulationRate(long tripId, double baselineRemainingSeconds) {
+        if (!Double.isFinite(baselineRemainingSeconds) || baselineRemainingSeconds <= 0) return 1d;
+        try {
+            return currentSectionRate(tripId, true);
         } catch (RuntimeException ignored) {
             return 1d;
         }
@@ -222,7 +235,7 @@ public class TrafficEtaService {
      * Simulation progresses with the speed of the section under the vehicle,
      * not with an average factor derived from every remaining section.
      */
-    private double currentSectionRate(long tripId) {
+    private double currentSectionRate(long tripId, boolean cachedOnly) {
         TripEntity trip = trips.findById(tripId).orElseThrow(() -> new TrafficOperationException(
                 HttpStatus.NOT_FOUND, TrafficErrorCode.TRIP_NOT_FOUND, "Không tìm thấy chuyến đi."));
         RouteDetailResponse route = geometry.route(trip);
@@ -249,8 +262,12 @@ public class TrafficEtaService {
         if (position.isEmpty()) return 1d;
 
         TrafficBounds bounds = bounds(route, nextStop);
-        TrafficEnvelope<TrafficFlowSegment> flow = traffic.flowForEta(bounds);
-        TrafficEnvelope<TrafficIncident> incidents = traffic.incidentsForEta(bounds);
+        TrafficEnvelope<TrafficFlowSegment> flow = cachedOnly
+                ? traffic.cachedFlowForEta(bounds)
+                : traffic.flowForEta(bounds);
+        TrafficEnvelope<TrafficIncident> incidents = cachedOnly
+                ? traffic.cachedIncidentsForEta(bounds)
+                : traffic.incidentsForEta(bounds);
         if (!isUsableTraffic(flow) && !isUsableTraffic(incidents)) return 1d;
 
         RouteDetailResponse.RouteSectionResponse section = sections.get(position.get().sectionIndex());

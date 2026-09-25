@@ -7,7 +7,6 @@ const props = defineProps<{
   mode: StationFormMode;
   form: StationFormState;
   saving: boolean;
-  error: string | null;
   pickingLocation: boolean;
   onClose: () => void;
   onBeginEdit: () => void;
@@ -106,13 +105,6 @@ const revealInvalid = (event: Event) => {
       >
         <X :size="18" />
       </button>
-    </div>
-    <div
-      v-if="error"
-      class="station-alert drawer-alert"
-      role="alert"
-    >
-      {{ error }}
     </div>
     <div
       v-if="showDiscardConfirm"

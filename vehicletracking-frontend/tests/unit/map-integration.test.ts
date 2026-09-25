@@ -6,10 +6,20 @@ import * as operations from '@/features/tracking/api/operations';
 import * as fleetApi from '@/features/fleet/api/fleet';
 import type { OperationsSnapshot, SimulationRun } from '@/features/tracking/types/operations';
 import type { TripDetail } from '@/features/fleet/types/fleet';
+import { notifyError } from '@/shared/notifications/toast';
 vi.mock('@/features/tracking/api/operations', () => ({
   fetchOperations: vi.fn(),
   subscribeOperations: vi.fn(),
   controlSimulation: vi.fn(),
+}));
+vi.mock('@/shared/notifications/toast', () => ({
+  errorMessage: (reason: unknown, fallback = 'Đã xảy ra lỗi. Vui lòng thử lại.') =>
+    reason instanceof Error ? reason.message : fallback,
+  notifyError: vi.fn(),
+  notifySuccess: vi.fn(),
+  notifyWarning: vi.fn(),
+  notifyInfo: vi.fn(),
+  notifyLegacy: vi.fn(),
 }));
 const snapshot: OperationsSnapshot = {
   serverTime: '2026-09-23T01:00:00Z',
@@ -180,7 +190,30 @@ test('selecting a scheduled vehicle opens its trip summary without a GPS warning
   const detail = {
     trip,
     stops: [{ sequenceNumber: 1, stationName: 'Bến Thành', latitude: 10.77, longitude: 106.7 }],
-    route: { stops: [], sections: [], shapingPoints: [] },
+    route: {
+      totalDistanceMeters: 5000,
+      estimatedTripDurationSeconds: 900,
+      stops: [
+        {
+          sequenceNumber: 1,
+          role: 'START',
+          stationId: 1,
+          stationName: 'Bến Thành',
+          latitude: 10.77,
+          longitude: 106.7,
+        },
+        {
+          sequenceNumber: 2,
+          role: 'END',
+          stationId: 2,
+          stationName: 'Suối Tiên',
+          latitude: 10.88,
+          longitude: 106.8,
+        },
+      ],
+      sections: [],
+      shapingPoints: [],
+    },
   } as unknown as TripDetail;
   const plannedSnapshot = { ...snapshot, trips: [trip] };
   vi.mocked(operations.fetchOperations).mockResolvedValue(plannedSnapshot);
@@ -197,6 +230,9 @@ test('selecting a scheduled vehicle opens its trip summary without a GPS warning
 
   expect(wrapper.get('.context-drawer').attributes('hidden')).toBeUndefined();
   expect(wrapper.get('.tracking-vehicle-card').text()).toContain('63B853904');
+  expect(wrapper.findAll('.tracking-route-stop')).toHaveLength(2);
+  expect(wrapper.get('.tracking-route-summary').text()).toContain('Bến Thành');
+  expect(wrapper.get('.tracking-route-summary').text()).toContain('Suối Tiên');
   expect(wrapper.get('.tracking-vehicle-card').text()).not.toContain('Xe chưa có vị trí GPS');
   expect((wrapper.get('.tracking-vehicle-start').element as HTMLButtonElement).disabled).toBe(true);
   expect(wrapper.get('.tracking-vehicle-start-note').text()).toContain('phân công tài xế');
@@ -302,7 +338,7 @@ test.each([false, true])(
   },
 );
 
-test('failed basemap tiles show a retry action that replaces the tile layer', async () => {
+test('failed basemap tiles expose a toast retry action that replaces the tile layer', async () => {
   const createMap = vi.spyOn(L, 'map');
   const wrapper = mount(MapComponent, { attachTo: document.body });
   unmounts.push(() => wrapper.unmount());
@@ -320,13 +356,17 @@ test('failed basemap tiles show a retry action that replaces the tile layer', as
   old.fire('tileerror', { tile: document.createElement('img') });
   old.fire('load');
   await flushPromises();
-  expect(wrapper.get('.basemap-error').text()).toContain('Không tải được bản đồ nền');
+  expect(notifyError).toHaveBeenCalledWith(
+    'Không tải được bản đồ nền. Nhấn thông báo để thử lại.',
+    expect.objectContaining({ toastId: 'basemap-error', onClick: expect.any(Function) }),
+  );
 
-  await wrapper.get('.basemap-error button').trigger('click');
+  const toastCalls = vi.mocked(notifyError).mock.calls;
+  const retry = toastCalls[toastCalls.length - 1]?.[1]?.onClick;
+  retry?.({} as MouseEvent);
   await flushPromises();
   expect(tiles()).toHaveLength(1);
   expect(tiles()[0]).not.toBe(old);
-  expect(wrapper.find('.basemap-error').exists()).toBe(false);
 });
 
 test('trip deep link opens its selected vehicle simulator without starting it on compact screens', async () => {

@@ -8,7 +8,6 @@ import {
   Plus,
   Power,
   RotateCcw,
-  TriangleAlert,
   X,
 } from '@lucide/vue';
 import { RouterLink } from 'vue-router';
@@ -28,6 +27,8 @@ import SidePanel from '@/shared/components/SidePanel.vue';
 import AppSelect from '@/shared/components/AppSelect.vue';
 import AppDatePicker from '@/shared/components/AppDatePicker.vue';
 import ScheduleConfirm from '@/features/schedules/components/ScheduleConfirm.vue';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
+import { notifyError, notifySuccess } from '@/shared/notifications/toast';
 import '@/features/schedules/styles/schedule-management.css';
 interface ScheduleData {
   schedules: TripSchedule[];
@@ -87,6 +88,8 @@ const editorOpen = ref(false),
 const pendingToggle = shallowRef<TripSchedule | null>(null),
   toggleError = ref<string | null>(null),
   toggling = ref(false);
+useErrorToast(error);
+useErrorToast(toggleError);
 let disposed = false;
 onScopeDispose(() => {
   disposed = true;
@@ -243,9 +246,10 @@ async function save() {
           : [saved, ...data.value.schedules],
       };
     editorOpen.value = false;
+    notifySuccess(f.id ? 'Đã cập nhật lịch chạy.' : 'Đã tạo lịch chạy.');
   } catch (reason) {
     if (!disposed)
-      formError.value = reason instanceof Error ? reason.message : 'Không thể lưu lịch chạy.';
+      notifyError(reason instanceof Error ? reason.message : 'Không thể lưu lịch chạy.');
   } finally {
     if (!disposed) saving.value = false;
   }
@@ -263,6 +267,7 @@ async function toggle() {
         schedules: data.value.schedules.map((item) => (item.id === saved.id ? saved : item)),
       };
     pendingToggle.value = null;
+    notifySuccess(saved.enabled ? 'Đã kích hoạt lịch chạy.' : 'Đã tạm dừng lịch chạy.');
   } catch (reason) {
     if (!disposed)
       toggleError.value =
@@ -310,26 +315,6 @@ async function toggle() {
           <span>Lặp hàng tuần</span><strong>{{ loading ? '—' : metrics.weekly }}</strong>
         </div>
       </article>
-    </section>
-    <section
-      v-if="error"
-      class="schedule-error"
-      role="alert"
-    >
-      <TriangleAlert :size="19" />
-      <div>
-        <strong>Không thể tải lịch chạy</strong>
-        <p>{{ error }}</p>
-      </div>
-      <button
-        @click="
-          loading = true;
-          error = null;
-          attempt++;
-        "
-      >
-        Thử lại
-      </button>
     </section>
     <section class="business-surface schedule-list-panel">
       <div class="schedule-list-heading">
@@ -658,7 +643,6 @@ async function toggle() {
       v-if="pendingToggle"
       :schedule="pendingToggle"
       :busy="toggling"
-      :error="toggleError"
       :on-close="() => (pendingToggle = null)"
       :on-confirm="toggle"
     />

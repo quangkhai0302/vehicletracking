@@ -5,6 +5,8 @@ import { fetchTripRevisions, supersedeTripRevision } from '@/features/reports/ap
 import type { RouteRevision } from '@/features/reports/types/notifications';
 import FleetConfirmDialog from './FleetConfirmDialog.vue';
 import { displayTripTime } from '@/features/fleet/utils/tripTime';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
+import { notifySuccess } from '@/shared/notifications/toast';
 const props = defineProps<{ tripId: number }>();
 const revisions = shallowRef<RouteRevision[]>([]),
   loading = ref(true),
@@ -12,6 +14,7 @@ const revisions = shallowRef<RouteRevision[]>([]),
   confirm = shallowRef<RouteRevision | null>(null),
   busy = ref(false),
   attempt = ref(0);
+useErrorToast(error);
 let disposed = false;
 onScopeDispose(() => {
   disposed = true;
@@ -50,6 +53,7 @@ async function supersede() {
     if (!disposed && props.tripId === id) {
       revisions.value = revisions.value.map((item) => (item.id === updated.id ? updated : item));
       confirm.value = null;
+      notifySuccess('Đã ngừng áp dụng lần đổi tuyến.');
     }
   } catch (err) {
     if (!disposed && props.tripId === id)
@@ -76,13 +80,6 @@ async function supersede() {
       >
         <RefreshCw :size="14" />
       </button>
-    </div>
-    <div
-      v-if="error"
-      class="fleet-error"
-      role="alert"
-    >
-      {{ error }}
     </div>
     <p
       v-if="loading"
@@ -127,7 +124,6 @@ async function supersede() {
       message="Thao tác chỉ ngừng áp dụng lần đổi tuyến này, không tạo tuyến mới và không xóa lịch sử."
       confirm-label="Xác nhận ngừng áp dụng"
       :busy="busy"
-      :error="error"
       :on-close="() => (confirm = null)"
       :on-confirm="supersede"
     />

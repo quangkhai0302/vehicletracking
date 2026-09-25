@@ -5,32 +5,31 @@ import {
   ArrowRight,
   LockKeyhole,
   Navigation,
-  TriangleAlert,
   UserRound,
 } from '@lucide/vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import { registerAdmin } from '@/features/auth/api/auth';
 import AuthLayout from '@/app/layouts/AuthLayout.vue';
+import { notifyError, notifySuccess } from '@/shared/notifications/toast';
 import '@/features/auth/styles/auth-pages.css';
 const username = ref(''),
   password = ref(''),
   confirmPassword = ref('');
 const busy = ref(false),
-  error = ref<string | null>(null),
-  success = ref(false);
+  router = useRouter();
 async function submit() {
   if (busy.value) return;
-  error.value = null;
   if (password.value !== confirmPassword.value) {
-    error.value = 'Mật khẩu xác nhận không khớp.';
+    notifyError('Mật khẩu xác nhận không khớp.');
     return;
   }
   busy.value = true;
   try {
     await registerAdmin({ username: username.value.trim(), password: password.value });
-    success.value = true;
+    notifySuccess(`Đã tạo tài khoản ${username.value.trim().toLowerCase()}. Bạn có thể đăng nhập ngay.`);
+    await router.push('/login');
   } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : 'Không thể tạo tài khoản admin.';
+    notifyError(reason instanceof Error ? reason.message : 'Không thể tạo tài khoản admin.');
   } finally {
     busy.value = false;
   }
@@ -47,26 +46,7 @@ async function submit() {
       <h1>Tạo tài khoản quản trị</h1>
       <p>Tạo tài khoản admin để bắt đầu quản lý vận hành.</p>
     </div>
-    <div
-      v-if="error"
-      class="auth-error"
-      role="alert"
-    >
-      <TriangleAlert :size="17" /><span>{{ error }}</span>
-    </div>
-    <div
-      v-if="success"
-      class="auth-success"
-      role="status"
-    >
-      <strong>Đăng ký thành công</strong
-      ><span
-        >Tài khoản <b>{{ username.trim().toLowerCase() }}</b> đã được tạo. Bạn có thể đăng nhập
-        ngay.</span
-      ><RouterLink to="/login">Đi tới đăng nhập <ArrowRight :size="15" /></RouterLink>
-    </div>
     <form
-      v-else
       class="auth-form"
       @submit.prevent="submit"
     >

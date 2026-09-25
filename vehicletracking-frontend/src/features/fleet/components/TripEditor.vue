@@ -7,6 +7,7 @@ import type { RouteSummary } from '@/features/routes/types/route';
 import { fetchRoutes } from '@/features/routes/api/routes';
 import { displayTripTime } from '@/features/fleet/utils/tripTime';
 import { formatDuration } from '@/shared/utils/format';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
 import FleetConfirmDialog from './FleetConfirmDialog.vue';
 const props = defineProps<{
   vehicles: FleetVehicle[];
@@ -14,7 +15,6 @@ const props = defineProps<{
   initialVehicleId: number | null;
   initialRouteId?: number | null;
   busy: boolean;
-  error: string | null;
   onSave: (input: TripInput) => Promise<boolean>;
   onClose: () => void;
   onManageRoutes: () => void;
@@ -29,6 +29,7 @@ const routes = shallowRef<RouteSummary[]>([]),
   routeError = ref<string | null>(null),
   attempt = ref(0),
   confirm = ref(false);
+useErrorToast(routeError);
 watch(
   attempt,
   (_, _old, cleanup) => {
@@ -115,13 +116,6 @@ function submit() {
       @submit.prevent="submit"
     >
       <fieldset :disabled="busy">
-        <p
-          v-if="error"
-          class="fleet-error"
-          role="alert"
-        >
-          {{ error }}
-        </p>
         <label
           >Xe thực hiện *<select
             aria-label="Xe thực hiện *"
@@ -179,13 +173,6 @@ function submit() {
           role="alert"
         >
           Tuyến #{{ initialRouteId }} không còn khả dụng. Hãy chọn tuyến khác đang hoạt động.
-        </p>
-        <p
-          v-if="routeError"
-          class="fleet-error"
-          role="alert"
-        >
-          {{ routeError }}
         </p>
         <div class="fleet-inline-actions">
           <button

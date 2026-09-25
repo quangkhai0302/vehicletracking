@@ -8,6 +8,7 @@ import SimulationFleetLayer from '@/features/simulation/components/SimulationFle
 import SimulationRoutesLayer from '@/features/simulation/components/SimulationRoutesLayer.vue';
 import TrafficLayer from '@/features/traffic/components/TrafficLayer.vue';
 import SimulatorPanel from '@/features/simulation/components/SimulatorPanel.vue';
+import TrackingVehicleCard from '@/features/tracking/components/TrackingVehicleCard.vue';
 import SortableStopList from '@/features/routes/components/SortableStopList.vue';
 import StationPanel from '@/features/stations/components/StationPanel.vue';
 import StationDrawer from '@/features/stations/components/StationDrawer.vue';
@@ -343,13 +344,117 @@ test('simulator panel keeps GPS exclusion, connection gating and speed command p
     simulatedAt: stamp,
     errorMessage: null,
     replacementTripId: null,
-    frame: null,
+    frame: {
+      latitude: 10.77,
+      longitude: 106.7,
+      heading: 0,
+      speedKmh: 0,
+      progressPercent: 50,
+      nextStopSequence: 3,
+      nextStopEtaSeconds: 60,
+      dwellRemainingSeconds: 30,
+      dwelling: true,
+      finished: false,
+    },
   };
   await wrapper.setProps({ snapshot });
+  expect(wrapper.get('.simulation-dwell-status').text()).toContain(
+    'Còn 30 giây mô phỏng · khoảng 30 giây thực ở 1×',
+  );
   await wrapper.get('button[aria-label="Tốc độ 5x"]').trigger('click');
   expect(command).toHaveBeenLastCalledWith('speed', 5);
   await wrapper.setProps({ connection: 'reconnecting' });
   expect(wrapper.get('fieldset').attributes('disabled')).toBeDefined();
+});
+
+test('completed simulator trip can be prepared for replay from the operations vehicle card', async () => {
+  const replay = vi.fn().mockResolvedValue(true);
+  const completedTrip: TripSummary = {
+    ...trip,
+    status: 'COMPLETED',
+    driver: {
+      id: 1,
+      fullName: 'Fixture Driver',
+      phoneNumber: '0901234567',
+      licenseNumber: 'B2-12345',
+    },
+  };
+  const completedRoute: TripDetail['route'] = {
+    ...route,
+    totalDistanceMeters: 7200,
+    estimatedTripDurationSeconds: 1800,
+    stops: [
+      {
+        sequenceNumber: 1,
+        role: 'START',
+        stationId: 1,
+        stationName: 'Bến xe Miền Tây',
+        latitude: 10.75,
+        longitude: 106.62,
+        dwellDurationSeconds: 0,
+        distanceFromPreviousMeters: 0,
+        travelDurationFromPreviousSeconds: 0,
+        arrivalOffsetSeconds: 0,
+        departureOffsetSeconds: 0,
+      },
+      {
+        sequenceNumber: 2,
+        role: 'END',
+        stationId: 2,
+        stationName: 'Đại học Sư phạm',
+        latitude: 10.76,
+        longitude: 106.68,
+        dwellDurationSeconds: 0,
+        distanceFromPreviousMeters: 7200,
+        travelDurationFromPreviousSeconds: 1800,
+        arrivalOffsetSeconds: 1800,
+        departureOffsetSeconds: 1800,
+      },
+    ],
+  };
+  const wrapper = mount(TrackingVehicleCard, {
+    props: {
+      trip: completedTrip,
+      route: completedRoute,
+      visitedStopSequences: [1, 2],
+      simulationBusy: false,
+      simulationDisabledReason: null,
+      simulationReplayAvailable: true,
+      simulationReplayDisabledReason: null,
+      onStartSimulation: vi.fn(),
+      onReplaySimulation: replay,
+      onClear: vi.fn(),
+    },
+    global: {
+      stubs: {
+        RouterLink: { template: '<a><slot /></a>' },
+        FleetConfirmDialog: {
+          props: ['onConfirm'],
+          template:
+            '<div class="replay-confirm"><button class="confirm-replay" @click="onConfirm()">Xác nhận</button></div>',
+        },
+      },
+    },
+  });
+  disposals.push(() => wrapper.unmount());
+
+  expect(wrapper.get('.tracking-route-metrics').text()).toContain('7.2 km');
+  expect(wrapper.findAll('.tracking-route-stop')).toHaveLength(2);
+  expect(wrapper.get('.tracking-route-timeline').text()).toContain('Bến xe Miền Tây');
+  expect(wrapper.get('.tracking-driver-summary').text()).toContain('Fixture Driver');
+  expect(wrapper.get('.tracking-driver-summary').text()).toContain('B2-12345');
+  expect(wrapper.get('.tracking-driver-summary').text()).toContain('0901234567');
+  expect(wrapper.text()).not.toContain('Hình thức');
+  expect(wrapper.text()).not.toContain('Vị trí từ');
+  expect(wrapper.find('.tracking-vehicle-start').text()).toContain('Mô phỏng lại');
+  await wrapper.get('.tracking-vehicle-replay').trigger('click');
+  expect(wrapper.find('.replay-confirm').exists()).toBe(true);
+  await wrapper.get('.confirm-replay').trigger('click');
+  await flushPromises();
+
+  expect(replay).toHaveBeenCalledOnce();
+  expect(replay).toHaveBeenCalledWith(completedTrip.id);
+  expect(wrapper.find('.replay-confirm').exists()).toBe(false);
 });
 
 test('sortable stops support keyboard reorder and Escape restores original order', async () => {

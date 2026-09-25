@@ -153,7 +153,7 @@ public class SimulationService {
         var motion=motion(trip);
         double baselineRemaining = Math.max(0, motion.duration() - run.getElapsedSeconds());
         double trafficRate = motion.at(run.getElapsedSeconds()).dwelling() ? 1d
-            : trafficEta.simulationRate(trip.getId(), baselineRemaining);
+            : trafficEta.cachedSimulationRate(trip.getId(), baselineRemaining);
         double progressDelta = delta * run.getMultiplier() * trafficRate;
         run.advance(Math.min(motion.duration(),run.getElapsedSeconds()+progressDelta),now);
         emit(trip,run,false,trafficRate);
@@ -168,7 +168,7 @@ public class SimulationService {
     }
     private void emit(TripEntity trip,SimulationRunEntity run,boolean stationary) {
         double baselineRemaining = Math.max(0, motion(trip).duration() - run.getElapsedSeconds());
-        double trafficRate = stationary ? 0d : trafficEta.simulationRate(trip.getId(), baselineRemaining);
+        double trafficRate = stationary ? 0d : trafficEta.cachedSimulationRate(trip.getId(), baselineRemaining);
         emit(trip, run, stationary, trafficRate);
     }
     private void emit(TripEntity trip,SimulationRunEntity run,boolean stationary,double trafficRate) {
@@ -176,7 +176,8 @@ public class SimulationService {
         if (!stationary && frame.speedKmh() > 0 && Double.isFinite(trafficRate)) {
             frame = new RouteMotion.Frame(frame.latitude(), frame.longitude(), frame.heading(),
                 frame.speedKmh() * Math.max(0, trafficRate), frame.progressPercent(),
-                frame.nextStopSequence(), frame.nextStopEtaSeconds(), frame.dwelling(), frame.finished());
+                frame.nextStopSequence(), frame.nextStopEtaSeconds(), frame.dwellRemainingSeconds(),
+                frame.dwelling(), frame.finished());
         }
         Instant recorded=now();
         // TripService uses the application wall clock for lifecycle changes;
@@ -209,22 +210,25 @@ public class SimulationService {
         }
         if (frame != null && run.getStatus() == SimulationStatus.RUNNING && !snapshot) {
             double baselineRemaining = Math.max(0, motion(trip).duration() - run.getElapsedSeconds());
-            double trafficRate = trafficEta.simulationRate(trip.getId(), baselineRemaining);
+            double trafficRate = trafficEta.cachedSimulationRate(trip.getId(), baselineRemaining);
             if (frame.speedKmh() > 0 && Double.isFinite(trafficRate)) {
                 frame = new RouteMotion.Frame(frame.latitude(), frame.longitude(), frame.heading(),
                     frame.speedKmh() * Math.max(0, trafficRate), frame.progressPercent(),
-                    frame.nextStopSequence(), frame.nextStopEtaSeconds(), frame.dwelling(), frame.finished());
+                    frame.nextStopSequence(), frame.nextStopEtaSeconds(), frame.dwellRemainingSeconds(),
+                    frame.dwelling(), frame.finished());
             }
         }
         if(frame!=null && run.getStatus()!=SimulationStatus.RUNNING)
             frame=new RouteMotion.Frame(frame.latitude(),frame.longitude(),frame.heading(),0,frame.progressPercent(),
-                frame.nextStopSequence(),frame.nextStopEtaSeconds(),frame.dwelling(),frame.finished());
+                frame.nextStopSequence(),frame.nextStopEtaSeconds(),frame.dwellRemainingSeconds(),
+                frame.dwelling(),frame.finished());
         if (snapshot && frame != null && run.getStatus() == SimulationStatus.RUNNING) {
             var sample = positions.findById(trip.getVehicle().getId()).map(p -> p.getSample()).orElse(null);
             double speed = sample != null && trip.getId().equals(sample.getTripId())
                     && sample.getAttemptNumber() == trip.getAttemptNumber() ? sample.getSpeedKmh() : 0;
             frame = new RouteMotion.Frame(frame.latitude(), frame.longitude(), frame.heading(), speed,
-                    frame.progressPercent(), frame.nextStopSequence(), frame.nextStopEtaSeconds(), frame.dwelling(), frame.finished());
+                    frame.progressPercent(), frame.nextStopSequence(), frame.nextStopEtaSeconds(),
+                    frame.dwellRemainingSeconds(), frame.dwelling(), frame.finished());
         }
         return new SimulationResponse(run.getId(),trip.getId(),run.getStatus(),run.getMultiplier(),run.getElapsedSeconds(),
             duration,simulatedAt(trip,run),run.getUpdatedAt(),run.getErrorMessage(),run.getReplacementTripId(),frame,

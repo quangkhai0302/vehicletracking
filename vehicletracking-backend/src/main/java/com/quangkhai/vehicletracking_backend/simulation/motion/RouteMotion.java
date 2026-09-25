@@ -7,7 +7,8 @@ import java.util.*;
 
 public final class RouteMotion {
     public record Frame(double latitude,double longitude,double heading,double speedKmh,double progressPercent,
-            int nextStopSequence,double nextStopEtaSeconds,boolean dwelling,boolean finished) {}
+            int nextStopSequence,double nextStopEtaSeconds,double dwellRemainingSeconds,
+            boolean dwelling,boolean finished) {}
     private record Leg(double start,double end,int destination,List<Point> points,double[] distances,double length,double distanceBefore) {}
     private final List<Leg> legs=new ArrayList<>();
     private final RouteDetailResponse route;
@@ -204,7 +205,7 @@ public final class RouteMotion {
         var last=legs.getLast();
         if(elapsed>=duration()) {
             var p=last.points().getLast();
-            return new Frame(p.latitude(),p.longitude(),0,0,100,route.stops().size(),0,false,true);
+            return new Frame(p.latitude(),p.longitude(),0,0,100,route.stops().size(),0,0,false,true);
         }
         for(var leg:legs) {
             if(elapsed<leg.end() && elapsed>=leg.start()) {
@@ -219,7 +220,7 @@ public final class RouteMotion {
                 double lon=((a.longitude()+deltaLon*ratio+540)%360)-180;
                 return new Frame(a.latitude()+(b.latitude()-a.latitude())*ratio,lon,bearing(a,b),
                     leg.length()/(leg.end()-leg.start())*3.6,(leg.distanceBefore()+target)/totalDistance*100,
-                    leg.destination(),Math.max(0,arrivalOffsets.getOrDefault(leg.destination(), elapsed)-elapsed),false,false);
+                    leg.destination(),Math.max(0,arrivalOffsets.getOrDefault(leg.destination(), elapsed)-elapsed),0,false,false);
             }
             // A dwell belongs to the final section of this stop, not intermediate sections.
             var stop=route.stops().stream().filter(item -> item.sequenceNumber()==leg.destination()).findFirst().orElseThrow();
@@ -229,7 +230,7 @@ public final class RouteMotion {
                 var p=leg.points().getLast();
                 int next=Math.min(stop.sequenceNumber()+1,route.stops().size());
                 return new Frame(p.latitude(),p.longitude(),0,0,(leg.distanceBefore()+leg.length())/totalDistance*100,next,
-                    Math.max(0,arrivalOffsets.getOrDefault(next, elapsed)-elapsed),true,false);
+                    Math.max(0,arrivalOffsets.getOrDefault(next, elapsed)-elapsed),Math.max(0,departure-elapsed),true,false);
             }
         }
         throw invalid();

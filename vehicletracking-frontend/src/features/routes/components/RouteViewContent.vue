@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { AlertCircle, RefreshCw, X } from '@lucide/vue';
+import { RefreshCw, X } from '@lucide/vue';
 import type { RouteDetail } from '@/features/routes/types/route';
 import { formatDuration } from '@/shared/utils/format';
 import FleetConfirmDialog from '@/features/fleet/components/FleetConfirmDialog.vue';
@@ -12,7 +12,6 @@ const props = defineProps<{
   onFocusStop: (position: [number, number], zoom?: number) => void;
   routeDetail: RouteDetail | null;
   loadingDetail: boolean;
-  error: string | null;
   onClose: () => void;
 }>();
 const confirm = ref(false);
@@ -40,13 +39,6 @@ const deactivate = () => {
     </button>
   </div>
   <div class="route-drawer-body">
-    <div
-      v-if="error"
-      class="route-error-banner"
-      role="alert"
-    >
-      <AlertCircle :size="16" /><span>{{ error }}</span>
-    </div>
     <div
       v-if="loadingDetail"
       class="panel-loading"
@@ -185,7 +177,6 @@ const deactivate = () => {
     message="Tuyến sẽ không còn trong danh sách tạo chuyến. Lịch sử được giữ lại; chuyến chưa kết thúc có thể ngăn thao tác này."
     confirm-label="Xác nhận ngừng tuyến"
     :busy="saving"
-    :error="error"
     :on-close="
       () => {
         confirm = false;

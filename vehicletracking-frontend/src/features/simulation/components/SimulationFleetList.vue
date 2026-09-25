@@ -50,21 +50,6 @@ const rows = computed(() =>
     >
       Đang tải lộ trình đội xe…
     </p>
-    <div
-      v-if="fleet.routeFailures.length > 0"
-      role="alert"
-    >
-      <p>
-        Chưa hiển thị tuyến:
-        {{ fleet.routeFailures.map((item) => item.trip.vehiclePlateNumber).join(', ') }}.
-      </p>
-      <button
-        type="button"
-        @click="fleet.retry"
-      >
-        Thử tải lại tuyến
-      </button>
-    </div>
     <details
       :key="selectedTripId ?? 'all'"
       :open="selectedTripId === null || undefined"
@@ -114,18 +99,6 @@ const rows = computed(() =>
       >
         Đang tải vị trí trạm đầu…
       </p>
-      <div
-        v-if="fleet.failures.length > 0"
-        role="alert"
-      >
-        <p>{{ fleet.failures.length }} xe chưa tải được trạm đầu.</p>
-        <button
-          type="button"
-          @click="fleet.retry"
-        >
-          Thử lại vị trí chờ
-        </button>
-      </div>
       <button
         type="button"
         @click="onManage"

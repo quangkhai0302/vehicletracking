@@ -11,6 +11,17 @@ import type { TripDetail, TripSummary } from '@/features/fleet/types/fleet';
 import type { TripSchedule } from '@/features/schedules/types/schedule';
 import type { NotificationItem } from '@/features/reports/types/notifications';
 import type { DashboardSummary } from '@/features/reports/types/dashboard';
+import { notifyError } from '@/shared/notifications/toast';
+
+vi.mock('@/shared/notifications/toast', () => ({
+  errorMessage: (reason: unknown, fallback = 'Đã xảy ra lỗi. Vui lòng thử lại.') =>
+    reason instanceof Error ? reason.message : fallback,
+  notifyError: vi.fn(),
+  notifySuccess: vi.fn(),
+  notifyWarning: vi.fn(),
+  notifyInfo: vi.fn(),
+  notifyLegacy: vi.fn(),
+}));
 
 // Real pages, router, auth state and HTTP services. Only the network and native
 // dialog top-layer APIs are fixtures; this is not a real backend/browser E2E test.
@@ -291,16 +302,15 @@ test('driver detail A cannot replace B; unmount aborts outstanding detail and li
   expect(document.querySelector('dialog')).toBeNull();
 });
 
-test('driver API problem details render with retry; logout sends credentialed CSRF request and clears role access', async () => {
+test('driver API problem uses toast and remains retryable; logout clears role access', async () => {
   handlers.set('GET /api/v1/driver/trips', () =>
     json({ detail: 'Fixture temporarily unavailable' }, 503),
   );
   const { wrapper, router, auth } = await open('/driver/today');
-  expect(wrapper.get('[role=alert]').text()).toContain('Fixture temporarily unavailable');
+  expect(notifyError).toHaveBeenCalledWith('Fixture temporarily unavailable');
   handlers.delete('GET /api/v1/driver/trips');
-  await wrapper.get('.driver-error button').trigger('click');
+  await wrapper.get('[aria-label="Tải lại chuyến được phân công"]').trigger('click');
   await flushPromises();
-  expect(wrapper.find('[role=alert]').exists()).toBe(false);
   expect(wrapper.findAll('.driver-trip-card')).toHaveLength(2);
   await wrapper.get('.driver-portal-account button').trigger('click');
   await flushPromises();
@@ -356,7 +366,7 @@ test('alert deletion stays behind confirmation, preserves conflict for retry and
   expect(calls('/api/v1/notifications/1', 'DELETE')).toHaveLength(0);
   await wrapper.get('dialog .danger-action').trigger('click');
   await flushPromises();
-  expect(wrapper.get('dialog [role=alert]').text()).toContain('HTTP 409');
+  expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('HTTP 409'));
   expect(wrapper.findAll('.alerts-management-card')).toHaveLength(2);
   const pending = deferred<Response>();
   handlers.set('DELETE /api/v1/notifications/1', () => pending.promise);

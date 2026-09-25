@@ -18,6 +18,7 @@ import {
 import RoutePanel from './RoutePanel.vue';
 import RouteDrawer from './RouteDrawer.vue';
 import RouteShapeEditor from './RouteShapeEditor.vue';
+import { useErrorToast } from '@/shared/composables/useErrorToast';
 const props = withDefaults(
   defineProps<{
     map: L.Map | null;
@@ -43,6 +44,7 @@ const mode = ref<'closed' | 'create' | 'edit' | 'view'>('closed'),
   saving = ref(false),
   shaping = ref(false),
   listAttempt = ref(0);
+useErrorToast(routeError);
 let alive = true,
   detailAbort: AbortController | null = null,
   detailRequestId = 0,
@@ -276,7 +278,6 @@ const savedShape = (detail: RouteDetail) => {
     :on-focus-stop="onFocusStop"
     :loading-detail="loadingRouteDetail"
     :saving="saving"
-    :error="mode !== 'closed' ? routeError : null"
     :on-close="close"
     :on-save-route="saveRoute"
     :on-edit="edit"
