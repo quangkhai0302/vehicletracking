@@ -599,55 +599,103 @@
   color: var(--color-accent, #38bdf8);
 }
 
-/* Map Numbered Marker */
+/* Route station sign: intentionally distinct from third-party map POIs. */
 .route-stop-div-icon {
+  overflow: visible;
   background: transparent;
-  border: none;
+  border: 0;
 }
 
 .route-stop-map-marker {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Google Sans", sans-serif;
-  font-weight: 700;
-  font-size: 12px;
+  --route-stop-accent: #0284c7;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid #fff;
+  border-radius: 10px;
+  color: #fff;
+  background: linear-gradient(145deg, #18324d, #0b1728);
+  box-shadow:
+    inset 0 3px 0 var(--route-stop-accent),
+    0 1px 2px rgba(15, 23, 42, 0.45),
+    0 7px 16px rgba(15, 23, 42, 0.34);
+  transform: translate(4px, 4px);
+  transform-origin: center bottom;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.route-stop-map-marker::before {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  width: 3px;
+  height: 9px;
+  border-radius: 0 0 2px 2px;
+  background: #fff;
+  box-shadow: 0 2px 3px rgba(15, 23, 42, 0.35);
+  content: '';
+  transform: translateX(-50%);
+}
+
+.route-stop-map-marker::after {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  width: 11px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--route-stop-accent);
+  content: '';
+  transform: translateX(-50%);
+}
+
+.route-stop-map-marker-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.route-stop-map-marker-sequence {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--route-stop-accent);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.38);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Google Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
   line-height: 1;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
 }
 
 .route-stop-map-marker:hover {
-  transform: scale(1.22);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
   z-index: 1000;
+  box-shadow:
+    inset 0 3px 0 var(--route-stop-accent),
+    0 2px 4px rgba(15, 23, 42, 0.4),
+    0 10px 22px rgba(15, 23, 42, 0.4);
+  transform: translate(4px, 2px) scale(1.08);
 }
 
-/* Google Maps Start: Emerald Green with White Border */
 .route-stop-map-marker.start {
-  background: #0f9d58;
-  color: #ffffff;
-  border: 2.5px solid #ffffff;
+  --route-stop-accent: #059669;
 }
 
-/* Google Maps Intermediate Waypoints: White Badge with Sharp Blue Border */
 .route-stop-map-marker.stop {
-  background: #ffffff;
-  color: #1a73e8;
-  border: 2.5px solid #1a73e8;
-  font-weight: 800;
+  --route-stop-accent: #0284c7;
 }
 
-/* Google Maps Destination: Vivid Red with White Border */
 .route-stop-map-marker.end {
-  background: #ea4335;
-  color: #ffffff;
-  border: 2.5px solid #ffffff;
+  --route-stop-accent: #dc2626;
 }
-
 /* Responsive Styles for Mobile and Tablet (M-03) */
 @media (max-width: 768px) {
   .route-panel {

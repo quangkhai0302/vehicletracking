@@ -30,7 +30,7 @@ class SessionAccountValidationFilterTest {
     @Test
     void rejectsAndClearsAStaleSessionImmediately() throws Exception {
         SecurityContextHolder.getContext().setAuthentication(authenticationFor(7L));
-        when(accounts.isActiveForAuthentication(7L)).thenReturn(false);
+        when(accounts.isActiveForAuthentication(7L, "hash")).thenReturn(false);
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         new SessionAccountValidationFilter(accounts).doFilter(
@@ -43,7 +43,7 @@ class SessionAccountValidationFilterTest {
     @Test
     void keepsAnActiveSessionForTheRemainingSecurityChain() throws Exception {
         SecurityContextHolder.getContext().setAuthentication(authenticationFor(8L));
-        when(accounts.isActiveForAuthentication(8L)).thenReturn(true);
+        when(accounts.isActiveForAuthentication(8L, "hash")).thenReturn(true);
         MockFilterChain chain = new MockFilterChain();
 
         new SessionAccountValidationFilter(accounts).doFilter(

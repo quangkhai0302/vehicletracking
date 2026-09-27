@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Gauge, MapPin } from '@lucide/vue';
+import { Clock3, Gauge, MapPin, Radio, TriangleAlert } from '@lucide/vue';
 import { useTripEta } from '@/features/fleet/composables/useTripEta';
 import type { TripStop } from '@/features/fleet/types/fleet';
-import type { SimulationRun, StreamConnection, TelemetryPosition } from '@/features/tracking/types/operations';
+import type {
+  SimulationRun,
+  StreamConnection,
+  TelemetryPosition,
+} from '@/features/tracking/types/operations';
 import { positionFreshness } from '@/features/tracking/types/operations';
-import { remainingTime, trafficSourceLabel, tripTrafficView } from '@/features/traffic/utils/tripTraffic';
+import {
+  remainingTime,
+  trafficSourceLabel,
+  tripTrafficView,
+} from '@/features/traffic/utils/tripTraffic';
 import { displayTripTime } from '@/features/fleet/utils/tripTime';
+
 const props = withDefaults(
   defineProps<{
     tripId: number;
@@ -19,6 +28,7 @@ const props = withDefaults(
   }>(),
   { stops: () => [], context: 'simulation' },
 );
+
 const eta = useTripEta(() => props.tripId);
 const view = computed(() => tripTrafficView(eta.data, props.run));
 const sample = computed(() => (props.context === 'simulation' ? props.run?.frame : props.position));
@@ -51,78 +61,116 @@ const stopName = computed(
 );
 const sourceText = computed(() =>
   staleTraffic.value && view.value.source === 'HERE_LIVE'
-    ? 'Ước tính theo dữ liệu giao thông gần nhất'
+    ? 'Dữ liệu giao thông gần nhất'
     : trafficSourceLabel[view.value.source],
 );
+const etaText = computed(() =>
+  view.value.finished
+    ? 'Đã kết thúc'
+    : view.value.blocked
+      ? 'Đang bị chặn'
+      : remainingTime(view.value.countdown),
+);
+const movementState = computed(() => {
+  if (view.value.finished) return { label: 'Đã hoàn thành', tone: 'completed' };
+  if (view.value.blocked) return { label: 'Tuyến bị chặn', tone: 'danger' };
+  if (props.run?.status === 'PAUSED') return { label: 'Đang tạm dừng', tone: 'paused' };
+  if (!sample.value) return { label: 'Chờ vị trí', tone: 'waiting' };
+  if (oldPosition.value || props.connection !== 'live')
+    return { label: 'Mất cập nhật trực tiếp', tone: 'stale' };
+  if ((speed.value ?? 0) < 0.5) return { label: 'Xe đang dừng', tone: 'stopped' };
+  return { label: 'Đang di chuyển', tone: 'moving' };
+});
 </script>
+
 <template>
   <section
     class="trip-traffic-card"
+    :data-state="movementState.tone"
     :aria-label="
       context === 'simulation' ? 'Vị trí, vận tốc và ETA mô phỏng' : 'Vị trí, vận tốc và ETA xe'
     "
   >
-    <div class="telemetry-grid">
-      <div>
-        <span
-          ><Gauge :size="13" />
-          {{ oldPosition || connection !== 'live' ? 'Vận tốc gần nhất' : 'Vận tốc xe' }}</span
-        ><strong :data-testid="`${context}-speed`"
-          >{{ speed === null ? '—' : speed.toFixed(1) }} <small>km/h</small></strong
-        >
-      </div>
-      <div>
-        <span>Còn khoảng tới trạm</span
-        ><strong :data-testid="`${context}-eta`">{{
-          view.finished
-            ? 'Đã kết thúc'
-            : view.blocked
-              ? 'Đường bị chặn'
-              : remainingTime(view.countdown)
-        }}</strong>
-      </div>
+    <div class="trip-traffic-hud">
+      <article class="trip-traffic-metric">
+        <span><Gauge :size="14" /> Vận tốc</span>
+        <strong :data-testid="`${context}-speed`">
+          {{ speed === null ? '—' : speed.toFixed(1) }}
+          <small>km/h</small>
+        </strong>
+      </article>
+      <article class="trip-traffic-metric trip-traffic-eta">
+        <span><Clock3 :size="14" /> Đến trạm kế tiếp</span>
+        <strong :data-testid="`${context}-eta`">{{ etaText }}</strong>
+        <small v-if="view.etaAt && run?.status !== 'PAUSED'">
+          Lúc {{ displayTripTime(view.etaAt) }}
+        </small>
+      </article>
     </div>
-    <div class="trip-traffic-next">
-      <MapPin :size="14" /><strong>{{ view.finished ? 'Chuyến đã kết thúc' : stopName }}</strong>
+
+    <div class="trip-traffic-stop">
+      <span
+        class="trip-traffic-stop-icon"
+        aria-hidden="true"
+        ><MapPin :size="16"
+      /></span>
+      <div>
+        <small>{{ view.finished ? 'Điểm kết thúc' : 'Trạm kế tiếp' }}</small>
+        <strong>{{ view.finished ? 'Chuyến đã hoàn thành' : stopName }}</strong>
+      </div>
+      <span
+        v-if="view.nextStopSequence !== null"
+        class="trip-traffic-stop-sequence"
+      >
+        #{{ view.nextStopSequence }}
+      </span>
     </div>
-    <p v-if="view.etaAt && run?.status !== 'PAUSED'">
-      Dự kiến đến: {{ displayTripTime(view.etaAt) }}
-    </p>
-    <p v-if="!sample">Chưa có vị trí xe; bắt đầu chuyến để theo dõi.</p>
-    <p
-      v-if="staleTraffic || view.source !== 'HERE_LIVE' || (eta.loading && !eta.data)"
-      class="trip-traffic-source"
-      :data-stale="staleTraffic || view.source === 'ROUTE_SNAPSHOT'"
+
+    <div class="trip-traffic-health">
+      <span :data-tone="movementState.tone">
+        <Radio :size="12" />
+        {{ movementState.label }}
+      </span>
+      <span :data-stale="staleTraffic || view.source === 'ROUTE_SNAPSHOT'">
+        {{ eta.loading && !eta.data && !run?.traffic ? 'Đang tính ETA…' : sourceText }}
+      </span>
+    </div>
+
+    <div
+      v-if="view.impacts.length > 0"
+      class="trip-traffic-impact-list"
     >
-      {{ eta.loading && !eta.data && !run?.traffic ? 'Đang tính giờ đến…' : sourceText }}
-    </p>
+      <span
+        v-for="impact in view.impacts"
+        :key="impact"
+      >
+        <TriangleAlert :size="12" />
+        {{ impact }}
+      </span>
+    </div>
+
     <p
       v-if="view.blocked"
-      class="trip-traffic-blocked"
+      class="trip-traffic-alert"
       role="status"
     >
-      Đường phía trước bị chặn. Chưa thể xác định thời gian đến trạm.
+      Đường phía trước bị chặn, chưa thể tính thời gian đến trạm.
     </p>
     <p
-      v-if="view.impacts.length > 0"
-      class="trip-traffic-impacts"
+      v-if="view.delay !== null && view.delay >= 60"
+      class="trip-traffic-delay"
     >
-      Ảnh hưởng trên phần tuyến còn lại: {{ view.impacts.join(' · ') }}.
+      Chậm hơn khoảng {{ remainingTime(Math.ceil(view.delay)) }} so với tuyến đã lưu.
     </p>
-    <p v-if="view.delay !== null && view.delay >= 60">
-      Phần tuyến còn lại chậm hơn khoảng {{ remainingTime(Math.ceil(view.delay)) }} so với tuyến đã
-      lưu.
-    </p>
-    <p v-if="view.warning && !view.blocked && !view.finished">
-      {{
-        view.warning.startsWith('VEHICLE_POSITION_UNAVAILABLE')
-          ? 'Chưa xác định được vị trí xe trên tuyến; ETA dựa trên lịch đã lưu.'
-          : 'Giao thông chưa đủ dữ liệu; một phần ETA có thể dựa trên tuyến đã lưu.'
-      }}
+    <p
+      v-if="!sample"
+      class="trip-traffic-empty"
+    >
+      Chưa có vị trí xe; bắt đầu chuyến để theo dõi.
     </p>
     <p
       v-if="eta.error && !view.finished"
-      class="trip-traffic-impacts"
+      class="trip-traffic-alert"
       role="status"
     >
       Chưa làm mới được ETA.
@@ -133,14 +181,16 @@ const sourceText = computed(() =>
         Thử lại
       </button>
     </p>
-    <p v-if="(oldPosition || connection !== 'live') && !view.finished">
-      Vị trí chưa được cập nhật trực tiếp.
-    </p>
-    <p v-if="run?.status === 'PAUSED'">
-      Mô phỏng đang tạm dừng; thời gian tới trạm áp dụng khi tiếp tục chạy.
-    </p>
+
     <details class="trip-traffic-details">
-      <summary>Thông tin kỹ thuật</summary>
+      <summary>Dữ liệu và kỹ thuật</summary>
+      <p v-if="view.warning && !view.blocked && !view.finished">
+        {{
+          view.warning.startsWith('VEHICLE_POSITION_UNAVAILABLE')
+            ? 'ETA đang dựa trên lịch đã lưu do chưa xác định được xe trên tuyến.'
+            : 'Một phần ETA đang dựa trên tuyến đã lưu do dữ liệu giao thông chưa đầy đủ.'
+        }}
+      </p>
       <p
         v-if="sample"
         class="trip-traffic-position"
@@ -158,8 +208,7 @@ const sourceText = computed(() =>
         v-if="view.fetchedAt"
         class="trip-traffic-update"
       >
-        Giao thông cập nhật: {{ displayTripTime(view.observedAt ?? view.fetchedAt) }} · ETA làm mới
-        mỗi 10 giây.
+        Giao thông cập nhật: {{ displayTripTime(view.observedAt ?? view.fetchedAt) }}
       </p>
     </details>
   </section>

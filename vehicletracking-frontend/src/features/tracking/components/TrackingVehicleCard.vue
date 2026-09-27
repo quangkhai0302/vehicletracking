@@ -249,9 +249,10 @@ async function replaySimulation() {
     </div>
     <FleetConfirmDialog
       v-if="replayConfirm && trip"
-      title="Mô phỏng lại chuyến này từ đầu?"
-      message="Lượt chạy hiện tại được lưu vào lịch sử. Xe trở về trạm đầu và chỉ khởi hành sau khi bạn bấm Bắt đầu trong bảng mô phỏng."
-      confirm-label="Chuẩn bị mô phỏng lại"
+      title="Mô phỏng lại từ trạm đầu?"
+      :message="`Xe ${trip.vehiclePlateNumber} sẽ được chuẩn bị cho một lượt mô phỏng mới của chuyến #${trip.id}.`"
+      confirm-label="Chuẩn bị lượt chạy mới"
+      variant="replay"
       :busy="simulationBusy"
       :confirm-disabled="!!simulationReplayDisabledReason"
       :on-close="
@@ -260,6 +261,30 @@ async function replaySimulation() {
         }
       "
       :on-confirm="replaySimulation"
-    />
+    >
+      <div class="replay-confirm-impact">
+        <div class="replay-confirm-impact-item retained">
+          <span class="replay-confirm-impact-icon"><CircleCheck :size="16" /></span>
+          <span>
+            <strong>Lưu lượt chạy hiện tại</strong>
+            <small>Vị trí, check-in và lịch sử đã ghi nhận vẫn được giữ lại.</small>
+          </span>
+        </div>
+        <div class="replay-confirm-impact-item reset">
+          <span class="replay-confirm-impact-icon"><MapPin :size="16" /></span>
+          <span>
+            <strong>Đưa xe về trạm đầu</strong>
+            <small>Tiến độ của lượt mô phỏng mới bắt đầu lại từ đầu tuyến.</small>
+          </span>
+        </div>
+        <div class="replay-confirm-impact-item ready">
+          <span class="replay-confirm-impact-icon"><Play :size="16" /></span>
+          <span>
+            <strong>Chờ lệnh khởi hành</strong>
+            <small>Xe chỉ di chuyển sau khi bạn bấm “Bắt đầu” trong bảng mô phỏng.</small>
+          </span>
+        </div>
+      </div>
+    </FleetConfirmDialog>
   </div>
 </template>

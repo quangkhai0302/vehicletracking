@@ -12,22 +12,50 @@ function createRouteStopIcon(sequenceNumber: number, role: RouteStopRole): L.Div
   const roleClass = role.toLowerCase();
   return L.divIcon({
     className: 'route-stop-div-icon',
-    html: `<div class="route-stop-map-marker ${roleClass}">${sequenceNumber}</div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -16],
-    tooltipAnchor: [0, -14],
+    html: `<div class="route-stop-map-marker ${roleClass}" aria-hidden="true">
+      <svg class="route-stop-map-marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+        <path d="M4 6 2 7" />
+        <path d="M10 6h4" />
+        <path d="m22 7-2-1" />
+        <rect width="16" height="16" x="4" y="3" rx="2" />
+        <path d="M4 11h16" />
+        <path d="M8 15h.01" />
+        <path d="M16 15h.01" />
+        <path d="M6 19v2" />
+        <path d="M18 21v-2" />
+      </svg>
+      <span class="route-stop-map-marker-sequence">${sequenceNumber}</span>
+    </div>`,
+    iconSize: [42, 48],
+    iconAnchor: [21, 46],
+    popupAnchor: [0, -42],
+    tooltipAnchor: [0, -40],
   });
 }
 
 function createStationIcon(state: 'default' | 'selected' | 'muted' | 'draft'): L.DivIcon {
   return L.divIcon({
     className: 'station-div-icon',
-    html: `<span class="station-map-marker ${state}"><span class="station-map-marker-core"></span></span>`,
-    iconSize: [34, 42],
-    iconAnchor: [17, 38],
-    popupAnchor: [0, -36],
-    tooltipAnchor: [0, -32],
+    html: `<span class="station-map-marker ${state}" aria-hidden="true">
+      <svg class="station-map-marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+        <path d="M4 6 2 7" />
+        <path d="M10 6h4" />
+        <path d="m22 7-2-1" />
+        <rect width="16" height="16" x="4" y="3" rx="2" />
+        <path d="M4 11h16" />
+        <path d="M8 15h.01" />
+        <path d="M16 15h.01" />
+        <path d="M6 19v2" />
+        <path d="M18 21v-2" />
+      </svg>
+      <span class="station-map-marker-state"></span>
+    </span>`,
+    iconSize: [40, 46],
+    iconAnchor: [20, 44],
+    popupAnchor: [0, -40],
+    tooltipAnchor: [0, -38],
   });
 }
 
@@ -188,7 +216,7 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
       // H-02: Use DOM node and textContent to prevent XSS in Leaflet tooltip
       const stationTooltip = document.createElement('span');
       stationTooltip.textContent = station.name;
-      marker.bindTooltip(stationTooltip, { direction: 'top', offset: [0, -28], opacity: 0.9 });
+      marker.bindTooltip(stationTooltip, { direction: 'top', offset: [0, -38], opacity: 0.9 });
 
       if (workspace === 'tracking') {
         marker.on('click', () => {
@@ -255,7 +283,7 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
       setPickingLocation(false);
     });
 
-    marker.bindTooltip('Kéo để tinh chỉnh vị trí trạm', { permanent: true, direction: 'top', offset: [0, -28] });
+    marker.bindTooltip('Kéo để tinh chỉnh vị trí trạm', { permanent: true, direction: 'top', offset: [0, -38] });
     marker.addTo(layer);
     })();
     cleanup(() => { draftLayer?.eachLayer(item => item.off()); draftLayer?.clearLayers(); });

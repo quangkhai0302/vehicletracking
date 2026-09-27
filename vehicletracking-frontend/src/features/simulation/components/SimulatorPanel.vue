@@ -1,18 +1,36 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, defineComponent, h, ref } from 'vue';
-import { Car, Pause, Play, RotateCcw, Square } from '@lucide/vue';
+import {
+  Car,
+  Clock3,
+  Gauge,
+  MapPin,
+  Navigation,
+  Pause,
+  Play,
+  RotateCcw,
+  Route as RouteIcon,
+  Square,
+  UserRound,
+} from '@lucide/vue';
 import type { useSimulator } from '@/features/simulation/composables/useSimulator';
 import type { useSimulationFleet } from '@/features/simulation/composables/useSimulationFleet';
-import type { OperationsSnapshot, SimulationStatus, StreamConnection } from '@/features/tracking/types/operations';
+import type {
+  OperationsSnapshot,
+  SimulationStatus,
+  StreamConnection,
+} from '@/features/tracking/types/operations';
 import { SIMULATION_LABELS } from '@/features/tracking/types/operations';
 import { displayTripTime } from '@/features/fleet/utils/tripTime';
 import FleetConfirmDialog from '@/features/fleet/components/FleetConfirmDialog.vue';
 import '@/features/simulation/styles/simulator.css';
+
 const SimulationFleetList = defineAsyncComponent({
   loader: () => import('./SimulationFleetList.vue'),
   delay: 0,
   loadingComponent: defineComponent({ setup: () => () => h('p', 'Đang mở đội xe…') }),
 });
+
 const props = defineProps<{
   simulator: ReturnType<typeof useSimulator>;
   snapshot: OperationsSnapshot | null;
@@ -26,12 +44,13 @@ const props = defineProps<{
   onFitFleet?: () => void;
   onManageFleet?: () => void;
 }>();
+
 const confirm = ref<'stop' | 'reset' | null>(null);
-const trip = computed(() => props.simulator.trip),
-  run = computed(() => props.simulator.run),
-  detail = computed(() => props.simulator.detail);
-const busy = computed(() => props.simulator.busy),
-  loading = computed(() => props.simulator.loading);
+const trip = computed(() => props.simulator.trip);
+const run = computed(() => props.simulator.run);
+const detail = computed(() => props.simulator.detail);
+const busy = computed(() => props.simulator.busy);
+const loading = computed(() => props.simulator.loading);
 const running = computed(() => run.value?.status === 'RUNNING');
 const active = computed(
   () => trip.value?.status === 'SCHEDULED' || trip.value?.status === 'IN_PROGRESS',
@@ -48,8 +67,44 @@ const canPlay = computed(
     active.value &&
     (!run.value || run.value.status === 'PAUSED' || running.value),
 );
-const frame = computed(() => run.value?.frame),
-  options = computed(() => props.snapshot?.trips ?? []);
+const frame = computed(() => run.value?.frame);
+const options = computed(() => props.snapshot?.trips ?? []);
+const currentCheckIns = computed(() =>
+  props.snapshot?.checkIns.find((item) => item.tripId === trip.value?.id),
+);
+const completedStops = computed(
+  () => new Set(currentCheckIns.value?.visits.map((visit) => visit.stopSequence) ?? []).size,
+);
+const totalStops = computed(() => detail.value?.stops.length ?? 0);
+const startStop = computed(() => detail.value?.stops[0] ?? null);
+const endStop = computed(() => {
+  const stops = detail.value?.stops;
+  return stops?.[stops.length - 1] ?? null;
+});
+const nextStop = computed(() => {
+  const sequence = frame.value?.nextStopSequence ?? currentCheckIns.value?.nextStopSequence;
+  if (!sequence) return null;
+  return detail.value?.stops.find((stop) => stop.sequenceNumber === sequence) ?? null;
+});
+const progressPercent = computed(() => {
+  if (frame.value) return Math.min(100, Math.max(0, frame.value.progressPercent));
+  if (trip.value?.status === 'COMPLETED') return 100;
+  if (!totalStops.value) return 0;
+  return Math.min(100, (completedStops.value / totalStops.value) * 100);
+});
+const currentSpeed = computed(() => Math.max(0, Math.round(frame.value?.speedKmh ?? 0)));
+const formatDuration = (seconds: number | null | undefined) => {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return '—';
+  const rounded = Math.max(0, Math.ceil(seconds));
+  if (rounded < 60) return `${rounded} giây`;
+  const minutes = Math.floor(rounded / 60);
+  const remaining = rounded % 60;
+  return remaining ? `${minutes}p ${remaining}s` : `${minutes} phút`;
+};
+const nextStopEta = computed(() => {
+  if (frame.value?.finished) return 'Đã đến';
+  return formatDuration(frame.value?.nextStopEtaSeconds);
+});
 const dwellTime = computed(() => {
   if (!frame.value?.dwelling || !run.value) return null;
   const simulatedSeconds = Math.max(0, Math.ceil(frame.value.dwellRemainingSeconds));
@@ -67,17 +122,27 @@ const playLabel = computed(() =>
       : 'Bắt đầu',
 );
 const simulationStatusLabel = computed(() => {
+  if (usingGps.value) return 'Đang nhận GPS';
   if (run.value) {
     return SIMULATION_LABELS[run.value.status as SimulationStatus] ?? run.value.status;
   }
   return active.value ? 'Sẵn sàng' : 'Chuyến đã kết thúc';
 });
+const routeMovementLabel = computed(() => {
+  if (!run.value) return 'Sẵn sàng tại trạm đầu';
+  if (frame.value?.finished) return 'Đã hoàn tất lộ trình';
+  if (run.value.status === 'PAUSED') return 'Đang tạm dừng';
+  if (frame.value?.dwelling) return 'Đang dừng tại trạm';
+  return 'Đang di chuyển trên tuyến';
+});
 const speeds = [1, 5, 10] as const;
+
 const selectTrip = (event: Event) => {
   const value = (event.target as HTMLSelectElement).value;
   if (value && props.onSelectVehicle) props.onSelectVehicle(Number(value));
   else props.simulator.select(value ? Number(value) : null);
 };
+
 const confirmCommand = () => {
   if (confirm.value)
     void props.simulator.command(confirm.value).then((ok) => {
@@ -85,6 +150,7 @@ const confirmCommand = () => {
     });
 };
 </script>
+
 <template>
   <section
     class="simulator-content"
@@ -95,14 +161,17 @@ const confirmCommand = () => {
       :data-state="connection"
       :hidden="connection === 'live'"
     >
-      <span>{{ connection === 'connecting' ? 'Đang kết nối…' : 'Mất kết nối · đang thử lại' }}</span
-      ><button
+      <span>{{
+        connection === 'connecting' ? 'Đang kết nối…' : 'Mất kết nối · đang thử lại'
+      }}</span>
+      <button
         v-if="connection !== 'live'"
         @click="onReconnect"
       >
         Kết nối lại
       </button>
     </div>
+
     <SimulationFleetList
       v-if="fleet && onSelectVehicle && onFitFleet && onManageFleet"
       :fleet="fleet"
@@ -113,8 +182,10 @@ const confirmCommand = () => {
       :on-fit="onFitFleet"
       :on-manage="onManageFleet"
     />
-    <label class="simulation-select"
-      >Chuyến mô phỏng<select
+
+    <label class="simulation-select">
+      <span>Xe và chuyến đang điều khiển</span>
+      <select
         aria-label="Chọn chuyến mô phỏng"
         :disabled="busy || !snapshot"
         :value="simulator.tripId ?? ''"
@@ -134,177 +205,225 @@ const confirmCommand = () => {
         >
           #{{ item.id }} · {{ item.vehiclePlateNumber }} · {{ item.routeName }}
         </option>
-      </select></label
-    >
+      </select>
+    </label>
+
     <div
       v-if="!trip && !loading"
       class="telemetry-placeholder"
     >
       <Car :size="26" />
       <div>
-        <strong>Chọn xe để điều khiển</strong
-        ><span>Xe chờ nằm ở trạm đầu. Bấm từng xe để bắt đầu, tạm dừng hoặc đổi tốc độ phát.</span>
+        <strong>Chưa chọn xe mô phỏng</strong>
+        <span>Chọn một xe trên bản đồ hoặc trong danh sách để xem hành trình và điều khiển.</span>
       </div>
     </div>
+
     <p
       v-if="loading"
       class="availability-note"
       role="status"
     >
-      Đang tải tuyến mô phỏng…
+      Đang tải dữ liệu chuyến…
     </p>
-    <div
-      v-if="trip"
-      class="simulation-summary"
-    >
-      <strong>#{{ trip.id }} · {{ trip.vehiclePlateNumber }}</strong
-      ><span data-testid="simulation-status">{{ simulationStatusLabel }}</span>
-    </div>
-    <p
-      v-if="trip"
-      class="availability-note"
-    >
-      {{
-        usingGps
-          ? 'Xe đang được theo dõi bằng GPS, không chạy mô phỏng.'
-          : 'Chế độ mô phỏng · Không phải hành trình thực tế'
-      }}
-    </p>
-    <template v-if="trip"
-      ><template v-if="!run && trip.status === 'SCHEDULED'"
-        ><div
-          v-if="detail?.stops[0]"
-          class="simulation-ready"
-          role="status"
-        >
-          <strong>Chờ xuất phát</strong>
-          <p>Trạm đầu: {{ detail.stops[0].stationName }}</p>
+
+    <template v-if="trip">
+      <div class="simulation-summary">
+        <div class="simulation-vehicle-identity">
+          <span
+            class="simulation-vehicle-icon"
+            aria-hidden="true"
+            ><Car :size="20"
+          /></span>
+          <div>
+            <small>Phương tiện thực hiện</small>
+            <strong>#{{ trip.id }} · {{ trip.vehiclePlateNumber }}</strong>
+            <span>{{ trip.routeName }}</span>
+          </div>
         </div>
-        <p
-          v-else
+        <span
+          class="simulation-status-pill"
+          :data-state="run?.status.toLowerCase() ?? (active ? 'ready' : 'completed')"
+          data-testid="simulation-status"
+        >
+          {{ simulationStatusLabel }}
+        </span>
+      </div>
+
+      <div class="simulation-assignment-grid">
+        <div>
+          <UserRound :size="17" />
+          <span>
+            <small>Tài xế</small>
+            <strong>{{ trip.driver?.fullName ?? 'Chưa phân công' }}</strong>
+          </span>
+        </div>
+        <div>
+          <MapPin :size="17" />
+          <span>
+            <small>{{ nextStop ? 'Trạm kế tiếp' : 'Vị trí hành trình' }}</small>
+            <strong>
+              {{
+                nextStop?.stationName ??
+                (frame?.finished ? endStop?.stationName : startStop?.stationName) ??
+                'Đang cập nhật'
+              }}
+            </strong>
+          </span>
+        </div>
+      </div>
+
+      <div class="simulation-route-card">
+        <div class="simulation-route-heading">
+          <span><RouteIcon :size="16" /> Hành trình</span>
+          <b>{{ Math.round(progressPercent) }}%</b>
+        </div>
+        <div class="simulation-route-ends">
+          <span>{{ startStop?.stationName ?? 'Điểm đầu' }}</span>
+          <i aria-hidden="true" />
+          <span>{{ endStop?.stationName ?? 'Điểm cuối' }}</span>
+        </div>
+        <div
+          class="progress-track"
+          role="progressbar"
+          aria-label="Tiến độ tuyến mô phỏng"
+          :aria-valuenow="progressPercent"
+          :aria-valuemin="0"
+          :aria-valuemax="100"
+        >
+          <span :style="{ width: `${progressPercent}%` }" />
+        </div>
+        <div class="simulation-route-meta">
+          <span>{{ completedStops }}/{{ totalStops || '—' }} trạm đã qua</span>
+          <span>{{ routeMovementLabel }}</span>
+        </div>
+      </div>
+
+      <div
+        v-if="run"
+        class="simulation-telemetry-grid"
+      >
+        <div>
+          <span><Gauge :size="15" /> Vận tốc</span>
+          <strong>{{ currentSpeed }} <small>km/h</small></strong>
+        </div>
+        <div>
+          <span><Clock3 :size="15" /> Đến trạm</span>
+          <strong>{{ nextStopEta }}</strong>
+        </div>
+        <div>
+          <span><Navigation :size="15" /> Nhịp phát</span>
+          <strong>{{ run.multiplier }}×</strong>
+        </div>
+      </div>
+
+      <div
+        v-if="!run && trip.status === 'SCHEDULED'"
+        class="simulation-ready"
+        role="status"
+      >
+        <MapPin :size="17" />
+        <span>
+          <small>Đang chờ tại trạm đầu</small>
+          <strong>{{ startStop?.stationName ?? 'Đang tải vị trí xuất phát…' }}</strong>
+        </span>
+      </div>
+
+      <div
+        v-if="run"
+        class="simulation-times"
+      >
+        <div
+          v-if="dwellTime"
+          class="simulation-dwell-status"
           role="status"
         >
-          Đang tải trạm đầu của xe…
-        </p></template
-      ><button
+          Đang dừng tại trạm
+          <span>
+            Còn {{ dwellTime.simulatedSeconds }} giây mô phỏng · khoảng
+            {{ dwellTime.realSeconds }} giây thực ở {{ run.multiplier }}×
+          </span>
+        </div>
+        <details class="trip-traffic-details">
+          <summary>Chi tiết phiên mô phỏng</summary>
+          <div>
+            Đồng hồ:
+            <time data-testid="simulation-clock">{{ displayTripTime(run.simulatedAt) }}</time>
+          </div>
+          <div>
+            Thời lượng:
+            <span data-testid="simulation-elapsed">{{ run.elapsedSeconds.toFixed(1) }}</span> /
+            {{ run.durationSeconds }} giây
+          </div>
+        </details>
+      </div>
+
+      <button
         class="fleet-text-button simulation-locate"
         :disabled="loading || !detail"
         @click="onShowRoute"
       >
-        Xem vị trí xe và tuyến đang chạy
-      </button></template
-    >
-    <fieldset :disabled="!canControl">
-      <legend>Điều khiển mô phỏng · tốc độ phát</legend>
-      <div class="playback-row">
-        <button
-          class="play-button"
-          :disabled="!canPlay"
-          :aria-label="running ? 'Tạm dừng mô phỏng' : `${playLabel} mô phỏng`"
-          @click="simulator.command(running ? 'pause' : 'play')"
-        >
-          <Pause
-            v-if="running"
-            :size="16"
-          /><Play
-            v-else
-            :size="16"
-          /><span>{{ playLabel }}</span>
-        </button>
-        <button
-          v-for="speed in speeds"
-          :key="speed"
-          :disabled="!run || !active || (run.status !== 'RUNNING' && run.status !== 'PAUSED')"
-          :aria-label="`Tốc độ ${speed}x`"
-          :aria-pressed="run?.multiplier === speed"
-          @click="simulator.command('speed', speed)"
-        >
-          {{ speed }}x
-        </button>
-      </div>
-      <div class="simulation-actions">
-        <button
-          class="btn-secondary"
-          :disabled="!run || !active"
-          @click="confirm = 'stop'"
-        >
-          <Square :size="13" />Dừng &amp; hủy chuyến</button
-        ><button
-          class="btn-secondary"
-          :disabled="!run"
-          @click="confirm = 'reset'"
-        >
-          <RotateCcw :size="13" />Chạy lại
-        </button>
-      </div>
-    </fieldset>
-    <p
-      v-if="trip"
-      class="availability-note"
-    >
-      1× / 5× / 10× là tốc độ phát, không phải vận tốc xe.
-    </p>
-    <p
-      v-if="run?.traffic?.blocked"
-      class="simulation-error"
-      role="status"
-    >
-      Đường phía trước bị chặn, chưa xác định thời gian đến.
-    </p>
-    <p
-      v-if="run?.traffic?.status === 'STALE' || run?.traffic?.status === 'UNAVAILABLE'"
-      role="status"
-    >
-      Dữ liệu giao thông chưa được cập nhật.
-    </p>
-    <div
-      v-if="run"
-      class="simulation-times"
-    >
-      <div
-        :class="{ 'simulation-dwell-status': frame?.dwelling }"
+        <MapPin :size="14" />
+        Định vị xe và toàn tuyến
+      </button>
+
+      <fieldset :disabled="!canControl">
+        <legend>Điều khiển phiên mô phỏng</legend>
+        <div class="playback-row">
+          <button
+            class="play-button"
+            :disabled="!canPlay"
+            :aria-label="running ? 'Tạm dừng mô phỏng' : `${playLabel} mô phỏng`"
+            @click="simulator.command(running ? 'pause' : 'play')"
+          >
+            <Pause
+              v-if="running"
+              :size="16"
+            />
+            <Play
+              v-else
+              :size="16"
+            />
+            <span>{{ playLabel }}</span>
+          </button>
+          <button
+            v-for="speed in speeds"
+            :key="speed"
+            :disabled="!run || !active || (run.status !== 'RUNNING' && run.status !== 'PAUSED')"
+            :aria-label="`Tốc độ ${speed}x`"
+            :aria-pressed="run?.multiplier === speed"
+            @click="simulator.command('speed', speed)"
+          >
+            {{ speed }}×
+          </button>
+        </div>
+        <div class="simulation-actions">
+          <button
+            class="btn-secondary"
+            :disabled="!run || !active"
+            @click="confirm = 'stop'"
+          >
+            <Square :size="13" />Dừng &amp; hủy chuyến
+          </button>
+          <button
+            class="btn-secondary"
+            :disabled="!run"
+            @click="confirm = 'reset'"
+          >
+            <RotateCcw :size="13" />Chạy lại
+          </button>
+        </div>
+      </fieldset>
+
+      <p
+        v-if="run?.traffic?.blocked"
+        class="simulation-error"
         role="status"
       >
-        {{
-          frame?.finished
-            ? 'Đã đi hết tuyến'
-            : frame?.dwelling
-              ? 'Đang dừng tại trạm theo lịch tuyến'
-              : 'Xe di chuyển theo tuyến của chuyến'
-        }}
-        <span v-if="dwellTime">
-          Còn {{ dwellTime.simulatedSeconds }} giây mô phỏng · khoảng
-          {{ dwellTime.realSeconds }} giây thực ở {{ run.multiplier }}×
-        </span>
-      </div>
-      <details class="trip-traffic-details">
-        <summary>Thông tin kỹ thuật</summary>
-        <div>
-          Đồng hồ mô phỏng:
-          <time data-testid="simulation-clock">{{ displayTripTime(run.simulatedAt) }}</time>
-        </div>
-        <div>
-          Đã chạy:
-          <span data-testid="simulation-elapsed">{{ run.elapsedSeconds.toFixed(1) }}</span> /
-          {{ run.durationSeconds }} giây mô phỏng
-        </div>
-      </details>
-    </div>
-    <div class="trip-progress">
-      <span
-        >Tiến độ tuyến <b>{{ frame ? `${Math.round(frame.progressPercent)}%` : '—' }}</b></span
-      >
-      <div
-        class="progress-track"
-        role="progressbar"
-        aria-label="Tiến độ tuyến mô phỏng"
-        :aria-valuenow="frame?.progressPercent ?? 0"
-        :aria-valuemin="0"
-        :aria-valuemax="100"
-      >
-        <span :style="{ width: `${frame?.progressPercent ?? 0}%` }" />
-      </div>
-    </div>
+        Đường phía trước bị chặn, chưa xác định thời gian đến.
+      </p>
+    </template>
+
     <FleetConfirmDialog
       v-if="confirm"
       :title="confirm === 'stop' ? 'Dừng mô phỏng và hủy chuyến?' : 'Chạy lại chuyến này từ đầu?'"

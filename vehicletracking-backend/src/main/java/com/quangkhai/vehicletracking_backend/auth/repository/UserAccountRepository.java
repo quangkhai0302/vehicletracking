@@ -21,8 +21,9 @@ public interface UserAccountRepository extends JpaRepository<UserAccountEntity, 
     boolean existsByDriverId(Long driverId);
 
     /**
-     * Re-check a session principal against persistent account and driver state.
-     * A driver account is not usable once either record is disabled.
+     * Re-check a session principal against persistent account, driver, and
+     * credential state. The stored hash comparison also invalidates sessions
+     * created before a password reset.
      */
     @Query("""
             select case when count(account) > 0 then true else false end
@@ -31,6 +32,8 @@ public interface UserAccountRepository extends JpaRepository<UserAccountEntity, 
             where account.id = :accountId
               and account.active = true
               and (driver is null or driver.active = true)
+              and account.passwordHash = :passwordHash
             """)
-    boolean isActiveForAuthentication(@Param("accountId") long accountId);
+    boolean isActiveForAuthentication(
+            @Param("accountId") long accountId, @Param("passwordHash") String passwordHash);
 }

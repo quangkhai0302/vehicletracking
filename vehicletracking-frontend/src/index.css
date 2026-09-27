@@ -917,75 +917,287 @@ h3 {
   background: rgba(59, 130, 246, 0.12);
 }
 
-/* Station Details — Follow Section 12 docs/design.md */
+/* Station Details */
 .station-details,
 .station-form {
   overflow-y: auto;
   padding: 16px;
 }
 
-.station-detail-header {
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.station-detail-name {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  line-height: 1.35;
-}
-
-.station-detail-sub {
+.station-details {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 6px;
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
-
-.active-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #6ee7b7;
-  font-weight: 500;
-}
-
-.active-status > span {
-  width: 7px;
-  height: 7px;
-  background: var(--emerald);
-  border-radius: 50%;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
-}
-
-.station-property-list {
-  display: flex;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
-.station-property-group {
+.station-overview-card,
+.station-location-card,
+.station-checkin-card,
+.station-coordinate-card,
+.station-updated-card {
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(30, 48, 66, 0.62), rgba(11, 23, 38, 0.8));
+}
+
+.station-overview-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border-color: rgba(34, 211, 238, 0.22);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.12), transparent 48%),
+    linear-gradient(145deg, rgba(25, 48, 67, 0.9), rgba(10, 24, 39, 0.88));
+}
+
+.station-overview-icon,
+.station-info-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: #67e8f9;
+  background: rgba(34, 211, 238, 0.1);
+  border: 1px solid rgba(34, 211, 238, 0.22);
+}
+
+.station-overview-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+}
+
+.station-overview-copy,
+.station-location-card > div,
+.station-updated-card > div,
+.station-card-heading > div {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 3px;
 }
 
-.station-property-label {
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+.station-overview-copy > span,
+.station-info-label {
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
-.station-property-value {
-  color: var(--color-text-primary);
-  font-size: 0.82rem;
+.station-overview-copy strong {
+  color: #e2e8f0;
+  font-size: 13px;
+}
+
+.station-operating-badge {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.24);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.station-operating-badge > span {
+  width: 7px;
+  height: 7px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 9px rgba(16, 185, 129, 0.8);
+}
+
+.station-operating-badge.inactive {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.station-operating-badge.inactive > span {
+  background: #94a3b8;
+  box-shadow: none;
+}
+
+.station-location-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px;
+}
+
+.station-info-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.station-info-icon.compact {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.station-location-card strong,
+.station-card-heading strong,
+.station-updated-card strong {
+  color: #e2e8f0;
+  font-size: 12px;
   line-height: 1.45;
+}
+
+.station-checkin-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  align-items: center;
+  gap: 10px;
+  min-height: 132px;
+  padding: 14px;
+  overflow: hidden;
+}
+
+.station-checkin-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.station-checkin-copy strong {
+  color: #f1f5f9;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.station-checkin-copy small {
+  color: #94a3b8;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.station-radius-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+}
+
+.station-radius-ring {
+  position: absolute;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  border-radius: 50%;
+}
+
+.station-radius-ring.ring-outer {
+  width: 98px;
+  height: 98px;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.1), rgba(34, 211, 238, 0.015) 67%);
+}
+
+.station-radius-ring.ring-inner {
+  width: 62px;
+  height: 62px;
+  border-color: rgba(103, 232, 249, 0.4);
+}
+
+.station-radius-center {
+  position: absolute;
+  top: 14px;
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  color: #cffafe;
+  background: #0891b2;
+  border: 2px solid #ecfeff;
+  border-radius: 50%;
+  box-shadow: 0 0 13px rgba(34, 211, 238, 0.58);
+}
+
+.station-radius-value {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 2px;
+  color: #f8fafc;
+  transform: translateY(12px);
+}
+
+.station-radius-value strong {
+  color: #22d3ee;
+  font-size: 25px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.station-radius-value small {
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+
+.station-metric-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.station-coordinate-card {
+  padding: 12px;
+}
+
+.station-card-heading,
+.station-updated-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.station-coordinate-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.station-coordinate-values > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  background: rgba(2, 8, 23, 0.3);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 8px;
+}
+
+.station-coordinate-values small {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.station-coordinate-values strong {
+  overflow: hidden;
+  color: #cbd5e1;
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.station-updated-card {
+  padding: 11px 12px;
 }
 
 .drawer-actions {
@@ -995,6 +1207,20 @@ h3 {
   margin-top: 20px;
   padding-top: 14px;
   border-top: 1px solid var(--color-border-subtle);
+}
+
+.station-details > .drawer-actions {
+  margin-top: auto;
+}
+
+@media (min-width: 370px) {
+  .station-overview-card {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .station-operating-badge {
+    grid-column: auto;
+  }
 }
 
 /* Station Form Mode */
@@ -1096,65 +1322,112 @@ h3 {
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.08);
 }
 
-/* Map markers */
+/* Standalone station signs share the route-stop visual language. */
 .station-div-icon {
+  overflow: visible;
   background: transparent;
   border: 0;
 }
 
 .station-map-marker {
-  position: absolute;
-  top: 4px;
-  left: 5px;
-  width: 24px;
-  height: 24px;
+  --station-accent: #0284c7;
+  position: relative;
   display: grid;
   place-items: center;
-  background: #0284c7;
-  border: 2px solid #e0f2fe;
-  border-radius: 50% 50% 50% 0;
-  box-shadow: 0 4px 12px rgba(2, 8, 23, 0.45);
-  transform: rotate(-45deg);
-  transition: 150ms ease;
+  width: 32px;
+  height: 32px;
+  border: 2px solid #fff;
+  border-radius: 9px;
+  color: #fff;
+  background: linear-gradient(145deg, #18324d, #0b1728);
+  box-shadow:
+    inset 0 3px 0 var(--station-accent),
+    0 1px 2px rgba(15, 23, 42, 0.42),
+    0 6px 14px rgba(15, 23, 42, 0.34);
+  transform: translate(4px, 4px);
+  transform-origin: center bottom;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    box-shadow 150ms ease;
 }
 
-.station-map-marker-core {
-  width: 6px;
-  height: 6px;
-  background: white;
+.station-map-marker::before {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  width: 3px;
+  height: 9px;
+  border-radius: 0 0 2px 2px;
+  background: #fff;
+  box-shadow: 0 2px 3px rgba(15, 23, 42, 0.35);
+  content: '';
+  transform: translateX(-50%);
+}
+
+.station-map-marker::after {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  width: 10px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--station-accent);
+  content: '';
+  transform: translateX(-50%);
+}
+
+.station-map-marker-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.station-map-marker-state {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 13px;
+  height: 13px;
+  border: 2px solid #fff;
   border-radius: 50%;
+  background: var(--station-accent);
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.38);
 }
 
 .station-map-marker.selected {
-  background: #0284c7;
-  border-color: white;
   box-shadow:
-    0 0 0 6px rgba(56, 189, 248, 0.25),
-    0 6px 16px rgba(2, 8, 23, 0.5);
-  transform: rotate(-45deg) scale(1.18);
+    inset 0 3px 0 var(--station-accent),
+    0 0 0 5px rgba(56, 189, 248, 0.24),
+    0 8px 18px rgba(2, 8, 23, 0.48);
+  transform: translate(4px, 2px) scale(1.1);
 }
 
 .station-map-marker.muted {
-  opacity: 0.65;
-  transform: rotate(-45deg) scale(0.85);
+  opacity: 0.72;
+  filter: saturate(0.72);
+  transform: translate(4px, 4px) scale(0.9);
 }
 
 .station-map-marker.draft {
-  background: var(--amber);
-  border-color: #fef3c7;
-  box-shadow:
-    0 0 0 6px rgba(245, 158, 11, 0.25),
-    0 6px 16px rgba(2, 8, 23, 0.5);
+  --station-accent: #f59e0b;
   animation: draftPulse 1.8s ease-in-out infinite;
 }
 
 @keyframes draftPulse {
   0%,
   100% {
-    transform: rotate(-45deg) scale(1);
+    box-shadow:
+      inset 0 3px 0 var(--station-accent),
+      0 0 0 3px rgba(245, 158, 11, 0.14),
+      0 6px 14px rgba(15, 23, 42, 0.34);
+    transform: translate(4px, 4px) scale(1);
   }
   50% {
-    transform: rotate(-45deg) scale(1.12);
+    box-shadow:
+      inset 0 3px 0 var(--station-accent),
+      0 0 0 7px rgba(245, 158, 11, 0.2),
+      0 9px 20px rgba(15, 23, 42, 0.44);
+    transform: translate(4px, 2px) scale(1.08);
   }
 }
 

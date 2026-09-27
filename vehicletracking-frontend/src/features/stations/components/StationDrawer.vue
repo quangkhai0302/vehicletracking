@@ -1,7 +1,24 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { AlertCircle, Crosshair, Edit3, Save, Sliders, Trash2, X } from '@lucide/vue';
-import type { Station, StationFormMode, StationFormState, StationInput } from '@/features/stations/types/station';
+import {
+  AlertCircle,
+  BusFront,
+  Clock3,
+  Crosshair,
+  Edit3,
+  MapPin,
+  Radio,
+  Save,
+  Sliders,
+  Trash2,
+  X,
+} from '@lucide/vue';
+import type {
+  Station,
+  StationFormMode,
+  StationFormState,
+  StationInput,
+} from '@/features/stations/types/station';
 const props = defineProps<{
   station: Station | null;
   mode: StationFormMode;
@@ -62,6 +79,17 @@ const submit = async () => {
 const sliderValue = computed(() =>
   Number.isFinite(parsedRadius.value) ? Math.min(1000, Math.max(10, parsedRadius.value)) : 50,
 );
+const updatedAtLabel = computed(() =>
+  props.station
+    ? new Intl.DateTimeFormat('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date(props.station.updatedAt))
+    : '—',
+);
 const field = (name: keyof StationFormState, event: Event) =>
   props.onFieldChange(name, (event.target as HTMLInputElement).value);
 const revealInvalid = (event: Event) => {
@@ -86,7 +114,7 @@ const revealInvalid = (event: Event) => {
           }}</span
           ><span
             :class="`mode-badge ${mode === 'create' ? 'create' : mode === 'edit' ? 'edit' : 'browse'}`"
-            >{{ mode === 'create' ? 'CREATE' : mode === 'edit' ? 'EDIT' : 'BROWSE' }}</span
+            >{{ mode === 'create' ? 'CREATE' : mode === 'edit' ? 'EDIT' : 'CHI TIẾT' }}</span
           >
         </div>
         <h2>
@@ -136,43 +164,73 @@ const revealInvalid = (event: Event) => {
       v-if="!isFormOpen && station"
       class="station-details"
     >
-      <div class="station-detail-header">
+      <section class="station-overview-card">
+        <span class="station-overview-icon"><BusFront :size="22" /></span>
+        <div class="station-overview-copy">
+          <span>Điểm dừng vận hành</span>
+          <strong>Trạm #{{ station.id }}</strong>
+        </div>
+        <span :class="['station-operating-badge', { inactive: !station.active }]">
+          <span />{{ station.active ? 'Đang khai thác' : 'Ngừng khai thác' }}
+        </span>
+      </section>
+
+      <section class="station-location-card">
+        <span class="station-info-icon"><MapPin :size="18" /></span>
         <div>
-          <h3 class="station-detail-name">{{ station.name }}</h3>
-          <div class="station-detail-sub">
-            <span class="active-status"><span /> Đang hoạt động</span>
-          </div>
+          <span class="station-info-label">Địa điểm phục vụ</span>
+          <strong>{{ station.address || 'Chưa có địa chỉ mô tả cụ thể' }}</strong>
         </div>
-      </div>
-      <div class="station-property-list">
-        <div class="station-property-group">
-          <span class="station-property-label">ĐỊA CHỈ HOẠT ĐỘNG</span>
-          <p class="station-property-value">
-            {{ station.address || 'Chưa có địa chỉ mô tả cụ thể' }}
-          </p>
+      </section>
+
+      <section class="station-checkin-card">
+        <div class="station-checkin-copy">
+          <span class="station-info-label">Vùng tự động check-in</span>
+          <strong>Bán kính nhận diện quanh trạm</strong>
+          <small>Xe đi vào vùng này sẽ được hệ thống ghi nhận qua trạm.</small>
         </div>
-        <details class="trip-traffic-details">
-          <summary>Thông số nâng cao</summary>
-          <div class="station-property-group">
-            <span class="station-property-label">TỌA ĐỘ VỊ TRÍ</span>
-            <p class="station-property-value tabular-numbers">
-              {{ station.latitude.toFixed(6) }}, {{ station.longitude.toFixed(6) }}
-            </p>
+        <div
+          class="station-radius-visual"
+          aria-label="Bán kính check-in"
+        >
+          <span class="station-radius-ring ring-outer" />
+          <span class="station-radius-ring ring-inner" />
+          <span class="station-radius-center"><Radio :size="15" /></span>
+          <span class="station-radius-value">
+            <strong>{{ station.checkinRadiusMeters }}</strong
+            ><small>mét</small>
+          </span>
+        </div>
+      </section>
+
+      <div class="station-metric-grid">
+        <section class="station-coordinate-card">
+          <div class="station-card-heading">
+            <span class="station-info-icon compact"><Crosshair :size="16" /></span>
+            <div>
+              <span class="station-info-label">Tọa độ bản đồ</span>
+              <strong>Vị trí chính xác của trạm</strong>
+            </div>
           </div>
-          <div class="station-property-group">
-            <span class="station-property-label">BÁN KÍNH CHECK-IN</span>
-            <p class="station-property-value tabular-numbers">
-              {{ station.checkinRadiusMeters }} mét
-            </p>
+          <div class="station-coordinate-values tabular-numbers">
+            <span
+              ><small>Vĩ độ</small><strong>{{ station.latitude.toFixed(6) }}</strong></span
+            >
+            <span
+              ><small>Kinh độ</small><strong>{{ station.longitude.toFixed(6) }}</strong></span
+            >
           </div>
-          <div class="station-property-group">
-            <span class="station-property-label">LẦN CẬP NHẬT GẦN NHẤT</span>
-            <p class="station-property-value tabular-numbers">
-              {{ new Date(station.updatedAt).toLocaleString('vi-VN') }}
-            </p>
+        </section>
+
+        <section class="station-updated-card">
+          <span class="station-info-icon compact"><Clock3 :size="16" /></span>
+          <div>
+            <span class="station-info-label">Cập nhật gần nhất</span>
+            <strong class="tabular-numbers">{{ updatedAtLabel }}</strong>
           </div>
-        </details>
+        </section>
       </div>
+
       <div class="drawer-actions">
         <button
           type="button"

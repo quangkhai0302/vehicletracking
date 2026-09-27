@@ -9,43 +9,79 @@
 }
 
 .planning-workspace-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 7px;
-  border: 1px solid var(--border-default);
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: var(--shadow-card);
+  display: flex;
+  align-items: stretch;
+  gap: 28px;
+  min-width: 0;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--border-default);
+  overflow-x: auto;
 }
 
 .planning-workspace-tabs a {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-width: 0;
-  padding: 13px 16px;
-  border: 1px solid transparent;
-  border-radius: 11px;
+  flex: 0 0 auto;
+  gap: 10px;
+  min-width: 152px;
+  padding: 4px 4px 13px;
   color: var(--text-secondary);
   text-decoration: none;
-  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  transition: color 150ms ease;
+}
+
+.planning-workspace-tabs a::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: #0284c7;
+  content: '';
+  opacity: 0;
+  transform: scaleX(0.55);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.planning-workspace-tabs a > svg {
+  box-sizing: content-box;
+  flex: 0 0 auto;
+  padding: 8px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #64748b;
+  transition: background 150ms ease, color 150ms ease;
 }
 
 .planning-workspace-tabs a:hover {
-  background: #f8fafc;
   color: var(--text-primary);
 }
 
+.planning-workspace-tabs a:hover > svg {
+  background: #e2e8f0;
+  color: #334155;
+}
+
 .planning-workspace-tabs a[aria-current='page'] {
-  border-color: #bae6fd;
-  background: #f0f9ff;
   color: #0369a1;
+}
+
+.planning-workspace-tabs a[aria-current='page']::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.planning-workspace-tabs a[aria-current='page'] > svg {
+  background: #e0f2fe;
+  color: #0284c7;
 }
 
 .planning-workspace-tabs a:focus-visible {
   outline: 2px solid #0284c7;
-  outline-offset: 2px;
+  outline-offset: -1px;
+  border-radius: 10px;
 }
 
 .planning-workspace-tabs span {
@@ -55,17 +91,28 @@
 }
 
 .planning-workspace-tabs strong {
+  color: inherit;
   font-size: 14px;
+  line-height: 1.35;
 }
 
 .planning-workspace-tabs small {
   color: var(--text-muted);
   font-size: 12px;
+  line-height: 1.35;
 }
 
 @media (max-width: 640px) {
   .planning-workspace { gap: 16px; }
-  .planning-workspace-tabs a { gap: 8px; padding: 11px 9px; }
+  .planning-workspace-tabs { gap: 10px; padding-inline: 0; }
+  .planning-workspace-tabs a {
+    flex: 1 0 132px;
+    justify-content: center;
+    min-width: 0;
+    gap: 8px;
+    padding: 3px 6px 11px;
+  }
+  .planning-workspace-tabs a > svg { padding: 7px; }
   .planning-workspace-tabs strong { font-size: 13px; }
   .planning-workspace-tabs small { display: none; }
 }

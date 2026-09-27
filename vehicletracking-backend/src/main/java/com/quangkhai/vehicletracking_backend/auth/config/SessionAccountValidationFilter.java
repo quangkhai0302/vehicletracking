@@ -16,7 +16,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-/** Invalidates a stale session as soon as its account or linked driver is disabled. */
+/**
+ * Invalidates a stale session when its account/driver is disabled or its
+ * password hash no longer matches the persisted credential.
+ */
 @Component
 public class SessionAccountValidationFilter extends OncePerRequestFilter {
     private final UserAccountRepository accounts;
@@ -37,7 +40,7 @@ public class SessionAccountValidationFilter extends OncePerRequestFilter {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (accounts != null && authentication != null && !(authentication instanceof AnonymousAuthenticationToken)
                 && authentication.getPrincipal() instanceof SecurityConfig.UserAccountPrincipal principal
-                && !accounts.isActiveForAuthentication(principal.accountId())) {
+                && !accounts.isActiveForAuthentication(principal.accountId(), principal.getPassword())) {
             new SecurityContextLogoutHandler().logout(request, response, authentication);
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
             return;

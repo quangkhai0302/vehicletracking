@@ -3,13 +3,15 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   ArrowRight,
+  ArrowUpRight,
   CheckCircle2,
-  Clock,
-  Eye,
   MapPin,
   Plus,
+  RefreshCw,
   Route as RouteIcon,
+  Ruler,
   Search,
+  SearchX,
   Trash2,
   X,
 } from '@lucide/vue';
@@ -23,11 +25,7 @@ import {
   fetchRoutes,
 } from '@/features/routes/api/routes';
 import { fetchStations } from '@/features/stations/api/stations';
-import type {
-  RouteCreateInput,
-  RouteDetail,
-  RouteSummary,
-} from '@/features/routes/types/route';
+import type { RouteCreateInput, RouteDetail, RouteSummary } from '@/features/routes/types/route';
 import type { Station } from '@/features/stations/types/station';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
 import { notifyError, notifySuccess } from '@/shared/notifications/toast';
@@ -35,7 +33,9 @@ import { notifyError, notifySuccess } from '@/shared/notifications/toast';
 const location = useRoute();
 const router = useRouter();
 const requestedRouteId = computed(() => {
-  const raw = Array.isArray(location.query.routeId) ? location.query.routeId[0] : location.query.routeId;
+  const raw = Array.isArray(location.query.routeId)
+    ? location.query.routeId[0]
+    : location.query.routeId;
   const value = Number(raw);
   return raw && Number.isSafeInteger(value) && value > 0 ? value : null;
 });
@@ -156,14 +156,18 @@ async function loadDetailById(id: number) {
 function openDetail(route: RouteSummary) {
   void router.push({ path: '/routes', query: { ...location.query, routeId: String(route.id) } });
 }
-watch(requestedRouteId, (id) => {
-  if (id !== null && openedRouteId !== id) void loadDetailById(id);
-  if (id === null && openedRouteId !== null) {
-    detailRequestId++;
-    openedRouteId = null;
-    detailDrawerOpen.value = false;
-  }
-}, { immediate: true });
+watch(
+  requestedRouteId,
+  (id) => {
+    if (id !== null && openedRouteId !== id) void loadDetailById(id);
+    if (id === null && openedRouteId !== null) {
+      detailRequestId++;
+      openedRouteId = null;
+      detailDrawerOpen.value = false;
+    }
+  },
+  { immediate: true },
+);
 function closeDetail() {
   detailRequestId++;
   openedRouteId = null;
@@ -174,7 +178,10 @@ function closeDetail() {
 }
 function createTripFromRoute() {
   if (viewingRoute.value)
-    void router.push({ path: '/trips', query: { routeId: String(viewingRoute.value.id), create: '1' } });
+    void router.push({
+      path: '/trips',
+      query: { routeId: String(viewingRoute.value.id), create: '1' },
+    });
 }
 
 function openCreate() {
@@ -289,13 +296,27 @@ async function confirmDeactivate() {
   <div class="business-page routes-page">
     <PageHeading
       eyebrow="QUẢN LÝ VẬN HÀNH"
-      title="Tuyến đường vận chuyển"
+      title="Tuyến đường"
       description="Quản lý lộ trình xe buýt/xe khách, thứ tự đón trả tại các trạm dừng và cự ly."
     >
       <template #actions>
         <button
           type="button"
+          class="business-button route-refresh-button"
+          :disabled="loading"
+          aria-label="Tải lại danh sách tuyến đường"
+          title="Tải lại danh sách tuyến đường"
+          @click="loadData"
+        >
+          <RefreshCw
+            :size="16"
+            :class="{ 'is-spinning': loading }"
+          />
+        </button>
+        <button
+          type="button"
           class="business-button primary"
+          :disabled="loading"
           @click="openCreate"
         >
           <Plus :size="16" /> Tạo tuyến mới
@@ -303,39 +324,47 @@ async function confirmDeactivate() {
       </template>
     </PageHeading>
 
-    <!-- Metrics -->
-    <div class="schedule-metrics">
-      <article class="business-surface">
+    <div
+      class="route-summary-grid"
+      aria-label="Tổng quan tuyến đường"
+    >
+      <article class="route-summary-card total">
+        <span class="route-summary-icon"><RouteIcon :size="20" /></span>
         <div>
-          <span class="panel-eyebrow">TỔNG TUYẾN ĐƯỜNG</span>
+          <span>Tổng tuyến đường</span>
           <strong>{{ metrics.total }}</strong>
           <small>Lộ trình đã thiết lập</small>
         </div>
-        <RouteIcon :size="20" class="text-sky-500" />
       </article>
 
-      <article class="business-surface">
+      <article class="route-summary-card active">
+        <span class="route-summary-icon"><CheckCircle2 :size="20" /></span>
         <div>
-          <span class="panel-eyebrow">ĐANG KHAI THÁC</span>
+          <span>Đang khai thác</span>
           <strong>{{ metrics.active }}</strong>
           <small>Tuyến sẵn sàng gán xe</small>
         </div>
-        <CheckCircle2 :size="20" class="text-emerald-500" />
       </article>
 
-      <article class="business-surface">
+      <article class="route-summary-card distance">
+        <span class="route-summary-icon"><Ruler :size="20" /></span>
         <div>
-          <span class="panel-eyebrow">TỔNG CỰ LY MẠNG LƯỚI</span>
+          <span>Tổng cự ly mạng lưới</span>
           <strong>{{ metrics.totalKm }} km</strong>
           <small>Chiều dài toàn bộ tuyến</small>
         </div>
-        <Clock :size="20" class="text-blue-500" />
       </article>
     </div>
 
+    <section class="business-management-surface route-management-section">
+      <header class="route-list-heading">
+        <div>
+          <span class="panel-eyebrow">DANH SÁCH TUYẾN</span>
+          <h3>{{ filteredRoutes.length }} kết quả{{ searchQuery ? ' phù hợp' : '' }}</h3>
+        </div>
+        <span class="route-data-state"><CheckCircle2 :size="14" /> Dữ liệu hiện tại</span>
+      </header>
 
-    <!-- Table Section -->
-    <section class="business-surface business-management-surface">
       <div class="fleet-list-tools">
         <label class="fleet-search">
           <Search :size="15" />
@@ -364,101 +393,130 @@ async function confirmDeactivate() {
         </button>
       </div>
 
-      <div class="management-table-wrap">
-        <table class="management-table">
-          <thead>
-            <tr>
-              <th>Tuyến đường</th>
-              <th>Hành trình (Đầu → Cuối)</th>
-              <th>Số trạm</th>
-              <th>Cự ly & Thời gian</th>
-              <th>Trạng thái</th>
-              <th style="text-align: right">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td
-                colspan="6"
-                class="route-table-empty"
+      <div
+        class="route-list-body"
+        :aria-busy="loading"
+      >
+        <div
+          v-if="loading"
+          class="route-empty-state"
+          role="status"
+        >
+          <RefreshCw
+            :size="30"
+            class="is-spinning"
+          />
+          <h3>Đang tải tuyến đường</h3>
+          <p>Hệ thống đang đồng bộ danh sách tuyến và trạm dừng.</p>
+        </div>
+        <div
+          v-else-if="filteredRoutes.length === 0"
+          class="route-empty-state"
+        >
+          <SearchX :size="32" />
+          <h3>{{ searchQuery ? 'Không tìm thấy tuyến phù hợp' : 'Chưa có tuyến đường' }}</h3>
+          <p>
+            {{
+              searchQuery
+                ? 'Thử thay đổi từ khóa hoặc xóa tìm kiếm để xem toàn bộ tuyến.'
+                : 'Tạo tuyến đầu tiên từ các trạm dừng đang hoạt động.'
+            }}
+          </p>
+        </div>
+        <div
+          v-else
+          class="management-table-wrap"
+        >
+          <table class="management-table">
+            <caption class="business-sr-only">
+              Danh sách tuyến đường
+            </caption>
+            <thead>
+              <tr>
+                <th>Tuyến đường</th>
+                <th>Hành trình (Đầu → Cuối)</th>
+                <th>Số trạm</th>
+                <th>Cự ly & Thời gian</th>
+                <th>Trạng thái</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="rt in filteredRoutes"
+                :key="rt.id"
+                :class="{ 'is-inactive': rt.active === false }"
               >
-                Đang tải danh sách tuyến đường...
-              </td>
-            </tr>
-            <tr v-else-if="filteredRoutes.length === 0">
-              <td
-                colspan="6"
-                class="route-table-empty"
-              >
-                {{ searchQuery ? 'Không tìm thấy tuyến phù hợp.' : 'Chưa có tuyến đường nào.' }}
-              </td>
-            </tr>
-            <tr
-              v-for="rt in filteredRoutes"
-              v-else
-              :key="rt.id"
-            >
-              <td>
-                <div class="route-name-cell">
-                  <div class="route-icon-chip">
-                    <RouteIcon :size="14" />
+                <td data-label="Tuyến đường">
+                  <div class="management-identity route-name-cell">
+                    <div class="management-avatar route-icon-chip">
+                      <RouteIcon :size="16" />
+                    </div>
+                    <div>
+                      <strong>{{ rt.name }}</strong>
+                      <small class="route-id-code">Mã tuyến #{{ rt.id }}</small>
+                    </div>
                   </div>
-                  <div>
-                    <strong>{{ rt.name }}</strong>
-                    <span class="route-id-code">Mã: #{{ rt.id }}</span>
+                </td>
+                <td data-label="Hành trình">
+                  <div class="route-endpoints-flow">
+                    <span class="endpoint-name">{{ rt.startStationName || 'Trạm đầu' }}</span>
+                    <ArrowRight
+                      :size="13"
+                      class="endpoint-arrow"
+                    />
+                    <span class="endpoint-name">{{ rt.endStationName || 'Trạm cuối' }}</span>
                   </div>
-                </div>
-              </td>
-              <td>
-                <div class="route-endpoints-flow">
-                  <span class="endpoint-name">{{ rt.startStationName || 'Trạm đầu' }}</span>
-                  <ArrowRight :size="12" class="endpoint-arrow" />
-                  <span class="endpoint-name">{{ rt.endStationName || 'Trạm cuối' }}</span>
-                </div>
-              </td>
-              <td>
-                <span class="route-stop-count-pill">
-                  <MapPin :size="12" /> {{ rt.stopCount }} trạm
-                </span>
-              </td>
-              <td>
-                <div class="route-metrics-cell">
-                  <strong>{{ formatDistance(rt.totalDistanceMeters) }}</strong>
-                  <small>{{ formatDuration(rt.estimatedTripDurationSeconds) }}</small>
-                </div>
-              </td>
-              <td>
-                <span
-                  class="schedule-status-badge"
-                  :class="rt.active !== false ? 'active' : 'inactive'"
-                >
-                  {{ rt.active !== false ? 'Đang hoạt động' : 'Tạm dừng' }}
-                </span>
-              </td>
-              <td style="text-align: right">
-                <div class="route-row-actions">
-                  <button
-                    type="button"
-                    class="card-action-btn"
-                    title="Xem chi tiết các điểm dừng"
-                    @click="openDetail(rt)"
+                </td>
+                <td data-label="Số trạm">
+                  <span class="route-stop-count-pill">
+                    <MapPin :size="13" /> {{ rt.stopCount }} trạm
+                  </span>
+                </td>
+                <td data-label="Cự ly / thời gian">
+                  <div class="route-metrics-cell">
+                    <strong>{{ formatDistance(rt.totalDistanceMeters) }}</strong>
+                    <small>{{ formatDuration(rt.estimatedTripDurationSeconds) }}</small>
+                  </div>
+                </td>
+                <td data-label="Trạng thái">
+                  <span
+                    class="business-status"
+                    :class="rt.active !== false ? 'success' : 'neutral'"
                   >
-                    <Eye :size="15" />
-                  </button>
-                  <button
-                    v-if="rt.active !== false"
-                    type="button"
-                    class="card-action-btn danger"
-                    title="Tạm dừng tuyến"
-                    @click="promptDeactivate(rt)"
-                  >
-                    <Trash2 :size="15" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                    <i aria-hidden="true" />
+                    {{ rt.active !== false ? 'Đang hoạt động' : 'Tạm dừng' }}
+                  </span>
+                </td>
+                <td data-label="Thao tác">
+                  <div class="route-row-actions">
+                    <button
+                      type="button"
+                      class="management-detail-button"
+                      title="Xem chi tiết các điểm dừng"
+                      @click="openDetail(rt)"
+                    >
+                      Chi tiết <ArrowUpRight :size="15" />
+                    </button>
+                    <button
+                      v-if="rt.active !== false"
+                      type="button"
+                      class="route-deactivate-button"
+                      title="Tạm dừng tuyến"
+                      :aria-label="`Tạm dừng tuyến ${rt.name}`"
+                      @click="promptDeactivate(rt)"
+                    >
+                      <Trash2 :size="15" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <footer class="management-table-footer">
+            Hiển thị {{ filteredRoutes.length }} / {{ routes.length }} tuyến đường
+          </footer>
+        </div>
       </div>
     </section>
 
@@ -485,10 +543,16 @@ async function confirmDeactivate() {
       </header>
 
       <div class="schedule-form-content">
-        <div v-if="loadingDetail" class="route-table-empty">
+        <div
+          v-if="loadingDetail"
+          class="route-table-empty"
+        >
           Đang tải dữ liệu lộ trình…
         </div>
-        <div v-else-if="viewingRoute" class="route-detail-flow">
+        <div
+          v-else-if="viewingRoute"
+          class="route-detail-flow"
+        >
           <!-- Summary chips -->
           <div class="route-detail-summary-chips">
             <div class="detail-summary-item">
@@ -515,7 +579,10 @@ async function confirmDeactivate() {
             >
               <div class="timeline-stop-marker">
                 <span class="stop-seq-number">{{ index + 1 }}</span>
-                <div v-if="index < viewingRoute.stops.length - 1" class="timeline-line" />
+                <div
+                  v-if="index < viewingRoute.stops.length - 1"
+                  class="timeline-line"
+                />
               </div>
               <div class="timeline-stop-content">
                 <div class="timeline-stop-header">
@@ -524,7 +591,13 @@ async function confirmDeactivate() {
                     class="stop-role-badge"
                     :class="stop.role.toLowerCase()"
                   >
-                    {{ stop.role === 'START' ? 'ĐIỂM ĐẦU' : stop.role === 'END' ? 'ĐIỂM CUỐI' : 'TRẠM DỪNG' }}
+                    {{
+                      stop.role === 'START'
+                        ? 'ĐIỂM ĐẦU'
+                        : stop.role === 'END'
+                          ? 'ĐIỂM CUỐI'
+                          : 'TRẠM DỪNG'
+                    }}
                   </span>
                 </div>
                 <div class="timeline-stop-meta">
@@ -627,7 +700,12 @@ async function confirmDeactivate() {
                   v-model.number="st.stationId"
                   required
                 >
-                  <option value="0" disabled>Chọn trạm dừng...</option>
+                  <option
+                    value="0"
+                    disabled
+                  >
+                    Chọn trạm dừng...
+                  </option>
                   <option
                     v-for="s in stations"
                     :key="s.id"
@@ -699,6 +777,199 @@ async function confirmDeactivate() {
   gap: 24px;
 }
 
+.route-refresh-button {
+  width: 40px;
+  padding-inline: 0;
+}
+
+.route-refresh-button:disabled,
+.routes-page .business-button.primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.route-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.route-summary-card {
+  --route-summary-accent: #0284c7;
+  --route-summary-soft: #e0f2fe;
+  --route-summary-ink: #0369a1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 96px;
+  gap: 13px;
+  overflow: hidden;
+  padding: 16px 18px;
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.route-summary-card::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--route-summary-accent);
+  content: '';
+}
+
+.route-summary-card:hover {
+  border-color: #cbd8e6;
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+.route-summary-card.active {
+  --route-summary-accent: #10b981;
+  --route-summary-soft: #d1fae5;
+  --route-summary-ink: #047857;
+}
+
+.route-summary-card.distance {
+  --route-summary-accent: #8b5cf6;
+  --route-summary-soft: #ede9fe;
+  --route-summary-ink: #6d28d9;
+}
+
+.route-summary-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  color: var(--route-summary-ink);
+  background: var(--route-summary-soft);
+  border-radius: 11px;
+}
+
+.route-summary-card > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.route-summary-card > div > span {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-summary-card strong {
+  margin-top: 2px;
+  color: var(--text-primary);
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.route-summary-card small {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-management-section {
+  min-width: 0;
+}
+
+.route-list-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+}
+
+.route-list-heading .panel-eyebrow {
+  display: none;
+}
+
+.route-list-heading h3 {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.route-data-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.route-data-state svg {
+  color: #059669;
+}
+
+.route-list-body {
+  min-height: 160px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.96);
+  border: 1px solid var(--border-default);
+  border-radius: 0 0 16px 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.route-empty-state {
+  display: grid;
+  min-height: 220px;
+  padding: 36px 24px;
+  place-items: center;
+  align-content: center;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.route-empty-state > svg {
+  margin-bottom: 12px;
+  color: #0284c7;
+}
+
+.route-empty-state h3 {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.route-empty-state p {
+  max-width: 430px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.is-spinning {
+  animation: route-spin 850ms linear infinite;
+}
+
+@keyframes route-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .route-table-empty {
   text-align: center;
   padding: 40px !important;
@@ -710,6 +981,7 @@ async function confirmDeactivate() {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 190px;
 }
 
 .route-icon-chip {
@@ -773,12 +1045,38 @@ async function confirmDeactivate() {
   display: block;
   font-size: 11.5px;
   color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
 }
 
 .route-row-actions {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+}
+
+.route-row-actions .management-detail-button {
+  float: none;
+}
+
+.route-deactivate-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition: all 150ms ease;
+}
+
+.route-deactivate-button:hover {
+  color: #e11d48;
+  background: #fff1f2;
+  border-color: #fecdd3;
 }
 
 /* Detail Timeline */
@@ -975,5 +1273,85 @@ async function confirmDeactivate() {
 
 .remove-stop-btn:hover {
   background: #fee2e2;
+}
+
+@media (max-width: 900px) {
+  .route-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .route-summary-card.distance {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .route-summary-grid {
+    gap: 10px;
+  }
+
+  .route-summary-card {
+    min-height: 82px;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .route-summary-icon {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+  }
+
+  .route-summary-card > div > span {
+    font-size: 10.5px;
+    white-space: normal;
+  }
+
+  .route-summary-card strong {
+    font-size: 20px;
+  }
+
+  .route-summary-card small,
+  .route-data-state {
+    display: none;
+  }
+
+  .route-list-heading {
+    padding-bottom: 12px;
+  }
+
+  .route-endpoints-flow {
+    justify-content: flex-end;
+    min-width: 0;
+    text-align: right;
+  }
+
+  .endpoint-name {
+    max-width: min(28vw, 150px);
+  }
+
+  .route-row-actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .route-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .route-summary-card.distance {
+    grid-column: auto;
+  }
+
+  .route-endpoints-flow {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .endpoint-arrow {
+    display: none;
+  }
 }
 </style>

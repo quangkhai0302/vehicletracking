@@ -748,55 +748,99 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     >
       <div
         v-if="!selectedVehicle && selectedWaitingVehicle"
-        class="live-follow-actions"
+        class="live-follow-actions live-follow-pending"
       >
-        <span>{{ selectedWaitingVehicle.trip.vehiclePlateNumber }} · Chờ mô phỏng</span
-        ><button
+        <div class="live-follow-identity">
+          <span
+            class="live-follow-vehicle-icon"
+            aria-hidden="true"
+            ><BusFront :size="17"
+          /></span>
+          <span>
+            <strong>{{ selectedWaitingVehicle.trip.vehiclePlateNumber }}</strong>
+            <small><i data-source="waiting" /> Chờ mô phỏng</small>
+          </span>
+        </div>
+        <button
           type="button"
+          class="live-follow-launch"
           :disabled="simulator.busy"
           @click="openSimulation(selectedWaitingVehicle.trip.id)"
         >
-          Chạy mô phỏng</button
+          <Play :size="13" />
+          <span>Chạy mô phỏng</span></button
         ><button
+          type="button"
+          class="live-follow-close"
           aria-label="Bỏ chọn xe"
+          title="Bỏ chọn xe"
           :disabled="simulator.busy"
           @click="clearVehicleSelection"
         >
-          ×
+          <X :size="14" />
         </button>
       </div>
       <div
         v-if="!selectedVehicle && !selectedWaitingVehicle && selectedPlannedVehicle"
-        class="live-follow-actions"
+        class="live-follow-actions live-follow-pending"
       >
-        <span>{{ selectedPlannedVehicle.vehiclePlateNumber }} · Chưa khởi hành</span
-        ><button
+        <div class="live-follow-identity">
+          <span
+            class="live-follow-vehicle-icon"
+            aria-hidden="true"
+            ><BusFront :size="17"
+          /></span>
+          <span>
+            <strong>{{ selectedPlannedVehicle.vehiclePlateNumber }}</strong>
+            <small><i data-source="planned" /> Chưa khởi hành</small>
+          </span>
+        </div>
+        <button
+          type="button"
+          class="live-follow-close"
           aria-label="Bỏ chọn xe"
+          title="Bỏ chọn xe"
           :disabled="simulator.busy"
           @click="clearVehicleSelection"
         >
-          ×
+          <X :size="14" />
         </button>
       </div>
       <template v-if="selectedVehicle"
-        ><div class="live-follow-actions">
-          <span
-            >{{
-              live.snapshot?.trips.find((trip) => trip.id === selectedVehicle?.tripId)
-                ?.vehiclePlateNumber ?? selectedVehicle.vehicleId
-            }}
-            · {{ selectedVehicle.source === 'SIMULATOR' ? 'Giả lập' : 'GPS' }}</span
-          ><button
+        ><div class="live-follow-actions live-follow-header">
+          <div class="live-follow-identity">
+            <span
+              class="live-follow-vehicle-icon"
+              aria-hidden="true"
+              ><BusFront :size="18"
+            /></span>
+            <span>
+              <strong>{{
+                live.snapshot?.trips.find((trip) => trip.id === selectedVehicle?.tripId)
+                  ?.vehiclePlateNumber ?? selectedVehicle.vehicleId
+              }}</strong>
+              <small>
+                <i :data-source="selectedVehicle.source.toLowerCase()" />
+                {{ selectedVehicle.source === 'SIMULATOR' ? 'Mô phỏng' : 'GPS trực tiếp' }}
+              </small>
+            </span>
+          </div>
+          <button
+            class="live-follow-track"
             :aria-pressed="followingVehicle"
+            :title="followingVehicle ? 'Dừng bám theo xe trên bản đồ' : 'Bám theo xe trên bản đồ'"
             @click="toggleFollow"
           >
-            {{ followingVehicle ? 'Bỏ theo xe' : 'Theo xe' }}</button
-          ><button
+            <Crosshair :size="13" />
+            <span>{{ followingVehicle ? 'Đang theo' : 'Theo xe' }}</span>
+          </button>
+          <button
+            class="live-follow-close"
             aria-label="Bỏ chọn xe"
             :disabled="simulator.busy"
             @click="clearVehicleSelection"
           >
-            ×
+            <X :size="14" />
           </button>
         </div>
         <TripTrafficSummary

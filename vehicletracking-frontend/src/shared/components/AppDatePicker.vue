@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from '@lucide/vue';
 
 const props = withDefaults(
@@ -32,6 +32,9 @@ const emit = defineEmits<{
 
 const isOpen = ref(false);
 const containerRef = ref<HTMLDivElement | null>(null);
+const inputWrapperRef = ref<HTMLDivElement | null>(null);
+const popupRef = ref<HTMLDivElement | null>(null);
+const popupPosition = ref({ top: '8px', left: '8px' });
 
 // Current view month & year in calendar popup
 const viewDate = ref(new Date());
@@ -164,11 +167,23 @@ function nextMonth() {
   viewDate.value = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() + 1, 1);
 }
 
+function closePopup() {
+  const popup = popupRef.value;
+  if (popup && typeof popup.hidePopover === 'function') {
+    try {
+      popup.hidePopover();
+    } catch {
+      // The popup may already be closed by the browser.
+    }
+  }
+  isOpen.value = false;
+}
+
 function selectDay(cell: DayCell) {
   if (cell.isDisabled || props.disabled) return;
   emit('update:modelValue', cell.ymd);
   emit('change', cell.ymd);
-  isOpen.value = false;
+  closePopup();
 }
 
 function selectToday() {
@@ -177,20 +192,20 @@ function selectToday() {
   viewDate.value = new Date();
   emit('update:modelValue', todayYmd);
   emit('change', todayYmd);
-  isOpen.value = false;
+  closePopup();
 }
 
 function clearDate() {
   if (props.disabled) return;
   emit('update:modelValue', '');
   emit('change', '');
-  isOpen.value = false;
+  closePopup();
 }
 
 function togglePopup() {
   if (props.disabled) return;
   if (isOpen.value) {
-    isOpen.value = false;
+    closePopup();
   } else {
     if (selectedDate.value) {
       viewDate.value = new Date(selectedDate.value);
@@ -199,6 +214,44 @@ function togglePopup() {
     }
     isOpen.value = true;
   }
+}
+
+function positionPopup() {
+  const anchor = inputWrapperRef.value;
+  const popup = popupRef.value;
+  if (!anchor || !popup) return;
+
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const margin = 8;
+  const gap = 6;
+  const anchorRect = anchor.getBoundingClientRect();
+  const popupWidth = popup.offsetWidth || 280;
+  const popupHeight = popup.offsetHeight || 340;
+  const spaceBelow = viewportHeight - anchorRect.bottom - margin;
+  const spaceAbove = anchorRect.top - margin;
+  const openAbove = spaceBelow < popupHeight && spaceAbove > spaceBelow;
+  const maxLeft = Math.max(margin, viewportWidth - popupWidth - margin);
+  const left = Math.min(Math.max(anchorRect.left, margin), maxLeft);
+  const preferredTop = openAbove ? anchorRect.top - popupHeight - gap : anchorRect.bottom + gap;
+  const maxTop = Math.max(margin, viewportHeight - popupHeight - margin);
+  const top = Math.min(Math.max(preferredTop, margin), maxTop);
+
+  popupPosition.value = { top: `${Math.round(top)}px`, left: `${Math.round(left)}px` };
+}
+
+async function showPopupInTopLayer() {
+  await nextTick();
+  const popup = popupRef.value;
+  if (!popup) return;
+  if (typeof popup.showPopover === 'function') {
+    try {
+      popup.showPopover();
+    } catch {
+      // The fixed-position fallback remains usable in partial implementations.
+    }
+  }
+  positionPopup();
 }
 
 function onNativeInput(e: Event) {
@@ -215,26 +268,38 @@ function onNativeChange(e: Event) {
 
 function handleClickOutside(event: MouseEvent) {
   const target = event.target as Node | null;
-  if (isOpen.value && containerRef.value && !containerRef.value.contains(target)) {
-    isOpen.value = false;
+  if (
+    isOpen.value &&
+    containerRef.value &&
+    !containerRef.value.contains(target) &&
+    !popupRef.value?.contains(target)
+  ) {
+    closePopup();
   }
 }
 
 function onKeyDown(e: KeyboardEvent) {
   if (e.key === 'Escape' && isOpen.value) {
-    isOpen.value = false;
+    closePopup();
   }
 }
 
 onMounted(() => {
   window.addEventListener('mousedown', handleClickOutside);
   window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('resize', positionPopup);
+  window.addEventListener('scroll', positionPopup, true);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('mousedown', handleClickOutside);
   window.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('resize', positionPopup);
+  window.removeEventListener('scroll', positionPopup, true);
+  closePopup();
 });
+
+watch(isOpen, (open) => open && void showPopupInTopLayer());
 
 watch(
   () => props.modelValue,
@@ -255,6 +320,7 @@ watch(
     :class="{ 'is-open': isOpen, 'is-disabled': disabled }"
   >
     <div
+      ref="inputWrapperRef"
       class="app-datepicker-input-wrapper"
       @click="togglePopup"
     >
@@ -295,9 +361,11 @@ watch(
     <transition name="app-datepicker-fade">
       <div
         v-if="isOpen"
+        ref="popupRef"
         class="app-datepicker-popup"
+        popover="manual"
+        :style="popupPosition"
         role="dialog"
-        aria-modal="true"
         aria-label="Chọn ngày"
       >
         <!-- Header: Month title & Nav buttons -->
@@ -451,12 +519,16 @@ watch(
 
 /* Calendar Popup */
 .app-datepicker-popup {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 1050;
-  width: 280px;
+  position: fixed;
+  inset: auto;
+  z-index: 2147483000;
+  box-sizing: border-box;
+  width: min(280px, calc(100vw - 16px));
+  max-width: none;
+  max-height: calc(100dvh - 16px);
+  margin: 0;
   padding: 14px;
+  overflow-y: auto;
   background: #ffffff;
   border: 1px solid var(--border-default, #cbd5e1);
   border-radius: 12px;
@@ -464,6 +536,11 @@ watch(
     0 10px 25px -5px rgba(15, 23, 42, 0.15),
     0 8px 10px -6px rgba(15, 23, 42, 0.08);
   user-select: none;
+}
+
+.app-datepicker-popup::backdrop {
+  background: transparent;
+  pointer-events: none;
 }
 
 .calendar-header {

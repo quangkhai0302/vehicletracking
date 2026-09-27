@@ -2,6 +2,7 @@
 import { computed, onScopeDispose, reactive, ref, shallowRef } from 'vue';
 import {
   CircleCheck,
+  KeyRound,
   Lock,
   Plus,
   RefreshCw,
@@ -14,6 +15,7 @@ import {
 import {
   createDriverAccount,
   fetchUserAccounts,
+  resetDriverPassword,
   setUserAccountActive,
   type UserAccount,
 } from '@/features/auth/api/users';
@@ -27,8 +29,11 @@ import '@/features/auth/styles/user-management.css';
 const accounts = shallowRef<UserAccount[]>([]),
   drivers = shallowRef<Driver[]>([]);
 const form = reactive({ username: '', password: '', driverId: '' });
+const passwordResetForm = reactive({ password: '', confirmation: '' });
+const passwordResetTarget = shallowRef<UserAccount | null>(null);
 const loading = ref(true),
   saving = ref(false),
+  resettingPassword = ref(false),
   error = ref<string | null>(null),
   createOpen = ref(false),
   togglingAccountId = ref<number | null>(null);
@@ -112,6 +117,46 @@ async function toggle(account: UserAccount) {
         reason instanceof Error ? reason.message : 'Không thể thay đổi trạng thái tài khoản.';
   } finally {
     if (!disposed) togglingAccountId.value = null;
+  }
+}
+function openPasswordReset(account: UserAccount) {
+  passwordResetTarget.value = account;
+  Object.assign(passwordResetForm, { password: '', confirmation: '' });
+  error.value = null;
+}
+
+function closePasswordReset() {
+  if (resettingPassword.value) return;
+  passwordResetTarget.value = null;
+  Object.assign(passwordResetForm, { password: '', confirmation: '' });
+}
+
+async function submitPasswordReset() {
+  const account = passwordResetTarget.value;
+  if (!account || resettingPassword.value) return;
+  if (passwordResetForm.password.length < 8 || passwordResetForm.password.length > 100) {
+    error.value = 'Mật khẩu mới phải dài từ 8 đến 100 ký tự.';
+    return;
+  }
+  if (passwordResetForm.password !== passwordResetForm.confirmation) {
+    error.value = 'Mật khẩu xác nhận không khớp.';
+    return;
+  }
+
+  resettingPassword.value = true;
+  error.value = null;
+  try {
+    await resetDriverPassword(account.id, { password: passwordResetForm.password });
+    if (disposed) return;
+    resettingPassword.value = false;
+    closePasswordReset();
+    notifySuccess(`Đã đặt lại mật khẩu cho tài khoản ${account.username}.`);
+  } catch (reason) {
+    if (!disposed) {
+      error.value = reason instanceof Error ? reason.message : 'Không thể đặt lại mật khẩu.';
+    }
+  } finally {
+    if (!disposed) resettingPassword.value = false;
   }
 }
 </script>
@@ -282,23 +327,38 @@ async function toggle(account: UserAccount) {
               class="user-row-action"
               role="cell"
             >
-              <button
+              <div
                 v-if="account.role === 'DRIVER'"
-                type="button"
-                :class="['user-account-action', account.active ? 'lock' : 'unlock']"
-                :disabled="togglingAccountId !== null"
-                :aria-label="`${account.active ? 'Khóa' : 'Mở khóa'} tài khoản ${account.username}`"
-                @click="toggle(account)"
+                class="user-account-actions"
               >
-                <template v-if="togglingAccountId === account.id">
-                  <RefreshCw
-                    :size="15"
-                    class="user-action-spinner"
-                  />Đang cập nhật…
-                </template>
-                <template v-else-if="account.active"> <Lock :size="15" />Khóa tài khoản </template>
-                <template v-else><Unlock :size="15" />Mở khóa</template>
-              </button>
+                <button
+                  type="button"
+                  class="user-account-action reset"
+                  :disabled="resettingPassword || togglingAccountId !== null"
+                  :aria-label="`Đặt lại mật khẩu tài khoản ${account.username}`"
+                  @click="openPasswordReset(account)"
+                >
+                  <KeyRound :size="15" />Đặt lại mật khẩu
+                </button>
+                <button
+                  type="button"
+                  :class="['user-account-action', account.active ? 'lock' : 'unlock']"
+                  :disabled="resettingPassword || togglingAccountId !== null"
+                  :aria-label="`${account.active ? 'Khóa' : 'Mở khóa'} tài khoản ${account.username}`"
+                  @click="toggle(account)"
+                >
+                  <template v-if="togglingAccountId === account.id">
+                    <RefreshCw
+                      :size="15"
+                      class="user-action-spinner"
+                    />Đang cập nhật…
+                  </template>
+                  <template v-else-if="account.active">
+                    <Lock :size="15" />Khóa tài khoản
+                  </template>
+                  <template v-else><Unlock :size="15" />Mở khóa</template>
+                </button>
+              </div>
               <span
                 v-else
                 class="user-protected"
@@ -369,6 +429,76 @@ async function toggle(account: UserAccount) {
           >
             Tất cả tài xế đang hoạt động đã được cấp tài khoản.
           </p>
+        </form>
+      </section>
+    </SidePanel>
+    <SidePanel
+      v-if="passwordResetTarget"
+      class-name="user-account-modal user-password-reset-modal"
+      :label="`Đặt lại mật khẩu ${passwordResetTarget.username}`"
+      :busy="resettingPassword"
+      :on-close="closePasswordReset"
+    >
+      <section class="user-create user-password-reset">
+        <div class="users-heading">
+          <div>
+            <h2>Đặt lại mật khẩu</h2>
+            <p>Tạo mật khẩu mới cho tài khoản tài xế.</p>
+          </div>
+          <button
+            type="button"
+            aria-label="Đóng biểu mẫu đặt lại mật khẩu"
+            :disabled="resettingPassword"
+            @click="closePasswordReset"
+          >
+            <X :size="18" />
+          </button>
+        </div>
+        <div class="user-password-target">
+          <span><KeyRound :size="18" /></span>
+          <div>
+            <small>TÀI KHOẢN TÀI XẾ</small>
+            <strong>{{ passwordResetTarget.username }}</strong>
+            <p>
+              {{ passwordResetTarget.driverName }} · GPLX
+              {{ passwordResetTarget.driverLicenseNumber }}
+            </p>
+          </div>
+        </div>
+        <form @submit.prevent="submitPasswordReset">
+          <label>
+            Mật khẩu mới
+            <input
+              v-model="passwordResetForm.password"
+              required
+              minlength="8"
+              maxlength="100"
+              type="password"
+              autocomplete="new-password"
+              placeholder="Từ 8 đến 100 ký tự"
+            />
+          </label>
+          <label>
+            Xác nhận mật khẩu mới
+            <input
+              v-model="passwordResetForm.confirmation"
+              required
+              minlength="8"
+              maxlength="100"
+              type="password"
+              autocomplete="new-password"
+              placeholder="Nhập lại mật khẩu mới"
+            />
+          </label>
+          <p class="user-password-note">
+            Sau khi đặt lại, các phiên đăng nhập cũ của tài xế sẽ bị kết thúc. Trạng thái khóa/mở
+            khóa của tài khoản không thay đổi.
+          </p>
+          <button :disabled="resettingPassword">
+            <KeyRound :size="15" />{{
+              resettingPassword ? 'Đang đặt lại…' : 'Xác nhận đặt lại mật khẩu'
+            }}
+          </button>
         </form>
       </section>
     </SidePanel>

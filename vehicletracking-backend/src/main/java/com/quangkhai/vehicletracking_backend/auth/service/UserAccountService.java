@@ -1,7 +1,8 @@
 package com.quangkhai.vehicletracking_backend.auth.service;
 
-import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreateRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.AdminRegistrationRequest;
+import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreateRequest;
+import com.quangkhai.vehicletracking_backend.auth.dto.DriverPasswordResetRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.UserAccountResponse;
 import com.quangkhai.vehicletracking_backend.auth.entity.UserAccountEntity;
 import com.quangkhai.vehicletracking_backend.auth.entity.UserRole;
@@ -74,6 +75,17 @@ public class UserAccountService {
             throw new ResponseStatusException(CONFLICT, "Hồ sơ tài xế đã ngừng sử dụng.");
         if (active) account.enable(); else account.disable();
         return UserAccountResponse.from(account);
+    }
+
+    @Transactional
+    public void resetDriverPassword(long id, DriverPasswordResetRequest input) {
+        UserAccountEntity account = accounts.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy tài khoản."));
+        if (account.getRole() != UserRole.DRIVER) {
+            throw new ResponseStatusException(CONFLICT,
+                    "Chỉ có thể đặt lại mật khẩu cho tài khoản tài xế.");
+        }
+        account.changePassword(passwordEncoder.encode(input.password()));
     }
 
     public String normalizeUsername(String raw) {

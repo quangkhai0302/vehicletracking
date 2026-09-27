@@ -10,6 +10,7 @@ import { fetchOperationalReport } from '@/features/reports/api/reports';
 import {
   createDriverAccount,
   fetchUserAccounts,
+  resetDriverPassword,
   setUserAccountActive,
   type UserAccount,
 } from '@/features/auth/api/users';
@@ -33,6 +34,7 @@ vi.mock('@/features/reports/api/reports', () => ({ fetchOperationalReport: vi.fn
 vi.mock('@/features/auth/api/users', () => ({
   createDriverAccount: vi.fn(),
   fetchUserAccounts: vi.fn(),
+  resetDriverPassword: vi.fn(),
   setUserAccountActive: vi.fn(),
 }));
 vi.mock('@/features/schedules/api/schedules', () => ({
@@ -286,19 +288,51 @@ test('user page visually separates roles and locked access states', async () => 
   );
 });
 
+test('admin resets a driver password through a guarded modal', async () => {
+  const wrapper = mount(UserManagementPage);
+  cleanups.push(() => wrapper.unmount());
+  await flushPromises();
+
+  await wrapper.get('[aria-label="Đặt lại mật khẩu tài khoản linked.driver"]').trigger('click');
+  expect(wrapper.get('.user-password-reset-modal').attributes('open')).toBeDefined();
+  expect(wrapper.get('.user-password-target').text()).toContain('Linked driver');
+
+  const inputs = wrapper.findAll('.user-password-reset input');
+  await inputs[0].setValue('new-password');
+  await inputs[1].setValue('different-password');
+  await wrapper.get('.user-password-reset form').trigger('submit');
+  await flushPromises();
+  expect(resetDriverPassword).not.toHaveBeenCalled();
+  expect(notifyError).toHaveBeenCalledWith('Mật khẩu xác nhận không khớp.');
+
+  await inputs[1].setValue('new-password');
+  const pending = deferred<void>();
+  vi.mocked(resetDriverPassword).mockReturnValueOnce(pending.promise);
+  await wrapper.get('.user-password-reset form').trigger('submit');
+  await wrapper.get('.user-password-reset form').trigger('submit');
+  expect(resetDriverPassword).toHaveBeenCalledTimes(1);
+  expect(resetDriverPassword).toHaveBeenCalledWith(2, { password: 'new-password' });
+  expect(wrapper.get('.user-password-reset form button').attributes('disabled')).toBeDefined();
+
+  pending.resolve();
+  await flushPromises();
+  expect(notifySuccess).toHaveBeenCalledWith('Đã đặt lại mật khẩu cho tài khoản linked.driver.');
+  expect(wrapper.find('.user-password-reset-modal').exists()).toBe(false);
+});
+
 test('user page preserves toggle error/retry and aborts outstanding reads on unmount', async () => {
   const wrapper = mount(UserManagementPage);
   cleanups.push(() => wrapper.unmount());
   await flushPromises();
   vi.mocked(setUserAccountActive).mockRejectedValueOnce(new Error('Fixture conflict'));
-  await wrapper.get('.user-row button').trigger('click');
+  await wrapper.get('.user-row .user-account-action.lock').trigger('click');
   await flushPromises();
   expect(setUserAccountActive).toHaveBeenCalledWith(2, false);
   expect(notifyError).toHaveBeenCalledWith('Fixture conflict');
   await wrapper.get('.users-refresh').trigger('click');
   await flushPromises();
   vi.mocked(setUserAccountActive).mockResolvedValueOnce({ ...account, active: false });
-  await wrapper.get('.user-row button').trigger('click');
+  await wrapper.get('.user-row .user-account-action.lock').trigger('click');
   await flushPromises();
   expect(wrapper.get('.user-inactive').text()).toContain('Tài khoản bị khóa');
   const signal = vi.mocked(fetchUserAccounts).mock.calls[1][0]!;

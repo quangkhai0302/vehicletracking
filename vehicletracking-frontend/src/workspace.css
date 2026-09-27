@@ -1243,45 +1243,6 @@ fieldset {
   text-transform: uppercase;
 }
 
-/* Google Maps Style Leaflet Map Stop Markers */
-.map-first .route-stop-map-marker {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  line-height: 1;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Google Sans', sans-serif;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
-  transition:
-    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.18s ease;
-}
-.map-first .route-stop-map-marker:hover {
-  transform: scale(1.22);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
-}
-.map-first .route-stop-map-marker.start {
-  background: #0f9d58;
-  color: #ffffff;
-  border: 2.5px solid #ffffff;
-  font-weight: 700;
-}
-.map-first .route-stop-map-marker.stop {
-  background: #ffffff;
-  color: #1a73e8;
-  border: 2.5px solid #1a73e8;
-  font-weight: 800;
-}
-.map-first .route-stop-map-marker.end {
-  background: #ea4335;
-  color: #ffffff;
-  border: 2.5px solid #ffffff;
-  font-weight: 700;
-}
-
 .map-first .leaflet-tooltip {
   color: #f1f5f9;
   background: rgba(10, 16, 26, 0.94);
@@ -2745,6 +2706,178 @@ fieldset {
   backdrop-filter: blur(8px);
 }
 
+.confirmation-dialog.replay-confirm-dialog {
+  position: relative;
+  width: min(448px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 26px;
+  overflow: auto;
+  border-color: rgba(34, 211, 238, 0.3);
+  background:
+    radial-gradient(circle at 50% -18%, rgba(34, 211, 238, 0.2), transparent 43%),
+    linear-gradient(155deg, #122235 0%, #0b1727 58%, #0a1422 100%);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.72),
+    0 0 0 1px rgba(34, 211, 238, 0.08);
+  text-align: left;
+}
+
+.confirmation-dialog.replay-confirm-dialog::before {
+  position: absolute;
+  top: 0;
+  right: 24%;
+  left: 24%;
+  height: 2px;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(90deg, transparent, #22d3ee, transparent);
+  content: '';
+}
+
+.replay-confirm-visual {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 13px;
+}
+
+.replay-confirm-visual > span {
+  position: relative;
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  color: #cffafe;
+  background: linear-gradient(145deg, rgba(6, 182, 212, 0.3), rgba(2, 132, 199, 0.16));
+  border: 1px solid rgba(103, 232, 249, 0.44);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgba(8, 145, 178, 0.2);
+}
+
+.replay-confirm-visual > span::after {
+  position: absolute;
+  width: 68px;
+  height: 68px;
+  border: 1px solid rgba(34, 211, 238, 0.1);
+  border-radius: 20px;
+  content: '';
+}
+
+.replay-confirm-visual small {
+  color: #67e8f9;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.confirmation-dialog.replay-confirm-dialog h2 {
+  color: #f8fafc;
+  font-size: 20px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.confirmation-dialog.replay-confirm-dialog > p {
+  max-width: 350px;
+  margin: 8px auto 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.replay-confirm-impact {
+  margin-top: 20px;
+  padding: 5px 14px;
+  background: rgba(2, 8, 23, 0.3);
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  border-radius: 12px;
+}
+
+.replay-confirm-impact-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 12px 0;
+}
+
+.replay-confirm-impact-item:not(:last-child) {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+}
+
+.replay-confirm-impact-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 9px;
+}
+
+.replay-confirm-impact-item.retained .replay-confirm-impact-icon {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(52, 211, 153, 0.22);
+}
+
+.replay-confirm-impact-item > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.replay-confirm-impact-item strong {
+  color: #e2e8f0;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.replay-confirm-impact-item small {
+  color: #8190a5;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.replay-confirm-dialog .dialog-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  margin-top: 20px;
+}
+
+.replay-confirm-primary {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 15px;
+  color: #fff;
+  background: linear-gradient(135deg, #0891b2, #0284c7);
+  border: 1px solid #22d3ee;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 750;
+  transition: 150ms ease;
+}
+
+.replay-confirm-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0e7490, #0369a1);
+  box-shadow: 0 7px 18px rgba(2, 132, 199, 0.27);
+  transform: translateY(-1px);
+}
+
+.replay-confirm-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* Responsive Media Queries */
 @media (max-width: 359px) {
   .map-first .canvas-brand {
@@ -2769,6 +2902,14 @@ fieldset {
     padding: 6px;
     gap: 5px;
     font-size: 10px;
+  }
+
+  .confirmation-dialog.replay-confirm-dialog {
+    padding: 22px 18px;
+  }
+
+  .replay-confirm-dialog .dialog-actions {
+    grid-template-columns: 1fr;
   }
 }
 @media (min-width: 1280px) and (min-height: 651px) {

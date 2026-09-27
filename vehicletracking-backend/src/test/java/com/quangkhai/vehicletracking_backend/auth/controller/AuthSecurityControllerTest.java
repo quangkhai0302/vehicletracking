@@ -27,6 +27,7 @@ import java.util.Optional;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -60,7 +61,7 @@ class AuthSecurityControllerTest {
         UserAccountEntity account = new UserAccountEntity("admin", "encoded", UserRole.ADMIN, null);
         ReflectionTestUtils.setField(account, "id", 7L);
         when(accounts.findByUsername("admin")).thenReturn(Optional.of(account));
-        when(accounts.isActiveForAuthentication(7L)).thenReturn(true);
+        when(accounts.isActiveForAuthentication(7L, "encoded")).thenReturn(true);
         when(passwords.matches("password-12345", "encoded")).thenReturn(true);
 
         var csrf = mvc.perform(get("/api/v1/auth/csrf")).andExpect(status().isOk()).andReturn();
@@ -105,5 +106,35 @@ class AuthSecurityControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"ops\",\"password\":\"secure-admin-password\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void driverSessionCannotResetAnotherDriverPassword() throws Exception {
+        UserAccountEntity account = new UserAccountEntity(
+                "driver", "encoded", UserRole.DRIVER, null);
+        ReflectionTestUtils.setField(account, "id", 8L);
+        when(accounts.findByUsername("driver")).thenReturn(Optional.of(account));
+        when(accounts.isActiveForAuthentication(8L, "encoded")).thenReturn(true);
+        when(passwords.matches("password-12345", "encoded")).thenReturn(true);
+
+        var csrf = mvc.perform(get("/api/v1/auth/csrf")).andExpect(status().isOk()).andReturn();
+        Cookie csrfCookie = csrf.getResponse().getCookie("XSRF-TOKEN");
+        String token = csrfCookie.getValue();
+        var login = mvc.perform(post("/api/v1/auth/login")
+                        .cookie(csrfCookie)
+                        .header("X-XSRF-TOKEN", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"driver\",\"password\":\"password-12345\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        mvc.perform(post("/api/v1/users/7/reset-password")
+                        .session((MockHttpSession) login.getRequest().getSession(false))
+                        .cookie(csrfCookie)
+                        .header("X-XSRF-TOKEN", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"new-password\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(userAccounts);
     }
 }

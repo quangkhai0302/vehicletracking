@@ -535,7 +535,7 @@
   display: grid;
   grid-template-columns:
     minmax(250px, 1.35fr) minmax(180px, 0.8fr) minmax(210px, 0.85fr)
-    minmax(150px, 0.65fr);
+    minmax(180px, 0.72fr);
   gap: 20px;
   align-items: center;
 }
@@ -717,13 +717,31 @@
   justify-content: flex-end;
 }
 
+.business-ui .user-account-actions {
+  display: grid;
+  width: 100%;
+  max-width: 170px;
+  gap: 7px;
+}
+
 .business-ui .users-page .user-account-action {
   width: 100%;
-  max-width: 150px;
   min-height: 38px;
   padding: 7px 11px;
   box-shadow: none;
   font-size: 11.5px;
+}
+
+.business-ui .users-page .user-account-action.reset {
+  color: #0369a1;
+  background: #f0f9ff;
+  border-color: #bae6fd;
+}
+
+.business-ui .users-page .user-account-action.reset:hover:not(:disabled) {
+  color: #075985;
+  background: #e0f2fe;
+  border-color: #7dd3fc;
 }
 
 .business-ui .users-page .user-account-action.lock {
@@ -818,6 +836,71 @@
   box-shadow: 0 8px 18px -10px rgb(2 132 199 / 0.75);
 }
 
+.business-ui .user-password-target {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 22px 0;
+  padding: 14px 15px;
+  background: #f8fafc;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+}
+
+.business-ui .user-password-target > span {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  color: #0369a1;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  border-radius: 11px;
+}
+
+.business-ui .user-password-target > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.business-ui .user-password-target small {
+  color: #64748b;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.business-ui .user-password-target strong {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--text-primary);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.business-ui .user-password-target p {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.business-ui .user-password-note {
+  margin: 0;
+  padding: 12px 14px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
 @media (max-width: 1100px) {
   .business-ui .users-overview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -825,7 +908,7 @@
 
   .business-ui .users-table-head,
   .business-ui .users-page .user-row {
-    grid-template-columns: minmax(210px, 1.2fr) minmax(155px, 0.8fr) minmax(190px, 0.9fr) 138px;
+    grid-template-columns: minmax(210px, 1.2fr) minmax(155px, 0.8fr) minmax(190px, 0.9fr) 165px;
     gap: 14px;
   }
 }
@@ -871,7 +954,13 @@
     justify-content: flex-start;
   }
 
-  .business-ui .users-page .user-account-action {
+  .business-ui .user-account-actions {
+    display: flex;
+    max-width: none;
+    flex-wrap: wrap;
+  }
+
+  .business-ui .user-account-actions .user-account-action {
     width: auto;
     max-width: none;
   }
@@ -922,5 +1011,18 @@
   .business-ui .user-role-cell,
   .business-ui .users-page .user-status {
     width: 100%;
+  }
+
+  .business-ui .user-account-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .business-ui .user-account-actions .user-account-action {
+    width: 100%;
+  }
+
+  .business-ui .user-password-target {
+    margin: 16px 16px 0;
   }
 }

@@ -1,6 +1,7 @@
 package com.quangkhai.vehicletracking_backend.auth.controller;
 
 import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreateRequest;
+import com.quangkhai.vehicletracking_backend.auth.dto.DriverPasswordResetRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.UserAccountResponse;
 import com.quangkhai.vehicletracking_backend.auth.service.UserAccountService;
 import jakarta.validation.Valid;
@@ -31,4 +32,11 @@ public class UserAccountController {
 
     @PostMapping("/{id}/disable")
     public UserAccountResponse disable(@PathVariable long id) { return service.setActive(id, false); }
+
+    @PostMapping("/{id}/reset-password")
+    public ResponseEntity<Void> resetDriverPassword(
+            @PathVariable long id, @Valid @RequestBody DriverPasswordResetRequest request) {
+        service.resetDriverPassword(id, request);
+        return ResponseEntity.noContent().build();
+    }
 }

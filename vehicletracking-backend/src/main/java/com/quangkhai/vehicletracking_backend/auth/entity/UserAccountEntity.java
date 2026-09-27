@@ -62,4 +62,9 @@ public class UserAccountEntity {
         active = false;
         updatedAt = Instant.now();
     }
+
+    public void changePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+        updatedAt = Instant.now();
+    }
 }

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Maximize2 } from '@lucide/vue';
 import type { useSimulationFleet } from '@/features/simulation/composables/useSimulationFleet';
 import type { OperationsSnapshot } from '@/features/tracking/types/operations';
 import { SIMULATION_LABELS } from '@/features/tracking/types/operations';
 import { vehicleTypeLabel } from '@/features/fleet/types/fleet';
 import { simulationRouteColor } from '@/features/simulation/utils/simulationFleet';
+
 const props = defineProps<{
   fleet: ReturnType<typeof useSimulationFleet>;
   snapshot: OperationsSnapshot | null;
@@ -14,6 +16,7 @@ const props = defineProps<{
   onFit: () => void;
   onManage: () => void;
 }>();
+
 const running = computed(
   () =>
     props.fleet.trips.filter((trip) =>
@@ -28,35 +31,41 @@ const rows = computed(() =>
   })),
 );
 </script>
+
 <template>
   <section
     class="simulation-fleet-list"
     aria-label="Đội xe mô phỏng"
   >
-    <div class="simulation-fleet-heading">
-      <strong>{{ fleet.trips.length }} xe · {{ running }} đang chạy</strong
-      ><button
+    <div class="simulation-fleet-overview">
+      <div>
+        <strong>{{ fleet.trips.length }}</strong>
+        <span>Xe mô phỏng</span>
+      </div>
+      <div>
+        <strong>{{ running }}</strong>
+        <span>Đang chạy</span>
+      </div>
+      <button
         type="button"
         :disabled="!fleet.trips.length"
+        aria-label="Đưa toàn bộ xe mô phỏng vào khung nhìn"
         @click="onFit"
       >
-        Xem tất cả
+        <Maximize2 :size="14" />
+        Toàn đội
       </button>
     </div>
-    <p class="simulation-route-legend">Tuyến xanh cyan: xe đang chọn · Các màu khác: xe còn lại.</p>
-    <p
-      v-if="fleet.loading"
-      role="status"
-    >
-      Đang tải lộ trình đội xe…
-    </p>
+
     <details
       :key="selectedTripId ?? 'all'"
-      :open="selectedTripId === null || undefined"
+      :open="selectedTripId === null"
       class="simulation-fleet-picker"
     >
-      <summary>{{ selectedTripId === null ? 'Danh sách xe mô phỏng' : 'Chọn xe khác' }}</summary>
-      <p>Bấm xe trên bản đồ hoặc chọn bên dưới để điều khiển riêng. Các xe khác tiếp tục chạy.</p>
+      <summary>
+        <span>{{ selectedTripId === null ? 'Chọn xe mô phỏng' : 'Đổi xe điều khiển' }}</span>
+        <small>{{ rows.length }} xe khả dụng</small>
+      </summary>
       <div class="simulation-fleet-rows">
         <button
           v-for="{ trip, run, preview } in rows"
@@ -67,21 +76,23 @@ const rows = computed(() =>
           :aria-pressed="trip.id === selectedTripId"
           @click="onSelect(trip.id)"
         >
-          <span
-            ><strong
-              ><i
+          <span>
+            <strong>
+              <i
                 class="simulation-route-swatch"
                 :style="{
                   background: simulationRouteColor(trip.vehicleId, trip.id === selectedTripId),
                 }"
                 aria-hidden="true"
-              />{{ trip.vehiclePlateNumber }}</strong
-            ><small>{{ run ? SIMULATION_LABELS[run.status] : 'Chờ xuất phát' }}</small></span
-          >
-          <span
-            >{{ vehicleTypeLabel(trip.vehicleType) }} ·
-            {{ preview ? `Trạm đầu: ${preview.start.stationName}` : trip.routeName }}</span
-          >
+              />
+              {{ trip.vehiclePlateNumber }}
+            </strong>
+            <small>{{ run ? SIMULATION_LABELS[run.status] : 'Chờ xuất phát' }}</small>
+          </span>
+          <span>
+            {{ vehicleTypeLabel(trip.vehicleType) }} ·
+            {{ preview ? `Trạm đầu: ${preview.start.stationName}` : trip.routeName }}
+          </span>
         </button>
       </div>
       <p
@@ -90,9 +101,7 @@ const rows = computed(() =>
       >
         Đang tải đội xe…
       </p>
-      <p v-if="snapshot && !fleet.trips.length">
-        Chưa có xe chờ hoặc đang mô phỏng. Tạo xe và gán chuyến trước khi chạy.
-      </p>
+      <p v-if="snapshot && !fleet.trips.length">Chưa có xe chờ hoặc đang mô phỏng.</p>
       <p
         v-if="fleet.loading"
         role="status"
@@ -101,9 +110,10 @@ const rows = computed(() =>
       </p>
       <button
         type="button"
+        class="simulation-manage-link"
         @click="onManage"
       >
-        Quản lý xe, tuyến &amp; lịch khởi hành
+        Quản lý xe, tuyến và chuyến đi
       </button>
     </details>
   </section>

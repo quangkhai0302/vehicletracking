@@ -1,6 +1,7 @@
 package com.quangkhai.vehicletracking_backend.auth;
 
 import com.quangkhai.vehicletracking_backend.auth.dto.AdminRegistrationRequest;
+import com.quangkhai.vehicletracking_backend.auth.dto.DriverPasswordResetRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.UserAccountResponse;
 import com.quangkhai.vehicletracking_backend.auth.entity.UserAccountEntity;
 import com.quangkhai.vehicletracking_backend.auth.entity.UserRole;
@@ -51,6 +52,43 @@ class UserAccountServiceTest {
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         error -> assertThat(error.getStatusCode().value()).isEqualTo(409));
         verify(accounts, never()).save(any());
+    }
+
+    @Test
+    void resetDriverPasswordEncodesPasswordAndKeepsAccessState() {
+        DriverEntity driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        UserAccountEntity account = new UserAccountEntity("driver.a", "old-hash", UserRole.DRIVER, driver);
+        account.disable();
+        ReflectionTestUtils.setField(account, "id", 7L);
+        when(accounts.findById(7L)).thenReturn(Optional.of(account));
+        when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+        UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
+
+        service.resetDriverPassword(7L, new DriverPasswordResetRequest("new-password"));
+
+        assertThat(account.getPasswordHash()).isEqualTo("new-hash");
+        assertThat(account.getUpdatedAt()).isNotNull();
+        assertThat(account.isActive()).isFalse();
+        verify(passwordEncoder).encode("new-password");
+    }
+
+    @Test
+    void resetDriverPasswordRejectsAdminAccount() {
+        UserAccountEntity account = new UserAccountEntity(
+                "admin", "old-hash", UserRole.ADMIN, null);
+        ReflectionTestUtils.setField(account, "id", 8L);
+        when(accounts.findById(8L)).thenReturn(Optional.of(account));
+        UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
+
+        assertThatThrownBy(() -> service.resetDriverPassword(
+                8L, new DriverPasswordResetRequest("new-password")))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        error -> {
+                            assertThat(error.getStatusCode().value()).isEqualTo(409);
+                            assertThat(error.getReason()).isEqualTo(
+                                    "Chỉ có thể đặt lại mật khẩu cho tài khoản tài xế.");
+                        });
+        verify(passwordEncoder, never()).encode(anyString());
     }
 
     @Test
