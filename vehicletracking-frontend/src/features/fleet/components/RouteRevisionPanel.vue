@@ -91,7 +91,7 @@ async function supersede() {
       ><article
         v-for="item in revisions"
         :key="item.id"
-        class="trip-revision-row"
+        :class="['trip-revision-row', item.status.toLowerCase()]"
       >
         <div>
           <strong>Đổi tuyến lần {{ item.revisionNumber }}</strong

@@ -1655,6 +1655,81 @@
   justify-content: flex-end;
 }
 
+/* Route revision history on the light trip-detail workspace */
+.business-ui .business-management-surface .fleet-editor .trip-revision-panel {
+  margin-top: 16px;
+  padding: 16px 18px;
+  background: #f8fafc;
+  border: 1px solid #d9e3ee;
+  border-radius: 12px;
+}
+.business-ui .business-management-surface .fleet-editor .trip-revision-panel .trip-section-heading {
+  color: #0369a1;
+  font-size: 13px;
+  font-weight: 700;
+}
+.business-ui
+  .business-management-surface
+  .fleet-editor
+  .trip-revision-panel
+  .trip-section-heading
+  > span {
+  gap: 8px;
+}
+.business-ui .business-management-surface .fleet-editor .trip-revision-row {
+  margin-top: 10px;
+  padding: 13px 15px;
+  color: #64748b;
+  background: #ffffff;
+  border: 1px solid #dbe5ef;
+  border-left: 4px solid #0ea5e9;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.business-ui .business-management-surface .fleet-editor .trip-revision-row.superseded {
+  background: #f8fafc;
+  border-left-color: #94a3b8;
+}
+.business-ui .business-management-surface .fleet-editor .trip-revision-row > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #0f172a;
+}
+.business-ui .business-management-surface .fleet-editor .trip-revision-row strong {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+}
+.business-ui .business-management-surface .fleet-editor .trip-revision-row p {
+  margin: 6px 0 4px;
+  color: #475569;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.business-ui .business-management-surface .fleet-editor .trip-revision-row small {
+  color: #64748b;
+  font-size: 11.5px;
+}
+.business-ui .business-management-surface .fleet-editor .revision-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.business-ui .business-management-surface .fleet-editor .revision-status.superseded {
+  color: #475569;
+  background: #eef2f7;
+  border-color: #cbd5e1;
+}
+
 /* Trip Timeline */
 .business-ui .business-management-surface .fleet-editor .trip-timeline {
   margin-top: 24px;

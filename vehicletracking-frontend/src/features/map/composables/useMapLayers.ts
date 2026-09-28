@@ -283,7 +283,6 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
       setPickingLocation(false);
     });
 
-    marker.bindTooltip('Kéo để tinh chỉnh vị trí trạm', { permanent: true, direction: 'top', offset: [0, -38] });
     marker.addTo(layer);
     })();
     cleanup(() => { draftLayer?.eachLayer(item => item.off()); draftLayer?.clearLayers(); });

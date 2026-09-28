@@ -10,8 +10,8 @@ export const navigationGroups: NavigationGroup[] = [
   { label: 'Quản lý vận hành', items: [
     { path: '/vehicles', label: 'Phương tiện', title: 'Quản lý phương tiện', description: 'Quản lý hồ sơ xe và phân công tài xế phụ trách.', icon: BusFront },
     { path: '/drivers', label: 'Tài xế', title: 'Quản lý tài xế', description: 'Quản lý thông tin và trạng thái hoạt động của tài xế.', icon: UserRound },
-    { path: '/trips', aliases: ['/routes'], label: 'Tuyến & chuyến', title: 'Kế hoạch vận hành', description: 'Thiết lập tuyến đường, lập chuyến và phân công vận hành.', icon: ClipboardList },
     { path: '/stations', label: 'Trạm dừng', title: 'Quản lý trạm dừng', description: 'Quản lý vị trí tọa độ và bán kính nhận diện trạm.', icon: SquareChartGantt, fullBleed: true },
+    { path: '/trips', aliases: ['/routes'], label: 'Tuyến & chuyến', title: 'Kế hoạch vận hành', description: 'Thiết lập tuyến đường, lập chuyến và phân công vận hành.', icon: ClipboardList },
   ] },
   { label: 'Mở rộng hệ thống', items: [
     { path: '/schedules', label: 'Lịch chạy tự động', title: 'Lịch chạy tự động', description: 'Cấu hình lịch cố định và tự động tạo chuyến.', icon: CalendarClock },
