@@ -37,13 +37,13 @@ class UserAccountControllerTest {
     void resetDriverPasswordReturnsNoContentAndDelegates() throws Exception {
         mvc.perform(post("/api/v1/users/7/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"password\":\"new-password\"}"))
+                        .content("{\"password\":\"pass1234\"}"))
                 .andExpect(status().isNoContent());
 
         ArgumentCaptor<DriverPasswordResetRequest> input =
                 ArgumentCaptor.forClass(DriverPasswordResetRequest.class);
         verify(accounts).resetDriverPassword(eq(7L), input.capture());
-        assertThat(input.getValue().password()).isEqualTo("new-password");
+        assertThat(input.getValue().password()).isEqualTo("pass1234");
     }
 
     @Test

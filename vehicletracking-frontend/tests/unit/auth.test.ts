@@ -72,11 +72,13 @@ test('registration mismatch and success use toast notifications', async () => {
   const router = makeRouter(); await router.push('/register');
   const wrapper = mount(AdminRegistrationPage, { global: { plugins: [router] } });
   const inputs = wrapper.findAll('input');
-  await inputs[0].setValue(' New.Admin '); await inputs[1].setValue('fixture-password'); await inputs[2].setValue('different');
+  expect(inputs[1].attributes('minlength')).toBe('8');
+  expect(inputs[2].attributes('minlength')).toBe('8');
+  await inputs[0].setValue(' New.Admin '); await inputs[1].setValue('pass1234'); await inputs[2].setValue('different');
   await wrapper.find('form').trigger('submit'); expect(registerAdmin).not.toHaveBeenCalled();
   expect(notifyError).toHaveBeenCalledWith('Mật khẩu xác nhận không khớp.');
-  await inputs[2].setValue('fixture-password'); await wrapper.find('form').trigger('submit'); await flushPromises();
-  expect(registerAdmin).toHaveBeenCalledWith({ username: 'New.Admin', password: 'fixture-password' });
+  await inputs[2].setValue('pass1234'); await wrapper.find('form').trigger('submit'); await flushPromises();
+  expect(registerAdmin).toHaveBeenCalledWith({ username: 'New.Admin', password: 'pass1234' });
   expect(notifySuccess).toHaveBeenCalledWith(
     'Đã tạo tài khoản new.admin. Bạn có thể đăng nhập ngay.',
   );

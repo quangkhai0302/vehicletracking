@@ -298,20 +298,20 @@ test('admin resets a driver password through a guarded modal', async () => {
   expect(wrapper.get('.user-password-target').text()).toContain('Linked driver');
 
   const inputs = wrapper.findAll('.user-password-reset input');
-  await inputs[0].setValue('new-password');
+  await inputs[0].setValue('pass1234');
   await inputs[1].setValue('different-password');
   await wrapper.get('.user-password-reset form').trigger('submit');
   await flushPromises();
   expect(resetDriverPassword).not.toHaveBeenCalled();
   expect(notifyError).toHaveBeenCalledWith('Mật khẩu xác nhận không khớp.');
 
-  await inputs[1].setValue('new-password');
+  await inputs[1].setValue('pass1234');
   const pending = deferred<void>();
   vi.mocked(resetDriverPassword).mockReturnValueOnce(pending.promise);
   await wrapper.get('.user-password-reset form').trigger('submit');
   await wrapper.get('.user-password-reset form').trigger('submit');
   expect(resetDriverPassword).toHaveBeenCalledTimes(1);
-  expect(resetDriverPassword).toHaveBeenCalledWith(2, { password: 'new-password' });
+  expect(resetDriverPassword).toHaveBeenCalledWith(2, { password: 'pass1234' });
   expect(wrapper.get('.user-password-reset form button').attributes('disabled')).toBeDefined();
 
   pending.resolve();

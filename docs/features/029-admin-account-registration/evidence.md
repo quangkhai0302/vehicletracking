@@ -18,3 +18,15 @@
 - `git diff --check` — PASS.
 
 Không có secret đăng ký mới; mật khẩu vẫn chỉ được gửi qua HTTPS/session flow và lưu dưới dạng hash.
+
+## Cập nhật chính sách mật khẩu — 2026-09-28
+
+- `AdminRegistrationRequest` và form `/register` dùng cùng giới hạn 8–100 ký tự.
+- Test MockMvc xác minh mật khẩu đúng 8 ký tự được chấp nhận và 7 ký tự bị trả `400`.
+- Tài khoản bootstrap từ cấu hình giữ riêng mức tối thiểu 12 ký tự; thay đổi này chỉ áp dụng cho luồng đăng ký/reset người dùng.
+
+```text
+Frontend: lint, typecheck, 110 unit tests, 5 motion tests và build — PASS
+Backend Java 26: 311 tests, 0 failures, 0 errors, 0 skipped — BUILD SUCCESS
+git diff --check — PASS
+```

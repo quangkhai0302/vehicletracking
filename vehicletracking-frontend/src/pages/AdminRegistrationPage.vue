@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import {
-  ArrowLeft,
-  ArrowRight,
-  LockKeyhole,
-  Navigation,
-  UserRound,
-} from '@lucide/vue';
+import { ArrowLeft, ArrowRight, LockKeyhole, Navigation, UserRound } from '@lucide/vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { registerAdmin } from '@/features/auth/api/auth';
 import AuthLayout from '@/app/layouts/AuthLayout.vue';
@@ -26,7 +20,9 @@ async function submit() {
   busy.value = true;
   try {
     await registerAdmin({ username: username.value.trim(), password: password.value });
-    notifySuccess(`Đã tạo tài khoản ${username.value.trim().toLowerCase()}. Bạn có thể đăng nhập ngay.`);
+    notifySuccess(
+      `Đã tạo tài khoản ${username.value.trim().toLowerCase()}. Bạn có thể đăng nhập ngay.`,
+    );
     await router.push('/login');
   } catch (reason) {
     notifyError(reason instanceof Error ? reason.message : 'Không thể tạo tài khoản admin.');
@@ -62,12 +58,12 @@ async function submit() {
           /></div
       ></label>
       <label
-        ><span>Mật khẩu (tối thiểu 12 ký tự)</span>
+        ><span>Mật khẩu (tối thiểu 8 ký tự)</span>
         <div class="auth-input">
           <LockKeyhole :size="16" /><input
             v-model="password"
             required
-            minlength="12"
+            minlength="8"
             maxlength="100"
             type="password"
             autocomplete="new-password"
@@ -79,7 +75,7 @@ async function submit() {
           <LockKeyhole :size="16" /><input
             v-model="confirmPassword"
             required
-            minlength="12"
+            minlength="8"
             maxlength="100"
             type="password"
             autocomplete="new-password"

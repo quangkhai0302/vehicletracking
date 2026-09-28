@@ -10,7 +10,7 @@ Cho phép người vận hành tạo tài khoản `ADMIN` trực tiếp từ tra
 
 - Public endpoint và trang `/register` để tạo tài khoản admin.
 - Chỉ tạo role `ADMIN`; client không được chọn role hoặc gán tài xế.
-- Chuẩn hóa username, kiểm tra trùng và mật khẩu tối thiểu 12 ký tự.
+- Chuẩn hóa username, kiểm tra trùng và mật khẩu tối thiểu 8 ký tự.
 - CSRF, validation, trạng thái thành công/lỗi và liên kết về trang đăng nhập.
 
 ### Out of scope

@@ -9,12 +9,12 @@ Request:
 ```json
 {
   "username": "ops.admin",
-  "password": "a-password-at-least-12"
+  "password": "password"
 }
 ```
 
 - `username`: non-blank, tối đa 100 ký tự; normalize lowercase và khớp `[a-z0-9][a-z0-9._-]{2,99}`.
-- `password`: non-blank, 12–100 ký tự; encode BCrypt trước khi lưu.
+- `password`: non-blank, 8–100 ký tự; encode BCrypt trước khi lưu.
 
 Response `201` là `UserAccountResponse` với role `ADMIN`, `driverId = null`; không chứa password/hash.
 

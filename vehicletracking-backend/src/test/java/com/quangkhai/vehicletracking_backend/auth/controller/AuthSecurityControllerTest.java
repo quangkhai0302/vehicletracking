@@ -93,7 +93,7 @@ class AuthSecurityControllerTest {
                         .cookie(new Cookie("XSRF-TOKEN", token))
                         .header("X-XSRF-TOKEN", token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"ops\",\"password\":\"secure-admin-password\"}"))
+                        .content("{\"username\":\"ops\",\"password\":\"pass1234\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.username").value("ops"))
                 .andExpect(jsonPath("$.role").value("ADMIN"));
@@ -106,6 +106,20 @@ class AuthSecurityControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"ops\",\"password\":\"secure-admin-password\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminRegistrationRejectsPasswordShorterThanEightCharacters() throws Exception {
+        var csrf = mvc.perform(get("/api/v1/auth/csrf")).andExpect(status().isOk()).andReturn();
+        String token = csrf.getResponse().getCookie("XSRF-TOKEN").getValue();
+
+        mvc.perform(post("/api/v1/auth/register-admin")
+                        .cookie(new Cookie("XSRF-TOKEN", token))
+                        .header("X-XSRF-TOKEN", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"ops\",\"password\":\"pass123\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(userAccounts);
     }
 
     @Test
