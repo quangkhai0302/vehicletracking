@@ -37,7 +37,7 @@ compose=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 healthy=false
 for _ in $(seq 1 60); do
   if curl --fail --silent --show-error \
-      http://localhost/api/v1/telemetry/snapshot >/dev/null; then
+      http://localhost/api/v1/health >/dev/null; then
     healthy=true
     break
   fi
