@@ -2,8 +2,14 @@
 import { onMounted, onBeforeUnmount, shallowRef } from 'vue';
 import { registerToastModal } from '@/shared/notifications/toastLayer';
 const props = withDefaults(
-  defineProps<{ className: string; label: string; busy?: boolean; onClose: () => void }>(),
-  { busy: false },
+  defineProps<{
+    className: string;
+    label: string;
+    busy?: boolean;
+    contentSized?: boolean;
+    onClose: () => void;
+  }>(),
+  { busy: false, contentSized: false },
 );
 const dialog = shallowRef<HTMLDialogElement | null>(null);
 let opener: HTMLElement | null = null;
@@ -28,7 +34,7 @@ function cancel() {
 <template>
   <dialog
     ref="dialog"
-    :class="`business-side-panel ${className}`"
+    :class="['business-side-panel', className, { 'is-content-sized': contentSized }]"
     :aria-label="label"
     @cancel.prevent="cancel"
   >

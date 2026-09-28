@@ -36,6 +36,7 @@ vi.mock('@/features/fleet/api/fleet', () => ({
   deleteTrip: vi.fn(),
   assignTripDriver: vi.fn(),
   unassignTripDriver: vi.fn(),
+  assignTripVehicle: vi.fn(),
 }));
 vi.mock('@/features/fleet/api/eta', () => ({ fetchTripEta: vi.fn() }));
 vi.mock('@/features/fleet/api/checkins', () => ({ fetchTripCheckIns: vi.fn() }));
@@ -278,14 +279,10 @@ test('locally completed trip is not reverted by older realtime status', async ()
   expect(fleet.trips.find((t) => t.id === 1)?.status).toBe('COMPLETED');
 });
 
-test('vehicle assignment partial failure refreshes committed vehicle state', async () => {
+test('new vehicle never triggers a follow-up driver assignment', async () => {
   const fleet = scoped(() => useFleetWorkspace(vi.fn()));
   await flushPromises();
   vi.mocked(api.createVehicle).mockResolvedValue({ ...vehicle, driver: null });
-  vi.mocked(api.assignVehicleDriver).mockRejectedValue(new Error('Driver conflict'));
-  vi.mocked(api.fetchFleetVehicles).mockResolvedValue([
-    { ...vehicle, name: 'Committed update', driver: null },
-  ]);
   expect(
     await fleet.saveVehicle({
       plateNumber: vehicle.plateNumber,
@@ -294,10 +291,52 @@ test('vehicle assignment partial failure refreshes committed vehicle state', asy
       vehicleType: 'CAR',
       driverId: 1,
     }),
+  ).toBe(true);
+  expect(api.assignVehicleDriver).not.toHaveBeenCalled();
+  expect(fleet.vehicles[0].driver).toBeNull();
+});
+
+test('vehicle assignment partial failure refreshes committed vehicle state when editing', async () => {
+  const fleet = scoped(() => useFleetWorkspace(vi.fn()));
+  await flushPromises();
+  vi.mocked(api.updateVehicle).mockResolvedValue(vehicle);
+  vi.mocked(api.unassignVehicleDriver).mockRejectedValue(new Error('Driver conflict'));
+  vi.mocked(api.fetchFleetVehicles).mockResolvedValue([
+    { ...vehicle, name: 'Committed update' },
+  ]);
+  expect(
+    await fleet.saveVehicle({
+      plateNumber: vehicle.plateNumber,
+      name: vehicle.name,
+      description: null,
+      vehicleType: 'CAR',
+      driverId: null,
+    }, vehicle.id),
   ).toBe(false);
   expect(fleet.error).toBe('Driver conflict');
   expect(fleet.vehicles[0].name).toBe('Committed update');
   expect(fleet.busy).toBe(false);
+});
+
+test('trip vehicle assignment updates detail and list immediately', async () => {
+  const toast = vi.fn();
+  const fleet = scoped(() => useFleetWorkspace(toast));
+  await flushPromises();
+  await fleet.selectTrip(1);
+  const replacement = { ...vehicle, id: 2, plateNumber: '51B99999', name: 'Replacement' };
+  const saved = {
+    ...detail(1),
+    trip: { ...trip(1), vehicleId: 2, vehiclePlateNumber: replacement.plateNumber },
+  };
+  vi.mocked(api.assignTripVehicle).mockResolvedValue(saved);
+
+  expect(await fleet.updateTripVehicle(1, 2)).toBe(true);
+  expect(api.assignTripVehicle).toHaveBeenCalledWith(1, 2);
+  expect(fleet.detail?.trip.vehicleId).toBe(2);
+  expect(fleet.trips.find((item) => item.id === 1)?.vehiclePlateNumber).toBe(
+    replacement.plateNumber,
+  );
+  expect(toast).toHaveBeenCalledWith('Đã cập nhật xe thực hiện chuyến.');
 });
 
 test('check-ins use the newer revision and hide a previous trip immediately', async () => {
@@ -392,6 +431,7 @@ test('trip detail shows wall-clock check-in and labels simulator time separately
       busy: false,
       error: null,
       drivers: [driver],
+      vehicles: [vehicle],
       onClose: vi.fn(),
       onRetry: vi.fn(),
       onAction: vi.fn().mockResolvedValue(true),
@@ -433,9 +473,11 @@ test('fixed-schedule trip keeps planned time labels but cannot edit an occurrenc
       busy: false,
       error: null,
       drivers: [driver],
+      vehicles: [vehicle],
       onClose: vi.fn(),
       onRetry: vi.fn(),
       onAction: vi.fn().mockResolvedValue(true),
+      onUpdateVehicle: vi.fn().mockResolvedValue(true),
       onFocusStop: vi.fn(),
     },
     global: { stubs: { RouteRevisionPanel: true } },
@@ -444,6 +486,7 @@ test('fixed-schedule trip keeps planned time labels but cannot edit an occurrenc
   expect(wrapper.text()).toContain('Theo lịch cố định');
   expect(wrapper.text()).toContain('Xuất phát kế hoạch');
   expect(wrapper.text()).toContain('Hoàn thành theo lịch');
+  expect(wrapper.text()).toContain('Đổi xe');
   expect(wrapper.text()).not.toContain('Sửa giờ xuất phát');
   expect(wrapper.text()).not.toContain('Xóa chuyến');
   wrapper.unmount();
@@ -484,12 +527,12 @@ test('vehicle form preserves raw plate contract while trimming name/description'
   const wrapper = mount(VehicleEditor, {
     props: { vehicle: null, drivers: [driver], busy: false, error: null, onSave, onClose: vi.fn() },
   });
+  expect(wrapper.find('select').exists()).toBe(false);
   await wrapper.get('input[name=plateNumber]').setValue('51b-123.45');
   await wrapper.get('input[name=name]').setValue(' Car ');
-  await wrapper.get('select').setValue('1');
   await wrapper.get('form').trigger('submit');
   expect(onSave).toHaveBeenCalledWith(
-    { plateNumber: '51b-123.45', name: 'Car', description: null, vehicleType: 'CAR', driverId: 1 },
+    { plateNumber: '51b-123.45', name: 'Car', description: null, vehicleType: 'CAR', driverId: null },
     undefined,
   );
   await wrapper.setProps({ busy: true });

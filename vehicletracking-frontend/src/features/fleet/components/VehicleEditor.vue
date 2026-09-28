@@ -22,7 +22,8 @@ const dirty = computed(
     name.value !== (props.vehicle?.name ?? '') ||
     description.value !== (props.vehicle?.description ?? '') ||
     vehicleType.value !== (props.vehicle?.vehicleType ?? 'CAR') ||
-    driverId.value !== (props.vehicle?.driver ? String(props.vehicle.driver.id) : ''),
+    (props.vehicle !== null &&
+      driverId.value !== (props.vehicle.driver ? String(props.vehicle.driver.id) : '')),
 );
 const normalized = computed(() => plateNumber.value.toUpperCase().replace(/[\s.-]/g, ''));
 const valid = computed(() => !!name.value.trim() && /^[A-Z0-9]{1,20}$/.test(normalized.value));
@@ -38,7 +39,7 @@ function submit() {
         name: name.value.trim(),
         description: description.value.trim() || null,
         vehicleType: vehicleType.value,
-        driverId: driverId.value ? Number(driverId.value) : null,
+        driverId: props.vehicle && driverId.value ? Number(driverId.value) : null,
       },
       props.vehicle?.id,
     );
@@ -111,8 +112,8 @@ function submit() {
             required
             placeholder="Ví dụ: Xe buýt 01"
         /></label>
-        <label
-          >Tài xế hiện tại<select v-model="driverId">
+        <label v-if="vehicle"
+          >Tài xế mặc định<select v-model="driverId">
             <option value="">Chưa gán tài xế</option>
             <option
               v-for="driver in drivers.filter(

@@ -8,11 +8,30 @@ import type { useStationWorkspace } from '@/features/stations/composables/useSta
 
 const HCMC_CENTER: [number, number] = [10.7769, 106.7009];
 
-function createRouteStopIcon(sequenceNumber: number, role: RouteStopRole): L.DivIcon {
+type RouteStopProgress = 'checked-in' | 'next' | 'pending';
+
+function routeLayerSignature(route: RouteDetail | null): string {
+  if (!route) return '';
+
+  return JSON.stringify({
+    sections: route.sections.map(section => section.encodedPolyline),
+    stops: route.stops.map(stop => ({
+      sequenceNumber: stop.sequenceNumber,
+      role: stop.role,
+      stationId: stop.stationId,
+      stationName: stop.stationName,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      dwellDurationSeconds: stop.dwellDurationSeconds,
+    })),
+  });
+}
+
+function createRouteStopIcon(sequenceNumber: number, role: RouteStopRole, progress?: RouteStopProgress): L.DivIcon {
   const roleClass = role.toLowerCase();
   return L.divIcon({
     className: 'route-stop-div-icon',
-    html: `<div class="route-stop-map-marker ${roleClass}" aria-hidden="true">
+    html: `<div class="route-stop-map-marker ${roleClass}${progress ? ` simulation-${progress}` : ''}" aria-hidden="true">
       <svg class="route-stop-map-marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
         <path d="M4 6 2 7" />
@@ -69,6 +88,7 @@ function validCoordinate(value: string, min: number, max: number): number | null
 interface MapLayerOptions {
   workspace: WorkspaceMode; showStations: boolean; showRoutes: boolean; showTraffic: boolean; theme: MapTheme;
   plannedRoute: RouteDetail | null; hasSimulationRoute: boolean; draftStops: RouteDraftStop[]; selectedDraftStopId: string | null;
+  simulationVisitedStopSequences: number[]; simulationNextStopSequence: number | null;
   stationWorkspace: ReturnType<typeof useStationWorkspace>;
   setSelectedDraftStopId: (id: string) => void; setDrawerOpen: (open: boolean) => void; setActivePanel: (panel: 'context' | null) => void;
   setFollowingVehicle: (value: boolean) => void; releaseFocus: () => void; setToast: (message: string) => void;
@@ -81,7 +101,7 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
   const basemapStatus = shallowRef<'loading' | 'ready' | 'error'>('loading');
   const basemapRetry = shallowRef(0);
   const retryBasemap = () => { basemapRetry.value += 1; };
-  const stationMarkers = new Map<number, L.Marker>();
+  const stationMarkers = new Map<number, L.Marker>(), plannedRouteStopMarkers = new Map<number, L.Marker>();
   const o = () => toValue(options);
   const s = () => o().stationWorkspace;
   const setStationForm: ReturnType<typeof useStationWorkspace>['setStationForm'] = value => s().setStationForm(value);
@@ -93,6 +113,13 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
   const setActivePanel = (value: 'context' | null) => o().setActivePanel(value);
   const setToast = (value: string) => o().setToast(value);
   const focusLocation = (point: L.LatLngExpression, zoom?: number) => o().focusLocation(point, zoom);
+  const openPlannedRouteStop = (sequenceNumber: number) => {
+    const marker = plannedRouteStopMarkers.get(sequenceNumber);
+    if (!marker) return false;
+    focusLocation(marker.getLatLng(), 16);
+    marker.openPopup();
+    return true;
+  };
   const fitBounds = (bounds: L.LatLngBounds) => o().fitBounds(bounds);
   let disposeMap: (() => void) | undefined;
   onMounted(() => {
@@ -288,7 +315,9 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
     cleanup(() => { draftLayer?.eachLayer(item => item.off()); draftLayer?.clearLayers(); });
   }, { immediate: true });
 
-  watch([mapInstanceRef, () => o().theme, () => o().showTraffic, basemapRetry], (_value, _previous, cleanup) => {
+  // Getter sources avoid shallowRef's force-trigger when unrelated realtime
+  // dependencies inside options() change; loaded tiles must remain mounted.
+  watch([() => mapInstanceRef.value, () => o().theme, () => o().showTraffic, () => basemapRetry.value], (_value, _previous, cleanup) => {
     const { theme, showTraffic } = o(); const mapReady = !!mapInstanceRef.value;
     const dispose = (() => {
     const map = mapInstanceRef.value;
@@ -373,14 +402,28 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
     cleanup(() => { dispose?.();  });
   }, { immediate: true });
 
-  watch([mapInstanceRef, () => o().plannedRoute, () => o().showRoutes, () => o().workspace, () => o().hasSimulationRoute], (_value, _previous, cleanup) => {
-    const { plannedRoute, showRoutes, workspace, hasSimulationRoute } = o();
+  watch([
+    () => mapInstanceRef.value,
+    () => routeLayerSignature(o().plannedRoute),
+    () => JSON.stringify(s().stations.map(station => ({
+      id: station.id,
+      address: station.address,
+      checkinRadiusMeters: station.checkinRadiusMeters,
+    }))),
+    () => o().showRoutes,
+    () => o().workspace,
+    () => o().hasSimulationRoute,
+  ], (_value, _previous, cleanup) => {
+    const { plannedRoute, showRoutes, workspace, hasSimulationRoute, simulationVisitedStopSequences, simulationNextStopSequence } = o();
+    const { stations } = s();
+    const visitedStopSequences = new Set(simulationVisitedStopSequences);
     const dispose = (() => {
     const layer = plannedRouteLayer;
     const map = mapInstanceRef.value;
     if (!layer || !map) return;
 
     layer.clearLayers();
+    plannedRouteStopMarkers.clear();
     plannedRouteBounds.value = null;
 
     if (!showRoutes || !plannedRoute) {
@@ -466,9 +509,17 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
 
     // Draw numbered stop markers
     plannedRoute.stops.forEach((stop) => {
+      const progress: RouteStopProgress | undefined = workspace === 'simulation'
+        ? visitedStopSequences.has(stop.sequenceNumber)
+          ? 'checked-in'
+          : simulationNextStopSequence === stop.sequenceNumber ? 'next' : 'pending'
+        : undefined;
+      const station = stations.find(item => item.id === stop.stationId);
       const marker = L.marker([stop.latitude, stop.longitude], {
-        icon: createRouteStopIcon(stop.sequenceNumber, stop.role),
+        icon: createRouteStopIcon(stop.sequenceNumber, stop.role, progress),
         zIndexOffset: 700 + stop.sequenceNumber,
+        keyboard: true,
+        title: `Trạm ${stop.sequenceNumber}: ${stop.stationName}`,
       });
 
       const roleName = stop.role === 'START' ? 'Khởi hành' : stop.role === 'END' ? 'Về đích' : 'Đón/trả';
@@ -483,6 +534,60 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
       tooltipContainer.appendChild(document.createTextNode(`Dừng: ${stop.dwellDurationSeconds}s`));
 
       marker.bindTooltip(tooltipContainer, { direction: 'top', offset: [0, -14], opacity: 0.95 });
+      if (workspace === 'simulation' && progress) {
+        const popup = document.createElement('section');
+        popup.className = 'simulation-stop-popup';
+
+        const heading = document.createElement('div');
+        heading.className = 'simulation-stop-popup-heading';
+        const headingCopy = document.createElement('span');
+        const eyebrow = document.createElement('small');
+        eyebrow.textContent = `Trạm ${stop.sequenceNumber} · ${roleName}`;
+        const title = document.createElement('strong');
+        title.textContent = stop.stationName;
+        headingCopy.append(eyebrow, title);
+
+        const status = document.createElement('b');
+        status.dataset.state = progress;
+        status.textContent =
+          progress === 'checked-in'
+            ? 'Đã check-in'
+            : progress === 'next'
+              ? 'Trạm kế tiếp'
+              : 'Chưa check-in';
+        heading.append(headingCopy, status);
+        popup.append(heading);
+
+        const address = document.createElement('p');
+        address.className = 'simulation-stop-popup-address';
+        address.textContent = station?.address || 'Chưa có địa chỉ mô tả';
+        popup.append(address);
+
+        const metrics = document.createElement('dl');
+        const appendMetric = (label: string, value: string) => {
+          const item = document.createElement('div');
+          const term = document.createElement('dt');
+          const description = document.createElement('dd');
+          term.textContent = label;
+          description.textContent = value;
+          item.append(term, description);
+          metrics.append(item);
+        };
+        appendMetric(
+          'Vùng check-in',
+          station ? `${station.checkinRadiusMeters} m` : 'Đang cập nhật',
+        );
+        appendMetric('Dừng tại trạm', `${stop.dwellDurationSeconds} giây`);
+        appendMetric('Tọa độ', `${stop.latitude.toFixed(6)}, ${stop.longitude.toFixed(6)}`);
+        popup.append(metrics);
+
+        marker.bindPopup(popup, {
+          className: 'simulation-stop-info-popup',
+          maxWidth: 320,
+          offset: [0, -8],
+        });
+        plannedRouteStopMarkers.set(stop.sequenceNumber, marker);
+      }
 
       marker.addTo(layer);
     });
@@ -500,8 +605,47 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
       if (toastTimer !== null) window.clearTimeout(toastTimer);
     };
     })();
-    cleanup(() => { dispose?.(); plannedRouteLayer?.eachLayer(item => item.off()); plannedRouteLayer?.clearLayers(); });
+    cleanup(() => { dispose?.(); plannedRouteLayer?.eachLayer(item => item.off()); plannedRouteLayer?.clearLayers(); plannedRouteStopMarkers.clear(); });
   }, { immediate: true });
+  // Live check-in updates must not rebuild the route. Keep Leaflet instances
+  // mounted and refresh only the stop icon/status that actually changed.
+  watch(
+    [
+      () => o().workspace,
+      () => o().plannedRoute,
+      () => o().simulationVisitedStopSequences.join(','),
+      () => o().simulationNextStopSequence,
+    ],
+    () => {
+      const {
+        workspace,
+        plannedRoute,
+        simulationVisitedStopSequences,
+        simulationNextStopSequence,
+      } = o();
+      if (workspace !== 'simulation' || !plannedRoute) return;
+      const visited = new Set(simulationVisitedStopSequences);
+      plannedRoute.stops.forEach((stop) => {
+        const marker = plannedRouteStopMarkers.get(stop.sequenceNumber);
+        if (!marker) return;
+        const progress: RouteStopProgress = visited.has(stop.sequenceNumber)
+          ? 'checked-in'
+          : simulationNextStopSequence === stop.sequenceNumber
+            ? 'next'
+            : 'pending';
+        marker.setIcon(createRouteStopIcon(stop.sequenceNumber, stop.role, progress));
+        const content = marker.getPopup()?.getContent();
+        if (!(content instanceof HTMLElement)) return;
+        const status = content.querySelector<HTMLElement>('.simulation-stop-popup-heading b');
+        if (!status) return;
+        status.dataset.state = progress;
+        status.textContent = progress === 'checked-in'
+          ? 'Đã check-in'
+          : progress === 'next' ? 'Trạm kế tiếp' : 'Chưa check-in';
+      });
+    },
+    { immediate: true, flush: 'post' },
+  );
 
   watch([mapInstanceRef, () => o().draftStops, () => s().stations, () => o().workspace, () => o().plannedRoute, () => o().selectedDraftStopId, () => o().showRoutes], (_value, _previous, cleanup) => {
     const { draftStops, workspace, plannedRoute, selectedDraftStopId, showRoutes } = o(); const { stations } = s();
@@ -570,5 +714,5 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
     })();
     cleanup(() => { routeDraftLayer?.eachLayer(item => item.off()); routeDraftLayer?.clearLayers(); });
   }, { immediate: true });
-  return { plannedRouteBounds, basemapStatus, retryBasemap };
+  return { plannedRouteBounds, basemapStatus, retryBasemap, openPlannedRouteStop };
 }

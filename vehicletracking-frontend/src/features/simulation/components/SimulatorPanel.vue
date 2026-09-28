@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, defineComponent, h, ref } from 'vue';
 import {
   Car,
+  Check,
   Clock3,
   Gauge,
   MapPin,
@@ -43,6 +44,7 @@ const props = defineProps<{
   onSelectVehicle?: (tripId: number) => void;
   onFitFleet?: () => void;
   onManageFleet?: () => void;
+  onShowStop?: (sequenceNumber: number) => void;
 }>();
 
 const confirm = ref<'stop' | 'reset' | null>(null);
@@ -72,20 +74,45 @@ const options = computed(() => props.snapshot?.trips ?? []);
 const currentCheckIns = computed(() =>
   props.snapshot?.checkIns.find((item) => item.tripId === trip.value?.id),
 );
-const completedStops = computed(
-  () => new Set(currentCheckIns.value?.visits.map((visit) => visit.stopSequence) ?? []).size,
+const currentAttempt = computed(
+  () => run.value?.attemptNumber ?? trip.value?.attemptNumber ?? null,
 );
-const totalStops = computed(() => detail.value?.stops.length ?? 0);
-const startStop = computed(() => detail.value?.stops[0] ?? null);
+const currentVisits = computed(() => {
+  const attempt = currentAttempt.value;
+  return (
+    currentCheckIns.value?.visits.filter(
+      (visit) =>
+        attempt === null || visit.attemptNumber === undefined || visit.attemptNumber === attempt,
+    ) ?? []
+  );
+});
+const visitByStop = computed(
+  () => new Map(currentVisits.value.map((visit) => [visit.stopSequence, visit])),
+);
+const completedStops = computed(() => visitByStop.value.size);
+const orderedStops = computed(() =>
+  [...(detail.value?.stops ?? [])].sort((a, b) => a.sequenceNumber - b.sequenceNumber),
+);
+const totalStops = computed(() => orderedStops.value.length);
+const startStop = computed(() => orderedStops.value[0] ?? null);
 const endStop = computed(() => {
-  const stops = detail.value?.stops;
+  const stops = orderedStops.value;
   return stops?.[stops.length - 1] ?? null;
 });
 const nextStop = computed(() => {
   const sequence = frame.value?.nextStopSequence ?? currentCheckIns.value?.nextStopSequence;
-  if (!sequence) return null;
-  return detail.value?.stops.find((stop) => stop.sequenceNumber === sequence) ?? null;
+  if (sequence) return orderedStops.value.find((stop) => stop.sequenceNumber === sequence) ?? null;
+  if (frame.value?.finished || trip.value?.status === 'COMPLETED') return null;
+  return orderedStops.value.find((stop) => !visitByStop.value.has(stop.sequenceNumber)) ?? null;
 });
+const stopState = (sequenceNumber: number) =>
+  visitByStop.value.has(sequenceNumber)
+    ? 'checked-in'
+    : nextStop.value?.sequenceNumber === sequenceNumber
+      ? 'next'
+      : 'pending';
+const stopRoleLabel = (index: number) =>
+  index === 0 ? 'Điểm đầu' : index === orderedStops.value.length - 1 ? 'Điểm cuối' : 'Trạm dừng';
 const progressPercent = computed(() => {
   if (frame.value) return Math.min(100, Math.max(0, frame.value.progressPercent));
   if (trip.value?.status === 'COMPLETED') return 100;
@@ -414,6 +441,65 @@ const confirmCommand = () => {
           </button>
         </div>
       </fieldset>
+
+      <section
+        v-if="orderedStops.length"
+        class="simulation-stops-card"
+      >
+        <div class="simulation-stops-heading">
+          <span>
+            <small>LỘ TRÌNH QUA TRẠM</small>
+            <strong>Trạng thái check-in</strong>
+          </span>
+          <b>{{ completedStops }}/{{ totalStops }}</b>
+        </div>
+        <ol class="simulation-stop-list">
+          <li
+            v-for="(stop, index) in orderedStops"
+            :key="stop.sequenceNumber"
+            :data-state="stopState(stop.sequenceNumber)"
+          >
+            <button
+              type="button"
+              :aria-label="`Xem trạm ${stop.sequenceNumber}: ${stop.stationName} trên bản đồ`"
+              @click="onShowStop?.(stop.sequenceNumber)"
+            >
+              <span class="simulation-stop-marker">
+                <Check
+                  v-if="stopState(stop.sequenceNumber) === 'checked-in'"
+                  :size="13"
+                />
+                <span v-else>{{ stop.sequenceNumber }}</span>
+              </span>
+              <span class="simulation-stop-copy">
+                <strong>{{ stop.stationName }}</strong>
+                <small>
+                  {{ stopRoleLabel(index) }}
+                  <template v-if="visitByStop.get(stop.sequenceNumber)">
+                    · Check-in
+                    {{
+                      displayTripTime(visitByStop.get(stop.sequenceNumber)?.actualArrivalAt ?? null)
+                    }}
+                  </template>
+                  <template v-else-if="stopState(stop.sequenceNumber) === 'next'">
+                    · Xe đang hướng tới trạm
+                  </template>
+                  <template v-else> · Vùng nhận diện {{ stop.checkinRadiusMeters }} m </template>
+                </small>
+              </span>
+              <span class="simulation-stop-status">
+                {{
+                  stopState(stop.sequenceNumber) === 'checked-in'
+                    ? 'Đã check-in'
+                    : stopState(stop.sequenceNumber) === 'next'
+                      ? 'Kế tiếp'
+                      : 'Chưa check-in'
+                }}
+              </span>
+            </button>
+          </li>
+        </ol>
+      </section>
 
       <p
         v-if="run?.traffic?.blocked"

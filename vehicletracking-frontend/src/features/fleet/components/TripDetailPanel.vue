@@ -16,6 +16,7 @@ import {
 import {
   TRIP_STATUS_LABELS,
   type Driver,
+  type FleetVehicle,
   type TripAction,
   type TripDetail,
   type TripStop,
@@ -35,10 +36,12 @@ const props = defineProps<{
   loading: boolean;
   busy: boolean;
   drivers: Driver[];
+  vehicles: FleetVehicle[];
   onClose: () => void;
   onRetry: () => void;
   onAction: (action: TripAction, reason?: string) => Promise<boolean>;
   onUpdateDriver?: (id: number, driverId: number | null) => Promise<boolean>;
+  onUpdateVehicle?: (id: number, vehicleId: number) => Promise<boolean>;
   onDeleteTrip?: (id: number) => Promise<boolean>;
   onFocusStop: (position: [number, number], zoom?: number) => void;
   onSimulate?: (id: number) => void;
@@ -49,6 +52,8 @@ const confirm = ref<'complete' | 'cancel' | null>(null),
   cancelReason = ref(''),
   editingDriver = ref(false),
   driverId = ref(''),
+  editingVehicle = ref(false),
+  vehicleId = ref(''),
   confirmDelete = ref(false);
 const trip = computed(() => props.detail?.trip);
 const isFixedSchedule = computed(() => trip.value?.dispatchMode === 'FIXED_SCHEDULE');
@@ -95,6 +100,7 @@ const etaLabel = computed(() => {
 });
 function beginDriverEdit() {
   if (trip.value) {
+    editingVehicle.value = false;
     driverId.value = trip.value.driver ? String(trip.value.driver.id) : '';
     editingDriver.value = true;
   }
@@ -106,6 +112,22 @@ async function saveDriver() {
     (await props.onUpdateDriver(trip.value.id, driverId.value ? Number(driverId.value) : null))
   )
     editingDriver.value = false;
+}
+function beginVehicleEdit() {
+  if (trip.value) {
+    editingDriver.value = false;
+    vehicleId.value = String(trip.value.vehicleId);
+    editingVehicle.value = true;
+  }
+}
+async function saveVehicle() {
+  if (
+    trip.value &&
+    props.onUpdateVehicle &&
+    vehicleId.value &&
+    (await props.onUpdateVehicle(trip.value.id, Number(vehicleId.value)))
+  )
+    editingVehicle.value = false;
 }
 async function confirmAction() {
   if (
@@ -271,6 +293,14 @@ function fallbackStopEta(stop: TripStop) {
         >
           <div class="trip-toolbar-group">
             <button
+              v-if="trip.status === 'SCHEDULED' && onUpdateVehicle && !editingVehicle"
+              class="fleet-text-button"
+              :disabled="busy"
+              @click="beginVehicleEdit"
+            >
+              <BusFront :size="15" />Đổi xe
+            </button>
+            <button
               v-if="trip.status === 'SCHEDULED' && onUpdateDriver && !editingDriver"
               class="fleet-text-button"
               :disabled="busy"
@@ -295,6 +325,41 @@ function fallbackStopEta(stop: TripStop) {
               @click="onSimulate(trip.id)"
             >
               <Play :size="15" />Mở điều khiển chuyến
+            </button>
+          </div>
+        </div>
+
+        <div
+          v-if="editingVehicle"
+          class="trip-schedule-editor"
+        >
+          <label
+            >Xe thực hiện<select v-model="vehicleId">
+              <option
+                v-for="vehicle in vehicles.filter((item) => item.active)"
+                :key="vehicle.id"
+                :value="String(vehicle.id)"
+              >
+                {{ vehicle.plateNumber }} · {{ vehicle.name }}
+              </option>
+            </select></label
+          >
+          <p class="fleet-help">
+            Chỉ đổi xe cho chuyến này. Lịch cố định và các chuyến tương lai không bị thay đổi.
+          </p>
+          <div>
+            <button
+              class="btn-secondary"
+              :disabled="busy"
+              @click="editingVehicle = false"
+            >
+              Hủy</button
+            ><button
+              class="btn-primary"
+              :disabled="busy || !vehicleId || Number(vehicleId) === trip.vehicleId"
+              @click="saveVehicle"
+            >
+              <BusFront :size="14" />Lưu xe
             </button>
           </div>
         </div>

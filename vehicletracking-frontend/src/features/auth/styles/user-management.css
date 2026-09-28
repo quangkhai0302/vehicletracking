@@ -1026,3 +1026,114 @@
     margin: 16px 16px 0;
   }
 }
+
+/* One-step driver account issuance. */
+.business-ui .users-page .user-create-rule {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  color: #475569;
+  background: #f0f9ff;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.business-ui .users-page .user-create-rule strong {
+  color: #0369a1;
+  font-weight: 750;
+}
+
+.business-ui .user-issued-account {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.business-ui .user-issued-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.business-ui .user-issued-heading > span {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.business-ui .user-issued-heading strong,
+.business-ui .user-issued-heading p {
+  display: block;
+  margin: 0;
+}
+
+.business-ui .user-issued-heading strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.business-ui .user-issued-heading p {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.business-ui .user-issued-account dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.business-ui .user-issued-account dl > div {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 11px;
+  background: #f8fafc;
+}
+
+.business-ui .user-issued-account dt {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.business-ui .user-issued-account dd {
+  overflow-wrap: anywhere;
+  margin: 6px 0 0;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.business-ui .user-issued-note {
+  margin: 0;
+  color: #64748b;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.business-ui .users-page .user-issued-done {
+  width: 100%;
+  margin: 0;
+  color: #ffffff;
+  background: var(--accent-primary-gradient);
+}
+
+@media (max-width: 480px) {
+  .business-ui .user-issued-account dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

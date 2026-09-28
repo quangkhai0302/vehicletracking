@@ -81,3 +81,8 @@ export const assignTripDriver = (id: number, driverId: number) =>
   request<TripDetail>(`/trips/${id}/driver`, { method: 'PUT', body: JSON.stringify({ driverId }) });
 export const unassignTripDriver = (id: number) =>
   request<void>(`/trips/${id}/driver`, { method: 'DELETE' });
+export const assignTripVehicle = (id: number, vehicleId: number) =>
+  request<TripDetail>(`/trips/${id}/vehicle`, {
+    method: 'PUT',
+    body: JSON.stringify({ vehicleId }),
+  });

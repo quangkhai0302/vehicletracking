@@ -3459,8 +3459,8 @@
   inset: 0;
   width: min(720px, calc(100vw - 40px));
   max-width: calc(100vw - 40px);
-  height: min(860px, calc(100dvh - 40px));
-  max-height: calc(100dvh - 40px);
+  height: auto;
+  max-height: min(860px, calc(100dvh - 40px));
   min-height: 0;
   margin: auto;
   padding: 0;
@@ -3475,18 +3475,48 @@
   flex-direction: column;
 }
 .business-ui .business-side-panel.fleet-form-modal {
-  width: min(760px, calc(100vw - 40px));
+  width: min(680px, calc(100vw - 40px));
   height: auto;
-  max-height: calc(100dvh - 40px);
+  max-height: min(860px, calc(100dvh - 40px));
 }
 .business-ui .business-side-panel.user-account-modal {
   width: min(560px, calc(100vw - 40px));
   height: auto;
   max-height: calc(100dvh - 40px);
 }
+.business-ui .business-side-panel.is-content-sized {
+  height: fit-content;
+  max-height: min(860px, calc(100dvh - 40px));
+}
+.business-ui .business-side-panel.is-content-sized > .fleet-editor,
+.business-ui .business-side-panel.is-content-sized > .schedule-editor-form,
+.business-ui .business-side-panel.is-content-sized > .user-create {
+  height: auto;
+  max-height: inherit;
+  min-height: 0;
+  flex: 0 1 auto;
+}
+.business-ui .business-side-panel.is-content-sized > .schedule-editor-form {
+  overflow: hidden;
+}
+.business-ui .business-side-panel.is-content-sized .fleet-form-body,
+.business-ui .business-side-panel.is-content-sized .schedule-form-content {
+  min-height: 0;
+  flex: 0 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .business-ui .business-side-panel > .fleet-editor {
   width: 100%;
+  max-height: inherit;
   min-height: 0;
+  flex: 0 1 auto;
+}
+.business-ui .business-side-panel.fleet-form-modal .fleet-form-body,
+.business-ui .business-side-panel > .schedule-editor-form,
+.business-ui .business-side-panel > .schedule-form-content {
+  min-height: 0;
+  flex: 0 1 auto;
 }
 .business-ui .business-side-panel .user-create {
   min-height: 0;
@@ -4418,7 +4448,7 @@
   .business-ui .business-side-panel {
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
-    height: calc(100dvh - 24px);
+    height: auto;
     max-height: calc(100dvh - 24px);
     border-radius: 14px;
   }

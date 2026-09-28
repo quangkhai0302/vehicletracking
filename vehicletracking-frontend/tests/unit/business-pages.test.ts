@@ -12,6 +12,7 @@ import {
   fetchUserAccounts,
   resetDriverPassword,
   setUserAccountActive,
+  type DriverAccountCreated,
   type UserAccount,
 } from '@/features/auth/api/users';
 import {
@@ -221,37 +222,42 @@ test('reports reject incomplete dates without HTTP and can reset/retry an API fa
   expect(wrapper.findAll('.reports-metric')).toHaveLength(7);
 });
 
-test('user creation excludes inactive/linked drivers, keeps raw password and blocks duplicate submit', async () => {
+test('user creation only selects an available driver and shows generated credentials', async () => {
   const wrapper = mount(UserManagementPage);
   cleanups.push(() => wrapper.unmount());
   await flushPromises();
   expect(wrapper.find('.user-account-modal').exists()).toBe(false);
   await wrapper.get('.business-button.primary').trigger('click');
   expect(wrapper.get('.user-account-modal').attributes('open')).toBeDefined();
+  expect(wrapper.findAll('.user-account-modal input')).toHaveLength(0);
   expect(wrapper.findAll('select option').map((option) => option.attributes('value'))).toEqual([
     '',
     '1',
   ]);
-  const pending = deferred<UserAccount>();
+  const pending = deferred<DriverAccountCreated>();
   vi.mocked(createDriverAccount).mockReturnValueOnce(pending.promise);
-  const inputs = wrapper.findAll('input');
-  await inputs[0].setValue(' new.driver ');
-  await inputs[1].setValue(' fixture-password ');
   await wrapper.get('select').setValue('1');
   await wrapper.get('form').trigger('submit');
   await wrapper.get('form').trigger('submit');
   expect(createDriverAccount).toHaveBeenCalledTimes(1);
-  expect(createDriverAccount).toHaveBeenCalledWith({
-    username: 'new.driver',
-    password: ' fixture-password ',
-    driverId: 1,
-  });
+  expect(createDriverAccount).toHaveBeenCalledWith({ driverId: 1 });
   expect(wrapper.get('form button').attributes('disabled')).toBeDefined();
-  pending.resolve({ ...account, id: 3, username: 'new.driver', driverId: 1 });
+  pending.resolve({
+    ...account,
+    id: 3,
+    username: 'drivera',
+    driverId: 1,
+    driverName: driver.fullName,
+    temporaryPassword: 'Tmp8Pass',
+  });
   await flushPromises();
-  expect(notifySuccess).toHaveBeenCalledWith('Đã tạo tài khoản tài xế.');
-  expect(wrapper.find('.user-account-modal').exists()).toBe(false);
+  expect(notifySuccess).toHaveBeenCalledWith('Đã cấp tài khoản drivera.');
+  expect(wrapper.get('.user-issued-account').text()).toContain('drivera');
+  expect(wrapper.get('.user-issued-account').text()).toContain('Tmp8Pass');
+  expect(wrapper.get('.user-account-modal').attributes('open')).toBeDefined();
   expect(wrapper.get('.business-button.primary').attributes('disabled')).toBeDefined();
+  await wrapper.get('.user-issued-done').trigger('click');
+  expect(wrapper.find('.user-account-modal').exists()).toBe(false);
 });
 
 test('user page visually separates roles and locked access states', async () => {

@@ -11,9 +11,10 @@ export interface UserAccount {
   driverLicenseNumber: string | null;
 }
 export interface DriverAccountInput {
-  username: string;
-  password: string;
   driverId: number;
+}
+export interface DriverAccountCreated extends UserAccount {
+  temporaryPassword: string;
 }
 export interface DriverPasswordResetInput {
   password: string;
@@ -40,7 +41,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const fetchUserAccounts = (signal?: AbortSignal) =>
   request<UserAccount[]>('/users', { signal });
 export const createDriverAccount = (input: DriverAccountInput) =>
-  request<UserAccount>('/users/driver', { method: 'POST', body: JSON.stringify(input) });
+  request<DriverAccountCreated>('/users/driver', { method: 'POST', body: JSON.stringify(input) });
 export const setUserAccountActive = (id: number, active: boolean) =>
   request<UserAccount>(`/users/${id}/${active ? 'enable' : 'disable'}`, { method: 'POST' });
 export const resetDriverPassword = (id: number, input: DriverPasswordResetInput) =>

@@ -367,6 +367,119 @@ test('simulator panel keeps GPS exclusion, connection gating and speed command p
   expect(wrapper.get('fieldset').attributes('disabled')).toBeDefined();
 });
 
+test('simulator panel shows check-in progress from the current attempt and opens a stop', async () => {
+  const showStop = vi.fn();
+  const replayTrip: TripSummary = { ...trip, attemptNumber: 2 };
+  const stops: TripDetail['stops'] = [
+    { ...start, stationName: 'Trạm đầu', sequenceNumber: 1 },
+    {
+      ...start,
+      stationId: 2,
+      stationName: 'Trạm giữa',
+      sequenceNumber: 2,
+      latitude: 10.81,
+      longitude: 106.71,
+    },
+    {
+      ...start,
+      stationId: 3,
+      stationName: 'Trạm cuối',
+      sequenceNumber: 3,
+      latitude: 10.82,
+      longitude: 106.72,
+    },
+  ];
+  const simulator: ReturnType<typeof useSimulator> = reactive({
+    tripId: 1,
+    trip: replayTrip,
+    detail: { trip: replayTrip, route, stops },
+    run: null,
+    loading: false,
+    busy: false,
+    error: null,
+    select: vi.fn(),
+    retry: vi.fn(),
+    command: vi.fn().mockResolvedValue(true),
+  });
+  const replaySnapshot: OperationsSnapshot = {
+    ...snapshot,
+    trips: [replayTrip],
+    checkIns: [
+      {
+        tripId: 1,
+        revision: 2,
+        nextStopSequence: 2,
+        awaitingExit: false,
+        visits: [
+          {
+            attemptNumber: 1,
+            id: 30,
+            tripId: 1,
+            stopSequence: 3,
+            source: 'SIMULATOR',
+            evidenceKind: 'ROUTE_TRACE',
+            actualArrivalAt: stamp,
+            simulatedArrivalAt: stamp,
+            detectedAt: stamp,
+            fromSampleId: 29,
+            toSampleId: 30,
+            evidenceFraction: 1,
+            latitude: 10.82,
+            longitude: 106.72,
+          },
+          {
+            attemptNumber: 2,
+            id: 31,
+            tripId: 1,
+            stopSequence: 1,
+            source: 'SIMULATOR',
+            evidenceKind: 'ROUTE_TRACE',
+            actualArrivalAt: stamp,
+            simulatedArrivalAt: stamp,
+            detectedAt: stamp,
+            fromSampleId: null,
+            toSampleId: 31,
+            evidenceFraction: 0,
+            latitude: 10.8,
+            longitude: 106.7,
+          },
+        ],
+      },
+    ],
+  };
+  const wrapper = mount(SimulatorPanel, {
+    props: {
+      simulator,
+      snapshot: replaySnapshot,
+      connection: 'live',
+      connectionError: null,
+      onReconnect: vi.fn(),
+      onShowRoute: vi.fn(),
+      onShowStop: showStop,
+      now: Date.parse(stamp),
+    },
+  });
+  disposals.push(() => wrapper.unmount());
+
+  const rows = wrapper.findAll('.simulation-stop-list li');
+  expect(rows).toHaveLength(3);
+  expect(rows.map((row) => row.attributes('data-state'))).toEqual([
+    'checked-in',
+    'next',
+    'pending',
+  ]);
+  expect(wrapper.get('.simulation-stops-heading b').text()).toBe('1/3');
+  const controls = wrapper.get('fieldset').element;
+  const stopCard = wrapper.get('.simulation-stops-card').element;
+  expect(controls.compareDocumentPosition(stopCard) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  expect(rows[0].text()).toContain('Đã check-in');
+  expect(rows[1].text()).toContain('Kế tiếp');
+  expect(rows[2].text()).toContain('Chưa check-in');
+
+  await rows[1].get('button').trigger('click');
+  expect(showStop).toHaveBeenCalledWith(2);
+});
+
 test('completed simulator trip can be prepared for replay from the operations vehicle card', async () => {
   const replay = vi.fn().mockResolvedValue(true);
   const completedTrip: TripSummary = {

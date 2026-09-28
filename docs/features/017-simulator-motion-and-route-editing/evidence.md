@@ -32,3 +32,19 @@ Trạng thái: Implementing — source đã triển khai, chưa xác nhận đ�
 - Lượt chạy toàn bộ Maven trước đó từng thành công trên bản trung gian; không dùng kết quả đó để khẳng định bản cuối đã qua toàn bộ test. Xin chạy lại đầy đủ ngoài sandbox có Docker.
 - Chưa kiểm tra thủ công browser/FPS, API HERE live, quota, hoặc việc lưu điểm và khôi phục revision trên PostgreSQL ở bản cuối. Không gọi HERE thật trong unit test.
 - Không đọc/in `.env`, không thêm key vào frontend. Tài liệu `docs/` đang bị ignore theo cấu hình repository có sẵn; không sửa `.gitignore`.
+
+## Sửa hồi quy frontend — 2026-09-28
+
+Phạm vi rút gọn: bản đồ nhấp nháy khi chọn xe mô phỏng và danh sách trạm bị mất trong panel. Kết quả này không thay thế các giới hạn backend/HERE ở mốc trên.
+
+- Nguyên nhân nháy toàn map: watcher basemap trong `vehicletracking-frontend/src/features/map/composables/useMapLayers.ts` dùng trực tiếp `mapInstanceRef` và `basemapRetry` là `shallowRef`. Getter `options()` ở `MapComponent.vue::useMapLayers` cũng đọc trạng thái chuyến/check-in realtime. Vue force-trigger callback vì có shallow-ref source, tháo và tạo lại tile layer dù theme/showTraffic không đổi.
+- Sửa: đọc `.value` bằng getter source; chỉ thay lớp nền khi map, theme, showTraffic hoặc retry thực sự đổi. Cleanup khi đổi lớp nền/unmount được giữ nguyên.
+- Test hồi quy `vehicletracking-frontend/tests/unit/map-integration.test.ts::selecting a simulator vehicle and receiving realtime updates keep the loaded basemap` đã FAIL trước sửa (`map.hasLayer(basemap)` trả false sau click), PASS sau sửa. Kiểm tra click xe, ba SSE update ở 10×, giữ tile container và không gọi lại factory tile layer. Test đổi theme và retry vẫn PASS.
+- Nguyên nhân mất list: `.simulation-stops-card` có `overflow: hidden` nên bị flex shrink xuống 2px. `vehicletracking-frontend/src/features/simulation/styles/simulator.css` thêm `flex-shrink: 0`; giữ scroll danh sách và vùng điều khiển sticky. Compact view đặt traffic pill dưới drawer simulator để không che nút hủy/chạy lại.
+- `npm run lint`: exit 0.
+- `npm run typecheck`: exit 0.
+- `npm run test:unit`: exit 0, 117 test trong 16 file PASS.
+- `npm run test:motion`: exit 0, 5 test PASS.
+- `npm run build`: exit 0; `git diff --check`: exit 0.
+- Chromium/Playwright với fixture API/SSE (`tests/fixtures/api.mjs`), không backend/database thật: 1920×1000, 1440×800 và 390×844 đều giữ cùng tile-layer DOM qua chọn xe và 10 SSE update; 0 lần thay lớp nền, 0 page error. List có đủ 3 trạm và cao 220,5px; mọi nút điều khiển không bị che. Cuộn/chọn trạm cuối mở được popup thông tin.
+- Ảnh kiểm tra nằm tạm ở `/tmp/vehicletracking-simulator-1920-check.png`, `/tmp/vehicletracking-simulator-1440-check.png`, `/tmp/vehicletracking-simulator-390-check.png`. Tile provider được mock; không tuyên bố đã kiểm tra độ ổn định mạng Google/HERE thật hay đo FPS.

@@ -39,7 +39,6 @@ test('session bootstrap is single-flight and a late bootstrap cannot overwrite l
   expect(auth.user).toEqual(admin); expect(auth.loading).toBe(false);
   expect(fetchCurrentUser).toHaveBeenCalledTimes(1);
 });
-
 test.each([['guest', null, '/reports', '/login'], ['driver', driver, '/reports', '/driver/today'], ['admin', admin, '/driver/today', '/dashboard'], ['signed-in', admin, '/register', '/dashboard']] as const)('%s role redirect preserves boundary', async (_label, user, from, to) => {
   vi.mocked(fetchCurrentUser).mockResolvedValue(user as AuthUser);
   const auth = createAuthState(), router = makeRouter();
@@ -95,7 +94,8 @@ test('side panel requests native modal, blocks busy Escape and restores opener',
   const close = vi.fn(function (this: HTMLDialogElement) { this.open = false; });
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value: show });
   Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value: close });
-  const onClose = vi.fn(); const wrapper = mount(SidePanel, { attachTo: document.body, props: { className: 'fixture', label: 'Fixture dialog', busy: true, onClose }, slots: { default: '<button>Inside</button>' } });
+  const onClose = vi.fn(); const wrapper = mount(SidePanel, { attachTo: document.body, props: { className: 'fixture', label: 'Fixture dialog', busy: true, contentSized: true, onClose }, slots: { default: '<button>Inside</button>' } });
+  expect(wrapper.get('dialog').classes()).toContain('is-content-sized');
   expect(show).toHaveBeenCalledOnce(); await wrapper.get('dialog').trigger('cancel'); expect(onClose).not.toHaveBeenCalled();
   await wrapper.setProps({ busy: false }); await wrapper.get('dialog').trigger('cancel'); expect(onClose).toHaveBeenCalledOnce();
   wrapper.unmount(); await nextTick(); expect(close).toHaveBeenCalledOnce(); expect(document.activeElement).toBe(opener);

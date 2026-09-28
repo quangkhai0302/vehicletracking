@@ -329,13 +329,15 @@ const selectedTrip = computed(
 const selectedRun = computed(() =>
   live.snapshot?.simulations.find((run) => run.tripId === selectedTripId.value),
 );
+const selectedCheckIns = computed(
+  () => live.snapshot?.checkIns.find((item) => item.tripId === selectedTripId.value) ?? null,
+);
 const selectedVisitedStopSequences = computed(() => {
-  const checkIns = live.snapshot?.checkIns.find((item) => item.tripId === selectedTripId.value);
-  if (!checkIns) return [];
+  if (!selectedCheckIns.value) return [];
   const attemptNumber = selectedRun.value?.attemptNumber ?? selectedTrip.value?.attemptNumber;
   return [
     ...new Set(
-      checkIns.visits
+      selectedCheckIns.value.visits
         .filter(
           (visit) =>
             attemptNumber === undefined ||
@@ -346,6 +348,10 @@ const selectedVisitedStopSequences = computed(() => {
     ),
   ];
 });
+const selectedNextStopSequence = computed(
+  () =>
+    selectedRun.value?.frame?.nextStopSequence ?? selectedCheckIns.value?.nextStopSequence ?? null,
+);
 useErrorToast(() =>
   selectedRun.value?.status === 'FAILED'
     ? selectedRun.value.errorMessage || 'Mô phỏng gặp lỗi. Hãy kiểm tra tuyến và chạy lại.'
@@ -579,7 +585,7 @@ const fitSimulationFleet = () => {
     fitBounds(L.latLngBounds(fleetPoints.value));
   }
 };
-const { plannedRouteBounds, basemapStatus, retryBasemap } = useMapLayers(
+const { plannedRouteBounds, basemapStatus, retryBasemap, openPlannedRouteStop } = useMapLayers(
   mapContainerRef,
   mapInstanceRef,
   () => ({
@@ -592,6 +598,8 @@ const { plannedRouteBounds, basemapStatus, retryBasemap } = useMapLayers(
     hasSimulationRoute: hasSimulationRoute.value,
     draftStops: draftStops.value,
     selectedDraftStopId: selectedDraftStopId.value,
+    simulationVisitedStopSequences: selectedVisitedStopSequences.value,
+    simulationNextStopSequence: selectedNextStopSequence.value,
     stationWorkspace,
     setSelectedDraftStopId: (id) => {
       selectedDraftStopId.value = id;
@@ -611,6 +619,9 @@ const { plannedRouteBounds, basemapStatus, retryBasemap } = useMapLayers(
     fitBounds,
   }),
 );
+const showSimulatorStop = (sequenceNumber: number) => {
+  openPlannedRouteStop(sequenceNumber);
+};
 watch(basemapStatus, (status) => {
   if (status === 'error')
     notifyError('Không tải được bản đồ nền. Nhấn thông báo để thử lại.', {
@@ -949,7 +960,6 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
         :hidden="workspace !== 'simulation'"
       >
         <SimulatorPanel
-          :key="`${simulator.tripId ?? 'none'}:${simulator.run?.attemptNumber ?? 1}`"
           :simulator="simulator"
           :snapshot="live.snapshot"
           :now="live.now"
@@ -961,6 +971,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
           :on-fit-fleet="fitSimulationFleet"
           :on-manage-fleet="() => selectMode('tracking')"
           :on-show-route="showSimulatorRoute"
+          :on-show-stop="showSimulatorStop"
         />
       </div>
       <div

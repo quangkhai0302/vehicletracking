@@ -201,9 +201,10 @@ export function useFleetWorkspace(
   }
   const saveVehicle = (input: VehicleInput, id?: number) =>
     mutate(async () => {
+      const creating = id === undefined;
       let saved =
-        id === undefined ? await fleet.createVehicle(input) : await fleet.updateVehicle(id, input);
-      if (input.driverId !== (saved.driver?.id ?? null)) {
+        creating ? await fleet.createVehicle(input) : await fleet.updateVehicle(id, input);
+      if (!creating && input.driverId !== (saved.driver?.id ?? null)) {
         try {
           if (input.driverId === null) {
             await fleet.unassignVehicleDriver(saved.id);
@@ -328,6 +329,14 @@ export function useFleetWorkspace(
         driverId === null ? 'Đã bỏ gán tài xế khỏi chuyến.' : 'Đã cập nhật tài xế của chuyến.',
       );
     });
+  const updateTripVehicle = (id: number, vehicleId: number) =>
+    mutate(async () => {
+      const saved = await fleet.assignTripVehicle(id, vehicleId);
+      if (!alive) return;
+      detail.value = saved;
+      trips.value = trips.value.map((item) => (item.id === id ? saved.trip : item));
+      onToast('Đã cập nhật xe thực hiện chuyến.');
+    });
   function showVehicleTrips(id: number) {
     close();
     vehicleFilter.value = id;
@@ -389,6 +398,7 @@ export function useFleetWorkspace(
     saveTrip,
     transition,
     updateTripDriver,
+    updateTripVehicle,
     removeTrip,
     showVehicleTrips,
   });

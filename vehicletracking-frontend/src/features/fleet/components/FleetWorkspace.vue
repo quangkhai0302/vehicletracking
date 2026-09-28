@@ -722,6 +722,7 @@ async function removeDriver() {
       class-name="fleet-workspace-modal fleet-form-modal"
       :label="screen.vehicle ? 'Chỉnh sửa phương tiện' : 'Thêm phương tiện'"
       :busy="fleet.busy"
+      content-sized
       :on-close="() => undefined"
     >
       <VehicleEditor
@@ -738,6 +739,7 @@ async function removeDriver() {
       class-name="fleet-workspace-modal fleet-form-modal"
       :label="screen.driver ? 'Chỉnh sửa tài xế' : 'Thêm tài xế'"
       :busy="fleet.busy"
+      content-sized
       :on-close="() => undefined"
     >
       <DriverEditor
@@ -753,6 +755,7 @@ async function removeDriver() {
       class-name="fleet-workspace-modal fleet-form-modal"
       label="Điều phối chuyến đi"
       :busy="fleet.busy"
+      content-sized
       :on-close="() => undefined"
     >
       <TripEditor
@@ -774,10 +777,12 @@ async function removeDriver() {
       :loading="fleet.loadingDetail"
       :busy="fleet.busy"
       :on-close="fleet.close"
+      :vehicles="fleet.vehicles"
       :drivers="fleet.drivers"
       :on-retry="retryTrip"
       :on-action="fleet.transition"
       :on-update-driver="fleet.updateTripDriver"
+      :on-update-vehicle="fleet.updateTripVehicle"
       :on-delete-trip="fleet.removeTrip"
       :on-focus-stop="onFocusStop"
       :on-simulate="onSimulateTrip"

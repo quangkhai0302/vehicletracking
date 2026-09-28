@@ -102,17 +102,20 @@ class FleetControllerTest {
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(trips);
     }
-    @Test void driverAssignmentEndpointsDelegate() throws Exception {
+    @Test void assignmentEndpointsDelegate() throws Exception {
         mvc.perform(put("/api/v1/vehicles/4/driver").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"driverId\":7}")).andExpect(status().isOk());
         mvc.perform(delete("/api/v1/vehicles/4/driver")).andExpect(status().isNoContent());
         mvc.perform(put("/api/v1/trips/5/driver").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"driverId\":7}")).andExpect(status().isOk());
         mvc.perform(delete("/api/v1/trips/5/driver")).andExpect(status().isNoContent());
+        mvc.perform(put("/api/v1/trips/5/vehicle").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"vehicleId\":9}")).andExpect(status().isOk());
 
         verify(vehicles).assignDriver(4L, 7L);
         verify(vehicles).unassignDriver(4L);
         verify(trips).assignDriver(5L, 7L);
         verify(trips).unassignDriver(5L);
+        verify(trips).assignVehicle(5L, 9L);
     }
 }

@@ -4,6 +4,7 @@ import L from 'leaflet';
 import MapComponent from '@/features/map/components/MapComponent.vue';
 import * as operations from '@/features/tracking/api/operations';
 import * as fleetApi from '@/features/fleet/api/fleet';
+import * as etaApi from '@/features/fleet/api/eta';
 import type { OperationsSnapshot, SimulationRun } from '@/features/tracking/types/operations';
 import type { TripDetail } from '@/features/fleet/types/fleet';
 import { notifyError } from '@/shared/notifications/toast';
@@ -164,6 +165,150 @@ test('changing basemap keeps one tile layer and clears a failed-tile retry and i
   expect(old.listens('tileerror')).toBe(false);
   expect(old.listens('tileload')).toBe(false);
   expect(() => map.setView([10.9, 106.8], 16, { animate: false })).not.toThrow();
+  expect(createMap).toHaveBeenCalledTimes(1);
+  expect(operations.subscribeOperations).toHaveBeenCalledTimes(1);
+});
+
+test('selecting a simulator vehicle and receiving realtime updates keep the loaded basemap', async () => {
+  const trip: OperationsSnapshot['trips'][number] = {
+    id: 42,
+    vehicleId: 7,
+    vehiclePlateNumber: '63B853904',
+    vehicleType: 'CAR',
+    routeId: 3,
+    routeName: 'Bến Thành → Suối Tiên',
+    status: 'IN_PROGRESS',
+    scheduledDepartureAt: snapshot.serverTime,
+    plannedEndAt: snapshot.serverTime,
+    startedAt: snapshot.serverTime,
+    endedAt: null,
+    createdAt: snapshot.serverTime,
+    dispatchMode: 'ON_DEMAND',
+    scheduleId: null,
+    scheduleName: null,
+    driver: null,
+  };
+  const run: SimulationRun = {
+    id: 11,
+    tripId: trip.id,
+    status: 'RUNNING',
+    multiplier: 10,
+    elapsedSeconds: 60,
+    durationSeconds: 900,
+    simulatedAt: snapshot.serverTime,
+    updatedAt: snapshot.serverTime,
+    errorMessage: null,
+    replacementTripId: null,
+    frame: {
+      latitude: 10.77,
+      longitude: 106.7,
+      heading: 90,
+      speedKmh: 22,
+      progressPercent: 10,
+      nextStopSequence: 2,
+      nextStopEtaSeconds: 540,
+      dwellRemainingSeconds: 0,
+      dwelling: false,
+      finished: false,
+    },
+  };
+  const position: OperationsSnapshot['positions'][number] = {
+    id: 1,
+    eventId: 'simulation-1',
+    vehicleId: trip.vehicleId,
+    tripId: trip.id,
+    recordedAt: snapshot.serverTime,
+    receivedAt: snapshot.serverTime,
+    simulatedAt: snapshot.serverTime,
+    latitude: 10.77,
+    longitude: 106.7,
+    heading: 90,
+    speedKmh: 22,
+    accuracyMeters: 1,
+    source: 'SIMULATOR',
+  };
+  const operationSnapshot: OperationsSnapshot = {
+    ...snapshot,
+    trips: [trip],
+    simulations: [run],
+    positions: [position],
+  };
+  let pushOperations: (data: OperationsSnapshot) => void = () => undefined;
+  vi.mocked(operations.fetchOperations).mockResolvedValue(operationSnapshot);
+  vi.mocked(operations.subscribeOperations).mockImplementation((callback) => {
+    pushOperations = callback;
+    callback(operationSnapshot);
+    return vi.fn();
+  });
+  const route = { stops: [], sections: [], shapingPoints: [] } as unknown as TripDetail['route'];
+  vi.spyOn(fleetApi, 'fetchTrip').mockResolvedValue({ trip, stops: [], route });
+  vi.spyOn(fleetApi, 'fetchTripRoute').mockResolvedValue(route);
+  vi.spyOn(etaApi, 'fetchTripEta').mockResolvedValue({
+    tripId: trip.id,
+    routeId: trip.routeId,
+    calculatedAt: snapshot.serverTime,
+    source: 'ROUTE_SNAPSHOT',
+    status: 'AVAILABLE',
+    trafficObservedAt: null,
+    trafficFetchedAt: null,
+    nextStopSequence: 2,
+    baselineRemainingSeconds: 840,
+    totalRemainingSeconds: 840,
+    stops: [],
+    affectedSegments: [],
+    warning: null,
+  });
+  const createMap = vi.spyOn(L, 'map');
+  const wrapper = mount(MapComponent, {
+    props: { initialWorkspace: 'simulation' },
+    attachTo: document.body,
+    global: { stubs: { RouterLink: true } },
+  });
+  unmounts.push(() => wrapper.unmount());
+  await flushPromises();
+  await flushPromises();
+
+  const map: L.Map = createMap.mock.results[0].value;
+  const tileLayers = () => {
+    const layers: L.TileLayer[] = [];
+    map.eachLayer((layer) => {
+      if (layer instanceof L.TileLayer) layers.push(layer);
+    });
+    return layers;
+  };
+  const basemap = tileLayers()[0];
+  const tileContainer = basemap.getContainer();
+  const createTiles = vi.spyOn(L, 'tileLayer');
+  await wrapper.get('.live-vehicle-marker[data-vehicle-id="7"]').trigger('click');
+  await flushPromises();
+  expect(wrapper.get('.simulation-summary').text()).toContain('#42 · 63B853904');
+  expect(tileLayers()).toHaveLength(1);
+  expect(map.hasLayer(basemap)).toBe(true);
+
+  for (let tick = 1; tick <= 3; tick++) {
+    const serverTime = new Date(Date.parse(snapshot.serverTime) + tick * 1000).toISOString();
+    pushOperations({
+      ...operationSnapshot,
+      serverTime,
+      positions: [
+        {
+          ...position,
+          id: tick + 1,
+          eventId: `simulation-${tick + 1}`,
+          recordedAt: serverTime,
+          longitude: position.longitude + tick * 0.0001,
+        },
+      ],
+      simulations: [
+        { ...run, elapsedSeconds: run.elapsedSeconds + tick * 10, updatedAt: serverTime },
+      ],
+    });
+    await flushPromises();
+    expect(tileLayers()).toHaveLength(1);
+    expect(map.hasLayer(basemap)).toBe(true);
+    expect(basemap.getContainer()).toBe(tileContainer);
+  }
+  expect(createTiles).not.toHaveBeenCalled();
   expect(createMap).toHaveBeenCalledTimes(1);
   expect(operations.subscribeOperations).toHaveBeenCalledTimes(1);
 });
@@ -427,4 +572,236 @@ test('trip deep link opens its selected vehicle simulator without starting it on
   ).toBe('42');
   expect(wrapper.get('.play-button').text()).toContain('Bắt đầu');
   expect(operations.controlSimulation).not.toHaveBeenCalled();
+});
+
+test('simulation stop list and route marker open the station information popup', async () => {
+  const trip = {
+    id: 42,
+    attemptNumber: 1,
+    vehicleId: 7,
+    vehiclePlateNumber: '63B853904',
+    vehicleType: 'CAR' as const,
+    routeId: 3,
+    routeName: 'Bến Thành → Suối Tiên',
+    status: 'SCHEDULED' as const,
+    scheduledDepartureAt: snapshot.serverTime,
+    plannedEndAt: snapshot.serverTime,
+    startedAt: null,
+    endedAt: null,
+    createdAt: snapshot.serverTime,
+    dispatchMode: 'ON_DEMAND' as const,
+    scheduleId: null,
+    scheduleName: null,
+    driver: null,
+  };
+  const tripStops = [
+    {
+      sequenceNumber: 1,
+      stationId: 1,
+      stationName: 'Bến Thành',
+      latitude: 10.77,
+      longitude: 106.7,
+      checkinRadiusMeters: 50,
+      dwellDurationSeconds: 30,
+      arrivalOffsetSeconds: 0,
+      departureOffsetSeconds: 30,
+      plannedArrivalAt: snapshot.serverTime,
+      plannedDepartureAt: snapshot.serverTime,
+    },
+    {
+      sequenceNumber: 2,
+      stationId: 2,
+      stationName: 'Suối Tiên',
+      latitude: 10.88,
+      longitude: 106.8,
+      checkinRadiusMeters: 75,
+      dwellDurationSeconds: 45,
+      arrivalOffsetSeconds: 900,
+      departureOffsetSeconds: 945,
+      plannedArrivalAt: snapshot.serverTime,
+      plannedDepartureAt: snapshot.serverTime,
+    },
+  ];
+  const route = {
+    id: 3,
+    name: trip.routeName,
+    transportMode: 'CAR',
+    routingProvider: 'HERE',
+    totalDistanceMeters: 5000,
+    estimatedTravelDurationSeconds: 900,
+    baseTravelDurationSeconds: 900,
+    totalDwellDurationSeconds: 75,
+    estimatedTripDurationSeconds: 975,
+    estimatedDepartureAt: snapshot.serverTime,
+    calculatedAt: snapshot.serverTime,
+    createdAt: snapshot.serverTime,
+    stops: tripStops.map((stop, index) => ({
+      ...stop,
+      role: index === 0 ? 'START' : 'END',
+      distanceFromPreviousMeters: index === 0 ? 0 : 5000,
+      travelDurationFromPreviousSeconds: index === 0 ? 0 : 900,
+    })),
+    sections: [],
+    shapingPoints: [],
+  } as unknown as TripDetail['route'];
+  const operationSnapshot: OperationsSnapshot = {
+    ...snapshot,
+    trips: [trip],
+    checkIns: [
+      {
+        tripId: trip.id,
+        revision: 1,
+        nextStopSequence: 2,
+        awaitingExit: false,
+        visits: [
+          {
+            attemptNumber: 1,
+            id: 1,
+            tripId: trip.id,
+            stopSequence: 1,
+            source: 'SIMULATOR',
+            evidenceKind: 'ROUTE_TRACE',
+            actualArrivalAt: snapshot.serverTime,
+            simulatedArrivalAt: snapshot.serverTime,
+            detectedAt: snapshot.serverTime,
+            fromSampleId: null,
+            toSampleId: 1,
+            evidenceFraction: 0,
+            latitude: 10.77,
+            longitude: 106.7,
+          },
+        ],
+      },
+    ],
+  };
+  let pushOperations: (data: OperationsSnapshot) => void = () => undefined;
+  vi.mocked(operations.fetchOperations).mockResolvedValue(operationSnapshot);
+  vi.mocked(operations.subscribeOperations).mockImplementation((callback) => {
+    pushOperations = callback;
+    callback(operationSnapshot);
+    return vi.fn();
+  });
+  vi.spyOn(fleetApi, 'fetchTrip').mockResolvedValue({ trip, stops: tripStops, route });
+  vi.spyOn(fleetApi, 'fetchTripRoute').mockResolvedValue(route);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes('/stations')
+        ? [
+            {
+              id: 1,
+              name: 'Bến Thành',
+              address: 'Quận 1',
+              latitude: 10.77,
+              longitude: 106.7,
+              checkinRadiusMeters: 50,
+              active: true,
+              createdAt: snapshot.serverTime,
+              updatedAt: snapshot.serverTime,
+            },
+            {
+              id: 2,
+              name: 'Suối Tiên',
+              address: 'Thành phố Thủ Đức',
+              latitude: 10.88,
+              longitude: 106.8,
+              checkinRadiusMeters: 75,
+              active: true,
+              createdAt: snapshot.serverTime,
+              updatedAt: snapshot.serverTime,
+            },
+          ]
+        : url.includes('/traffic/')
+          ? {
+              source: 'HERE_LIVE',
+              status: 'AVAILABLE',
+              observedAt: snapshot.serverTime,
+              fetchedAt: snapshot.serverTime,
+              ageSeconds: 0,
+              warning: null,
+              results: [],
+            }
+          : [];
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }),
+  );
+  const createMap = vi.spyOn(L, 'map');
+  const wrapper = mount(MapComponent, {
+    props: { initialWorkspace: 'simulation', initialTripId: trip.id },
+    attachTo: document.body,
+  });
+  unmounts.push(() => wrapper.unmount());
+  await flushPromises();
+  await flushPromises();
+
+  const rows = wrapper.findAll('.simulation-stop-list li');
+  expect(rows).toHaveLength(2);
+  expect(rows.map((row) => row.attributes('data-state'))).toEqual(['checked-in', 'next']);
+  await rows[1].get('button').trigger('click');
+  await flushPromises();
+
+  const popup = document.querySelector<HTMLElement>('.simulation-stop-popup');
+  expect(popup?.textContent).toContain('Suối Tiên');
+  expect(popup?.textContent).toContain('Thành phố Thủ Đức');
+  expect(popup?.textContent).toContain('75 m');
+  expect(popup?.textContent).toContain('Trạm kế tiếp');
+
+  const map: L.Map = createMap.mock.results[0].value;
+  const nextMarker = Array.from(
+    (() => {
+      const found: L.Marker[] = [];
+      map.eachLayer((layer) => {
+        if (
+          layer instanceof L.Marker &&
+          layer.getElement()?.querySelector('.route-stop-map-marker.simulation-next')
+        )
+          found.push(layer);
+      });
+      return found;
+    })(),
+  )[0];
+  expect(nextMarker).toBeDefined();
+  map.closePopup();
+
+  const checkIns = operationSnapshot.checkIns[0]!;
+  pushOperations({
+    ...operationSnapshot,
+    serverTime: '2026-09-23T01:00:01Z',
+    checkIns: [
+      {
+        ...checkIns,
+        revision: 2,
+        visits: [
+          ...checkIns.visits,
+          {
+            ...checkIns.visits[0]!,
+            id: 2,
+            stopSequence: 2,
+            latitude: 10.88,
+            longitude: 106.8,
+          },
+        ],
+      },
+    ],
+  });
+  await flushPromises();
+
+  expect(wrapper.findAll('.simulation-stop-list li')[1].attributes('data-state')).toBe(
+    'checked-in',
+  );
+  const mountedRouteStops: L.Marker[] = [];
+  map.eachLayer((layer) => {
+    if (layer instanceof L.Marker && layer.getElement()?.querySelector('.route-stop-map-marker'))
+      mountedRouteStops.push(layer);
+  });
+  expect(mountedRouteStops).toContain(nextMarker);
+  expect(
+    nextMarker.getElement()?.querySelector('.route-stop-map-marker.simulation-checked-in'),
+  ).not.toBeNull();
+  nextMarker.fire('click');
+  expect(document.querySelector('.simulation-stop-popup')?.textContent).toContain('Suối Tiên');
 });

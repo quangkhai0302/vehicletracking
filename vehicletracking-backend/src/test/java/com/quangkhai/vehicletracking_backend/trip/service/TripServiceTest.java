@@ -125,6 +125,45 @@ class TripServiceTest {
         assertThat(assigned.trip().driver().id()).isEqualTo(10L);
         verify(trips).flush();
     }
+    @Test void assignVehicle_updatesVehicleAndPlateSnapshot() {
+        var trip = lockedTrip();
+        var replacement = new VehicleEntity("51B99999", "Xe B", null);
+        ReflectionTestUtils.setField(replacement, "id", 2L);
+        when(vehicles.findLockedById(2L)).thenReturn(Optional.of(replacement));
+        when(trips.findAllByVehicleIdAndStatusIn(eq(2L), any())).thenReturn(java.util.List.of());
+
+        var assigned = service.assignVehicle(3L, 2L);
+
+        assertThat(assigned.trip().vehicleId()).isEqualTo(2L);
+        assertThat(assigned.trip().vehiclePlateNumber()).isEqualTo("51B99999");
+        assertThat(trip.getVehicle()).isSameAs(replacement);
+        verify(trips).flush();
+    }
+    @Test void assignVehicle_rejectsVehicleRunningAnotherTrip() {
+        var trip = lockedTrip();
+        var replacement = new VehicleEntity("51B99999", "Xe B", null);
+        ReflectionTestUtils.setField(replacement, "id", 2L);
+        when(vehicles.findLockedById(2L)).thenReturn(Optional.of(replacement));
+        when(trips.existsByVehicleIdAndStatusIn(2L, java.util.List.of(TripStatus.IN_PROGRESS))).thenReturn(true);
+
+        assertConflict(() -> service.assignVehicle(3L, 2L));
+        assertThat(trip.getVehicle()).isSameAs(vehicle);
+    }
+    @Test void assignVehicle_rejectsOverlappingFixedSchedule() {
+        var trip = lockedTrip();
+        var replacement = new VehicleEntity("51B99999", "Xe B", null);
+        ReflectionTestUtils.setField(replacement, "id", 2L);
+        var schedule = new TripScheduleEntity("Daily", route, replacement, trip.getDriver(), ScheduleFrequency.WEEKLY, null, (short) 1,
+                java.time.LocalTime.NOON, "UTC", java.time.LocalDate.of(2026, 9, 1), null);
+        var existing = new TripEntity(replacement, route, departure, trip.getDriver(),
+                schedule, departure);
+        ReflectionTestUtils.setField(existing, "id", 8L);
+        when(vehicles.findLockedById(2L)).thenReturn(Optional.of(replacement));
+        when(trips.findAllByVehicleIdAndStatusIn(eq(2L), any())).thenReturn(java.util.List.of(existing));
+
+        assertConflict(() -> service.assignVehicle(3L, 2L));
+        assertThat(trip.getVehicle()).isSameAs(vehicle);
+    }
     @Test void start_rejectsDriverRunningAnotherTrip() {
         var driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
         ReflectionTestUtils.setField(driver, "id", 9L);

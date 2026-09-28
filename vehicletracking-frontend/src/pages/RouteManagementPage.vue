@@ -637,6 +637,7 @@ async function confirmDeactivate() {
       class-name="schedule-editor"
       label="Tạo tuyến đường mới"
       :busy="saving"
+      content-sized
       :on-close="() => (createDrawerOpen = false)"
     >
       <header>

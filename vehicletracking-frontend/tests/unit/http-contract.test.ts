@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { resetDriverPassword } from '@/features/auth/api/users';
+import { createDriverAccount, resetDriverPassword } from '@/features/auth/api/users';
+import { assignTripVehicle } from '@/features/fleet/api/fleet';
 import { appFetch } from '@/shared/api/http';
 
 beforeEach(() => {
@@ -81,4 +82,50 @@ test('driver password reset sends the new password to the dedicated account endp
   expect(options.body).toBe('{"password":"new-password"}');
   expect(new Headers(options.headers).get('Content-Type')).toBe('application/json');
   expect(new Headers(options.headers).get('X-XSRF-TOKEN')).toBe('fixture-token');
+});
+
+test('driver account creation only sends the selected driver id', async () => {
+  document.cookie = 'XSRF-TOKEN=fixture-token; Path=/';
+  const fetch = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        id: 3,
+        username: 'khainq',
+        role: 'DRIVER',
+        active: true,
+        driverId: 7,
+        driverName: 'Nguyễn Quang Khải',
+        driverLicenseNumber: 'B2-123',
+        temporaryPassword: 'Tmp8Pass',
+      }),
+      { status: 201, headers: { 'Content-Type': 'application/json' } },
+    ),
+  );
+  vi.stubGlobal('fetch', fetch);
+
+  const created = await createDriverAccount({ driverId: 7 });
+
+  expect(created.username).toBe('khainq');
+  expect(created.temporaryPassword).toBe('Tmp8Pass');
+  const options = fetch.mock.calls[0][1] as RequestInit;
+  expect(options.method).toBe('POST');
+  expect(options.body).toBe('{"driverId":7}');
+});
+
+test('trip vehicle assignment sends the selected vehicle to the dedicated endpoint', async () => {
+  document.cookie = 'XSRF-TOKEN=fixture-token; Path=/';
+  const fetch = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ trip: { id: 5 }, stops: [], route: null }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  );
+  vi.stubGlobal('fetch', fetch);
+
+  await assignTripVehicle(5, 9);
+
+  expect(String(fetch.mock.calls[0][0])).toMatch(/\/api\/v1\/trips\/5\/vehicle$/);
+  const options = fetch.mock.calls[0][1] as RequestInit;
+  expect(options.method).toBe('PUT');
+  expect(options.body).toBe('{"vehicleId":9}');
 });

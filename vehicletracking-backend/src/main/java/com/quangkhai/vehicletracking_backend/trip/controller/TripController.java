@@ -3,6 +3,7 @@ package com.quangkhai.vehicletracking_backend.trip.controller;
 import com.quangkhai.vehicletracking_backend.driver.dto.DriverAssignmentRequest;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.service.TripService;
+import com.quangkhai.vehicletracking_backend.vehicle.dto.VehicleAssignmentRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,10 @@ public class TripController {
     }
     @DeleteMapping("/{id}/driver") public ResponseEntity<Void> unassignDriver(@PathVariable long id) {
         service.unassignDriver(id); return ResponseEntity.noContent().build();
+    }
+    @PutMapping("/{id}/vehicle") public TripDetailResponse assignVehicle(@PathVariable long id,
+            @Valid @RequestBody VehicleAssignmentRequest request) {
+        return service.assignVehicle(id, request.vehicleId());
     }
     @PostMapping("/{id}/start") public TripDetailResponse start(@PathVariable long id) { return service.start(id); }
     @PostMapping("/{id}/complete") public TripDetailResponse complete(@PathVariable long id) { return service.complete(id); }

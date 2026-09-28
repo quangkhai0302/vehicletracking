@@ -458,6 +458,7 @@ async function toggle() {
       class-name="schedule-editor"
       :label="form.id ? 'Chỉnh sửa lịch chạy' : 'Tạo lịch chạy tự động'"
       :busy="saving"
+      content-sized
       :on-close="() => (editorOpen = false)"
       ><header>
         <div>
@@ -474,7 +475,10 @@ async function toggle() {
           <X :size="18" />
         </button>
       </header>
-      <form class="schedule-editor-form" @submit.prevent="save">
+      <form
+        class="schedule-editor-form"
+        @submit.prevent="save"
+      >
         <div class="schedule-form-content">
           <p
             v-if="formError"

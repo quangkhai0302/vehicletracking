@@ -1,6 +1,8 @@
 package com.quangkhai.vehicletracking_backend.auth;
 
 import com.quangkhai.vehicletracking_backend.auth.dto.AdminRegistrationRequest;
+import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreateRequest;
+import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreatedResponse;
 import com.quangkhai.vehicletracking_backend.auth.dto.DriverPasswordResetRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.UserAccountResponse;
 import com.quangkhai.vehicletracking_backend.auth.entity.UserAccountEntity;
@@ -119,5 +121,59 @@ class UserAccountServiceTest {
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         error -> assertThat(error.getStatusCode().value()).isEqualTo(409));
         verify(passwordEncoder, never()).encode(anyString());
+    }
+
+    @Test
+    void createDriverAccountGeneratesVietnameseUsernameAndTemporaryPassword() {
+        DriverEntity driver = new DriverEntity("Nguyễn Quang Khải", "0901234567", "B2-123");
+        ReflectionTestUtils.setField(driver, "id", 7L);
+        when(drivers.findById(7L)).thenReturn(Optional.of(driver));
+        when(accounts.existsByDriverId(7L)).thenReturn(false);
+        when(accounts.existsByUsername("khainq")).thenReturn(false);
+        when(passwordEncoder.encode(anyString())).thenReturn("temporary-hash");
+        when(accounts.saveAndFlush(any(UserAccountEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
+
+        DriverAccountCreatedResponse response = service.createDriverAccount(
+                new DriverAccountCreateRequest(7L));
+
+        assertThat(response.username()).isEqualTo("khainq");
+        assertThat(response.temporaryPassword()).hasSize(8)
+                .matches("[A-HJ-NP-Za-km-z2-9]{8}");
+        verify(passwordEncoder).encode(response.temporaryPassword());
+        verify(accounts).saveAndFlush(argThat(saved ->
+                saved.getUsername().equals("khainq")
+                        && saved.getPasswordHash().equals("temporary-hash")
+                        && saved.getDriver() == driver));
+    }
+
+    @Test
+    void createDriverAccountAppendsTheFirstAvailableNumericSuffix() {
+        DriverEntity driver = new DriverEntity("Nguyễn Quang Khải", "0901234567", "B2-123");
+        ReflectionTestUtils.setField(driver, "id", 7L);
+        when(drivers.findById(7L)).thenReturn(Optional.of(driver));
+        when(accounts.existsByUsername("khainq")).thenReturn(true);
+        when(accounts.existsByUsername("khainq1")).thenReturn(true);
+        when(accounts.existsByUsername("khainq2")).thenReturn(false);
+        when(passwordEncoder.encode(anyString())).thenReturn("temporary-hash");
+        when(accounts.saveAndFlush(any(UserAccountEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
+
+        DriverAccountCreatedResponse response = service.createDriverAccount(
+                new DriverAccountCreateRequest(7L));
+
+        assertThat(response.username()).isEqualTo("khainq2");
+    }
+
+    @Test
+    void driverUsernameBaseRemovesVietnameseDiacriticsAndUsesFamilyMiddleInitials() {
+        UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
+
+        assertThat(ReflectionTestUtils.<String>invokeMethod(
+                service, "driverUsernameBase", "Đỗ Đức Duy")).isEqualTo("duydd");
+        assertThat(ReflectionTestUtils.<String>invokeMethod(
+                service, "driverUsernameBase", "Trần Thị Ánh")).isEqualTo("anhtt");
     }
 }

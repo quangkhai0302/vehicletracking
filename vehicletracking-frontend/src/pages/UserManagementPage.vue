@@ -17,6 +17,7 @@ import {
   fetchUserAccounts,
   resetDriverPassword,
   setUserAccountActive,
+  type DriverAccountCreated,
   type UserAccount,
 } from '@/features/auth/api/users';
 import { fetchDrivers } from '@/features/fleet/api/fleet';
@@ -28,7 +29,8 @@ import { notifySuccess } from '@/shared/notifications/toast';
 import '@/features/auth/styles/user-management.css';
 const accounts = shallowRef<UserAccount[]>([]),
   drivers = shallowRef<Driver[]>([]);
-const form = reactive({ username: '', password: '', driverId: '' });
+const form = reactive({ driverId: '' });
+const issuedAccount = shallowRef<DriverAccountCreated | null>(null);
 const passwordResetForm = reactive({ password: '', confirmation: '' });
 const passwordResetTarget = shallowRef<UserAccount | null>(null);
 const loading = ref(true),
@@ -77,23 +79,31 @@ const accountStats = computed(() => ({
   drivers: accounts.value.filter((account) => account.role === 'DRIVER').length,
   locked: accounts.value.filter((account) => !account.active).length,
 }));
+function openCreate() {
+  form.driverId = '';
+  issuedAccount.value = null;
+  error.value = null;
+  createOpen.value = true;
+}
+function closeCreate() {
+  if (saving.value) return;
+  createOpen.value = false;
+  form.driverId = '';
+  issuedAccount.value = null;
+}
 async function submit() {
   if (saving.value) return;
   saving.value = true;
   error.value = null;
   try {
-    const created = await createDriverAccount({
-      username: form.username.trim(),
-      password: form.password,
-      driverId: Number(form.driverId),
-    });
+    const created = await createDriverAccount({ driverId: Number(form.driverId) });
     if (disposed) return;
     accounts.value = [...accounts.value, created].sort((a, b) =>
       a.username.localeCompare(b.username),
     );
-    Object.assign(form, { username: '', password: '', driverId: '' });
-    createOpen.value = false;
-    notifySuccess('Đã tạo tài khoản tài xế.');
+    form.driverId = '';
+    issuedAccount.value = created;
+    notifySuccess(`Đã cấp tài khoản ${created.username}.`);
   } catch (reason) {
     if (!disposed)
       error.value = reason instanceof Error ? reason.message : 'Không thể tạo tài khoản.';
@@ -172,7 +182,7 @@ async function submitPasswordReset() {
           type="button"
           class="business-button primary"
           :disabled="loading || availableDrivers.length === 0"
-          @click="createOpen = true"
+          @click="openCreate"
         >
           <Plus :size="16" />Cấp tài khoản
         </button>
@@ -373,45 +383,77 @@ async function submitPasswordReset() {
     <SidePanel
       v-if="createOpen"
       class-name="user-account-modal"
-      label="Cấp tài khoản tài xế"
+      :label="issuedAccount ? 'Thông tin tài khoản vừa cấp' : 'Cấp tài khoản tài xế'"
       :busy="saving"
-      :on-close="() => (createOpen = false)"
+      content-sized
+      :on-close="closeCreate"
     >
       <section class="user-create">
         <div class="users-heading">
           <div>
-            <h2>Cấp tài khoản tài xế</h2>
-            <p>Một tài xế chỉ có tối đa một tài khoản.</p>
+            <h2>{{ issuedAccount ? 'Đã cấp tài khoản' : 'Cấp tài khoản tài xế' }}</h2>
+            <p>
+              {{
+                issuedAccount
+                  ? 'Lưu lại thông tin đăng nhập trước khi đóng.'
+                  : 'Chọn tài xế, hệ thống sẽ tự tạo thông tin đăng nhập.'
+              }}
+            </p>
           </div>
           <button
             type="button"
             aria-label="Đóng biểu mẫu"
             :disabled="saving"
-            @click="createOpen = false"
+            @click="closeCreate"
           >
             <X :size="18" />
           </button>
         </div>
-        <form @submit.prevent="submit">
-          <label
-            >Tên đăng nhập<input
-              v-model="form.username"
-              required
-              pattern="[a-z0-9][a-z0-9._-]{2,99}"
-              placeholder="nguyen.van.a" /></label
-          ><label
-            >Mật khẩu tạm thời<input
-              v-model="form.password"
-              required
-              minlength="8"
-              type="password"
-              placeholder="Tối thiểu 8 ký tự" /></label
-          ><label
-            >Hồ sơ tài xế<select
+        <div
+          v-if="issuedAccount"
+          class="user-issued-account"
+          role="status"
+        >
+          <div class="user-issued-heading">
+            <span><CircleCheck :size="22" /></span>
+            <div>
+              <strong>Cấp tài khoản thành công</strong>
+              <p>{{ issuedAccount.driverName }}</p>
+            </div>
+          </div>
+          <dl>
+            <div>
+              <dt>Tên đăng nhập</dt>
+              <dd>{{ issuedAccount.username }}</dd>
+            </div>
+            <div>
+              <dt>Mật khẩu tạm thời</dt>
+              <dd>{{ issuedAccount.temporaryPassword }}</dd>
+            </div>
+          </dl>
+          <p class="user-issued-note">
+            Mật khẩu tạm thời chỉ hiển thị ở bước này. Nếu quên, hãy dùng chức năng đặt lại mật
+            khẩu.
+          </p>
+          <button
+            type="button"
+            class="user-issued-done"
+            @click="closeCreate"
+          >
+            <CircleCheck :size="16" />Hoàn tất
+          </button>
+        </div>
+        <form
+          v-else
+          @submit.prevent="submit"
+        >
+          <label>
+            Chọn tài xế
+            <select
               v-model="form.driverId"
               required
             >
-              <option value="">Chọn tài xế</option>
+              <option value="">Chọn tài xế chưa có tài khoản</option>
               <option
                 v-for="driver in availableDrivers"
                 :key="driver.id"
@@ -419,9 +461,17 @@ async function submitPasswordReset() {
               >
                 {{ driver.fullName }} · {{ driver.licenseNumber }}
               </option>
-            </select></label
-          ><button :disabled="saving || availableDrivers.length === 0">
-            <Plus :size="15" />{{ saving ? 'Đang tạo…' : 'Tạo tài khoản' }}
+            </select>
+          </label>
+          <p
+            v-if="availableDrivers.length > 0"
+            class="user-create-rule"
+          >
+            Tên đăng nhập được tạo từ tên gọi và chữ đầu của họ, tên đệm. Ví dụ:
+            <strong>Nguyễn Quang Khải → khainq</strong>. Nếu trùng, hệ thống tự thêm số.
+          </p>
+          <button :disabled="saving || availableDrivers.length === 0">
+            <Plus :size="15" />{{ saving ? 'Đang cấp…' : 'Cấp tài khoản' }}
           </button>
           <p
             v-if="availableDrivers.length === 0"
@@ -437,6 +487,7 @@ async function submitPasswordReset() {
       class-name="user-account-modal user-password-reset-modal"
       :label="`Đặt lại mật khẩu ${passwordResetTarget.username}`"
       :busy="resettingPassword"
+      content-sized
       :on-close="closePasswordReset"
     >
       <section class="user-create user-password-reset">

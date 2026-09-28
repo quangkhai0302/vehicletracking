@@ -123,6 +123,19 @@ public class TripService {
         trips.flush();
     }
     @Transactional
+    public TripDetailResponse assignVehicle(long id, long vehicleId) {
+        TripEntity trip = findScheduledLocked(id);
+        if (trip.getVehicle().getId() == vehicleId) return TripDetailResponse.from(trip);
+        VehicleEntity vehicle = lockVehicle(vehicleId);
+        requireActive(vehicle);
+        if (trips.existsByVehicleIdAndStatusIn(vehicleId, List.of(TripStatus.IN_PROGRESS)))
+            throw new ResponseStatusException(CONFLICT, "Xe đang chạy một chuyến khác.");
+        ensureNoFixedScheduleConflict(vehicleId, trip.getScheduledDepartureAt(),
+                trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId());
+        trip.assignVehicle(vehicle);
+        return flushAssignment(trip, "xe");
+    }
+    @Transactional
     public TripDetailResponse start(long id) { return transition(id, TripStatus.IN_PROGRESS); }
     @Transactional
     public TripDetailResponse complete(long id) { return transition(id, TripStatus.COMPLETED); }
@@ -203,15 +216,18 @@ public class TripService {
         TripEntity trip = trips.findLockedById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy chuyến đi."));
         if (trip.getStatus() != TripStatus.SCHEDULED)
-            throw new ResponseStatusException(CONFLICT, "Chỉ có thể đổi tài xế của chuyến chưa khởi hành.");
+            throw new ResponseStatusException(CONFLICT, "Chỉ có thể thay đổi phân công của chuyến chưa khởi hành.");
         return trip;
     }
     private TripDetailResponse flushAssignment(TripEntity trip) {
+        return flushAssignment(trip, "tài xế");
+    }
+    private TripDetailResponse flushAssignment(TripEntity trip, String assignment) {
         try {
             trips.flush();
             return TripDetailResponse.from(trip);
         } catch (DataIntegrityViolationException ex) {
-            throw new ResponseStatusException(CONFLICT, "Không thể gán tài xế. Hãy tải lại.", ex);
+            throw new ResponseStatusException(CONFLICT, "Không thể đổi " + assignment + ". Hãy tải lại.", ex);
         }
     }
     private ResponseStatusException invalidTransition() {

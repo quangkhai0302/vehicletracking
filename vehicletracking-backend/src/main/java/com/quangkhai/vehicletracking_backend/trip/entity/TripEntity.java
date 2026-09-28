@@ -98,6 +98,10 @@ public class TripEntity {
     public Instant simulationOriginAt() {
         return startedAt == null ? scheduledDepartureAt : startedAt;
     }
+    public void assignVehicle(VehicleEntity vehicle) {
+        this.vehicle = vehicle;
+        vehiclePlateSnapshot = vehicle.getPlateNumber();
+    }
     public void assignDriver(DriverEntity driver) {
         this.driver = driver;
         driverNameSnapshot = driver == null ? null : driver.getFullName();

@@ -1,6 +1,7 @@
 package com.quangkhai.vehicletracking_backend.auth.controller;
 
 import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreateRequest;
+import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreatedResponse;
 import com.quangkhai.vehicletracking_backend.auth.dto.DriverPasswordResetRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.UserAccountResponse;
 import com.quangkhai.vehicletracking_backend.auth.service.UserAccountService;
@@ -22,8 +23,8 @@ public class UserAccountController {
     public List<UserAccountResponse> findAll() { return service.findAll(); }
 
     @PostMapping("/driver")
-    public ResponseEntity<UserAccountResponse> createDriver(@Valid @RequestBody DriverAccountCreateRequest request) {
-        UserAccountResponse created = service.createDriverAccount(request);
+    public ResponseEntity<DriverAccountCreatedResponse> createDriver(@Valid @RequestBody DriverAccountCreateRequest request) {
+        DriverAccountCreatedResponse created = service.createDriverAccount(request);
         return ResponseEntity.created(URI.create("/api/v1/users/" + created.id())).body(created);
     }
 

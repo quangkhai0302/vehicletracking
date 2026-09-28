@@ -135,7 +135,7 @@ export function useVehicleMarkers(options: MaybeRefOrGetter<{
       if (!projected || map.distance(target, projected) > 30) sample.progress = undefined;
       if (stationary || freshness !== 'fresh') {
         animations.delete(point.vehicleId);
-        marker.setLatLng(target);
+        if (map.distance(marker.getLatLng(), target) > 0.1) marker.setLatLng(target);
       } else if (!currentAnimation || currentAnimation.identity !== identity || map.distance(previous, target) > 5000) {
         marker.setLatLng(target);
         animations.set(point.vehicleId, { identity, samples: [sample], eventId: point.eventId,
@@ -170,7 +170,8 @@ export function useVehicleMarkers(options: MaybeRefOrGetter<{
         scheduleAnimations();
       }
       markerTripIds.set(point.vehicleId, point.tripId);
-      marker.setZIndexOffset(point.vehicleId === selectedId ? 1000 : 800);
+      const selectedZIndex = point.vehicleId === selectedId ? 1000 : 800;
+      if (marker.options.zIndexOffset !== selectedZIndex) marker.setZIndexOffset(selectedZIndex);
       const body = marker.getElement()?.querySelector<HTMLElement>('.live-vehicle-marker');
       if (body) {
         body.classList.toggle('muted',stale); body.classList.toggle('selected',point.vehicleId === selectedId);
@@ -186,7 +187,15 @@ export function useVehicleMarkers(options: MaybeRefOrGetter<{
         : freshness === 'stale' ? 'Vị trí cũ'
         : `${point.speedKmh.toFixed(1)} km/h`;
       text.textContent = `${plateNumber ?? point.vehicleId} · ${statusLabel}`;
-      if (marker.getTooltip()) marker.setTooltipContent(text); else marker.bindTooltip(text, { direction: 'top', opacity: .95 });
+      const tooltip = marker.getTooltip();
+      if (!tooltip) marker.bindTooltip(text, { direction: 'top', opacity: .95 });
+      else {
+        const content = tooltip.getContent();
+        if (content instanceof HTMLElement && content.textContent !== text.textContent)
+          content.textContent = text.textContent;
+        else if (typeof content === 'string' && content !== text.textContent)
+          marker.setTooltipContent(text);
+      }
       marker.off('click').on('click', () => {
         const displayed = marker.getLatLng();
         const anchor = map.latLngToContainerPoint(displayed);
