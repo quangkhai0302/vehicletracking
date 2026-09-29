@@ -35,6 +35,7 @@ vi.mock('@/features/stations/api/stations', () => ({
   createStation: vi.fn(),
   updateStation: vi.fn(),
   deleteStation: vi.fn(),
+  reverseGeocodeStation: vi.fn(),
 }));
 
 const stamp = '2026-09-22T01:00:00Z';

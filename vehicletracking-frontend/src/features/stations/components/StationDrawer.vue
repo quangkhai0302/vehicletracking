@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import SidePanel from '@/shared/components/SidePanel.vue';
 import {
   AlertCircle,
   BusFront,
@@ -25,6 +26,11 @@ const props = defineProps<{
   form: StationFormState;
   saving: boolean;
   pickingLocation: boolean;
+  addressLookupLoading?: boolean;
+  addressLookupError?: string | null;
+  addressSuggestion?: string | null;
+  onRetryAddressLookup?: () => void;
+  onApplyAddressSuggestion?: () => void;
   onClose: () => void;
   onBeginEdit: () => void;
   onPickLocation: () => void;
@@ -65,8 +71,12 @@ const discard = () => {
   showDiscardConfirm.value = false;
   props.onClose();
 };
+const stay = () => {
+  showDiscardConfirm.value = false;
+};
+watch(() => props.mode, stay);
 const submit = async () => {
-  if (props.saving || !isRadiusValid.value) return;
+  if (props.saving || props.addressLookupLoading || !isRadiusValid.value) return;
   showDiscardConfirm.value = false;
   await props.onSave({
     name: props.form.name.trim(),
@@ -95,6 +105,19 @@ const field = (name: keyof StationFormState, event: Event) =>
 const revealInvalid = (event: Event) => {
   (event.currentTarget as HTMLDetailsElement).open = true;
 };
+const canLookupAddress = computed(() => {
+  const { latitude, longitude } = props.form;
+  return (
+    Boolean(latitude.trim() && longitude.trim()) &&
+    Number.isFinite(Number(latitude)) &&
+    Math.abs(Number(latitude)) <= 90 &&
+    Number.isFinite(Number(longitude)) &&
+    Math.abs(Number(longitude)) <= 180
+  );
+});
+const hasDifferentSuggestion = computed(() =>
+  Boolean(props.addressSuggestion && props.addressSuggestion !== props.form.address),
+);
 </script>
 <template>
   <aside
@@ -134,32 +157,44 @@ const revealInvalid = (event: Event) => {
         <X :size="18" />
       </button>
     </div>
-    <div
+    <SidePanel
       v-if="showDiscardConfirm"
-      class="inline-discard-alert"
-      role="alert"
+      class-name="station-discard-dialog"
+      label="Hủy các thay đổi chưa lưu?"
+      :busy="saving"
+      content-sized
+      :on-close="stay"
     >
-      <AlertCircle :size="16" />
-      <div>
-        <strong>Hủy các thay đổi chưa lưu?</strong>
+      <div class="station-discard-content">
+        <div
+          class="dialog-icon"
+          aria-hidden="true"
+        >
+          <AlertCircle :size="24" />
+        </div>
+        <h2>Hủy các thay đổi chưa lưu?</h2>
         <p>Nội dung bạn đang nhập sẽ bị mất nếu đóng lúc này.</p>
+        <div class="dialog-actions">
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="saving"
+            autofocus
+            @click="stay"
+          >
+            Ở lại
+          </button>
+          <button
+            type="button"
+            class="danger-action"
+            :disabled="saving"
+            @click="discard"
+          >
+            Hủy thay đổi
+          </button>
+        </div>
       </div>
-      <div class="discard-actions">
-        <button
-          type="button"
-          class="discard-stay-btn"
-          @click="showDiscardConfirm = false"
-        >
-          Ở lại</button
-        ><button
-          type="button"
-          class="discard-confirm-btn"
-          @click="discard"
-        >
-          Hủy thay đổi
-        </button>
-      </div>
-    </div>
+    </SidePanel>
     <div
       v-if="!isFormOpen && station"
       class="station-details"
@@ -291,6 +326,53 @@ const revealInvalid = (event: Event) => {
             placeholder="Ví dụ: 292 Đinh Bộ Lĩnh, Phường 26, Bình Thạnh"
             @input="field('address', $event)"
         /></label>
+        <section
+          v-if="addressLookupLoading || addressLookupError || hasDifferentSuggestion"
+          class="address-lookup"
+          aria-label="Địa chỉ từ bản đồ"
+          :aria-busy="Boolean(addressLookupLoading)"
+        >
+          <p
+            v-if="addressLookupLoading"
+            role="status"
+          >
+            Đang lấy địa chỉ từ vị trí đã chọn…
+          </p>
+          <p
+            v-else-if="addressLookupError"
+            class="address-lookup-error"
+            role="alert"
+          >
+            {{ addressLookupError }}
+          </p>
+          <p
+            v-if="hasDifferentSuggestion && !addressLookupLoading"
+            class="address-suggestion"
+          >
+            Gợi ý: {{ addressSuggestion }}
+          </p>
+          <div
+            v-if="!addressLookupLoading && (addressLookupError || hasDifferentSuggestion)"
+            class="address-lookup-actions"
+          >
+            <button
+              v-if="addressLookupError && onRetryAddressLookup"
+              type="button"
+              :disabled="saving || addressLookupLoading || !canLookupAddress"
+              @click="onRetryAddressLookup"
+            >
+              Thử lấy lại địa chỉ
+            </button>
+            <button
+              v-if="hasDifferentSuggestion && onApplyAddressSuggestion"
+              type="button"
+              :disabled="saving || addressLookupLoading || (addressSuggestion?.length ?? 0) > 255"
+              @click="onApplyAddressSuggestion"
+            >
+              Dùng địa chỉ này
+            </button>
+          </div>
+        </section>
         <details
           class="trip-traffic-details"
           @invalid.capture="revealInvalid"
@@ -400,7 +482,12 @@ const revealInvalid = (event: Event) => {
             type="submit"
             class="primary-action"
             :disabled="
-              saving || !form.name.trim() || !form.latitude || !form.longitude || !isRadiusValid
+              saving ||
+              addressLookupLoading ||
+              !form.name.trim() ||
+              !form.latitude ||
+              !form.longitude ||
+              !isRadiusValid
             "
           >
             <Save :size="15" />
@@ -411,3 +498,97 @@ const revealInvalid = (event: Event) => {
     </form>
   </aside>
 </template>
+
+<style scoped>
+dialog.station-discard-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(420px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  color: #f1f5f9;
+  background: #0d1628;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+dialog.station-discard-dialog::backdrop {
+  background: rgba(2, 6, 23, 0.65);
+  backdrop-filter: blur(4px);
+}
+.station-discard-content {
+  min-height: 0;
+  padding: 24px;
+  overflow-y: auto;
+  text-align: center;
+}
+.station-discard-content h2 {
+  font-size: 20px;
+  line-height: 1.4;
+}
+.station-discard-content p {
+  margin-top: 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.station-discard-content .dialog-actions {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.station-discard-content .dialog-actions button {
+  min-height: 40px;
+}
+.station-discard-content .dialog-actions button:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 3px;
+}
+.address-lookup {
+  padding: 12px;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  border-radius: 12px;
+  background: rgba(34, 211, 238, 0.04);
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.address-lookup p {
+  margin: 0;
+}
+.address-lookup p + p {
+  margin-top: 6px;
+}
+.address-lookup .address-lookup-error {
+  color: #fbbf24;
+}
+.address-lookup .address-suggestion {
+  color: #e2e8f0;
+  overflow-wrap: anywhere;
+}
+.address-lookup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.address-lookup-actions button {
+  padding: 6px 10px;
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  border-radius: 8px;
+  background: transparent;
+  color: #67e8f9;
+  font: inherit;
+  cursor: pointer;
+}
+.address-lookup-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.address-lookup-actions button:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 2px;
+}
+</style>

@@ -1,7 +1,14 @@
-import type { Station, StationInput } from '@/features/stations/types/station';
+import type {
+  Station,
+  StationInput,
+  StationAddressResult,
+} from '@/features/stations/types/station';
 import { appFetch } from '@/shared/api/http';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(
+  /\/$/,
+  '',
+);
 const STATIONS_URL = `${API_BASE_URL}/api/v1/stations`;
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -53,4 +60,19 @@ export function updateStation(id: number, input: StationInput): Promise<Station>
 
 export function deleteStation(id: number): Promise<void> {
   return request<void>(`${STATIONS_URL}/${id}`, { method: 'DELETE' });
+}
+
+export function reverseGeocodeStation(
+  latitude: number,
+  longitude: number,
+  signal?: AbortSignal,
+): Promise<StationAddressResult> {
+  const parameters = new URLSearchParams({
+    latitude: latitude.toString(),
+    longitude: longitude.toString(),
+  });
+
+  return request<StationAddressResult>(`${STATIONS_URL}/reverse-geocode?${parameters.toString()}`, {
+    signal,
+  });
 }

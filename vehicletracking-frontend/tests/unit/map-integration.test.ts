@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import L from 'leaflet';
+import * as stationApi from '@/features/stations/api/stations';
 import MapComponent from '@/features/map/components/MapComponent.vue';
 import * as operations from '@/features/tracking/api/operations';
 import * as fleetApi from '@/features/fleet/api/fleet';
@@ -118,6 +119,48 @@ test('map workspace mode changes preserve the Leaflet owner and its SSE subscrip
   expect(remove).toHaveBeenCalledTimes(1);
   expect(vi.mocked(operations.subscribeOperations).mock.results[0].value).toHaveBeenCalledTimes(1);
 });
+test('station map picker and marker drag resolve addresses and save the latest point', async () => {
+  const geocode = vi.spyOn(stationApi, 'reverseGeocodeStation')
+    .mockResolvedValueOnce({ address: 'Địa chỉ điểm đầu', distanceMeters: 7 })
+    .mockResolvedValueOnce({ address: 'Địa chỉ sau kéo', distanceMeters: 2 });
+  const create = vi.spyOn(stationApi, 'createStation').mockImplementation(async (input) => ({
+    ...input, id: 1, active: true, createdAt: snapshot.serverTime, updatedAt: snapshot.serverTime,
+  }));
+  const createMap = vi.spyOn(L, 'map');
+  const wrapper = mount(MapComponent, { props: { initialWorkspace: 'stations' }, global: { stubs: { RouterLink: true } }, attachTo: document.body });
+  unmounts.push(() => wrapper.unmount());
+  await flushPromises();
+  await wrapper.get('.add-station-dashed-btn').trigger('click');
+  expect(wrapper.get('.context-drawer').classes()).toContain('station-form-open');
+  await wrapper.get('.picking-center-btn').trigger('click');
+  const address = () => wrapper.get<HTMLInputElement>('.station-form input[maxlength="255"]');
+  await vi.waitFor(() => expect(address().element.value).toBe('Địa chỉ điểm đầu'));
+  expect(wrapper.find('.address-lookup').exists()).toBe(false);
+  expect(geocode).toHaveBeenCalledTimes(1);
+
+  const map: L.Map = createMap.mock.results[0].value;
+  let marker: L.Marker | undefined;
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker && layer.getElement()?.querySelector('.station-map-marker.draft')) marker = layer;
+  });
+  expect(marker).toBeDefined();
+  marker!.setLatLng([10.9, 106.8]); marker!.fire('dragend');
+  await flushPromises();
+  expect(address().element.value).toBe('');
+  expect(wrapper.get('.address-lookup [role="status"]').text()).toContain('Đang lấy địa chỉ');
+  await vi.waitFor(() => expect(address().element.value).toBe('Địa chỉ sau kéo'));
+  expect(wrapper.find('.address-lookup').exists()).toBe(false);
+  expect(geocode).toHaveBeenLastCalledWith(10.9, 106.8, expect.any(AbortSignal));
+  await wrapper.get('.station-form input[maxlength="150"]').setValue('Trạm bản đồ');
+  await wrapper.get('.station-form').trigger('submit'); await flushPromises();
+  expect(create).toHaveBeenCalledWith({
+    name: 'Trạm bản đồ', address: 'Địa chỉ sau kéo', latitude: 10.9, longitude: 106.8, checkinRadiusMeters: 50,
+  });
+  expect(wrapper.find('.station-form').exists()).toBe(false);
+  expect(wrapper.get('.context-drawer').classes()).not.toContain('station-form-open');
+  expect(wrapper.get('.station-details').text()).toContain('Địa chỉ sau kéo');
+});
+
 test('twenty full map mounts dispose each map and realtime subscription', async () => {
   const remove = vi.spyOn(L.Map.prototype, 'remove');
   for (let index = 0; index < 20; index++) {

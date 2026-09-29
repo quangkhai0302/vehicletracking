@@ -30,6 +30,7 @@ main { max-width: 1510px; margin-left: 276px; padding: 42px clamp(24px, 4vw, 72p
 h1 { margin: 32px 0 18px; font-size: clamp(30px, 3.6vw, 51px); line-height: 1.22; letter-spacing: -1.8px; font-weight: 700; }
 h1 em { color: #79e5d4; font-style: normal; }
 .hero > p { max-width: 600px; color: #d5e6ea; font-size: 16px; }
+.hero > .hero-image-note { margin-top: -5px; color: #afcbd1; font-size: 12px; }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 22px; margin-top: 30px; }
 .button { display: inline-flex; align-items: center; gap: 25px; padding: 11px 19px; border-radius: 7px; background: #81ead7; color: #123a43; font-size: 13px; font-weight: 750; text-decoration: none; }
 .button:hover { background: #b2f6e7; }
@@ -69,6 +70,12 @@ li { margin-bottom: 8px; }
 .steps > li:not(:last-child)::after { content: ""; position: absolute; top: 37px; bottom: 7px; left: 14px; width: 1px; background: #b9d3d3; }
 .steps p { margin: 0; font-size: 15px; color: var(--muted); }
 .caption, figcaption { color: var(--muted); font-size: 12px; }
+.guide-shot { width: min(100%, 980px); margin: 25px 0 30px; }
+.guide-shot a { display: block; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #e5edef; box-shadow: 0 12px 32px #18394312; line-height: 0; }
+.guide-shot a:hover { border-color: #9abfc0; box-shadow: 0 15px 36px #1839431c; }
+.guide-shot img { display: block; width: 100%; height: auto; }
+.guide-shot--portrait { width: min(100%, 360px); }
+.guide-shot--detail { width: min(100%, 620px); }
 .featured { margin-top: 32px; padding: 30px; background: #eaf3f3; border: 1px solid #c1dada; border-radius: 15px; }
 .route-demo { margin: 25px 0; padding: 15px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
 .route-demo svg { display: block; width: 100%; height: auto; }
@@ -115,12 +122,13 @@ footer p { width: 100%; font-size: 11px; }
   .hero::after { display: none; }.hero > p, .hero .eyebrow, .edition, h1 em { color: #294b53; }
   h1 { font-size: 27pt; margin: 17px 0; }h2 { font-size: 18pt; }h3 { font-size: 12pt; }
   .section, .featured { padding: 22px 0; margin: 0; background: white; border: 0; border-bottom: 1px solid #bbb; }
-  .section-heading, h3 { break-after: avoid; }.card, .steps > li, .note, tr, .route-demo, details { break-inside: avoid; }
+  .section-heading, h3 { break-after: avoid; }.card, .steps > li, .note, tr, .route-demo, .guide-shot, details { break-inside: avoid; }
   .cards { gap: 12px; }.two { grid-template-columns: 1fr 1fr; }.three { grid-template-columns: repeat(3, 1fr); }
   .card { padding: 12px; }.card p, .steps p, .card li, details > div, table { font-size: 10pt; }
   .journey { display: block; }.journey li { border: 0; }.journey a { padding: 5px 12px; }.journey b, .journey span { display: inline; margin-left: 12px; }
   .steps > li::before { background: white; color: #111; border: 1px solid #777; }.note { background: white; }.legend i { print-color-adjust: exact; }
   a { color: #111; text-decoration: none; }.ui { border-color: #aaa; }.table-wrap { overflow: visible; }
+  .guide-shot a { border-color: #bbb; box-shadow: none; }
   details > div { display: block !important; }details::details-content { display: block; content-visibility: visible; }
   summary { padding: 12px; }summary::marker { content: ""; }details > div { padding: 0 12px 12px; }
 }

@@ -54,6 +54,11 @@ here:
     api-key: ${HERE_API_KEY:}
     connect-timeout-ms: ${HERE_ROUTING_CONNECT_TIMEOUT_MS:2000}
     read-timeout-ms: ${HERE_ROUTING_READ_TIMEOUT_MS:10000}
+  geocoding:
+    enabled: ${HERE_GEOCODING_ENABLED:false}
+    api-key: ${HERE_API_KEY:}
+    connect-timeout-ms: ${HERE_GEOCODING_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${HERE_GEOCODING_READ_TIMEOUT_MS:5000}
 
 reroute:
   delay-seconds: ${REROUTE_DELAY_SECONDS:600}

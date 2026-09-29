@@ -35,3 +35,8 @@ export const EMPTY_STATION_FORM: StationFormState = {
   longitude: '',
   checkinRadiusMeters: '50',
 };
+
+export interface StationAddressResult {
+  address: string | null;
+  distanceMeters: number | null;
+}

@@ -170,6 +170,9 @@ const {
   pickingLocation,
   deleteCandidate,
   selectedStation,
+  addressLookupLoading,
+  addressLookupError,
+  addressSuggestion,
 } = toRefs(stationWorkspace);
 useErrorToast(stationError);
 const {
@@ -183,6 +186,8 @@ const {
   handleSaveStation,
   handleFieldChange,
   handleDeactivate,
+  retryAddressLookup,
+  applyAddressSuggestion,
 } = stationWorkspace;
 const contextVisible = computed(
   () =>
@@ -872,6 +877,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     </div>
     <aside
       class="context-drawer glass-panel"
+      :class="{ 'station-form-open': workspace === 'stations' && formMode !== 'closed' }"
       data-map-edge="left"
       :hidden="!contextVisible"
       aria-label="Bảng dữ liệu vận hành"
@@ -1001,6 +1007,11 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
           :form="stationForm"
           :saving="savingStation"
           :picking-location="pickingLocation"
+          :address-lookup-loading="addressLookupLoading"
+          :address-lookup-error="addressLookupError"
+          :address-suggestion="addressSuggestion"
+          :on-retry-address-lookup="retryAddressLookup"
+          :on-apply-address-suggestion="applyAddressSuggestion"
           :on-close="handleCloseStationDrawer"
           :on-begin-edit="() => handleBeginEdit()"
           :on-pick-location="
@@ -1257,3 +1268,12 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     />
   </section>
 </template>
+
+<style scoped>
+@media (max-width: 899px), (max-height: 650px) {
+  /* A visible station sheet must stay above map controls, including its save action. */
+  .context-drawer.station-form-open {
+    z-index: 1060;
+  }
+}
+</style>

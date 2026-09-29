@@ -97,9 +97,27 @@ function layers(map: L.Map) {
   return result;
 }
 const originalSvg = Object.getOwnPropertyDescriptor(L.Browser, 'svg')!;
+const originalDialogShow = Object.getOwnPropertyDescriptor(
+    HTMLDialogElement.prototype,
+    'showModal',
+  ),
+  originalDialogClose = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close');
 beforeEach(() => {
   vi.mocked(shapeRoute).mockReset();
   Object.defineProperty(L.Browser, 'svg', { ...originalSvg, value: true });
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value(this: HTMLDialogElement) {
+      this.open = true;
+      this.querySelector<HTMLElement>('[autofocus]')?.focus();
+    },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+    configurable: true,
+    value(this: HTMLDialogElement) {
+      this.open = false;
+    },
+  });
 });
 afterEach(() => {
   disposals.splice(0).forEach((dispose) => dispose());
@@ -108,6 +126,13 @@ afterEach(() => {
   Object.defineProperty(L.Browser, 'svg', originalSvg);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  for (const [key, descriptor] of [
+    ['showModal', originalDialogShow],
+    ['close', originalDialogClose],
+  ] as const) {
+    if (descriptor) Object.defineProperty(HTMLDialogElement.prototype, key, descriptor);
+    else Reflect.deleteProperty(HTMLDialogElement.prototype, key);
+  }
 });
 
 test('waiting vehicle layer preserves markers for identical geometry and releases popup DOM handlers', async () => {
@@ -766,9 +791,106 @@ test('station form preserves raw fields, radius validation, dirty discard and in
   });
   await wrapper.get('[aria-label="Đóng panel"]').trigger('click');
   expect(close).not.toHaveBeenCalled();
-  expect(wrapper.find('.inline-discard-alert').exists()).toBe(true);
-  await wrapper.get('.discard-confirm-btn').trigger('click');
+  expect(wrapper.find('.inline-discard-alert').exists()).toBe(false);
+  expect((wrapper.get('.station-discard-dialog').element as HTMLDialogElement).open).toBe(true);
+  await wrapper.get('.station-discard-dialog .danger-action').trigger('click');
   expect(close).toHaveBeenCalledTimes(1);
+});
+
+test('station discard modal preserves input on stay and Escape, returns focus and cleans up', async () => {
+  const form: StationFormState = {
+    name: 'Trạm chưa lưu',
+    address: '',
+    latitude: '',
+    longitude: '',
+    checkinRadiusMeters: '50',
+  };
+  const close = vi.fn();
+  const nativeClose = vi.spyOn(HTMLDialogElement.prototype, 'close');
+  const wrapper = mount(StationDrawer, {
+    props: {
+      station: null,
+      mode: 'create',
+      form,
+      saving: false,
+      pickingLocation: false,
+      onClose: close,
+      onBeginEdit: vi.fn(),
+      onPickLocation: vi.fn(),
+      onFieldChange: vi.fn(),
+      onSave: vi.fn(async () => {}),
+      onRequestDeactivate: vi.fn(),
+    },
+    attachTo: document.body,
+  });
+  disposals.push(() => wrapper.unmount());
+  const opener = wrapper.get<HTMLButtonElement>('[aria-label="Đóng panel"]');
+  opener.element.focus();
+  await opener.trigger('click');
+  expect(wrapper.get('dialog').attributes('aria-label')).toBe('Hủy các thay đổi chưa lưu?');
+  expect(document.activeElement).toBe(wrapper.get('dialog [autofocus]').element);
+  await wrapper.get('dialog [autofocus]').trigger('click');
+  expect(wrapper.find('dialog').exists()).toBe(false);
+  expect(close).not.toHaveBeenCalled();
+  expect(wrapper.get<HTMLInputElement>('input[maxlength="150"]').element.value).toBe(form.name);
+  expect(document.activeElement).toBe(opener.element);
+
+  await opener.trigger('click');
+  await wrapper.get('dialog').trigger('cancel');
+  expect(wrapper.find('dialog').exists()).toBe(false);
+  expect(close).not.toHaveBeenCalled();
+  expect(document.activeElement).toBe(opener.element);
+
+  await opener.trigger('click');
+  await wrapper.setProps({ mode: 'closed' });
+  expect(wrapper.find('dialog').exists()).toBe(false);
+  expect(nativeClose).toHaveBeenCalledTimes(3);
+  await wrapper.setProps({ mode: 'create' });
+  await wrapper.get('[aria-label="Đóng panel"]').trigger('click');
+  wrapper.unmount();
+  expect(nativeClose).toHaveBeenCalledTimes(4);
+});
+
+test('station cancel closes a clean form directly and cannot discard while saving', async () => {
+  const form: StationFormState = {
+    name: '',
+    address: '',
+    latitude: '',
+    longitude: '',
+    checkinRadiusMeters: '50',
+  };
+  const close = vi.fn();
+  const wrapper = mount(StationDrawer, {
+    props: {
+      station: null,
+      mode: 'create',
+      form,
+      saving: false,
+      pickingLocation: false,
+      onClose: close,
+      onBeginEdit: vi.fn(),
+      onPickLocation: vi.fn(),
+      onFieldChange: vi.fn(),
+      onSave: vi.fn(async () => {}),
+      onRequestDeactivate: vi.fn(),
+    },
+  });
+  disposals.push(() => wrapper.unmount());
+  await wrapper.get('.drawer-actions .secondary-action').trigger('click');
+  expect(close).toHaveBeenCalledOnce();
+  expect(wrapper.find('dialog').exists()).toBe(false);
+  await wrapper.setProps({ form: { ...form, name: 'Trạm chưa lưu' } });
+  await wrapper.get('.drawer-actions .secondary-action').trigger('click');
+  expect(wrapper.find('dialog').exists()).toBe(true);
+  await wrapper.setProps({ saving: true });
+  expect(wrapper.get('dialog .danger-action').attributes('disabled')).toBeDefined();
+  await wrapper.get('dialog').trigger('cancel');
+  expect(wrapper.find('dialog').exists()).toBe(true);
+  expect(close).toHaveBeenCalledOnce();
+  await wrapper.setProps({ saving: false });
+  await wrapper.get('dialog .danger-action').trigger('click');
+  expect(close).toHaveBeenCalledTimes(2);
+  expect(wrapper.find('dialog').exists()).toBe(false);
 });
 
 test('shape editor requires a fresh preview before save and preserves route-shape payload', async () => {
