@@ -518,6 +518,39 @@ test('fixed-schedule trip shows vehicle and driver selectors without opening edi
   wrapper.unmount();
 });
 
+test('fixed-schedule stop fallback ignores stale route snapshot ETA from previous day', async () => {
+  const scheduled = '2026-09-30T02:00:00Z';
+  const stale = '2026-09-29T02:01:00Z';
+  const fixed: TripDetail = {
+    ...detail(1),
+    trip: { ...trip(1), dispatchMode: 'FIXED_SCHEDULE', scheduledDepartureAt: scheduled, plannedEndAt: '2026-09-30T02:01:00Z' },
+    stops: [{
+      sequenceNumber: 2, stationId: 2, stationName: 'Trạm cuối', latitude: 10.77, longitude: 106.7,
+      checkinRadiusMeters: 50, dwellDurationSeconds: 0, arrivalOffsetSeconds: 60, departureOffsetSeconds: 60,
+      plannedArrivalAt: stale, plannedDepartureAt: stale,
+    }],
+  };
+  vi.mocked(fetchTripEta).mockResolvedValue({
+    tripId: 1, routeId: 1, calculatedAt: stale, source: 'ROUTE_SNAPSHOT', status: 'STALE',
+    trafficObservedAt: null, trafficFetchedAt: null, nextStopSequence: 2,
+    baselineRemainingSeconds: 60, totalRemainingSeconds: 60, affectedSegments: [], warning: null,
+    stops: [{ sequenceNumber: 2, stationName: 'Trạm cuối', state: 'NEXT', etaAt: stale,
+      etaSeconds: 60, actualArrivalAt: null, source: 'ROUTE_SNAPSHOT' }],
+  });
+  const wrapper = mount(TripDetailPanel, {
+    props: {
+      detail: fixed, loading: false, busy: false, drivers: [driver], vehicles: [vehicle],
+      onClose: vi.fn(), onRetry: vi.fn(), onAction: vi.fn().mockResolvedValue(true), onFocusStop: vi.fn(),
+    },
+    global: { stubs: { RouteRevisionPanel: true } },
+  });
+  await flushPromises();
+  expect(wrapper.get('.trip-eta-stop').text()).toContain('Dự kiến đến (theo lịch)');
+  expect(wrapper.get('.trip-eta-stop').text()).toContain(displayTripTime('2026-09-30T02:01:00Z'));
+  expect(wrapper.get('.trip-eta-stop').text()).not.toContain(displayTripTime(stale));
+  wrapper.unmount();
+});
+
 test('ETA polls ten seconds after completion and stops timers on disposal', async () => {
   vi.useFakeTimers();
   const value: TripEta = {

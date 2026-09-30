@@ -50,7 +50,8 @@ public record TripSummaryResponse(Long id, Long vehicleId, String vehiclePlateNu
     private static Instant plannedEndAt(TripEntity trip) {
         return trip.getStops().stream()
                 .max(Comparator.comparing(stop -> stop.getSequenceNumber()))
-                .map(stop -> stop.getPlannedArrivalAt())
+                // Live traffic refreshes plannedArrivalAt, but must not change the scheduled baseline.
+                .map(stop -> trip.getScheduledDepartureAt().plusSeconds(stop.getArrivalOffsetSeconds()))
                 .orElseGet(() -> trip.getScheduledDepartureAt()
                         .plusSeconds(trip.getRoute().getEstimatedTripDurationSeconds()));
     }

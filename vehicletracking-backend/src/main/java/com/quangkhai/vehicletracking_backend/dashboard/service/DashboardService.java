@@ -56,7 +56,7 @@ public class DashboardService {
     private Instant plannedEndAt(TripEntity trip) {
         return trip.getStops().stream()
                 .max(Comparator.comparingInt(stop -> stop.getSequenceNumber()))
-                .map(stop -> stop.getPlannedArrivalAt())
+                .map(stop -> trip.getScheduledDepartureAt().plusSeconds(stop.getArrivalOffsetSeconds()))
                 .orElseGet(() -> trip.getScheduledDepartureAt()
                         .plusSeconds(trip.getRoute().getEstimatedTripDurationSeconds()));
     }

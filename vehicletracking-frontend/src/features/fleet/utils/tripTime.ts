@@ -17,6 +17,9 @@ export function toLocalDateTimeInput(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+export const scheduledStopArrivalAt = (departureAt: string, arrivalOffsetSeconds: number) =>
+  new Date(Date.parse(departureAt) + arrivalOffsetSeconds * 1000).toISOString();
+
 export const tripReferenceTime = (trip: TripSummary) =>
   trip.dispatchMode === 'FIXED_SCHEDULE' ? trip.scheduledDepartureAt : trip.createdAt;
 

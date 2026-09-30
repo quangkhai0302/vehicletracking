@@ -94,6 +94,20 @@ test('fixed schedule uses admin presentation and keeps planned and actual times 
   expect(wrapper.get('.trip-card-heading').text()).toContain('Lịch thử nghiệm');
 });
 
+test('fixed-schedule stop times stay on the scheduled day after live ETA refresh', async () => {
+  const data = detail();
+  data.trip = {
+    ...data.trip,
+    dispatchMode: 'FIXED_SCHEDULE',
+    scheduledDepartureAt: '2026-09-30T02:00:00Z',
+    plannedEndAt: '2026-09-30T02:01:00Z',
+    status: 'IN_PROGRESS',
+  };
+  const wrapper = await render(data);
+  expect(wrapper.findAll('.trip-eta-stop')[1]!.text()).toContain('2026-09-30T02:01:00.000Z');
+  expect(wrapper.findAll('.trip-eta-stop')[1]!.text()).not.toContain(stamp);
+});
+
 test('on-demand pending trip shows offsets instead of misleading planned arrival timestamps', async () => {
   const wrapper = await render();
   expect(wrapper.get('.trip-times').text()).toContain('Tạo chuyến tức thời');

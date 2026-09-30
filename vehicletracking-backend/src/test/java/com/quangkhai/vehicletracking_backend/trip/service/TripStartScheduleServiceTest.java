@@ -6,6 +6,7 @@ import com.quangkhai.vehicletracking_backend.traffic.TrafficStatus;
 import com.quangkhai.vehicletracking_backend.traffic.eta.TrafficEtaService;
 import com.quangkhai.vehicletracking_backend.traffic.eta.TripEtaResponse;
 import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
+import com.quangkhai.vehicletracking_backend.trip.dto.TripSummaryResponse;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStopEntity;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
@@ -32,8 +33,8 @@ class TripStartScheduleServiceTest {
 
     @Test
     void refreshesOnlyTheActiveTripSnapshotFromCurrentTrafficEta() {
-        Instant originalDeparture = Instant.parse("2026-09-16T09:00:00Z");
-        Instant calculatedAt = Instant.parse("2026-09-16T09:06:00Z");
+        Instant originalDeparture = Instant.parse("2026-09-30T06:55:00Z");
+        Instant calculatedAt = Instant.parse("2026-09-29T06:55:00Z");
         VehicleEntity vehicle = new VehicleEntity("51B12345", "Xe A", null);
         ReflectionTestUtils.setField(vehicle, "id", 1L);
         var route = TripFixtures.route(TripFixtures.station("A"), TripFixtures.station("B"));
@@ -55,6 +56,8 @@ class TripStartScheduleServiceTest {
         assertThat(trip.getStops()).extracting(stop -> stop.getPlannedArrivalAt())
                 .containsExactly(calculatedAt, calculatedAt.plusSeconds(100), calculatedAt.plusSeconds(400));
         assertThat(trip.getStops().get(1).getPlannedDepartureAt()).isEqualTo(calculatedAt.plusSeconds(160));
+        assertThat(TripSummaryResponse.from(trip).scheduledDepartureAt()).isEqualTo(originalDeparture);
+        assertThat(TripSummaryResponse.from(trip).plannedEndAt()).isEqualTo(originalDeparture.plusSeconds(660));
         verify(trips).flush();
     }
 

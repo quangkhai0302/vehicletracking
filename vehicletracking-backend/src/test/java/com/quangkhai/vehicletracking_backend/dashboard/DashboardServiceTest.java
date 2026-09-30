@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,13 +68,22 @@ class DashboardServiceTest {
     void summaryCountsOnlyFixedScheduleTripsPastPlannedEndAsOverdue() {
         Instant now = Instant.parse("2026-09-21T08:00:00Z");
         var overdueTrip = org.mockito.Mockito.mock(TripEntity.class);
+        var futureTrip = org.mockito.Mockito.mock(TripEntity.class);
         var onDemandTrip = org.mockito.Mockito.mock(TripEntity.class);
         var finalStop = org.mockito.Mockito.mock(TripStopEntity.class);
+        var futureStop = org.mockito.Mockito.mock(TripStopEntity.class);
         when(operationsClock.instant()).thenReturn(now);
-        when(trips.findAllByStatus(TripStatus.IN_PROGRESS)).thenReturn(List.of(overdueTrip, onDemandTrip));
-        when(finalStop.getPlannedArrivalAt()).thenReturn(now.minusSeconds(1));
+        when(trips.findAllByStatus(TripStatus.IN_PROGRESS)).thenReturn(List.of(overdueTrip, futureTrip, onDemandTrip));
+        when(finalStop.getArrivalOffsetSeconds()).thenReturn(3600L);
+        when(overdueTrip.getScheduledDepartureAt()).thenReturn(now.minusSeconds(7200));
         when(overdueTrip.getSchedule()).thenReturn(org.mockito.Mockito.mock(TripScheduleEntity.class));
         when(overdueTrip.getStops()).thenReturn(List.of(finalStop));
+        when(futureStop.getArrivalOffsetSeconds()).thenReturn(3600L);
+        // A live ETA on the previous day cannot make a future scheduled trip overdue.
+        lenient().when(futureStop.getPlannedArrivalAt()).thenReturn(now.minusSeconds(3600));
+        when(futureTrip.getScheduledDepartureAt()).thenReturn(now.plusSeconds(86400));
+        when(futureTrip.getSchedule()).thenReturn(org.mockito.Mockito.mock(TripScheduleEntity.class));
+        when(futureTrip.getStops()).thenReturn(List.of(futureStop));
         when(trips.countByStatus(TripStatus.IN_PROGRESS)).thenReturn(1L);
         when(trips.countByStatus(TripStatus.SCHEDULED)).thenReturn(0L);
         when(trips.countByStatus(TripStatus.COMPLETED)).thenReturn(0L);

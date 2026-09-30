@@ -21,7 +21,7 @@ import {
   type TripDetail,
   type TripStop,
 } from '@/features/fleet/types/fleet';
-import { displayTripTime } from '@/features/fleet/utils/tripTime';
+import { displayTripTime, scheduledStopArrivalAt } from '@/features/fleet/utils/tripTime';
 import { formatDuration } from '@/shared/utils/format';
 import FleetConfirmDialog from './FleetConfirmDialog.vue';
 import { useTripCheckIns } from '@/features/fleet/composables/useTripCheckIns';
@@ -113,6 +113,8 @@ const canStart = computed(
     props.drivers.some((driver) => driver.id === trip.value?.driver?.id && driver.active),
 );
 const etaLabel = computed(() => {
+  if (isFixedSchedule.value && eta.data?.source === 'ROUTE_SNAPSHOT')
+    return 'Dự kiến đến (theo lịch)';
   if (eta.data?.source === 'HERE_LIVE' && eta.data.status !== 'STALE')
     return 'Dự kiến đến (theo giao thông)';
   if (eta.data?.source === 'HERE_LAST_KNOWN' || eta.data?.status === 'STALE')
@@ -155,7 +157,8 @@ async function deleteTrip() {
 const actualVisitTime = (visit: StopVisit) => displayTripTime(visit.actualArrivalAt);
 const simulatedVisitTime = (visit: StopVisit) => displayTripTime(visit.simulatedArrivalAt);
 function fallbackStopEta(stop: TripStop) {
-  if (isFixedSchedule.value) return displayTripTime(stop.plannedArrivalAt);
+  if (isFixedSchedule.value && trip.value)
+    return displayTripTime(scheduledStopArrivalAt(trip.value.scheduledDepartureAt, stop.arrivalOffsetSeconds));
   if (!trip.value?.startedAt)
     return `Sau ${formatDuration(stop.arrivalOffsetSeconds)} từ lúc khởi hành`;
   return displayTripTime(
@@ -473,7 +476,8 @@ function fallbackStopEta(stop: TripStop) {
                       class="trip-eta-stop"
                       >{{ etaLabel }}:
                       {{
-                        etaByStop.get(stop.sequenceNumber)?.etaAt
+                        etaByStop.get(stop.sequenceNumber)?.etaAt &&
+                        (!isFixedSchedule || eta.data?.source !== 'ROUTE_SNAPSHOT')
                           ? displayTripTime(etaByStop.get(stop.sequenceNumber)!.etaAt)
                           : eta.data?.status === 'BLOCKED'
                             ? 'Đường bị đóng'

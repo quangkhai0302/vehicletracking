@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { BusFront, Clock3, Motorbike, Navigation, Route, UserRound, X } from '@lucide/vue';
 import { RouterLink } from 'vue-router';
 import { TRIP_STATUS_LABELS, type TripDetail, type TripStop } from '@/features/fleet/types/fleet';
-import { tripDispatchLabel } from '@/features/fleet/utils/tripTime';
+import { scheduledStopArrivalAt, tripDispatchLabel } from '@/features/fleet/utils/tripTime';
 import { formatDuration } from '@/shared/utils/format';
 import SidePanel from '@/shared/components/SidePanel.vue';
 import '@/features/fleet/styles/driver-trip-detail.css';
@@ -17,7 +17,8 @@ const trip = computed(() => props.detail.trip);
 const isFixedSchedule = computed(() => trip.value.dispatchMode === 'FIXED_SCHEDULE');
 
 function stopArrival(stop: TripStop) {
-  if (isFixedSchedule.value) return props.formatTime(stop.plannedArrivalAt);
+  if (isFixedSchedule.value)
+    return props.formatTime(scheduledStopArrivalAt(trip.value.scheduledDepartureAt, stop.arrivalOffsetSeconds));
   if (!trip.value.startedAt)
     return `Sau ${formatDuration(stop.arrivalOffsetSeconds)} từ lúc khởi hành`;
   return props.formatTime(
