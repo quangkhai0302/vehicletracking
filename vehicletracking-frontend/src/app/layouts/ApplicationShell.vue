@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
+import { computed, onScopeDispose, provide, ref, shallowRef, watch } from 'vue';
 import { BookOpen, LogOut, Menu, Navigation, PanelLeftClose, PanelLeftOpen } from '@lucide/vue';
 import { RouterLink, RouterView, useRoute } from 'vue-router';
 import { findRoute, matchesNavigationItem, navigationGroups, type NavigationItem } from '../navigation';
 import { useAuth } from '@/features/auth/composables/useAuth';
+import { liveOperationsKey, useLiveOperations } from '@/features/tracking/composables/useLiveOperations';
+import { useDriverRouteNotifications } from '@/features/tracking/composables/useDriverRouteNotifications';
 import './application-shell.css';
 const location = useRoute(),
   auth = useAuth();
+const live = useLiveOperations();
+provide(liveOperationsKey, live);
+useDriverRouteNotifications(() => live.snapshot);
 const route = computed(() => findRoute(location.path));
 const navigationOpen = ref(false),
   mapNavigationExpanded = ref(false);

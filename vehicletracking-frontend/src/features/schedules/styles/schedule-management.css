@@ -2,6 +2,39 @@
   gap: 22px;
 }
 
+.schedule-dispatch-policy {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+.schedule-dispatch-policy legend { padding: 0 6px; font-weight: 800; }
+.schedule-dispatch-policy p, .schedule-backup-list small { color: var(--text-secondary); font-size: 12px; }
+.schedule-policy-option { display: flex !important; align-items: center; gap: 9px; }
+.schedule-policy-option input { width: auto !important; flex: none; }
+.schedule-backup-list { display: grid; gap: 9px; }
+.schedule-backup-list ol { display: grid; gap: 7px; margin: 0; padding-left: 24px; }
+.schedule-backup-list li { display: flex; align-items: center; gap: 6px; }
+.schedule-backup-list li span { flex: 1; }
+.schedule-backup-list button, .schedule-backup-add button {
+  min-height: 30px;
+  padding: 5px 9px;
+  color: #e0f2fe;
+  background: #075985;
+  border: 1px solid #0ea5e9;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.schedule-backup-list button:disabled { cursor: not-allowed; opacity: .5; }
+.schedule-backup-add { display: flex; gap: 8px; }
+.schedule-backup-add > :first-child { flex: 1; min-width: 0; }
+@media (max-width: 600px) {
+  .schedule-backup-list li { flex-wrap: wrap; }
+  .schedule-backup-add { flex-direction: column; }
+}
+
 .schedule-hero {
   display: flex;
   align-items: center;

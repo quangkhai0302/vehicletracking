@@ -20,6 +20,13 @@ public interface UserAccountRepository extends JpaRepository<UserAccountEntity, 
 
     boolean existsByDriverId(Long driverId);
 
+    @Query("""
+            select case when count(account) > 0 then true else false end
+            from UserAccountEntity account
+            where account.driver.id = :driverId and account.role = DRIVER and account.active = true
+            """)
+    boolean existsActiveDriverAccount(@Param("driverId") long driverId);
+
     /**
      * Re-check a session principal against persistent account, driver, and
      * credential state. The stored hash comparison also invalidates sessions

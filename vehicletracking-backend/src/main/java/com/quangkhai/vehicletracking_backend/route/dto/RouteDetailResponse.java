@@ -55,8 +55,13 @@ public record RouteDetailResponse(
             String encodedPolyline,
             long distanceMeters,
             long travelDurationSeconds,
-            long baseTravelDurationSeconds
-    ) {}
+            long baseTravelDurationSeconds,
+            List<RouteInstruction> instructions
+    ) {
+        public RouteSectionResponse(int sequence, int destination, String polyline, long distance, long travel, long base) {
+            this(sequence, destination, polyline, distance, travel, base, List.of());
+        }
+    }
 
     public static RouteDetailResponse from(RouteEntity entity) {
         List<RouteSectionEntity> rawSections = entity.getSections();
@@ -123,7 +128,8 @@ public record RouteDetailResponse(
                         s.getEncodedPolyline(),
                         s.getDistanceMeters(),
                         s.getTravelDurationSeconds(),
-                        s.getBaseTravelDurationSeconds()
+                        s.getBaseTravelDurationSeconds(),
+                        s.getInstructions()
                 ))
                 .toList();
 

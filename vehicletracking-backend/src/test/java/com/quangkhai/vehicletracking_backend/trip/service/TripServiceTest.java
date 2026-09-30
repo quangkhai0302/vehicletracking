@@ -2,6 +2,11 @@ package com.quangkhai.vehicletracking_backend.trip.service;
 
 import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
 import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
+import com.quangkhai.vehicletracking_backend.dispatch.repository.TripDispatchRepository;
+import com.quangkhai.vehicletracking_backend.dispatch.repository.TripDispatchEventRepository;
+import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchStartGuard;
+import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchLifecycleService;
+import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchAvailabilityService;
 import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
@@ -42,6 +47,11 @@ class TripServiceTest {
     @Mock RouteRepository routes;
     @Mock TripScheduleRepository schedules;
     @Mock TripStopVisitRepository visits;
+    @Mock TripDispatchRepository dispatches;
+    @Mock TripDispatchEventRepository dispatchEvents;
+    @Mock DispatchStartGuard dispatchStartGuard;
+    @Mock DispatchLifecycleService dispatchLifecycle;
+    @Mock DispatchAvailabilityService dispatchAvailability;
     @Mock Clock operationsClock;
     @Mock ApplicationEventPublisher events;
     @InjectMocks TripService service;

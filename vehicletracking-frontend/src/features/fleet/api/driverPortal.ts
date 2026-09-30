@@ -1,6 +1,7 @@
 import type { TripDetail, TripStatus, TripSummary } from '@/features/fleet/types/fleet';
 import type { TripSchedule } from '@/features/schedules/types/schedule';
 import { appFetch } from '@/shared/api/http';
+import type { DriverNavigationSnapshot, DriverRouteOptions } from '@/features/fleet/types/driverNavigation';
 
 const BASE = `${(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')}/api/v1`;
 
@@ -25,3 +26,14 @@ export function fetchMyTrips(options: { status?: TripStatus; from?: string; to?:
 
 export const fetchMyTrip = (id: number, signal?: AbortSignal) => request<TripDetail>(`/driver/trips/${id}`, { signal });
 export const fetchMySchedules = (signal?: AbortSignal) => request<TripSchedule[]>('/driver/schedules', { signal });
+
+export const fetchDriverNavigation = (id: number, signal?: AbortSignal) =>
+  request<DriverNavigationSnapshot>(`/driver/trips/${id}/navigation`, { signal });
+export const startDriverTrip = (id: number, signal?: AbortSignal) =>
+  request<DriverNavigationSnapshot>(`/driver/trips/${id}/start`, { method: 'POST', signal });
+export const fetchDriverRouteOptions = (id: number, signal?: AbortSignal) =>
+  request<DriverRouteOptions>(`/driver/trips/${id}/route-options`, { method: 'POST', signal });
+export const applyDriverRouteOption = (id: number, token: string, optionIndex: number, signal?: AbortSignal) =>
+  request<DriverNavigationSnapshot>(`/driver/trips/${id}/route-options/${encodeURIComponent(token)}/apply`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ optionIndex }), signal,
+  });

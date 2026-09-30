@@ -2,6 +2,15 @@ package com.quangkhai.vehicletracking_backend.trip.service;
 
 import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
 import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
+import com.quangkhai.vehicletracking_backend.dispatch.entity.TripDispatchEntity;
+import com.quangkhai.vehicletracking_backend.dispatch.entity.DispatchActorKind;
+import com.quangkhai.vehicletracking_backend.dispatch.entity.DispatchEventKind;
+import com.quangkhai.vehicletracking_backend.dispatch.entity.TripDispatchEventEntity;
+import com.quangkhai.vehicletracking_backend.dispatch.repository.TripDispatchRepository;
+import com.quangkhai.vehicletracking_backend.dispatch.repository.TripDispatchEventRepository;
+import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchStartGuard;
+import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchLifecycleService;
+import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchAvailabilityService;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
@@ -25,6 +34,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import static org.springframework.http.HttpStatus.*;
 
 @Service
@@ -36,6 +47,11 @@ public class TripService {
     private final RouteRepository routes;
     private final TripScheduleRepository schedules;
     private final TripStopVisitRepository visits;
+    private final TripDispatchRepository dispatches;
+    private final TripDispatchEventRepository dispatchEvents;
+    private final DispatchStartGuard dispatchStartGuard;
+    private final DispatchLifecycleService dispatchLifecycle;
+    private final DispatchAvailabilityService dispatchAvailability;
     private final Clock operationsClock;
     private final ApplicationEventPublisher events;
 
@@ -43,11 +59,14 @@ public class TripService {
     public List<TripSummaryResponse> findAll(Long vehicleId) {
         var result = vehicleId == null ? trips.findAllByOrderByScheduledDepartureAtDescIdDesc()
                 : trips.findAllByVehicleIdOrderByScheduledDepartureAtDescIdDesc(vehicleId);
-        return result.stream().map(TripSummaryResponse::from).toList();
+        var byTrip = dispatches.findAllById(result.stream().map(TripEntity::getId).toList()).stream()
+                .collect(Collectors.toMap(TripDispatchEntity::getTripId, Function.identity()));
+        return result.stream().map(item -> TripSummaryResponse.from(item, byTrip.get(item.getId()))).toList();
     }
     @Transactional(readOnly = true)
     public TripDetailResponse findById(long id) {
-        return TripDetailResponse.from(trips.findById(id).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy chuyến đi.")));
+        TripEntity trip = trips.findById(id).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy chuyến đi."));
+        return response(trip);
     }
     @Transactional
     public TripDetailResponse create(TripCreateRequest input) {
@@ -81,6 +100,8 @@ public class TripService {
             ensureNoFixedScheduleConflict(vehicleId, departure,
                     route.getEstimatedTripDurationSeconds(), null);
         }
+        requireAutoReservationFree(vehicleId, driverId, departure,
+                route.getEstimatedTripDurationSeconds(), null);
         var detail = RouteDetailResponse.from(route);
         TripEntity trip = new TripEntity(vehicle, route, departure, driver, schedule, occurrenceAt == null ? null : occurrenceAt.truncatedTo(ChronoUnit.MICROS));
         try {
@@ -92,7 +113,17 @@ public class TripService {
         } catch (DateTimeException | ArithmeticException ex) {
             throw new ResponseStatusException(BAD_REQUEST, "Thời gian lịch trình vượt phạm vi hỗ trợ.");
         }
-        return TripDetailResponse.from(trips.saveAndFlush(trip));
+        TripEntity saved = trips.saveAndFlush(trip);
+        if (schedule != null) {
+            long duration = saved.getStops().stream().mapToLong(TripStopEntity::getDepartureOffsetSeconds)
+                    .max().orElse(1);
+            TripDispatchEntity dispatch = new TripDispatchEntity(saved, schedule, duration, clockNow());
+            dispatches.save(dispatch);
+            dispatchEvents.save(new TripDispatchEventEntity(dispatch, DispatchEventKind.CREATED,
+                    DispatchActorKind.SYSTEM, null, null, null,
+                    saved.getDriver() == null ? null : saved.getDriver().getId(), null, clockNow()));
+        }
+        return response(saved);
     }
     @Transactional
     public void delete(long id) {
@@ -109,34 +140,49 @@ public class TripService {
     @Transactional
     public TripDetailResponse assignDriver(long id, long driverId) {
         TripEntity trip = findScheduledLocked(id);
+        Long previousDriverId = trip.getDriver() == null ? null : trip.getDriver().getId();
         VehicleEntity vehicle = lockVehicle(trip.getVehicle().getId());
         requireActive(vehicle);
         DriverEntity driver = lockDriver(driverId);
         requireActive(driver);
+        if (dispatchAvailability.driverReservedForAuto(driverId, trip.getScheduledDepartureAt(),
+                trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId()))
+            throw new ResponseStatusException(CONFLICT, "Tài xế đã được giữ chỗ cho chuyến tự động hoặc đã báo bận.");
         trip.assignDriver(driver);
+        if (!java.util.Objects.equals(previousDriverId, driverId))
+            dispatchLifecycle.assignmentChanged(trip, previousDriverId, "Admin đổi tài xế.");
         return flushAssignment(trip);
     }
     @Transactional
     public void unassignDriver(long id) {
         TripEntity trip = findScheduledLocked(id);
+        Long previousDriverId = trip.getDriver() == null ? null : trip.getDriver().getId();
         trip.assignDriver(null);
+        if (previousDriverId != null)
+            dispatchLifecycle.assignmentChanged(trip, previousDriverId, "Admin bỏ gán tài xế.");
         trips.flush();
     }
     @Transactional
     public TripDetailResponse assignVehicle(long id, long vehicleId) {
         TripEntity trip = findScheduledLocked(id);
-        if (trip.getVehicle().getId() == vehicleId) return TripDetailResponse.from(trip);
+        if (trip.getVehicle().getId() == vehicleId) return response(trip);
         VehicleEntity vehicle = lockVehicle(vehicleId);
         requireActive(vehicle);
         if (trips.existsByVehicleIdAndStatusIn(vehicleId, List.of(TripStatus.IN_PROGRESS)))
             throw new ResponseStatusException(CONFLICT, "Xe đang chạy một chuyến khác.");
         ensureNoFixedScheduleConflict(vehicleId, trip.getScheduledDepartureAt(),
                 trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId());
+        if (dispatchAvailability.vehicleReservedForAuto(vehicleId, trip.getScheduledDepartureAt(),
+                trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId()))
+            throw new ResponseStatusException(CONFLICT, "Xe đã được giữ chỗ cho chuyến tự động.");
         trip.assignVehicle(vehicle);
+        dispatchLifecycle.assignmentChanged(trip, trip.getDriver() == null ? null : trip.getDriver().getId(), "Admin đổi xe.");
         return flushAssignment(trip, "xe");
     }
     @Transactional
     public TripDetailResponse start(long id) { return transition(id, TripStatus.IN_PROGRESS); }
+    @Transactional
+    public TripDetailResponse startAuto(long id) { return transition(id, TripStatus.IN_PROGRESS, null, true); }
     @Transactional
     public TripDetailResponse complete(long id) { return transition(id, TripStatus.COMPLETED); }
     @Transactional
@@ -154,8 +200,14 @@ public class TripService {
     }
 
     private TripDetailResponse transition(long id, TripStatus target, String cancellationReason) {
+        return transition(id, target, cancellationReason, false);
+    }
+
+    private TripDetailResponse transition(long id, TripStatus target, String cancellationReason, boolean autoStart) {
         TripEntity trip = trips.findLockedById(id).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy chuyến đi."));
-        if (trip.getStatus() == target) return TripDetailResponse.from(trip);
+        if (trip.getStatus() == target) return response(trip);
+        if (target == TripStatus.IN_PROGRESS && !autoStart)
+            dispatchStartGuard.rejectManualFirstStart(id, trip.getStatus(), trip.getAttemptNumber());
         // Same vehicle lock as create/deactivate. Different trips for this vehicle serialize here.
         VehicleEntity vehicle = lockVehicle(trip.getVehicle().getId());
         Instant now = clockNow();
@@ -167,6 +219,8 @@ public class TripService {
                     throw new ResponseStatusException(CONFLICT, "Chuyến phải được gán tài xế trước khi khởi hành.");
                 DriverEntity driver = lockDriver(trip.getDriver().getId());
                 requireActive(driver);
+                requireAutoReservationFree(vehicle.getId(), driver.getId(), now,
+                        trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId());
                 if (trips.existsByDriverIdAndStatusAndIdNot(driver.getId(), TripStatus.IN_PROGRESS, trip.getId()))
                     throw new ResponseStatusException(CONFLICT, "Tài xế đang chạy một chuyến khác.");
                 if (trips.existsByVehicleIdAndStatusIn(vehicle.getId(), List.of(TripStatus.IN_PROGRESS)))
@@ -191,7 +245,8 @@ public class TripService {
             throw new ResponseStatusException(CONFLICT, "Trạng thái chuyến đã thay đổi hoặc xe/tài xế đang chạy chuyến khác. Hãy tải lại.", ex);
         }
         if (target == TripStatus.IN_PROGRESS) events.publishEvent(new TripStartedEvent(trip.getId()));
-        return TripDetailResponse.from(trip);
+        if (target == TripStatus.COMPLETED || target == TripStatus.CANCELLED) dispatchLifecycle.closed(trip);
+        return response(trip);
     }
     private VehicleEntity lockVehicle(long id) {
         return vehicles.findLockedById(id).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy xe."));
@@ -225,13 +280,16 @@ public class TripService {
     private TripDetailResponse flushAssignment(TripEntity trip, String assignment) {
         try {
             trips.flush();
-            return TripDetailResponse.from(trip);
+            return response(trip);
         } catch (DataIntegrityViolationException ex) {
             throw new ResponseStatusException(CONFLICT, "Không thể đổi " + assignment + ". Hãy tải lại.", ex);
         }
     }
     private ResponseStatusException invalidTransition() {
         return new ResponseStatusException(CONFLICT, "Không thể thực hiện thao tác với trạng thái chuyến hiện tại. Hãy tải lại.");
+    }
+    private TripDetailResponse response(TripEntity trip) {
+        return TripDetailResponse.from(trip, dispatches.findById(trip.getId()).orElse(null));
     }
     private Instant clockNow() {
         return (operationsClock == null ? Instant.now() : operationsClock.instant()).truncatedTo(ChronoUnit.MICROS);
@@ -251,6 +309,14 @@ public class TripService {
             if (overlaps(other, departure, end))
                 throw new ResponseStatusException(CONFLICT, "Xe đã có lịch chạy cố định bị chồng thời gian.");
         }
+    }
+
+    private void requireAutoReservationFree(long vehicleId, Long driverId, Instant departure,
+                                            long durationSeconds, Long exceptTripId) {
+        if (dispatchAvailability.vehicleReservedForAuto(vehicleId, departure, durationSeconds, exceptTripId))
+            throw new ResponseStatusException(CONFLICT, "Xe đã được giữ chỗ cho chuyến tự động.");
+        if (driverId != null && dispatchAvailability.driverReservedForAuto(driverId, departure, durationSeconds, exceptTripId))
+            throw new ResponseStatusException(CONFLICT, "Tài xế đã được giữ chỗ cho chuyến tự động hoặc đã báo bận.");
     }
 
     private boolean overlaps(TripEntity other, Instant departure, Instant end) {

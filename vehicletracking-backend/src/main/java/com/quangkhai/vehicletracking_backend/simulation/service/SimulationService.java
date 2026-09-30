@@ -1,6 +1,8 @@
 package com.quangkhai.vehicletracking_backend.simulation.service;
 
 import com.quangkhai.vehicletracking_backend.checkin.repository.TripCheckInStateRepository;
+import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchStartGuard;
+import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchLifecycleService;
 import com.quangkhai.vehicletracking_backend.reroute.entity.RouteRevisionStatus;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripRouteRevisionRepository;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripTrafficAlertStateRepository;
@@ -46,17 +48,31 @@ public class SimulationService {
     private final TripTrafficAlertStateRepository alertStates;
     private final TripRouteRevisionRepository revisions;
     private final com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry;
+    private final DispatchStartGuard dispatchStartGuard;
+    private final DispatchLifecycleService dispatchLifecycle;
 
     @Transactional
     public SimulationResponse play(long tripId) {
+        return playInternal(tripId, false);
+    }
+
+    @Transactional
+    public SimulationResponse playAuto(long tripId) {
+        return playInternal(tripId, true);
+    }
+
+    private SimulationResponse playInternal(long tripId, boolean autoStart) {
         var trip=lockTrip(tripId);
         var run=runs.findByTripId(tripId).orElse(null);
+        if (autoStart && run != null) throw conflict("Chuyến đã có phiên mô phỏng; không tự chạy lại.");
+        if (!autoStart) dispatchStartGuard.rejectManualFirstStart(tripId, trip.getStatus(), trip.getAttemptNumber());
         if(run!=null && run.getStatus()==SimulationStatus.RUNNING && trip.getStatus()==TripStatus.IN_PROGRESS) return describe(trip,run);
         if(run!=null && run.getStatus()!=SimulationStatus.PAUSED) throw conflict("Phiên đã kết thúc. Dùng Chạy lại để bắt đầu lần mô phỏng mới.");
         if(trip.getStatus()!=TripStatus.SCHEDULED && trip.getStatus()!=TripStatus.IN_PROGRESS) throw conflict("Chuyến đã kết thúc.");
         if(samples.existsByTripIdAndSource(tripId,TelemetrySource.GPS)) throw conflict("Chuyến đã nhận GPS; hãy tạo chuyến khác để mô phỏng.");
         motion(trip); // Validate before modifying trip lifecycle.
-        tripService.start(tripId);
+        if (autoStart) tripService.startAuto(tripId);
+        else tripService.start(tripId);
         var now=now();
         if(run==null) run=runs.saveAndFlush(new SimulationRunEntity(tripId,now));
         run.changeStatus(SimulationStatus.RUNNING,now);
@@ -106,6 +122,7 @@ public class SimulationService {
         }
         attempts.saveAndFlush(new SimulationAttemptEntity(trip,run,now));
         trip.replay(now); run.replay(now);
+        dispatchLifecycle.closed(trip);
         checkInStates.findById(tripId).ifPresent(state -> state.replay(trip.getAttemptNumber()));
         alertStates.findById(tripId).ifPresent(state -> state.replay(now));
         revisions.findTopByTripIdAndStatusOrderByRevisionNumberDesc(tripId,RouteRevisionStatus.ACTIVE)
@@ -122,6 +139,14 @@ public class SimulationService {
     public void tick(long tripId) {
         var trip=lockTrip(tripId); var run=requireRun(tripId);
         advance(trip,run,now());
+    }
+    @Transactional
+    public void refreshRoute(long tripId) {
+        var trip = lockTrip(tripId); var run = requireRun(tripId);
+        if (trip.getStatus() != TripStatus.IN_PROGRESS || run.getStatus() != SimulationStatus.RUNNING)
+            throw conflict("Chuyến không còn đang mô phỏng.");
+        geometry.applyActive(trip, run.getElapsedSeconds());
+        emit(trip, run, false);
     }
     @Transactional
     public void recover(long tripId) {

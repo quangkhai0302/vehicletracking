@@ -23,7 +23,7 @@ import PageHeading from '@/shared/components/PageHeading.vue';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
 import { notifySuccess } from '@/shared/notifications/toast';
 import '@/features/reports/styles/alerts-management.css';
-type TypeFilter = 'ALL' | 'OFF_ROUTE_DETECTED' | 'REROUTE';
+type TypeFilter = 'ALL' | 'OFF_ROUTE_DETECTED' | 'REROUTE' | 'DISPATCH';
 type SeverityFilter = 'ALL' | 'CRITICAL' | 'MAJOR';
 const formatDistance = (meters?: number | null) =>
   meters == null ? null : `${Math.round(meters)} m`;
@@ -97,7 +97,10 @@ const filtered = computed(() =>
       typeFilter.value === 'ALL' ||
       (typeFilter.value === 'OFF_ROUTE_DETECTED'
         ? item.type === typeFilter.value
-        : item.type === 'REROUTE_CREATED' || item.type === 'REROUTE_UNAVAILABLE');
+        : typeFilter.value === 'DISPATCH'
+          ? item.type === 'DISPATCH_ATTENTION' || item.type === 'DRIVER_UNAVAILABLE'
+            || item.type === 'DISPATCH_REASSIGNED' || item.type === 'TRIP_AUTO_STARTED'
+          : item.type === 'REROUTE_CREATED' || item.type === 'REROUTE_UNAVAILABLE' || item.type === 'DRIVER_ROUTE_CHANGED');
     return typeMatch && (severityFilter.value === 'ALL' || item.severity === severityFilter.value);
   }),
 );
@@ -221,6 +224,7 @@ async function remove() {
             <option value="ALL">Tất cả</option>
             <option value="OFF_ROUTE_DETECTED">Lệch tuyến</option>
             <option value="REROUTE">Đổi tuyến</option>
+            <option value="DISPATCH">Điều phối</option>
           </select></label
         ><label
           >Mức độ<select v-model="severityFilter">
@@ -248,7 +252,7 @@ async function remove() {
           {{
             items.length
               ? 'Thử thay đổi bộ lọc để xem các cảnh báo khác.'
-              : 'Hệ thống sẽ hiển thị cảnh báo khi phát hiện xe lệch khỏi tuyến được giao.'
+              : 'Hệ thống sẽ hiển thị cảnh báo về chuyến, tuyến và điều phối tại đây.'
           }}
         </p>
       </div>
@@ -262,15 +266,15 @@ async function remove() {
           :class="`alerts-management-card ${item.readAt ? 'read' : 'unread'}`"
         >
           <div
-            :class="`alerts-management-icon ${item.type === 'OFF_ROUTE_DETECTED' ? 'off-route' : 'reroute'}`"
+            :class="`alerts-management-icon ${item.type === 'OFF_ROUTE_DETECTED' ? 'off-route' : item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED' ? 'dispatch' : 'reroute'}`"
           >
             <MapPinned
               v-if="item.type === 'OFF_ROUTE_DETECTED'"
               :size="18"
-            /><Route
-              v-else
+            /><BellRing
+              v-else-if="item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED'"
               :size="18"
-            />
+            /><Route v-else :size="18" />
           </div>
           <div class="alerts-management-body">
             <div class="alerts-management-top">

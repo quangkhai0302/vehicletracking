@@ -2,7 +2,7 @@ package com.quangkhai.vehicletracking_backend.driverportal.controller;
 
 import com.quangkhai.vehicletracking_backend.auth.config.SecurityConfig.UserAccountPrincipal;
 import com.quangkhai.vehicletracking_backend.driverportal.service.DriverPortalService;
-import com.quangkhai.vehicletracking_backend.schedule.dto.ScheduleResponse;
+import com.quangkhai.vehicletracking_backend.driverportal.dto.DriverScheduleResponse;
 import com.quangkhai.vehicletracking_backend.trip.dto.TripDetailResponse;
 import com.quangkhai.vehicletracking_backend.trip.dto.TripSummaryResponse;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
@@ -35,7 +35,7 @@ public class DriverPortalController {
     }
 
     @GetMapping("/schedules")
-    public List<ScheduleResponse> schedules(@AuthenticationPrincipal UserAccountPrincipal principal) {
+    public List<DriverScheduleResponse> schedules(@AuthenticationPrincipal UserAccountPrincipal principal) {
         return service.schedules(principal);
     }
 }

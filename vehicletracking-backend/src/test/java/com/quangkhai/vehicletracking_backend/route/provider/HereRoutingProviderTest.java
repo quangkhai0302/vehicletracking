@@ -80,6 +80,33 @@ class HereRoutingProviderTest {
     }
 
     @Test
+    void alternativesRequestsGuidanceAndNormalizesEveryOption() {
+        String polyline = com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline.encode(List.of(
+                new com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline.Point(10.8, 106.7),
+                new com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline.Point(10.801, 106.701)));
+        String route = """
+                {"id":"option","sections":[{"departure":{"time":"2026-09-29T02:00:00Z"},
+                "polyline":"%s","summary":{"duration":60,"length":160,"baseDuration":50},
+                "actions":[{"action":"turn","direction":"right","offset":1,"instruction":"Rẽ phải"}],
+                "turnByTurnActions":[{"action":"turn","direction":"right","offset":1},
+                {"action":"unknown-future-action","offset":999}]}]}
+                """.formatted(polyline);
+        mockServer.expect(requestTo(org.hamcrest.Matchers.startsWith("https://router.hereapi.com/v8/routes")))
+                .andExpect(queryParam("alternatives", "2"))
+                .andExpect(queryParam("lang", "vi-VN,en-US"))
+                .andExpect(queryParam("return", "polyline,summary,travelSummary,actions,instructions,turnByTurnActions"))
+                .andRespond(withSuccess("{\"routes\":[" + route + "," + route + "]}", MediaType.APPLICATION_JSON));
+        var options = provider.calculateAlternatives(List.of(
+                new RoutingWaypoint(null, "Start", new BigDecimal("10.8"), new BigDecimal("106.7"), 1, 0),
+                new RoutingWaypoint(1L, "Stop", new BigDecimal("10.801"), new BigDecimal("106.701"), 2, 0)));
+        assertThat(options).hasSize(2);
+        assertThat(options.getFirst().sections().getFirst().instructions()).singleElement().satisfies(i -> {
+            assertThat(i.instruction()).isEqualTo("Rẽ phải"); assertThat(i.offset()).isEqualTo(1);
+        });
+        mockServer.verify();
+    }
+
+    @Test
     void calculate_whenLessThan2Waypoints_throwsBadRequest() {
         List<RoutingWaypoint> waypoints = List.of(
                 new RoutingWaypoint(1L, "S1", new BigDecimal("10.8"), new BigDecimal("106.7"), 1, 0)
@@ -103,7 +130,7 @@ class HereRoutingProviderTest {
                 .andExpect(queryParam("origin", "10.801234,106.710123"))
                 .andExpect(queryParam("via", "10.800100,106.711100!stopDuration=120"))
                 .andExpect(queryParam("destination", "10.772123,106.698123"))
-                .andExpect(queryParam("return", "polyline,summary,travelSummary"))
+                .andExpect(queryParam("return", "polyline,summary,travelSummary,actions,instructions,turnByTurnActions"))
                 .andExpect(queryParam("apiKey", "test-routing-key-secret-12345"))
                 .andRespond(withSuccess(new ClassPathResource("fixtures/here-route-multi-stop.json"), MediaType.APPLICATION_JSON));
 

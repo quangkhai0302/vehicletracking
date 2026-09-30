@@ -1,6 +1,7 @@
 package com.quangkhai.vehicletracking_backend.schedule.entity;
 
 import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
+import com.quangkhai.vehicletracking_backend.dispatch.entity.DispatchStartMode;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
 import jakarta.persistence.*;
@@ -11,6 +12,11 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
+import org.hibernate.annotations.ListIndexBase;
+import org.hibernate.annotations.ListIndexJdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "trip_schedules", schema = "vehicle_tracking")
@@ -35,6 +41,18 @@ public class TripScheduleEntity {
     @Column(name = "effective_from", nullable = false) private LocalDate effectiveFrom;
     @Column(name = "effective_until") private LocalDate effectiveUntil;
     @Column(nullable = false) private boolean enabled = true;
+    @Enumerated(EnumType.STRING) @Column(name = "start_mode", nullable = false, length = 20)
+    private DispatchStartMode startMode = DispatchStartMode.MANUAL;
+    @Column(name = "backup_enabled", nullable = false) private boolean backupEnabled;
+    @Column(name = "dispatch_epoch", nullable = false) private long dispatchEpoch;
+    @ElementCollection
+    @CollectionTable(name = "schedule_backup_drivers", schema = "vehicle_tracking",
+            joinColumns = @JoinColumn(name = "schedule_id"))
+    @Column(name = "driver_id", nullable = false)
+    @OrderColumn(name = "priority")
+    @ListIndexBase(1)
+    @ListIndexJdbcTypeCode(SqlTypes.SMALLINT)
+    private List<Long> backupDriverIds = new ArrayList<>();
     @Column(name = "last_run_at") private Instant lastRunAt;
     @Enumerated(EnumType.STRING) @Column(name = "last_run_status", length = 20)
     private ScheduleRunStatus lastRunStatus;
@@ -70,8 +88,19 @@ public class TripScheduleEntity {
         updatedAt = Instant.now();
     }
 
-    public void enable() { enabled = true; updatedAt = Instant.now(); }
-    public void disable() { enabled = false; updatedAt = Instant.now(); }
+    public void setDispatchPolicy(DispatchStartMode startMode, boolean backupEnabled, List<Long> backupDriverIds) {
+        this.startMode = startMode;
+        this.backupEnabled = backupEnabled;
+        this.backupDriverIds.clear();
+        this.backupDriverIds.addAll(backupDriverIds);
+        updatedAt = Instant.now();
+    }
+    public void enable() {
+        if (!enabled) { enabled = true; dispatchEpoch++; updatedAt = Instant.now(); }
+    }
+    public void disable() {
+        if (enabled) { enabled = false; dispatchEpoch++; updatedAt = Instant.now(); }
+    }
     public void recordSuccess(Instant at) { lastRunAt = at; lastRunStatus = ScheduleRunStatus.SUCCESS; lastRunMessage = null; updatedAt = Instant.now(); }
     public void recordFailure(Instant at, String message) {
         lastRunAt = at; lastRunStatus = ScheduleRunStatus.FAILED;

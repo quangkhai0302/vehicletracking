@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
   ArrowLeft,
   BusFront,
@@ -30,6 +30,8 @@ import type { StopVisit } from '@/features/fleet/types/checkin';
 import { useTripEta } from '@/features/fleet/composables/useTripEta';
 import { trafficSourceLabel } from '@/features/traffic/utils/tripTraffic';
 import RouteRevisionPanel from './RouteRevisionPanel.vue';
+import AdminDispatchPanel from '@/features/dispatch/components/AdminDispatchPanel.vue';
+import { DISPATCH_STATE_LABELS } from '@/features/dispatch/types/dispatch';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
 const props = defineProps<{
   detail: TripDetail | null;
@@ -50,12 +52,30 @@ const props = defineProps<{
 }>();
 const confirm = ref<'complete' | 'cancel' | null>(null),
   cancelReason = ref(''),
-  editingDriver = ref(false),
   driverId = ref(''),
-  editingVehicle = ref(false),
   vehicleId = ref(''),
   confirmDelete = ref(false);
 const trip = computed(() => props.detail?.trip);
+const availableVehicles = computed(() =>
+  props.vehicles.filter((item) => item.active || item.id === trip.value?.vehicleId),
+);
+const availableDrivers = computed(() =>
+  props.drivers.filter((item) => item.active || item.id === trip.value?.driver?.id),
+);
+const hasCurrentVehicle = computed(() =>
+  props.vehicles.some((item) => item.id === trip.value?.vehicleId),
+);
+const hasCurrentDriver = computed(() =>
+  props.drivers.some((item) => item.id === trip.value?.driver?.id),
+);
+watch(
+  [() => trip.value?.id, () => trip.value?.vehicleId, () => trip.value?.driver?.id],
+  ([, currentVehicleId, currentDriverId]) => {
+    vehicleId.value = currentVehicleId === undefined ? '' : String(currentVehicleId);
+    driverId.value = currentDriverId === undefined ? '' : String(currentDriverId);
+  },
+  { immediate: true },
+);
 const isFixedSchedule = computed(() => trip.value?.dispatchMode === 'FIXED_SCHEDULE');
 const checkins = useTripCheckIns(
   () => trip.value?.id ?? null,
@@ -88,6 +108,7 @@ const canComplete = computed(() => {
 const canStart = computed(
   () =>
     trip.value?.status === 'SCHEDULED' &&
+    trip.value?.dispatch?.startMode !== 'AUTO_IF_READY' &&
     !!trip.value.driver &&
     props.drivers.some((driver) => driver.id === trip.value?.driver?.id && driver.active),
 );
@@ -98,26 +119,13 @@ const etaLabel = computed(() => {
     return 'Dự kiến đến (dữ liệu gần nhất)';
   return isFixedSchedule.value ? 'Dự kiến đến (theo lịch)' : 'Dự kiến đến (theo tuyến)';
 });
-function beginDriverEdit() {
-  if (trip.value) {
-    editingVehicle.value = false;
-    driverId.value = trip.value.driver ? String(trip.value.driver.id) : '';
-    editingDriver.value = true;
-  }
-}
 async function saveDriver() {
   if (
     trip.value &&
     props.onUpdateDriver &&
-    (await props.onUpdateDriver(trip.value.id, driverId.value ? Number(driverId.value) : null))
-  )
-    editingDriver.value = false;
-}
-function beginVehicleEdit() {
-  if (trip.value) {
-    editingDriver.value = false;
-    vehicleId.value = String(trip.value.vehicleId);
-    editingVehicle.value = true;
+    driverId.value !== (trip.value.driver ? String(trip.value.driver.id) : '')
+  ) {
+    await props.onUpdateDriver(trip.value.id, driverId.value ? Number(driverId.value) : null);
   }
 }
 async function saveVehicle() {
@@ -125,9 +133,10 @@ async function saveVehicle() {
     trip.value &&
     props.onUpdateVehicle &&
     vehicleId.value &&
-    (await props.onUpdateVehicle(trip.value.id, Number(vehicleId.value)))
-  )
-    editingVehicle.value = false;
+    Number(vehicleId.value) !== trip.value.vehicleId
+  ) {
+    await props.onUpdateVehicle(trip.value.id, Number(vehicleId.value));
+  }
 }
 async function confirmAction() {
   if (
@@ -177,6 +186,9 @@ function fallbackStopEta(stop: TripStop) {
             :class="`trip-status ${trip.status.toLowerCase()}`"
             >{{ TRIP_STATUS_LABELS[trip.status] }}</span
           >
+          <span v-if="trip?.dispatch" class="dispatch-badge">
+            {{ DISPATCH_STATE_LABELS[trip.dispatch.state] }}
+          </span>
         </div>
         <p v-if="trip">Theo dõi phân công, thời gian và tiến độ qua từng điểm dừng.</p>
       </div>
@@ -288,27 +300,113 @@ function fallbackStopEta(stop: TripStop) {
         </p>
 
         <div
+          v-if="trip.status === 'SCHEDULED' && (onUpdateVehicle || onUpdateDriver)"
+          class="trip-assignment-grid"
+          aria-label="Phân công chuyến đi"
+        >
+          <div
+            v-if="onUpdateVehicle"
+            class="trip-schedule-editor"
+          >
+            <label
+              >Xe thực hiện<select
+                v-model="vehicleId"
+                aria-label="Xe thực hiện"
+                :disabled="busy"
+              >
+                <option
+                  v-if="!hasCurrentVehicle"
+                  :value="String(trip.vehicleId)"
+                  disabled
+                >
+                  {{ trip.vehiclePlateNumber }} · Xe hiện tại
+                </option>
+                <option
+                  v-for="vehicle in availableVehicles"
+                  :key="vehicle.id"
+                  :value="String(vehicle.id)"
+                  :disabled="!vehicle.active"
+                >
+                  {{ vehicle.plateNumber }} · {{ vehicle.name }}{{ vehicle.active ? '' : ' (ngừng sử dụng)' }}
+                </option>
+              </select></label
+            >
+            <p class="fleet-help">
+              Chỉ đổi xe cho chuyến này. Lịch cố định và các chuyến tương lai không bị thay đổi.
+            </p>
+            <div class="trip-assignment-actions">
+              <button
+                v-if="vehicleId !== String(trip.vehicleId)"
+                class="btn-secondary trip-assignment-reset"
+                :disabled="busy"
+                @click="vehicleId = String(trip.vehicleId)"
+              >
+                Đặt lại</button
+              ><button
+                class="btn-primary trip-assignment-save"
+                :disabled="busy || !vehicleId || Number(vehicleId) === trip.vehicleId"
+                @click="saveVehicle"
+              >
+                <BusFront :size="14" />Lưu xe
+              </button>
+            </div>
+          </div>
+          <div
+            v-if="onUpdateDriver"
+            class="trip-schedule-editor"
+          >
+            <label
+              >Tài xế thực hiện<select
+                v-model="driverId"
+                aria-label="Tài xế thực hiện"
+                :disabled="busy"
+              >
+                <option value="">Chưa gán tài xế</option>
+                <option
+                  v-if="trip.driver && !hasCurrentDriver"
+                  :value="String(trip.driver.id)"
+                  disabled
+                >
+                  {{ trip.driver.fullName }} · Tài xế hiện tại
+                </option>
+                <option
+                  v-for="driver in availableDrivers"
+                  :key="driver.id"
+                  :value="String(driver.id)"
+                  :disabled="!driver.active"
+                >
+                  {{ driver.fullName }} · {{ driver.licenseNumber }}{{ driver.active ? '' : ' (ngừng sử dụng)' }}
+                </option>
+              </select></label
+            >
+            <p class="fleet-help">
+              Chỉ đổi tài xế cho chuyến này. Lịch cố định và các chuyến tương lai không bị thay đổi.
+            </p>
+            <div class="trip-assignment-actions">
+              <button
+                v-if="driverId !== (trip.driver ? String(trip.driver.id) : '')"
+                class="btn-secondary trip-assignment-reset"
+                :disabled="busy"
+                @click="driverId = trip.driver ? String(trip.driver.id) : ''"
+              >
+                Đặt lại</button
+              ><button
+                class="btn-primary trip-assignment-save"
+                :disabled="busy || driverId === (trip.driver ? String(trip.driver.id) : '')"
+                @click="saveDriver"
+              >
+                <UserRound :size="14" />Lưu tài xế
+              </button>
+            </div>
+          </div>
+        </div>
+        <AdminDispatchPanel v-if="isFixedSchedule" :trip="trip" :drivers="drivers" :on-changed="onRetry" />
+
+        <div
+          v-if="onViewRoute || onSimulate"
           class="trip-toolbar"
           aria-label="Thao tác chuyến đi"
         >
-          <div class="trip-toolbar-group">
-            <button
-              v-if="trip.status === 'SCHEDULED' && onUpdateVehicle && !editingVehicle"
-              class="fleet-text-button"
-              :disabled="busy"
-              @click="beginVehicleEdit"
-            >
-              <BusFront :size="15" />Đổi xe
-            </button>
-            <button
-              v-if="trip.status === 'SCHEDULED' && onUpdateDriver && !editingDriver"
-              class="fleet-text-button"
-              :disabled="busy"
-              @click="beginDriverEdit"
-            >
-              <UserRound :size="15" />Đổi tài xế
-            </button>
-          </div>
           <div class="trip-toolbar-group trip-toolbar-navigation">
             <button
               v-if="onViewRoute"
@@ -319,80 +417,12 @@ function fallbackStopEta(stop: TripStop) {
               <MapPin :size="15" />Xem tuyến đường
             </button>
             <button
-              v-if="onSimulate"
+              v-if="onSimulate && !(trip.status === 'SCHEDULED' && trip.dispatch?.startMode === 'AUTO_IF_READY')"
               class="fleet-text-button trip-simulation-button"
               :disabled="busy"
               @click="onSimulate(trip.id)"
             >
               <Play :size="15" />Mở điều khiển chuyến
-            </button>
-          </div>
-        </div>
-
-        <div
-          v-if="editingVehicle"
-          class="trip-schedule-editor"
-        >
-          <label
-            >Xe thực hiện<select v-model="vehicleId">
-              <option
-                v-for="vehicle in vehicles.filter((item) => item.active)"
-                :key="vehicle.id"
-                :value="String(vehicle.id)"
-              >
-                {{ vehicle.plateNumber }} · {{ vehicle.name }}
-              </option>
-            </select></label
-          >
-          <p class="fleet-help">
-            Chỉ đổi xe cho chuyến này. Lịch cố định và các chuyến tương lai không bị thay đổi.
-          </p>
-          <div>
-            <button
-              class="btn-secondary"
-              :disabled="busy"
-              @click="editingVehicle = false"
-            >
-              Hủy</button
-            ><button
-              class="btn-primary"
-              :disabled="busy || !vehicleId || Number(vehicleId) === trip.vehicleId"
-              @click="saveVehicle"
-            >
-              <BusFront :size="14" />Lưu xe
-            </button>
-          </div>
-        </div>
-
-        <div
-          v-if="editingDriver"
-          class="trip-schedule-editor"
-        >
-          <label
-            >Tài xế thực hiện<select v-model="driverId">
-              <option value="">Chưa gán tài xế</option>
-              <option
-                v-for="driver in drivers.filter((item) => item.active)"
-                :key="driver.id"
-                :value="String(driver.id)"
-              >
-                {{ driver.fullName }} · {{ driver.licenseNumber }}
-              </option>
-            </select></label
-          >
-          <div>
-            <button
-              class="btn-secondary"
-              :disabled="busy"
-              @click="editingDriver = false"
-            >
-              Hủy</button
-            ><button
-              class="btn-primary"
-              :disabled="busy"
-              @click="saveDriver"
-            >
-              <UserRound :size="14" />Lưu tài xế
             </button>
           </div>
         </div>
@@ -517,7 +547,7 @@ function fallbackStopEta(stop: TripStop) {
                 }}</template>
               </div>
               <p
-                v-if="trip.status === 'SCHEDULED' && !canStart"
+                v-if="trip.status === 'SCHEDULED' && !canStart && trip.dispatch?.startMode !== 'AUTO_IF_READY'"
                 class="fleet-prerequisite"
               >
                 Gán tài xế đang hoạt động trước khi khởi hành chuyến này.
@@ -588,7 +618,7 @@ function fallbackStopEta(stop: TripStop) {
       >
         <X :size="14" />Hủy chuyến</button
       ><button
-        v-if="trip.status === 'SCHEDULED'"
+        v-if="trip.status === 'SCHEDULED' && trip.dispatch?.startMode !== 'AUTO_IF_READY'"
         class="btn-primary"
         :disabled="busy || !canStart"
         :title="!canStart ? 'Cần gán tài xế active trước khi khởi hành' : undefined"

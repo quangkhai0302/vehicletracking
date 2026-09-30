@@ -102,7 +102,7 @@ async function supersede() {
         <p>
           {{
             item.reasonDetail ||
-            (item.reasonCode === 'ROAD_CLOSURE' ? 'Đường bị đóng' : 'Chậm giao thông')
+            (item.reasonCode === 'DRIVER_CHOICE' ? 'Tài xế chọn đường' : item.reasonCode === 'ROAD_CLOSURE' ? 'Đường bị đóng' : 'Chậm giao thông')
           }}
         </p>
         <small

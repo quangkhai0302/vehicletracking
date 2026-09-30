@@ -9,6 +9,9 @@ import { installAuthGuards } from '@/app/router/guards';
 import { findRoute, navigationGroups } from '@/app/navigation';
 import { fetchCurrentUser } from '@/features/auth/api/auth';
 import type { AuthUser } from '@/features/auth/types/auth';
+import { fetchOperations, subscribeOperations } from '@/features/tracking/api/operations';
+
+vi.mock('@/features/tracking/api/operations', () => ({ fetchOperations: vi.fn(), subscribeOperations: vi.fn() }));
 
 vi.mock('@/features/auth/api/auth', () => ({ fetchCurrentUser: vi.fn(), login: vi.fn(), logout: vi.fn(), registerAdmin: vi.fn() }));
 const lifecycle = vi.hoisted(() => ({ mounted: vi.fn(), unmounted: vi.fn() }));
@@ -45,6 +48,8 @@ const originalDialogClose = Object.getOwnPropertyDescriptor(HTMLDialogElement.pr
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(fetchCurrentUser).mockResolvedValue(admin);
+  vi.mocked(fetchOperations).mockResolvedValue({ serverTime: new Date().toISOString(), positions: [], trips: [], simulations: [], checkIns: [], notifications: [] });
+  vi.mocked(subscribeOperations).mockReturnValue(vi.fn());
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
     configurable: true,
     value(this: HTMLDialogElement) {

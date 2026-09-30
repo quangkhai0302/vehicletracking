@@ -21,6 +21,8 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import com.quangkhai.vehicletracking_backend.route.dto.RouteInstruction;
+import com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline;
 
 @Component
 public class HereRoutingProvider implements RoutingProvider {
@@ -37,6 +39,15 @@ public class HereRoutingProvider implements RoutingProvider {
 
     @Override
     public CalculatedRoute calculate(List<RoutingWaypoint> waypoints) {
+        return calculateRoutes(waypoints, 0).getFirst();
+    }
+
+    @Override
+    public List<CalculatedRoute> calculateAlternatives(List<RoutingWaypoint> waypoints) {
+        return calculateRoutes(waypoints, 2);
+    }
+
+    private List<CalculatedRoute> calculateRoutes(List<RoutingWaypoint> waypoints, int alternatives) {
         if (!properties.isEnabled() || properties.getApiKey() == null || properties.getApiKey().isBlank()) {
             throw new RouteOperationException(
                     HttpStatus.SERVICE_UNAVAILABLE,
@@ -53,7 +64,7 @@ public class HereRoutingProvider implements RoutingProvider {
             );
         }
 
-        URI requestUri = buildUri(waypoints);
+        URI requestUri = buildUri(waypoints, alternatives);
 
         HereRoutingResponse response;
         try {
@@ -128,10 +139,15 @@ public class HereRoutingProvider implements RoutingProvider {
             );
         }
 
-        return normalizeResponse(response, waypoints);
+        if (response == null || response.routes() == null || response.routes().isEmpty()) {
+            return List.of(normalizeResponse(response, waypoints));
+        }
+        return response.routes().stream().limit(alternatives + 1L)
+                .map(route -> normalizeResponse(new HereRoutingResponse(java.util.Collections.singletonList(route), response.notices()), waypoints))
+                .toList();
     }
 
-    private URI buildUri(List<RoutingWaypoint> waypoints) {
+    private URI buildUri(List<RoutingWaypoint> waypoints, int alternatives) {
         RoutingWaypoint origin = waypoints.get(0);
         RoutingWaypoint destination = waypoints.get(waypoints.size() - 1);
 
@@ -150,8 +166,10 @@ public class HereRoutingProvider implements RoutingProvider {
         }
 
         builder.queryParam("destination", destination.latitude() + "," + destination.longitude())
-                .queryParam("return", "polyline,summary,travelSummary")
+                .queryParam("return", "polyline,summary,travelSummary,actions,instructions,turnByTurnActions")
+                .queryParam("lang", "vi-VN,en-US")
                 .queryParam("apiKey", properties.getApiKey());
+        if (alternatives > 0) builder.queryParam("alternatives", alternatives);
 
         return builder.build().toUri();
     }
@@ -233,7 +251,8 @@ public class HereRoutingProvider implements RoutingProvider {
                     sec.polyline(),
                     distance,
                     travelDuration,
-                    baseTravelDuration
+                    baseTravelDuration,
+                    instructions(sec)
             ));
 
             if (sec.arrival() != null && sec.arrival().place() != null && sec.arrival().place().waypoint() != null) {
@@ -401,8 +420,35 @@ public class HereRoutingProvider implements RoutingProvider {
             String polyline,
             HereSummary summary,
             HereSummary travelSummary,
-            List<HereNotice> notices
+            List<HereNotice> notices,
+            List<HereAction> actions,
+            List<HereAction> turnByTurnActions
     ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record HereAction(String action, String direction, String instruction, Integer offset) {}
+
+    private List<RouteInstruction> instructions(HereSection section) {
+        var actions = section.turnByTurnActions() != null && !section.turnByTurnActions().isEmpty()
+                ? section.turnByTurnActions() : section.actions();
+        if (actions == null || actions.isEmpty()) return List.of();
+        int points;
+        try { points = FlexiblePolyline.decode(section.polyline()).size(); }
+        catch (IllegalArgumentException ex) {
+            throw new RouteOperationException(HttpStatus.BAD_GATEWAY, RouteErrorCode.ROUTING_PROVIDER_INVALID_RESPONSE,
+                    "Routing provider returned invalid guidance geometry");
+        }
+        return actions.stream().filter(a -> a != null && a.offset() != null && a.offset() >= 0 && a.offset() < points)
+                .map(a -> {
+                    String text = a.instruction();
+                    if ((text == null || text.isBlank()) && section.actions() != null) {
+                        text = section.actions().stream().filter(other -> other != null && a.offset().equals(other.offset())
+                                && other.instruction() != null && !other.instruction().isBlank())
+                                .map(HereAction::instruction).findFirst().orElse(null);
+                    }
+                    return new RouteInstruction(a.action(), a.direction(), text, a.offset());
+                }).toList();
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record HereEvent(String time, HerePlace place) {}

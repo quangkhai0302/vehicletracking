@@ -784,6 +784,27 @@
   border-radius: 9px;
   background: rgba(8, 14, 24, 0.45);
 }
+.trip-assignment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.trip-assignment-grid .trip-schedule-editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+}
+.trip-assignment-grid .trip-schedule-editor select {
+  width: 100%;
+}
+.trip-assignment-grid .trip-schedule-editor > div {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 8px;
+}
 .trip-schedule-editor label {
   display: flex;
   flex-direction: column;
@@ -807,6 +828,44 @@
   display: flex;
   gap: 7px;
   margin-top: 8px;
+}
+.trip-assignment-grid .trip-assignment-actions {
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+}
+.trip-assignment-grid .trip-assignment-actions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  min-width: 100px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.trip-assignment-grid .trip-assignment-save:disabled {
+  color: #94a3b8;
+  background: #253342;
+  border: 1px solid #405163;
+  box-shadow: none;
+  opacity: 1;
+}
+.business-ui .business-management-surface .fleet-editor .trip-assignment-grid .trip-assignment-save:disabled {
+  color: #64748b;
+  background: #e8eef5;
+  border-color: #d9e3ee;
+  box-shadow: none;
+  opacity: 1;
+}
+@media (max-width: 640px) {
+  .trip-assignment-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .trip-section-heading {
   display: flex;

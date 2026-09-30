@@ -1,0 +1,177 @@
+/* Cards/status/timeline share admin presentation in ui-refresh.css.
+   Only modal layout and driver-specific read-only content belong here. */
+.business-ui .business-side-panel.driver-trip-modal {
+  width: min(820px, calc(100vw - 40px));
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: inherit;
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex: none;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--border-default);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-eyebrow {
+  color: #0284c7;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  height: 44px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-close:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-detail .driver-trip-detail-body {
+  min-height: 0;
+  flex: 0 1 auto;
+  padding: 20px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-detail .trip-summary {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-detail .trip-summary-meta {
+  grid-template-columns: minmax(0, 1fr);
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-detail .trip-summary-meta > div {
+  padding: 14px 18px;
+}
+.business-ui
+  .business-side-panel.driver-trip-modal
+  .driver-trip-detail
+  .trip-summary-meta
+  > div
+  + div {
+  border-left: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-detail .trip-times {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.business-ui
+  .business-side-panel.driver-trip-modal
+  .driver-trip-detail
+  .trip-times
+  > div:nth-child(odd) {
+  border-left: 0;
+}
+.business-ui
+  .business-side-panel.driver-trip-modal
+  .driver-trip-detail
+  .trip-times
+  > div:nth-child(n + 3) {
+  border-top: 1px solid var(--border-subtle);
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-itinerary {
+  margin-top: 18px;
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-stop-name {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-cancellation,
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-empty {
+  padding: 16px 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-detail-footer {
+  flex: none;
+  padding: 16px 24px;
+  background: #ffffff;
+  border-top: 1px solid var(--border-default);
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-map-link {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 12px 16px;
+  color: #ffffff;
+  background: #0284c7;
+  border: 1px solid #0284c7;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.business-ui .business-side-panel.driver-trip-modal .driver-trip-map-link:hover {
+  background: #0369a1;
+}
+.business-ui
+  .business-side-panel.driver-trip-modal
+  :is(.driver-trip-close, .driver-trip-map-link):focus-visible {
+  outline: 3px solid #0284c7;
+  outline-offset: 3px;
+}
+@media (min-width: 981px) {
+  .business-ui
+    .business-side-panel.driver-trip-modal
+    .driver-trip-detail
+    .trip-times[data-fixed-schedule='false'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .business-ui
+    .business-side-panel.driver-trip-modal
+    .driver-trip-detail
+    .trip-times[data-fixed-schedule='false']
+    > div
+    + div {
+    border-left: 1px solid var(--border-subtle);
+    border-top: 0;
+  }
+}
+@media (max-width: 700px) {
+  .business-ui .business-side-panel.driver-trip-modal {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+  .business-ui .business-side-panel.driver-trip-modal .driver-trip-detail-heading {
+    padding: 16px;
+  }
+  .business-ui .business-side-panel.driver-trip-modal .driver-trip-detail .driver-trip-detail-body {
+    padding: 16px;
+  }
+  .business-ui .business-side-panel.driver-trip-modal .driver-trip-detail .trip-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .business-ui .business-side-panel.driver-trip-modal .driver-trip-detail .trip-summary-vehicle {
+    padding: 18px;
+  }
+  .business-ui .business-side-panel.driver-trip-modal .driver-trip-detail-footer {
+    padding: 12px 16px;
+  }
+}
+@media (max-width: 480px) {
+  .business-ui .business-side-panel.driver-trip-modal .driver-trip-detail .trip-times {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .business-ui .business-side-panel.driver-trip-modal .driver-trip-detail .trip-times > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
+  }
+}

@@ -2,13 +2,13 @@ import { onMounted, onUnmounted, shallowRef, toValue, watch, type MaybeRefOrGett
 import L from 'leaflet';
 import { decodeFlexiblePolyline } from '@/features/map/utils/polyline';
 import type { MapTheme } from '@/features/map/types/map';
-import type { RouteDetail, RouteDraftStop, RouteStopRole } from '@/features/routes/types/route';
+import type { RouteDetail, RouteDraftStop } from '@/features/routes/types/route';
 import type { WorkspaceMode } from '@/shared/types/workspace';
 import type { useStationWorkspace } from '@/features/stations/composables/useStationWorkspace';
 
 const HCMC_CENTER: [number, number] = [10.7769, 106.7009];
 
-type RouteStopProgress = 'checked-in' | 'next' | 'pending';
+import { createRouteStopIcon, createRouteStopPopup, updateRouteStopPopup, type RouteStopProgress } from '@/features/map/utils/routeStopPresentation';
 
 function routeLayerSignature(route: RouteDetail | null): string {
   if (!route) return '';
@@ -24,32 +24,6 @@ function routeLayerSignature(route: RouteDetail | null): string {
       longitude: stop.longitude,
       dwellDurationSeconds: stop.dwellDurationSeconds,
     })),
-  });
-}
-
-function createRouteStopIcon(sequenceNumber: number, role: RouteStopRole, progress?: RouteStopProgress): L.DivIcon {
-  const roleClass = role.toLowerCase();
-  return L.divIcon({
-    className: 'route-stop-div-icon',
-    html: `<div class="route-stop-map-marker ${roleClass}${progress ? ` simulation-${progress}` : ''}" aria-hidden="true">
-      <svg class="route-stop-map-marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-        <path d="M4 6 2 7" />
-        <path d="M10 6h4" />
-        <path d="m22 7-2-1" />
-        <rect width="16" height="16" x="4" y="3" rx="2" />
-        <path d="M4 11h16" />
-        <path d="M8 15h.01" />
-        <path d="M16 15h.01" />
-        <path d="M6 19v2" />
-        <path d="M18 21v-2" />
-      </svg>
-      <span class="route-stop-map-marker-sequence">${sequenceNumber}</span>
-    </div>`,
-    iconSize: [42, 48],
-    iconAnchor: [21, 46],
-    popupAnchor: [0, -42],
-    tooltipAnchor: [0, -40],
   });
 }
 
@@ -535,51 +509,7 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
 
       marker.bindTooltip(tooltipContainer, { direction: 'top', offset: [0, -14], opacity: 0.95 });
       if (workspace === 'simulation' && progress) {
-        const popup = document.createElement('section');
-        popup.className = 'simulation-stop-popup';
-
-        const heading = document.createElement('div');
-        heading.className = 'simulation-stop-popup-heading';
-        const headingCopy = document.createElement('span');
-        const eyebrow = document.createElement('small');
-        eyebrow.textContent = `Trạm ${stop.sequenceNumber} · ${roleName}`;
-        const title = document.createElement('strong');
-        title.textContent = stop.stationName;
-        headingCopy.append(eyebrow, title);
-
-        const status = document.createElement('b');
-        status.dataset.state = progress;
-        status.textContent =
-          progress === 'checked-in'
-            ? 'Đã check-in'
-            : progress === 'next'
-              ? 'Trạm kế tiếp'
-              : 'Chưa check-in';
-        heading.append(headingCopy, status);
-        popup.append(heading);
-
-        const address = document.createElement('p');
-        address.className = 'simulation-stop-popup-address';
-        address.textContent = station?.address || 'Chưa có địa chỉ mô tả';
-        popup.append(address);
-
-        const metrics = document.createElement('dl');
-        const appendMetric = (label: string, value: string) => {
-          const item = document.createElement('div');
-          const term = document.createElement('dt');
-          const description = document.createElement('dd');
-          term.textContent = label;
-          description.textContent = value;
-          item.append(term, description);
-          metrics.append(item);
-        };
-        appendMetric(
-          'Vùng check-in',
-          station ? `${station.checkinRadiusMeters} m` : 'Đang cập nhật',
-        );
-        appendMetric('Dừng tại trạm', `${stop.dwellDurationSeconds} giây`);
-        appendMetric('Tọa độ', `${stop.latitude.toFixed(6)}, ${stop.longitude.toFixed(6)}`);
-        popup.append(metrics);
+        const popup = createRouteStopPopup(stop, progress, station);
 
         marker.bindPopup(popup, {
           className: 'simulation-stop-info-popup',
@@ -635,13 +565,7 @@ export function useMapLayers(mapContainerRef: ShallowRef<HTMLDivElement | null>,
             : 'pending';
         marker.setIcon(createRouteStopIcon(stop.sequenceNumber, stop.role, progress));
         const content = marker.getPopup()?.getContent();
-        if (!(content instanceof HTMLElement)) return;
-        const status = content.querySelector<HTMLElement>('.simulation-stop-popup-heading b');
-        if (!status) return;
-        status.dataset.state = progress;
-        status.textContent = progress === 'checked-in'
-          ? 'Đã check-in'
-          : progress === 'next' ? 'Trạm kế tiếp' : 'Chưa check-in';
+        updateRouteStopPopup(content, progress);
       });
     },
     { immediate: true, flush: 'post' },

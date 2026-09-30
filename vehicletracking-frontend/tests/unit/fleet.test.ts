@@ -449,7 +449,7 @@ test('trip detail shows wall-clock check-in and labels simulator time separately
   wrapper.unmount();
 });
 
-test('fixed-schedule trip keeps planned time labels but cannot edit an occurrence directly', async () => {
+test('fixed-schedule trip shows vehicle and driver selectors without opening editors', async () => {
   const fixed = {
     ...detail(1),
     trip: {
@@ -466,18 +466,23 @@ test('fixed-schedule trip keeps planned time labels but cannot edit an occurrenc
     awaitingExit: false,
     visits: [],
   });
+  const nextVehicle = { ...vehicle, id: 2, plateNumber: '51C67890' };
+  const nextDriver = { ...driver, id: 2, fullName: 'Driver Two', licenseNumber: 'B2-456' };
+  const onUpdateVehicle = vi.fn().mockResolvedValue(true);
+  const onUpdateDriver = vi.fn().mockResolvedValue(true);
   const wrapper = mount(TripDetailPanel, {
     props: {
       detail: fixed,
       loading: false,
       busy: false,
       error: null,
-      drivers: [driver],
-      vehicles: [vehicle],
+      drivers: [driver, nextDriver],
+      vehicles: [vehicle, nextVehicle],
       onClose: vi.fn(),
       onRetry: vi.fn(),
       onAction: vi.fn().mockResolvedValue(true),
-      onUpdateVehicle: vi.fn().mockResolvedValue(true),
+      onUpdateVehicle,
+      onUpdateDriver,
       onFocusStop: vi.fn(),
     },
     global: { stubs: { RouteRevisionPanel: true } },
@@ -486,7 +491,28 @@ test('fixed-schedule trip keeps planned time labels but cannot edit an occurrenc
   expect(wrapper.text()).toContain('Theo lịch cố định');
   expect(wrapper.text()).toContain('Xuất phát kế hoạch');
   expect(wrapper.text()).toContain('Hoàn thành theo lịch');
-  expect(wrapper.text()).toContain('Đổi xe');
+  const vehicleSelect = wrapper.get('select[aria-label="Xe thực hiện"]');
+  const driverSelect = wrapper.get('select[aria-label="Tài xế thực hiện"]');
+  expect((vehicleSelect.element as HTMLSelectElement).value).toBe('1');
+  expect((driverSelect.element as HTMLSelectElement).value).toBe('1');
+  expect(wrapper.findAll('button').map((button) => button.text())).not.toContain('Đổi xe');
+  expect(wrapper.findAll('button').map((button) => button.text())).not.toContain('Đổi tài xế');
+  await vehicleSelect.setValue('2');
+  await wrapper.findAll('button').find((button) => button.text().includes('Lưu xe'))!.trigger('click');
+  expect(onUpdateVehicle).toHaveBeenCalledWith(1, 2);
+  await driverSelect.setValue('2');
+  await wrapper.findAll('button').find((button) => button.text().includes('Lưu tài xế'))!.trigger('click');
+  expect(onUpdateDriver).toHaveBeenCalledWith(1, 2);
+  await wrapper.setProps({
+    detail: {
+      ...fixed,
+      trip: { ...fixed.trip, vehicleId: 2, vehiclePlateNumber: nextVehicle.plateNumber, driver: nextDriver },
+    },
+  });
+  expect((vehicleSelect.element as HTMLSelectElement).value).toBe('2');
+  expect((driverSelect.element as HTMLSelectElement).value).toBe('2');
+  expect(wrapper.findAll('button').find((button) => button.text().includes('Lưu xe'))!.attributes('disabled')).toBeDefined();
+  expect(wrapper.findAll('button').find((button) => button.text().includes('Lưu tài xế'))!.attributes('disabled')).toBeDefined();
   expect(wrapper.text()).not.toContain('Sửa giờ xuất phát');
   expect(wrapper.text()).not.toContain('Xóa chuyến');
   wrapper.unmount();

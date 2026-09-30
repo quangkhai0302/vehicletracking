@@ -13,6 +13,12 @@ import type { NotificationItem } from '@/features/reports/types/notifications';
 import type { DashboardSummary } from '@/features/reports/types/dashboard';
 import { notifyError } from '@/shared/notifications/toast';
 
+// The admin shell owns one realtime stream; page workflow assertions still use the HTTP fixtures below.
+vi.mock('@/features/tracking/api/operations', () => ({
+  fetchOperations: async () => ({ serverTime: new Date().toISOString(), positions: [], trips: [], simulations: [], checkIns: [], notifications: [] }),
+  subscribeOperations: () => () => {},
+}));
+
 vi.mock('@/shared/notifications/toast', () => ({
   errorMessage: (reason: unknown, fallback = 'Đã xảy ra lỗi. Vui lòng thử lại.') =>
     reason instanceof Error ? reason.message : fallback,
@@ -199,6 +205,8 @@ beforeEach(() => {
       if (request.path === '/api/v1/driver/trips' || request.path === '/api/v1/trips')
         return json(trips);
       if (request.path === '/api/v1/driver/schedules') return json([schedule]);
+      if (request.path === '/api/v1/driver/dispatch/offers'
+          || request.path === '/api/v1/driver/dispatch/inbox?limit=50') return json([]);
       if (request.path === '/api/v1/notifications?unreadOnly=false')
         return json([alert, { ...alert, id: 2, type: 'REROUTE_CREATED', severity: 'MAJOR' }]);
       if (request.path === '/api/v1/dashboard/summary') return json(summary);
@@ -263,11 +271,13 @@ test('driver redirects from admin URLs, fetches only assigned resources, keeps b
   router.back();
   await flushPromises();
   expect(wrapper.findAll('.driver-trip-card')).toHaveLength(2);
-  expect(requests.map((request) => request.path)).toEqual([
+  expect(requests.map((request) => request.path).slice(0, 3)).toEqual([
     '/api/v1/auth/me',
     '/api/v1/driver/trips',
     '/api/v1/driver/schedules',
   ]);
+  expect(requests.map((request) => request.path).slice(3).every((path) =>
+    path === '/api/v1/driver/dispatch/offers' || path === '/api/v1/driver/dispatch/inbox?limit=50')).toBe(true);
   expect(requests.every((request) => request.options.credentials === 'include')).toBe(true);
 });
 
@@ -287,8 +297,9 @@ test('driver detail A cannot replace B; unmount aborts outstanding detail and li
   await flushPromises();
   first.resolve(json(detail(trips[0])));
   await flushPromises();
-  expect(wrapper.get('.driver-detail h2').text()).toBe('Trip B');
-  await wrapper.get('[aria-label="Đóng chi tiết"]').trigger('click');
+  expect(wrapper.get('.driver-trip-detail h2').text()).toBe('Chi tiết chuyến #101');
+  expect(wrapper.get('.driver-trip-detail .trip-summary-meta').text()).toContain('Trip B');
+  await wrapper.get('[aria-label="Đóng chi tiết chuyến"]').trigger('click');
   expect(wrapper.find('dialog').exists()).toBe(false);
   const pending = deferred<Response>();
   handlers.set('GET /api/v1/driver/trips/100', () => pending.promise);

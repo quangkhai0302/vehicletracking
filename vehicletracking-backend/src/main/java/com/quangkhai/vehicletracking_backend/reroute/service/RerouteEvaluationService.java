@@ -172,7 +172,7 @@ public class RerouteEvaluationService {
             for (CalculatedSection section : legSections) {
                 cursor = cursor.plusSeconds(Math.max(0, section.travelDurationSeconds()));
                 revision.addSection(new TripRouteRevisionSectionEntity(section.sectionSequence(), original, section.encodedPolyline(),
-                        section.distanceMeters(), section.travelDurationSeconds(), section.baseTravelDurationSeconds()));
+                        section.distanceMeters(), section.travelDurationSeconds(), section.baseTravelDurationSeconds(), section.instructions()));
             }
             Instant arrival = cursor;
             Instant departure = arrival.plusSeconds(stop.getDwellDurationSeconds());

@@ -50,7 +50,7 @@ public class TripRouteGeometryService {
                 stop.getDwellDurationSeconds(), 0, 0, 0, 0)).toList();
         var sections = active.getSections().stream().map(section -> new RouteDetailResponse.RouteSectionResponse(
                 section.getSectionSequence(), section.getDestinationStopSequence(), section.getEncodedPolyline(),
-                section.getDistanceMeters(), section.getTravelDurationSeconds(), section.getBaseTravelDurationSeconds())).toList();
+                section.getDistanceMeters(), section.getTravelDurationSeconds(), section.getBaseTravelDurationSeconds(), section.getInstructions())).toList();
         long distance = sections.stream().mapToLong(section -> section.distanceMeters()).sum();
         long travel = sections.stream().mapToLong(section -> section.travelDurationSeconds()).sum();
         long baseTravel = sections.stream().mapToLong(section -> section.baseTravelDurationSeconds()).sum();
@@ -87,8 +87,18 @@ public class TripRouteGeometryService {
         }
         return resolve(trip);
     }
+
+    /** Check on a fresh motion instance; callers must never mutate the shared resolved plan. */
+    public void validateReplacement(TripEntity trip, List<RouteDetailResponse.RouteSectionResponse> replacement, double elapsed) {
+        var check = new RouteMotion(RouteDetailResponse.from(trip.getRoute()));
+        revisions.findAllByTripIdOrderByRevisionNumberDesc(trip.getId()).stream()
+                .filter(r -> r.getSimulationStartElapsed() != null && Objects.equals(r.getSimulationAttemptNumber(), trip.getAttemptNumber()))
+                .sorted(Comparator.comparingInt(TripRouteRevisionEntity::getRevisionNumber))
+                .forEach(r -> check.revise(sections(r), r.getSimulationStartElapsed()));
+        check.revise(replacement, elapsed);
+    }
     private List<RouteDetailResponse.RouteSectionResponse> sections(TripRouteRevisionEntity revision) {
         return revision.getSections().stream().map(s -> new RouteDetailResponse.RouteSectionResponse(s.getSectionSequence(),
-            s.getDestinationStopSequence(),s.getEncodedPolyline(),s.getDistanceMeters(),s.getTravelDurationSeconds(),s.getBaseTravelDurationSeconds())).toList();
+            s.getDestinationStopSequence(),s.getEncodedPolyline(),s.getDistanceMeters(),s.getTravelDurationSeconds(),s.getBaseTravelDurationSeconds(),s.getInstructions())).toList();
     }
 }

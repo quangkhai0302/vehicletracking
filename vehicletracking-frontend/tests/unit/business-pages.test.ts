@@ -360,7 +360,7 @@ test('schedule form validates weekdays and sends ONCE payload without weekly mas
   await form.trigger('submit');
   expect(createSchedule).not.toHaveBeenCalled();
   expect(form.get('[role=alert]').text()).toContain('ít nhất một ngày');
-  await form.findAll('input[type=radio]')[0].setValue(true);
+  await form.get('.schedule-frequency-fieldset input[type=radio]').setValue(true);
   await form.trigger('submit');
   expect(form.get('[role=alert]').text()).toContain('ngày chạy cụ thể');
   await form.get('fieldset input[type=date]').setValue('2026-09-24');
@@ -381,6 +381,9 @@ test('schedule form validates weekdays and sends ONCE payload without weekly mas
     timezone: 'Asia/Ho_Chi_Minh',
     effectiveFrom: '2026-09-23',
     effectiveUntil: null,
+    startMode: 'MANUAL',
+    backupEnabled: false,
+    backupDriverIds: [],
   });
   await wrapper.get('dialog').trigger('cancel');
   expect(wrapper.find('dialog').exists()).toBe(true);

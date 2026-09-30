@@ -172,7 +172,7 @@ public class RouteService {
         waypoints.forEach(wp -> route.addStop(new RouteStopEntity(stationMap.get(wp.stationId()), wp.sequenceNumber(), wp.stationName(),
                 wp.latitude(), wp.longitude(), wp.dwellDurationSeconds())));
         calculated.sections().forEach(cs -> route.addSection(new RouteSectionEntity(cs.sectionSequence(), cs.destinationStopSequence(),
-                cs.encodedPolyline(), cs.distanceMeters(), cs.travelDurationSeconds(), cs.baseTravelDurationSeconds())));
+                cs.encodedPolyline(), cs.distanceMeters(), cs.travelDurationSeconds(), cs.baseTravelDurationSeconds(), cs.instructions())));
         return route;
     }
 
@@ -231,7 +231,7 @@ public class RouteService {
             }
             replacement.addSection(new RouteSectionEntity(section.sectionSequence(),
                     destinationStopSequences.get(localDestination - 1), section.encodedPolyline(), section.distanceMeters(),
-                    section.travelDurationSeconds(), section.baseTravelDurationSeconds()));
+                    section.travelDurationSeconds(), section.baseTravelDurationSeconds(), section.instructions()));
         }
         for (RouteShapePointEntity point : source.getShapingPoints()) {
             replacement.addShapingPoint(new RouteShapePointEntity(point.getPointOrder(), point.getDestinationStopSequence(),

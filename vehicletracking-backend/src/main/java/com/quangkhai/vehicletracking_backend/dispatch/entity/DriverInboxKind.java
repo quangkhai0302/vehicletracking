@@ -1,0 +1,6 @@
+package com.quangkhai.vehicletracking_backend.dispatch.entity;
+
+public enum DriverInboxKind {
+    TRIP_ASSIGNED, TRIP_UNASSIGNED, READY_WINDOW_OPEN, OFFER_RECEIVED,
+    OFFER_CANCELLED, OFFER_EXPIRED, TRIP_STARTED
+}

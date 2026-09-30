@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
-import { BellOff, Route, Check, Trash2, CheckCheck, MapPinned } from '@lucide/vue';
+import { BellOff, BellRing, Route, Check, Trash2, CheckCheck, MapPinned } from '@lucide/vue';
 import type { NotificationItem } from '@/features/reports/types/notifications';
 import {
   deleteNotification,
@@ -127,7 +127,10 @@ const remove = async () => {
             v-if="item.type === 'OFF_ROUTE_DETECTED'"
             :size="15"
           /><Route
-            v-else-if="item.type === 'REROUTE_CREATED'"
+            v-else-if="item.type === 'REROUTE_CREATED' || item.type === 'DRIVER_ROUTE_CHANGED'"
+            :size="15"
+          /><BellRing
+            v-else-if="item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED'"
             :size="15"
           /><BellOff
             v-else

@@ -1,4 +1,6 @@
-export type NotificationType = 'REROUTE_CREATED' | 'REROUTE_UNAVAILABLE' | 'OFF_ROUTE_DETECTED';
+export type NotificationType =
+  | 'REROUTE_CREATED' | 'REROUTE_UNAVAILABLE' | 'OFF_ROUTE_DETECTED' | 'DRIVER_ROUTE_CHANGED'
+  | 'DISPATCH_ATTENTION' | 'DRIVER_UNAVAILABLE' | 'DISPATCH_REASSIGNED' | 'TRIP_AUTO_STARTED';
 export type NotificationSeverity = 'CRITICAL' | 'MAJOR';
 export interface NotificationItem {
   id: number; tripId: number; vehicleId: number; vehiclePlateNumber: string; revisionId: number | null; type: NotificationType; severity: NotificationSeverity;
@@ -17,7 +19,7 @@ export interface RouteRevisionSection {
 }
 export interface RouteRevision {
   id: number; tripId: number; sourceRouteId: number; revisionNumber: number; status: 'ACTIVE' | 'SUPERSEDED';
-  reasonCode: 'ROAD_CLOSURE' | 'TRAFFIC_DELAY'; reasonDetail: string | null; triggerIncidentId: string | null;
+  reasonCode: 'ROAD_CLOSURE' | 'TRAFFIC_DELAY' | 'DRIVER_CHOICE'; reasonDetail: string | null; triggerIncidentId: string | null;
   severity: NotificationSeverity; baselineRemainingSeconds: number; revisedRemainingSeconds: number;
   createdAt: string; activatedAt: string; supersededAt: string | null;
   stops: RouteRevisionStop[]; sections: RouteRevisionSection[];

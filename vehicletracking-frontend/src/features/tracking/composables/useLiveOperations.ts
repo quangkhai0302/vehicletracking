@@ -1,8 +1,19 @@
-import { reactive, ref, shallowRef, watch } from 'vue';
+import { hasInjectionContext, inject, reactive, ref, shallowRef, watch, type InjectionKey } from 'vue';
 import { fetchOperations, subscribeOperations } from '@/features/tracking/api/operations';
 import type { OperationsSnapshot, StreamConnection } from '@/features/tracking/types/operations';
 
-export function useLiveOperations() {
+export interface LiveOperationsState {
+  snapshot: OperationsSnapshot | null;
+  connection: StreamConnection;
+  now: number;
+  error: string | null;
+  reconnect: () => void;
+}
+export const liveOperationsKey: InjectionKey<LiveOperationsState> = Symbol('live-operations');
+
+export function useLiveOperations(): LiveOperationsState {
+  const shared = hasInjectionContext() ? inject(liveOperationsKey, null) : null;
+  if (shared) return shared;
   const snapshot = shallowRef<OperationsSnapshot | null>(null);
   const connection = ref<StreamConnection>('connecting');
   const now = ref(Date.now()), attempt = ref(0), error = ref<string | null>(null);

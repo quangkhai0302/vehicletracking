@@ -32,6 +32,7 @@ export interface RouteStop {
 }
 
 export interface RouteSection {
+  instructions?: RouteInstruction[];
   sectionSequence: number;
   destinationStopSequence: number;
   encodedPolyline: string;
@@ -39,6 +40,8 @@ export interface RouteSection {
   travelDurationSeconds: number;
   baseTravelDurationSeconds: number;
 }
+
+export interface RouteInstruction { action: string | null; direction: string | null; instruction: string | null; offset: number }
 
 export interface RouteSummary {
   id: number;

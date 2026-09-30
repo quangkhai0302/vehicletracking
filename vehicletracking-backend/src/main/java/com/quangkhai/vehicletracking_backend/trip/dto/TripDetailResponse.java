@@ -1,6 +1,7 @@
 package com.quangkhai.vehicletracking_backend.trip.dto;
 
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
+import com.quangkhai.vehicletracking_backend.dispatch.entity.TripDispatchEntity;
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -19,7 +20,10 @@ public record TripDetailResponse(TripSummaryResponse trip, List<Stop> stops, Rou
         }
     }
     public static TripDetailResponse from(TripEntity trip) {
-        return new TripDetailResponse(TripSummaryResponse.from(trip),
+        return from(trip, null);
+    }
+    public static TripDetailResponse from(TripEntity trip, TripDispatchEntity dispatch) {
+        return new TripDetailResponse(TripSummaryResponse.from(trip, dispatch),
                 trip.getStops().stream().map(Stop::from).toList(), RouteDetailResponse.from(trip.getRoute()));
     }
 }

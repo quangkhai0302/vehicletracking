@@ -6,12 +6,10 @@ import {
   ChevronRight,
   Clock3,
   LogOut,
-  MapPin,
   Navigation,
   RefreshCw,
   Route,
   UserRound,
-  X,
 } from '@lucide/vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useAuth } from '@/features/auth/composables/useAuth';
@@ -23,8 +21,8 @@ import {
 } from '@/features/fleet/types/fleet';
 import { tripDispatchLabel, tripReferenceTime } from '@/features/fleet/utils/tripTime';
 import type { TripSchedule } from '@/features/schedules/types/schedule';
-import SidePanel from '@/shared/components/SidePanel.vue';
-import { formatDuration } from '@/shared/utils/format';
+import DriverTripDetail from '@/features/fleet/components/DriverTripDetail.vue';
+import DriverDispatchWorkspace from '@/features/dispatch/components/DriverDispatchWorkspace.vue';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
 import '@/features/fleet/styles/driver-portal.css';
 const BUSINESS_TIME_ZONE = 'Asia/Ho_Chi_Minh';
@@ -58,19 +56,23 @@ const trips = shallowRef<TripSummary[]>([]),
 const loading = ref(true),
   error = ref<string | null>(null),
   attempt = ref(0);
+const loadedOnce = ref(false);
 useErrorToast(error);
 const schedulesView = computed(() => route.path.endsWith('/schedules'));
 watch(
   attempt,
   (_, _old, cleanup) => {
     const controller = new AbortController();
-    loading.value = true;
+    loading.value = !loadedOnce.value;
     error.value = null;
     Promise.all([fetchMyTrips({}, controller.signal), fetchMySchedules(controller.signal)])
       .then(([t, s]) => {
         if (!controller.signal.aborted) {
           trips.value = t;
           schedules.value = s;
+          loadedOnce.value = true;
+          if (detail.value && !t.some((trip) => trip.id === detail.value?.trip.id))
+            detail.value = null;
         }
       })
       .catch((reason) => {
@@ -110,6 +112,10 @@ async function openTrip(trip: TripSummary) {
   }
 }
 onScopeDispose(() => detailRequest?.abort());
+const refreshTimer = setInterval(() => {
+  if (document.visibilityState === 'visible') attempt.value++;
+}, 15000);
+onScopeDispose(() => clearInterval(refreshTimer));
 async function signOut() {
   await auth.logout();
   await router.replace('/login');
@@ -148,7 +154,8 @@ async function signOut() {
         >
       </nav>
       <template v-if="!schedulesView"
-        ><section class="driver-summary-grid">
+        ><DriverDispatchWorkspace :trips="trips" @changed="attempt++" />
+        <section class="driver-summary-grid">
           <article>
             <Clock3 :size="20" /><span
               >Chuyến hôm nay<strong>{{ loading ? '—' : todayTrips.length }}</strong></span
@@ -282,57 +289,11 @@ async function signOut() {
         >
       </section>
     </div>
-    <SidePanel
+    <DriverTripDetail
       v-if="detail"
-      class-name="driver-detail"
-      label="Chi tiết chuyến được phân công"
-      :on-close="() => (detail = null)"
-      ><header>
-        <div>
-          <span>CHI TIẾT CHUYẾN #{{ detail.trip.id }}</span>
-          <h2>{{ detail.trip.routeName }}</h2>
-        </div>
-        <button
-          aria-label="Đóng chi tiết"
-          @click="detail = null"
-        >
-          <X :size="19" />
-        </button>
-      </header>
-      <div class="driver-detail-meta">
-        <div>
-          <MapPin :size="16" /><span
-            >Xe<strong>{{ detail.trip.vehiclePlateNumber }}</strong></span
-          >
-        </div>
-        <div>
-          <Clock3 :size="16" />
-          <span v-if="detail.trip.dispatchMode === 'FIXED_SCHEDULE'">
-            Khởi hành theo lịch<strong>{{ dateTime(detail.trip.scheduledDepartureAt) }}</strong>
-          </span>
-          <span v-else>
-            Điều phối tức thời<strong>{{ dateTime(detail.trip.createdAt) }}</strong>
-          </span>
-        </div>
-      </div>
-      <div class="driver-stop-list">
-        <h3>Trình tự điểm dừng</h3>
-        <div
-          v-for="stop in detail.stops"
-          :key="stop.sequenceNumber"
-        >
-          <span>{{ stop.sequenceNumber }}</span>
-          <div>
-            <strong>{{ stop.stationName }}</strong
-            ><small v-if="detail.trip.dispatchMode === 'FIXED_SCHEDULE'">
-              Dự kiến đến {{ dateTime(stop.plannedArrivalAt) }}
-            </small>
-            <small v-else>
-              Sau {{ formatDuration(stop.arrivalOffsetSeconds) }} từ lúc khởi hành
-            </small>
-          </div>
-        </div>
-      </div></SidePanel
-    >
+      :detail="detail"
+      :format-time="dateTime"
+      @close="detail = null"
+    />
   </main>
 </template>

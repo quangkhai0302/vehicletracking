@@ -1,6 +1,7 @@
 package com.quangkhai.vehicletracking_backend.simulation.motion;
 
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
+import com.quangkhai.vehicletracking_backend.route.dto.RouteInstruction;
 import com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing;
 import com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline.Point;
 import java.util.*;
@@ -9,7 +10,9 @@ public final class RouteMotion {
     public record Frame(double latitude,double longitude,double heading,double speedKmh,double progressPercent,
             int nextStopSequence,double nextStopEtaSeconds,double dwellRemainingSeconds,
             boolean dwelling,boolean finished) {}
-    private record Leg(double start,double end,int destination,List<Point> points,double[] distances,double length,double distanceBefore) {}
+    private record Leg(double start,double end,int destination,List<Point> points,double[] distances,double length,double distanceBefore,
+                       List<RouteInstruction> instructions) {}
+    public record Guidance(RouteInstruction maneuver, double distanceMeters) {}
     private final List<Leg> legs=new ArrayList<>();
     private final RouteDetailResponse route;
     /**
@@ -43,7 +46,7 @@ public final class RouteMotion {
                 double duration=freeFlowDuration(section);
                 if(duration<0 || (length>0 && duration==0) || (section.distanceMeters()>0 && length==0)
                     || (duration>0 && length/duration*3.6>500)) throw invalid();
-                legs.add(new Leg(elapsed,elapsed+duration,destination,points,distances,length,totalDistance));
+                legs.add(new Leg(elapsed,elapsed+duration,destination,points,distances,length,totalDistance,section.instructions()));
                 totalDistance+=length; elapsed+=duration; previous=points.getLast();
             }
             if(count==0) throw invalid();
@@ -65,6 +68,29 @@ public final class RouteMotion {
         return base;
     }
     public double duration() { return simulationDuration; }
+
+    /** Next provider maneuver along the travelled path, not nearest point across a loop. */
+    public Guidance guidance(double elapsed) {
+        var frame = at(elapsed);
+        if (frame.dwelling() || frame.finished()) return null;
+        double travelled = 0;
+        for (var leg : legs) {
+            if (elapsed >= leg.end()) travelled = leg.distanceBefore() + leg.length();
+            else if (elapsed >= leg.start()) {
+                travelled = leg.distanceBefore() + leg.length() * (elapsed - leg.start()) / (leg.end() - leg.start());
+                break;
+            }
+        }
+        for (var leg : legs) {
+            if (leg.end() < elapsed) continue;
+            for (var instruction : leg.instructions().stream().sorted(Comparator.comparingInt(RouteInstruction::offset)).toList()) {
+                if (instruction.offset() < 0 || instruction.offset() >= leg.distances().length) continue;
+                double ahead = leg.distanceBefore() + leg.distances()[instruction.offset()] - travelled;
+                if (ahead >= -2) return new Guidance(instruction, Math.max(0, ahead));
+            }
+        }
+        return null;
+    }
 
     /** Retains the travelled prefix, then appends the replacement from the current position. */
     public void revise(List<RouteDetailResponse.RouteSectionResponse> sections,double atElapsed) {
@@ -91,7 +117,9 @@ public final class RouteMotion {
             for(int i=1;i<leg.points().size();i++) if(leg.distances()[i]<length) points.add(leg.points().get(i));
             points.add(pointAt(leg,atElapsed));
             double[] distances=distances(points);
-            replacement.add(new Leg(leg.start(),atElapsed,leg.destination(),points,distances,length,travelled));
+            int retainedPoints = points.size() - 1;
+            replacement.add(new Leg(leg.start(),atElapsed,leg.destination(),points,distances,length,travelled,
+                leg.instructions().stream().filter(i -> i.offset() < retainedPoints).toList()));
             travelled+=length;
         }
         double elapsed=atElapsed;
@@ -102,7 +130,7 @@ public final class RouteMotion {
             double[] distances=distances(points);double length=distances[distances.length-1];
             double duration=freeFlowDuration(section);
             if(duration<0 || (length>0 && duration==0) || (duration>0 && length/duration*3.6>500)) throw invalid();
-            replacement.add(new Leg(elapsed,elapsed+duration,section.destinationStopSequence(),points,distances,length,travelled));
+            replacement.add(new Leg(elapsed,elapsed+duration,section.destinationStopSequence(),points,distances,length,travelled,section.instructions()));
             travelled+=length;elapsed+=duration;
             if(index==sections.size()-1 || sections.get(index+1).destinationStopSequence()!=section.destinationStopSequence()) {
                 var stop=route.stops().stream().filter(s->s.sequenceNumber()==section.destinationStopSequence()).findFirst().orElseThrow(RouteMotion::invalid);
@@ -123,7 +151,7 @@ public final class RouteMotion {
     public RouteDetailResponse snapshot() {
         List<RouteDetailResponse.RouteSectionResponse> sections=new ArrayList<>();
         for(var leg:legs) sections.add(new RouteDetailResponse.RouteSectionResponse(sections.size()+1,leg.destination(),
-            FlexiblePolyline.encode(leg.points()),Math.round(leg.length()),Math.max(1,Math.round(leg.end()-leg.start())),Math.max(1,Math.round(leg.end()-leg.start()))));
+            FlexiblePolyline.encode(leg.points()),Math.round(leg.length()),Math.max(1,Math.round(leg.end()-leg.start())),Math.max(1,Math.round(leg.end()-leg.start())),leg.instructions()));
         var stops=route.stops().stream().map(s -> new RouteDetailResponse.RouteStopResponse(s.sequenceNumber(),s.role(),s.stationId(),s.stationName(),
             s.latitude(),s.longitude(),s.dwellDurationSeconds(),
             sections.stream().filter(section -> section.destinationStopSequence()==s.sequenceNumber()).mapToLong(section -> section.distanceMeters()).sum(),

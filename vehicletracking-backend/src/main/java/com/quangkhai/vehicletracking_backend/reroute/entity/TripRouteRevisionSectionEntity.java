@@ -4,6 +4,10 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import com.quangkhai.vehicletracking_backend.route.dto.RouteInstruction;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import java.util.List;
 
 @Entity
 @Table(name = "trip_route_revision_sections", schema = "vehicle_tracking")
@@ -35,6 +39,16 @@ public class TripRouteRevisionSectionEntity {
 
     @Column(name = "base_travel_duration_seconds", nullable = false)
     private long baseTravelDurationSeconds;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    private List<RouteInstruction> instructions = List.of();
+
+    public TripRouteRevisionSectionEntity(int sequence, int destination, String polyline, long distance,
+                                         long travel, long base, List<RouteInstruction> instructions) {
+        this(sequence, destination, polyline, distance, travel, base);
+        this.instructions = List.copyOf(instructions);
+    }
 
     public TripRouteRevisionSectionEntity(int sectionSequence, int destinationStopSequence,
                                           String encodedPolyline, long distanceMeters,

@@ -2,6 +2,7 @@ package com.quangkhai.vehicletracking_backend.driverportal;
 
 import com.quangkhai.vehicletracking_backend.auth.config.SecurityConfig.UserAccountPrincipal;
 import com.quangkhai.vehicletracking_backend.driverportal.service.DriverPortalService;
+import com.quangkhai.vehicletracking_backend.dispatch.repository.TripDispatchRepository;
 import com.quangkhai.vehicletracking_backend.schedule.repository.TripScheduleRepository;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.*;
 class DriverPortalServiceTest {
     @Mock TripRepository trips;
     @Mock TripScheduleRepository schedules;
+    @Mock TripDispatchRepository dispatches;
     @Mock Clock clock;
     @Mock UserAccountPrincipal principal;
 
@@ -29,7 +31,7 @@ class DriverPortalServiceTest {
     void tripsAlwaysUsesAuthenticatedDriverScope() {
         when(principal.driverId()).thenReturn(42L);
         when(trips.findAllByDriverIdOrderByScheduledDepartureAtDescIdDesc(42L)).thenReturn(List.of());
-        DriverPortalService service = new DriverPortalService(trips, schedules, clock);
+        DriverPortalService service = new DriverPortalService(trips, schedules, dispatches, clock);
 
         assertThat(service.trips(principal, null, null, null)).isEmpty();
         verify(trips).findAllByDriverIdOrderByScheduledDepartureAtDescIdDesc(42L);
@@ -40,7 +42,7 @@ class DriverPortalServiceTest {
     void tripDoesNotExposeAnIdOutsideAuthenticatedDriverScope() {
         when(principal.driverId()).thenReturn(42L);
         when(trips.findByIdAndDriverId(99L, 42L)).thenReturn(Optional.empty());
-        DriverPortalService service = new DriverPortalService(trips, schedules, clock);
+        DriverPortalService service = new DriverPortalService(trips, schedules, dispatches, clock);
 
         assertThatThrownBy(() -> service.trip(principal, 99L))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
@@ -52,7 +54,7 @@ class DriverPortalServiceTest {
     @Test
     void rejectsAccountWithoutLinkedDriver() {
         when(principal.driverId()).thenReturn(null);
-        DriverPortalService service = new DriverPortalService(trips, schedules, clock);
+        DriverPortalService service = new DriverPortalService(trips, schedules, dispatches, clock);
 
         assertThatThrownBy(() -> service.trips(principal, null, null, null))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
