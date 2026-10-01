@@ -12,7 +12,6 @@ import {
   fetchUserAccounts,
   resetDriverPassword,
   setUserAccountActive,
-  uploadDriverAvatar,
   type DriverAccountCreated,
   type UserAccount,
 } from '@/features/auth/api/users';
@@ -35,11 +34,9 @@ vi.mock('@/features/routes/api/routes', () => ({ fetchRoutes: vi.fn() }));
 vi.mock('@/features/reports/api/reports', () => ({ fetchOperationalReport: vi.fn() }));
 vi.mock('@/features/auth/api/users', () => ({
   createDriverAccount: vi.fn(),
-  deleteDriverAvatar: vi.fn(),
   fetchUserAccounts: vi.fn(),
   resetDriverPassword: vi.fn(),
   setUserAccountActive: vi.fn(),
-  uploadDriverAvatar: vi.fn(),
 }));
 vi.mock('@/features/schedules/api/schedules', () => ({
   createSchedule: vi.fn(),
@@ -290,6 +287,9 @@ test('user page visually separates roles and locked access states', async () => 
   expect(wrapper.get('.users-overview-card.locked strong').text()).toBe('1');
   expect(wrapper.get('.user-role.admin').text()).toContain('Quản trị viên');
   expect(wrapper.findAll('.user-role.driver')).toHaveLength(2);
+  expect(wrapper.findAll('.user-avatar.driver .lucide-user-round')).toHaveLength(2);
+  expect(wrapper.find('input[type=file]').exists()).toBe(false);
+  expect(wrapper.find('.user-identity img').exists()).toBe(false);
   expect(wrapper.get('.user-row.is-locked').attributes('data-active')).toBe('false');
   expect(wrapper.get('.user-row.is-locked .user-inactive').text()).toContain('Tài khoản bị khóa');
   expect(wrapper.get('.user-row.is-locked .user-account-action.unlock').text()).toContain(
@@ -327,22 +327,6 @@ test('admin resets a driver password through a guarded modal', async () => {
   await flushPromises();
   expect(notifySuccess).toHaveBeenCalledWith('Đã đặt lại mật khẩu cho tài khoản linked.driver.');
   expect(wrapper.find('.user-password-reset-modal').exists()).toBe(false);
-});
-
-test('admin uploads a PNG avatar for a driver account', async () => {
-  const wrapper = mount(UserManagementPage);
-  cleanups.push(() => wrapper.unmount());
-  await flushPromises();
-  vi.mocked(uploadDriverAvatar).mockResolvedValueOnce();
-
-  const file = new File(['avatar'], 'driver.png', { type: 'image/png' });
-  const input = wrapper.get('input[type=file]');
-  Object.defineProperty(input.element, 'files', { configurable: true, value: [file] });
-  await input.trigger('change');
-  await flushPromises();
-
-  expect(uploadDriverAvatar).toHaveBeenCalledWith(2, file);
-  expect(wrapper.get('.user-account-action.avatar').text()).toContain('Tải avatar');
 });
 
 test('user page preserves toggle error/retry and aborts outstanding reads on unmount', async () => {

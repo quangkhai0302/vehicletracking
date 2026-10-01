@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 import {
   ArrowLeft,
   Navigation,
@@ -12,6 +12,7 @@ import {
   MapPin,
   Gauge,
   Clock3,
+  ChevronDown,
 } from '@lucide/vue';
 import { RouterLink } from 'vue-router';
 import { useDriverNavigation } from '@/features/fleet/composables/useDriverNavigation';
@@ -32,6 +33,24 @@ const props = defineProps<{ tripId: number }>();
 const navigation = useDriverNavigation(toRef(props, 'tripId'));
 useErrorToast(() => navigation.error);
 const mapView = ref<InstanceType<typeof DriverNavigationMap> | null>(null);
+const navigationView = ref<HTMLElement | null>(null);
+const tripDetails = ref<HTMLElement | null>(null);
+function scrollToMap() {
+  navigationView.value?.scrollTo?.({ top: 0 });
+}
+function showTripDetails() {
+  tripDetails.value?.scrollIntoView?.({ block: 'start' });
+}
+function showStop(sequence: number) {
+  mapView.value?.showStop(sequence);
+  scrollToMap();
+}
+watch(
+  () => navigation.snapshot?.trip.status,
+  (status, previous) => {
+    if (status === 'IN_PROGRESS' && previous === 'SCHEDULED') scrollToMap();
+  },
+);
 const info = computed(() =>
   navigation.snapshot ? driverNavigationPresentation(navigation.snapshot) : null,
 );
@@ -58,7 +77,10 @@ const distance = (meters: number) =>
 </script>
 
 <template>
-  <main class="driver-navigation business-ui">
+  <main
+    ref="navigationView"
+    class="driver-navigation business-ui"
+  >
     <header class="driver-navigation-header">
       <RouterLink
         to="/driver/today"
@@ -126,8 +148,18 @@ const distance = (meters: number) =>
         >
           Đường màu cam: đang xem thử, chưa áp dụng
         </div>
+        <button
+          type="button"
+          class="driver-navigation-scroll-hint"
+          aria-controls="driver-navigation-details"
+          @click="showTripDetails"
+        >
+          <ChevronDown :size="18" />Kéo xuống xem thông tin chuyến
+        </button>
       </section>
       <aside
+        id="driver-navigation-details"
+        ref="tripDetails"
         class="driver-navigation-sidebar"
         aria-label="Điều khiển chuyến đi"
       >
@@ -317,7 +349,7 @@ const distance = (meters: number) =>
             >
               <button
                 :aria-label="`Xem trạm ${stop.sequenceNumber}: ${stop.stationName}`"
-                @click="mapView?.showStop(stop.sequenceNumber)"
+                @click="showStop(stop.sequenceNumber)"
               >
                 <span class="driver-trip-stop-number"
                   ><Check

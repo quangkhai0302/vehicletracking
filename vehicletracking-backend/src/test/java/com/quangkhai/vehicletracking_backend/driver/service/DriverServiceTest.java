@@ -11,13 +11,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -82,34 +77,5 @@ class DriverServiceTest {
 
         assertThat(driver.isActive()).isFalse();
         verify(drivers, never()).delete(any());
-    }
-
-    @Test
-    void updateAvatar_acceptsValidatedPngAndCanClearIt() throws IOException {
-        var driver = new DriverEntity("A", "0901234567", "B2-123");
-        when(drivers.findLockedById(1L)).thenReturn(Optional.of(driver));
-        when(drivers.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
-        var image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
-        var bytes = new ByteArrayOutputStream();
-        ImageIO.write(image, "png", bytes);
-
-        service.updateAvatar(1L, new MockMultipartFile("file", "driver.png", "image/png", bytes.toByteArray()));
-
-        assertThat(driver.hasAvatar()).isTrue();
-        assertThat(driver.avatarContentType()).isEqualTo("image/png");
-        service.clearAvatar(1L);
-        assertThat(driver.hasAvatar()).isFalse();
-    }
-
-    @Test
-    void updateAvatar_rejectsUnsupportedType() {
-        var driver = new DriverEntity("A", "0901234567", "B2-123");
-        when(drivers.findLockedById(1L)).thenReturn(Optional.of(driver));
-
-        assertThatThrownBy(() -> service.updateAvatar(1L,
-                new MockMultipartFile("file", "driver.svg", "image/svg+xml", "<svg/>".getBytes())))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        ex -> assertThat(ex.getStatusCode().value()).isEqualTo(415));
-        verify(drivers, never()).saveAndFlush(any());
     }
 }

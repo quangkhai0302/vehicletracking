@@ -157,7 +157,53 @@ async function verifyModal(viewport, adminPresentation) {
     contentSized: true, noHorizontalOverflow: true, longListScrollsWithVisibleFooter: true, escapeAndFocusRestore: true, mapLink: true });
   await ctx.close();
 }
+async function verifyMobileMapScreen(viewport) {
+  const { ctx, page } = await context('DRIVER', viewport);
+  await page.goto(`${base}/driver/trips/7/navigate`);
+  await page.locator('.driver-leaflet-map').waitFor();
+  const layout = await page.evaluate(() => {
+    const main = document.querySelector('.driver-navigation');
+    const header = document.querySelector('.driver-navigation-header').getBoundingClientRect();
+    const map = document.querySelector('.driver-navigation-map-column').getBoundingClientRect();
+    const details = document.querySelector('.driver-navigation-sidebar');
+    return { headerTop: header.top, headerBottom: header.bottom, mapTop: map.top, mapBottom: map.bottom,
+      detailsTop: details.getBoundingClientRect().top, detailsOverflow: getComputedStyle(details).overflowY,
+      viewportHeight: innerHeight, scrollable: main.scrollHeight > main.clientHeight,
+      noHorizontalOverflow: main.scrollWidth <= main.clientWidth };
+  });
+  assert.equal(layout.headerTop, 0);
+  assert.equal(layout.mapTop, layout.headerBottom);
+  assert.equal(layout.mapBottom, viewport.height);
+  assert.equal(layout.detailsTop, viewport.height);
+  assert.equal(layout.detailsOverflow, 'visible');
+  assert(layout.scrollable && layout.noHorizontalOverflow);
+  await page.screenshot({ path: `${output}/mobile-map-first-screen-${viewport.width}x${viewport.height}.png` });
+  const touch = await ctx.newCDPSession(page);
+  const swipeStart = { x: viewport.width / 2, y: viewport.height - 22 };
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [swipeStart] });
+  for (const offset of [20, 60, 120, 180]) {
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...swipeStart, y: swipeStart.y - offset }] });
+    await page.waitForTimeout(30);
+  }
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForFunction(() => document.querySelector('.driver-navigation').scrollTop > 0);
+  await touch.detach();
+  await page.getByRole('button', { name: 'Kéo xuống xem thông tin chuyến', exact: true }).click();
+  await page.waitForFunction(() => {
+    const summary = document.querySelector('.driver-navigation-summary').getBoundingClientRect();
+    return document.querySelector('.driver-navigation').scrollTop > 0 && summary.top >= 0 && summary.bottom <= innerHeight;
+  });
+  await page.screenshot({ path: `${output}/mobile-map-details-${viewport.width}x${viewport.height}.png` });
+  await page.setViewportSize({ ...viewport, height: viewport.height + 80 });
+  await page.locator('.driver-navigation').evaluate(el => el.scrollTo({ top: 0, behavior: 'instant' }));
+  await page.waitForFunction(() => Math.abs(document.querySelector('.driver-navigation-map-column').getBoundingClientRect().bottom - innerHeight) < 1);
+  results.push({ mobileNavigationViewport: `${viewport.width}x${viewport.height}`, mapFillsFirstScreen: true,
+    detailsScrollBelowMap: true, swipeRevealsDetails: true, noNestedDetailsScroll: true, followsViewportResize: true });
+  await ctx.close();
+}
 try {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }, { width: 667, height: 375 }])
+    await verifyMobileMapScreen(viewport);
   const adminDetail = await context('ADMIN', { width: 1440, height: 1000 });
   await adminDetail.page.goto(`${base}/trips`);
   await adminDetail.page.getByRole('button', { name: 'Mở chi tiết chuyến 7, Tuyến thử nghiệm', exact: true }).click();
@@ -189,6 +235,10 @@ try {
   await mobile.page.screenshot({ path: `${output}/mobile-before-start.png` });
   await mobile.page.getByRole('button', { name: 'Bắt đầu chuyến', exact: true }).click();
   await mobile.page.getByRole('button', { name: 'Đổi đường', exact: true }).waitFor();
+  await mobile.page.waitForFunction(() => document.querySelector('.driver-navigation').scrollTop < 1);
+  const startedMap = await mobile.page.locator('.driver-navigation-map-column').boundingBox();
+  assert(startedMap && startedMap.y + startedMap.height === 844, 'Starting returns to the full-screen map');
+  await mobile.page.screenshot({ path: `${output}/mobile-after-start.png` });
   assert.equal(counters.start, 1);
   await mobile.page.getByText('1/2 trạm đã check-in', { exact: true }).waitFor();
   assert.equal(await mobile.page.locator('[role="progressbar"]').getAttribute('aria-valuenow'), '25');
@@ -196,6 +246,7 @@ try {
   await mobile.page.locator('.driver-trip-stops summary').click();
   await mobile.page.getByRole('button', { name: 'Xem trạm 2: Trạm 2', exact: true }).click();
   await mobile.page.locator('.simulation-stop-popup').waitFor();
+  await mobile.page.waitForFunction(() => document.querySelector('.driver-navigation').scrollTop < 1);
   const driverPopup = await mobile.page.locator('.simulation-stop-popup').textContent();
   assert(driverPopup.includes('Địa chỉ Trạm 2') && driverPopup.includes('50 m') && driverPopup.includes('Trạm kế tiếp'));
   const driverPopupNode = await mobile.page.locator('.simulation-stop-popup').elementHandle();
@@ -240,6 +291,9 @@ try {
   assert.equal(await desktop.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   const sidebar = await desktop.page.locator('.driver-navigation-sidebar').boundingBox();
   assert(sidebar && sidebar.width >= 300);
+  const desktopMap = await desktop.page.locator('.driver-navigation-map-column').boundingBox();
+  assert(desktopMap && desktopMap.y === sidebar.y && desktopMap.y + desktopMap.height === 1000);
+  assert.equal(await desktop.page.locator('.driver-navigation-scroll-hint').isVisible(), false);
   await desktop.page.getByRole('button', { name: 'Theo dõi vị trí xe', exact: true }).click();
   await desktop.page.locator('.driver-trip-stops summary').click();
   await desktop.page.screenshot({ path: `${output}/desktop-running.png` });

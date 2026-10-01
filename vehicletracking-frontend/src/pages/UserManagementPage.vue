@@ -7,21 +7,16 @@ import {
   Plus,
   RefreshCw,
   ShieldCheck,
-  Trash2,
   Unlock,
-  Upload,
   UserRound,
   Users,
   X,
 } from '@lucide/vue';
 import {
   createDriverAccount,
-  deleteDriverAvatar,
-  driverAvatarUrl,
   fetchUserAccounts,
   resetDriverPassword,
   setUserAccountActive,
-  uploadDriverAvatar,
   type DriverAccountCreated,
   type UserAccount,
 } from '@/features/auth/api/users';
@@ -41,13 +36,9 @@ const passwordResetTarget = shallowRef<UserAccount | null>(null);
 const loading = ref(true),
   saving = ref(false),
   resettingPassword = ref(false),
-  uploadingAvatarId = ref<number | null>(null),
   error = ref<string | null>(null),
   createOpen = ref(false),
   togglingAccountId = ref<number | null>(null);
-const avatarUrls = reactive<Record<number, string>>({});
-const avatarVisible = reactive<Record<number, boolean>>({});
-const avatarLoaded = reactive<Record<number, boolean>>({});
 useErrorToast(error);
 let controller: AbortController | null = null,
   disposed = false;
@@ -62,12 +53,6 @@ function load() {
       if (!request.signal.aborted) {
         accounts.value = a;
         drivers.value = d;
-        for (const account of a) {
-          if (account.role === 'DRIVER' && account.driverId && !avatarUrls[account.id]) {
-            avatarUrls[account.id] = driverAvatarUrl(account.driverId);
-            avatarVisible[account.id] = true;
-          }
-        }
       }
     })
     .catch((reason) => {
@@ -142,65 +127,6 @@ async function toggle(account: UserAccount) {
         reason instanceof Error ? reason.message : 'Không thể thay đổi trạng thái tài khoản.';
   } finally {
     if (!disposed) togglingAccountId.value = null;
-  }
-}
-
-function avatarInputId(account: UserAccount) {
-  return `avatar-upload-${account.id}`;
-}
-
-function onAvatarLoad(account: UserAccount) {
-  avatarVisible[account.id] = true;
-  avatarLoaded[account.id] = true;
-}
-
-function onAvatarError(account: UserAccount) {
-  avatarVisible[account.id] = false;
-  avatarLoaded[account.id] = false;
-}
-
-async function uploadAvatar(account: UserAccount, event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file || !account.driverId || uploadingAvatarId.value !== null) return;
-  if (!['image/jpeg', 'image/png'].includes(file.type)) {
-    error.value = 'Chỉ hỗ trợ ảnh PNG hoặc JPEG.';
-    return;
-  }
-  if (file.size > 2 * 1024 * 1024) {
-    error.value = 'Ảnh đại diện không được vượt quá 2 MB.';
-    return;
-  }
-
-  uploadingAvatarId.value = account.id;
-  error.value = null;
-  try {
-    await uploadDriverAvatar(account.driverId, file);
-    avatarUrls[account.id] = driverAvatarUrl(account.driverId, Date.now());
-    avatarVisible[account.id] = true;
-    avatarLoaded[account.id] = false;
-    notifySuccess(`Đã cập nhật avatar cho ${account.driverName || account.username}.`);
-  } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : 'Không thể tải avatar lên.';
-  } finally {
-    uploadingAvatarId.value = null;
-  }
-}
-
-async function removeAvatar(account: UserAccount) {
-  if (!account.driverId || uploadingAvatarId.value !== null) return;
-  uploadingAvatarId.value = account.id;
-  error.value = null;
-  try {
-    await deleteDriverAvatar(account.driverId);
-    avatarVisible[account.id] = false;
-    avatarLoaded[account.id] = false;
-    notifySuccess(`Đã xóa avatar của ${account.driverName || account.username}.`);
-  } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : 'Không thể xóa avatar.';
-  } finally {
-    uploadingAvatarId.value = null;
   }
 }
 
@@ -350,23 +276,13 @@ async function submitPasswordReset() {
               role="cell"
             >
               <span :class="`user-avatar ${account.role.toLowerCase()}`">
-                <img
-                  v-if="account.role === 'DRIVER' && avatarVisible[account.id]"
-                  :key="avatarUrls[account.id]"
-                  :src="avatarUrls[account.id]"
-                  :alt="`Avatar của ${account.driverName || account.username}`"
-                  class="user-avatar-image"
-                  crossorigin="use-credentials"
-                  @load="onAvatarLoad(account)"
-                  @error="onAvatarError(account)"
-                />
                 <ShieldCheck
-                  v-else-if="account.role === 'ADMIN'"
+                  v-if="account.role === 'ADMIN'"
                   :size="19"
                 />
                 <UserRound
                   v-else
-                  :size="19"
+                  :size="22"
                 />
               </span>
               <div class="user-account-copy">
@@ -429,50 +345,16 @@ async function submitPasswordReset() {
                 <button
                   type="button"
                   class="user-account-action reset"
-                  :disabled="resettingPassword || togglingAccountId !== null || uploadingAvatarId !== null"
+                  :disabled="resettingPassword || togglingAccountId !== null"
                   :aria-label="`Đặt lại mật khẩu tài khoản ${account.username}`"
                   @click="openPasswordReset(account)"
                 >
                   <KeyRound :size="15" />Đặt lại mật khẩu
                 </button>
-                <label
-                  :for="avatarInputId(account)"
-                  :class="['user-account-action', 'avatar', { 'is-busy': uploadingAvatarId === account.id }]"
-                  :aria-label="`${avatarLoaded[account.id] ? 'Đổi' : 'Tải'} avatar tài khoản ${account.username}`"
-                >
-                  <Upload
-                    v-if="uploadingAvatarId !== account.id"
-                    :size="15"
-                  />
-                  <RefreshCw
-                    v-else
-                    :size="15"
-                    class="user-action-spinner"
-                  />
-                  {{ uploadingAvatarId === account.id ? 'Đang tải…' : avatarLoaded[account.id] ? 'Đổi avatar' : 'Tải avatar' }}
-                </label>
-                <input
-                  :id="avatarInputId(account)"
-                  class="user-avatar-input"
-                  type="file"
-                  accept="image/jpeg,image/png"
-                  :disabled="uploadingAvatarId !== null || !account.active"
-                  @change="uploadAvatar(account, $event)"
-                />
-                <button
-                  v-if="avatarLoaded[account.id]"
-                  type="button"
-                  class="user-account-action remove-avatar"
-                  :disabled="uploadingAvatarId !== null"
-                  :aria-label="`Xóa avatar tài khoản ${account.username}`"
-                  @click="removeAvatar(account)"
-                >
-                  <Trash2 :size="15" />Xóa avatar
-                </button>
                 <button
                   type="button"
                   :class="['user-account-action', account.active ? 'lock' : 'unlock']"
-                  :disabled="resettingPassword || togglingAccountId !== null || uploadingAvatarId !== null"
+                  :disabled="resettingPassword || togglingAccountId !== null"
                   :aria-label="`${account.active ? 'Khóa' : 'Mở khóa'} tài khoản ${account.username}`"
                   @click="toggle(account)"
                 >

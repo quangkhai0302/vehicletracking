@@ -5,10 +5,7 @@ import com.quangkhai.vehicletracking_backend.driver.dto.DriverUpsertRequest;
 import com.quangkhai.vehicletracking_backend.driver.service.DriverService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.CacheControl;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -41,26 +38,5 @@ public class DriverController {
     public ResponseEntity<Void> deactivate(@PathVariable long id) {
         service.deactivate(id);
         return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping(value = "/{id}/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Void> uploadAvatar(@PathVariable long id, @RequestPart("file") MultipartFile file) {
-        service.updateAvatar(id, file);
-        return ResponseEntity.noContent().build();
-    }
-
-    @DeleteMapping("/{id}/avatar")
-    public ResponseEntity<Void> deleteAvatar(@PathVariable long id) {
-        service.clearAvatar(id);
-        return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/{id}/avatar")
-    public ResponseEntity<byte[]> avatar(@PathVariable long id) {
-        DriverService.AvatarFile avatar = service.avatar(id);
-        return ResponseEntity.ok()
-                .cacheControl(CacheControl.noCache())
-                .contentType(MediaType.parseMediaType(avatar.contentType()))
-                .body(avatar.data());
     }
 }

@@ -22,7 +22,7 @@ export interface DriverPasswordResetInput {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
+  if (options.body) headers.set('Content-Type', 'application/json');
   const response = await appFetch(`${BASE}${path}`, { ...options, headers });
   if (!response.ok) {
     let message = `Không thể thực hiện yêu cầu tài khoản (HTTP ${response.status}).`;
@@ -46,15 +46,3 @@ export const setUserAccountActive = (id: number, active: boolean) =>
   request<UserAccount>(`/users/${id}/${active ? 'enable' : 'disable'}`, { method: 'POST' });
 export const resetDriverPassword = (id: number, input: DriverPasswordResetInput) =>
   request<void>(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify(input) });
-
-export const driverAvatarUrl = (driverId: number, version?: number) =>
-  `${BASE}/drivers/${driverId}/avatar${version === undefined ? '' : `?v=${version}`}`;
-
-export const uploadDriverAvatar = (driverId: number, file: File) => {
-  const body = new FormData();
-  body.append('file', file);
-  return request<void>(`/drivers/${driverId}/avatar`, { method: 'POST', body });
-};
-
-export const deleteDriverAvatar = (driverId: number) =>
-  request<void>(`/drivers/${driverId}/avatar`, { method: 'DELETE' });

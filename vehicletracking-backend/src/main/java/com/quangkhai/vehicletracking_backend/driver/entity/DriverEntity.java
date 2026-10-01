@@ -4,8 +4,6 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -36,14 +34,6 @@ public class DriverEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    @Basic(fetch = FetchType.LAZY)
-    @JdbcTypeCode(SqlTypes.VARBINARY)
-    @Column(name = "avatar_data", columnDefinition = "bytea")
-    private byte[] avatarData;
-
-    @Column(name = "avatar_content_type", length = 50)
-    private String avatarContentType;
-
     public DriverEntity(String fullName, String phoneNumber, String licenseNumber) {
         this.fullName = fullName;
         this.phoneNumber = phoneNumber;
@@ -66,29 +56,5 @@ public class DriverEntity {
     public void deactivate() {
         active = false;
         updatedAt = Instant.now();
-    }
-
-    public void updateAvatar(byte[] data, String contentType) {
-        avatarData = data == null ? null : data.clone();
-        avatarContentType = contentType;
-        updatedAt = Instant.now();
-    }
-
-    public void clearAvatar() {
-        avatarData = null;
-        avatarContentType = null;
-        updatedAt = Instant.now();
-    }
-
-    public byte[] avatarDataCopy() {
-        return avatarData == null ? null : avatarData.clone();
-    }
-
-    public boolean hasAvatar() {
-        return avatarData != null && avatarData.length > 0 && avatarContentType != null;
-    }
-
-    public String avatarContentType() {
-        return avatarContentType;
     }
 }
