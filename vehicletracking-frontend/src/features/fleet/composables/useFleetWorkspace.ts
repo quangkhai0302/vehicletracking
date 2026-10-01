@@ -281,7 +281,11 @@ export function useFleetWorkspace(
       vehicleFilter.value = null;
       screen.value = { kind: 'trip-detail', id: saved.trip.id };
       onTripCreated?.(saved);
-      onToast('Đã tạo chuyến điều phối tức thời.');
+      onToast(
+        saved.trip.assignmentRequest?.status === 'PENDING'
+          ? 'Đã gửi yêu cầu nhận chuyến cho tài xế.'
+          : 'Đã tạo chuyến điều phối tức thời.',
+      );
     });
   function transition(action: TripAction, reason?: string) {
     if (!detail.value) return Promise.resolve(false);
@@ -309,24 +313,49 @@ export function useFleetWorkspace(
       screen.value = { kind: 'list' };
       onToast('Đã xóa chuyến đi chưa khởi hành.');
     });
+  async function refreshTripProjection(id: number) {
+    try {
+      const refreshed = await fleet.fetchTrip(id);
+      if (!alive) return;
+      detail.value = refreshed;
+      trips.value = trips.value.map((item) => (item.id === id ? refreshed.trip : item));
+    } catch {
+      /* Keep the original conflict/error when the projection cannot be refreshed. */
+    }
+  }
   const updateTripDriver = (id: number, driverId: number | null) =>
     mutate(async () => {
+      const hadPendingAssignment = driverId === null && detail.value?.trip.id === id
+        && detail.value.trip.assignmentRequest?.status === 'PENDING';
       if (driverId === null) {
-        await fleet.unassignTripDriver(id);
+        try {
+          await fleet.unassignTripDriver(id);
+        } catch (error) {
+          await refreshTripProjection(id);
+          throw error;
+        }
         if (!alive) return;
-        if (detail.value?.trip.id === id)
-          detail.value = { ...detail.value, trip: { ...detail.value.trip, driver: null } };
-        trips.value = trips.value.map((item) =>
-          item.id === id ? { ...item, driver: null } : item,
-        );
+        await refreshTripProjection(id);
       } else {
-        const saved = await fleet.assignTripDriver(id, driverId);
+        let saved: TripDetail;
+        try {
+          saved = await fleet.assignTripDriver(id, driverId);
+        } catch (error) {
+          await refreshTripProjection(id);
+          throw error;
+        }
         if (!alive) return;
         detail.value = saved;
         trips.value = trips.value.map((item) => (item.id === id ? saved.trip : item));
       }
       onToast(
-        driverId === null ? 'Đã bỏ gán tài xế khỏi chuyến.' : 'Đã cập nhật tài xế của chuyến.',
+        driverId === null
+          ? hadPendingAssignment
+            ? 'Đã hủy yêu cầu nhận chuyến.'
+            : 'Đã bỏ gán tài xế khỏi chuyến.'
+          : detail.value?.trip.assignmentRequest?.status === 'PENDING'
+            ? 'Đã gửi yêu cầu nhận chuyến cho tài xế.'
+            : 'Đã cập nhật tài xế của chuyến.',
       );
     });
   const updateTripVehicle = (id: number, vehicleId: number) =>

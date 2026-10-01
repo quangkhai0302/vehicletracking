@@ -1,6 +1,7 @@
 import { appFetch } from '@/shared/api/http';
 import type {
   DispatchDetail, DispatchOffer, DriverDispatchDetail, DriverDispatchInboxItem,
+  AssignmentActionResponse, DriverAssignmentRequest,
 } from '../types/dispatch';
 
 const BASE = `${(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')}/api/v1`;
@@ -49,6 +50,18 @@ export const reportUnavailable = (tripId: number, expectedRevision: number, reas
     { method: 'POST', body: JSON.stringify({ expectedRevision, reason }) });
 export const fetchDispatchOffers = (signal?: AbortSignal) =>
   request<DispatchOffer[]>('/driver/dispatch/offers', { signal });
+export const fetchDriverAssignmentRequests = (signal?: AbortSignal) =>
+  request<DriverAssignmentRequest[]>('/driver/assignment-requests', { signal });
+export const acceptDriverAssignmentRequest = (requestId: string) =>
+  request<AssignmentActionResponse>(
+    `/driver/assignment-requests/${encodeURIComponent(requestId)}/accept`,
+    { method: 'POST' },
+  );
+export const declineDriverAssignmentRequest = (requestId: string, reason: string) =>
+  request<AssignmentActionResponse>(
+    `/driver/assignment-requests/${encodeURIComponent(requestId)}/decline`,
+    { method: 'POST', body: JSON.stringify({ reason }) },
+  );
 export const acceptDispatchOffer = (offerId: string, expectedRevision: number) =>
   request<{ tripId: number; status: 'ACCEPTED'; dispatch: DriverDispatchDetail }>(
     `/driver/dispatch/offers/${encodeURIComponent(offerId)}/accept`,

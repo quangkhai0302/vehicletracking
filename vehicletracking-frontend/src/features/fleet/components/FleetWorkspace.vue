@@ -362,13 +362,19 @@ async function removeDriver() {
         </div>
         <div class="fleet-module-actions">
           <button
+            type="button"
             class="fleet-refresh-button"
             :disabled="fleet.loading || fleet.busy"
             :aria-label="`Tải lại ${moduleCopy.title.toLocaleLowerCase('vi')}`"
+            :title="`Tải lại ${moduleCopy.title.toLocaleLowerCase('vi')}`"
             @click="fleet.reload"
           >
-            <RefreshCw :size="16" /></button
-          ><button
+            <RefreshCw
+              :size="16"
+              :class="{ 'is-spinning': fleet.loading || fleet.busy }"
+            />
+          </button>
+          <button
             class="fleet-primary-action"
             :disabled="primaryDisabled"
             :title="
@@ -675,6 +681,25 @@ async function removeDriver() {
               }}
             </span>
             <span class="fleet-help">Tài xế: {{ trip.driver?.fullName ?? 'Chưa gán' }}</span>
+            <span
+              v-if="trip.assignmentRequest?.status === 'PENDING'"
+              class="fleet-help trip-assignment-list-status"
+            >
+              Chờ tài xế phản hồi · {{ trip.assignmentRequest.candidateDriverName }}
+            </span>
+            <span
+              v-else-if="trip.assignmentRequest?.status === 'DECLINED'"
+              class="fleet-help trip-assignment-list-status declined"
+            >
+              {{ trip.assignmentRequest.candidateDriverName }} đã từ chối ·
+              {{ trip.assignmentRequest.responseReason || 'Không có lý do' }}
+            </span>
+            <span
+              v-else-if="trip.assignmentRequest?.status === 'CANCELLED'"
+              class="fleet-help trip-assignment-list-status cancelled"
+            >
+              Yêu cầu đã hủy · {{ trip.assignmentRequest.candidateDriverName }}
+            </span>
             <span
               v-if="trip.dispatchMode === 'FIXED_SCHEDULE'"
               class="fleet-help"

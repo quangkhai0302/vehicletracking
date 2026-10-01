@@ -27,7 +27,8 @@ test('normal development loads local env and keeps the backend-compatible origin
 });
 
 test('the only application framework plugin is Vue and JSX compiler mode is removed', async () => {
-  expect(configuration.plugins.map(plugin => plugin.name)).toEqual(['vite:vue']);
+  const frameworkPlugins = configuration.plugins.flat().map(plugin => plugin?.name).filter(name => name && (name.includes('react') || name === 'vite:vue'));
+  expect(frameworkPlugins).toEqual(['vite:vue']);
   // tsconfig permits comments; check the relevant settings without parsing JSONC as JSON.
   const tsconfig = await readProject('tsconfig.json');
   expect(tsconfig).not.toMatch(/"jsx"\s*:/);

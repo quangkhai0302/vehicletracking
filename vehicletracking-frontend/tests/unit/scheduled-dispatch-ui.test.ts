@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import AdminDispatchPanel from '@/features/dispatch/components/AdminDispatchPanel.vue';
 import DriverDispatchWorkspace from '@/features/dispatch/components/DriverDispatchWorkspace.vue';
 import * as api from '@/features/dispatch/api/dispatch';
@@ -13,6 +14,8 @@ vi.mock('@/features/dispatch/api/dispatch', () => ({
   fetchDispatchDetail: vi.fn(), updateTripDispatchPolicy: vi.fn(), overrideTripStart: vi.fn(),
   fetchDriverDispatch: vi.fn(), readyForTrip: vi.fn(), reportUnavailable: vi.fn(),
   fetchDispatchOffers: vi.fn(), acceptDispatchOffer: vi.fn(), declineDispatchOffer: vi.fn(),
+  fetchDriverAssignmentRequests: vi.fn(), acceptDriverAssignmentRequest: vi.fn(),
+  declineDriverAssignmentRequest: vi.fn(),
   fetchDispatchInbox: vi.fn(), readDispatchInboxItem: vi.fn(),
 }));
 const wrappers: VueWrapper[] = [];
@@ -38,6 +41,7 @@ beforeEach(() => {
   vi.mocked(api.fetchDispatchDetail).mockResolvedValue(adminDetail);
   vi.mocked(api.fetchDriverDispatch).mockResolvedValue(driverDetail);
   vi.mocked(api.fetchDispatchOffers).mockResolvedValue([]);
+  vi.mocked(api.fetchDriverAssignmentRequests).mockResolvedValue([]);
   vi.mocked(api.fetchDispatchInbox).mockResolvedValue([]);
   vi.mocked(api.readyForTrip).mockResolvedValue({ ...driverDetail, state: 'READY', revision: 2 });
   vi.mocked(api.updateTripDispatchPolicy).mockResolvedValue(adminDetail);
@@ -79,6 +83,59 @@ test('candidate sees offer metadata and can accept without a trip navigation lin
   await flushPromises();
   expect(api.acceptDispatchOffer).toHaveBeenCalledWith('offer-7', 5);
   expect(wrapper.emitted('changed')).toHaveLength(1);
+});
+
+test('candidate sees direct on-demand request and can accept it before the trip appears', async () => {
+  vi.mocked(api.fetchDriverAssignmentRequests).mockResolvedValue([{
+    requestId: 'request-7', tripId: 7, routeName: 'Tuyến tức thời', vehiclePlate: '51B12345',
+    tripCreatedAt: '2026-10-01T07:40:00Z', requestedAt: '2026-10-01T07:45:00Z',
+  }]);
+  vi.mocked(api.acceptDriverAssignmentRequest).mockResolvedValue({
+    requestId: 'request-7', status: 'ACCEPTED', tripId: 7,
+  });
+  const wrapper = mount(DriverDispatchWorkspace, { props: { trips: [] } });
+  wrappers.push(wrapper);
+  await flushPromises();
+  expect(wrapper.text()).toContain('Yêu cầu nhận chuyến tức thời');
+  expect(wrapper.text()).toContain('Tuyến tức thời');
+  expect(wrapper.find('a[href*="/navigate"]').exists()).toBe(false);
+  await wrapper.find('.driver-assignment-requests .dispatch-primary').trigger('click');
+  await flushPromises();
+  expect(api.acceptDriverAssignmentRequest).toHaveBeenCalledWith('request-7');
+  expect(wrapper.emitted('changed')).toHaveLength(1);
+});
+
+test('direct assignment decline requires a reason and sends it to the backend', async () => {
+  vi.mocked(api.fetchDriverAssignmentRequests).mockResolvedValue([{
+    requestId: 'request-8', tripId: 8, routeName: 'Tuyến B', vehiclePlate: '51B88888',
+    tripCreatedAt: '2026-10-01T07:40:00Z', requestedAt: '2026-10-01T07:45:00Z',
+  }]);
+  vi.mocked(api.declineDriverAssignmentRequest).mockResolvedValue({
+    requestId: 'request-8', status: 'DECLINED', tripId: 8,
+  });
+  const wrapper = mount(DriverDispatchWorkspace, {
+    props: { trips: [] },
+    global: {
+      stubs: {
+        FleetConfirmDialog: {
+          props: ['confirmDisabled', 'onConfirm', 'onClose', 'busy', 'confirmLabel'],
+          template: '<div class="assignment-confirm"><slot /><button class="danger-action" :disabled="busy || confirmDisabled" @click="onConfirm">{{ confirmLabel }}</button></div>',
+        },
+      },
+    },
+  });
+  wrappers.push(wrapper);
+  await flushPromises();
+  await wrapper.find('.driver-assignment-requests .dispatch-secondary').trigger('click');
+  await nextTick();
+  const confirm = wrapper.find('.assignment-confirm');
+  expect(confirm.exists()).toBe(true);
+  const confirmButton = confirm.find('.danger-action');
+  expect(confirmButton.attributes('disabled')).toBeDefined();
+  await confirm.find('textarea').setValue('Không thể nhận chuyến');
+  await confirm.findAll('button').find((button) => button.text().includes('Xác nhận từ chối'))!.trigger('click');
+  await flushPromises();
+  expect(api.declineDriverAssignmentRequest).toHaveBeenCalledWith('request-8', 'Không thể nhận chuyến');
 });
 
 test('driver inbox and offers remain visible when reassignment revokes trip detail access', async () => {

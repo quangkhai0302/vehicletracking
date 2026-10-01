@@ -302,7 +302,7 @@ async function confirmDeactivate() {
       <template #actions>
         <button
           type="button"
-          class="business-button route-refresh-button"
+          class="route-refresh-button"
           :disabled="loading"
           aria-label="Tải lại danh sách tuyến đường"
           title="Tải lại danh sách tuyến đường"
@@ -780,13 +780,31 @@ async function confirmDeactivate() {
 
 .route-refresh-button {
   width: 40px;
-  padding-inline: 0;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+  transition: all 140ms ease;
+  cursor: pointer;
+}
+
+.route-refresh-button:hover:not(:disabled) {
+  background: #f8fafc;
+  color: #0284c7;
+  border-color: var(--border-strong);
+  transform: none;
 }
 
 .route-refresh-button:disabled,
 .routes-page .business-button.primary:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.45;
 }
 
 .route-summary-grid {

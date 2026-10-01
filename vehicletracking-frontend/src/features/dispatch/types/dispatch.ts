@@ -44,9 +44,23 @@ export interface DispatchOffer {
   offerId: string; tripId: number; routeName: string; vehiclePlate: string;
   scheduledDepartureAt: string; cutoffAt: string; expiresAt: string; revision: number;
 }
+export interface DriverAssignmentRequest {
+  requestId: string;
+  tripId: number;
+  routeName: string;
+  vehiclePlate: string;
+  tripCreatedAt: string;
+  requestedAt: string;
+}
+export interface AssignmentActionResponse {
+  requestId: string;
+  status: 'ACCEPTED' | 'DECLINED';
+  tripId: number;
+}
 export interface DriverDispatchInboxItem {
   id: number; type: string; title: string; detail: string | null;
-  tripId: number; offerId: string | null; createdAt: string; readAt: string | null;
+  tripId: number; offerId: string | null; assignmentRequestId?: string | null;
+  createdAt: string; readAt: string | null;
 }
 
 export const DISPATCH_STATE_LABELS: Record<DispatchState, string> = {

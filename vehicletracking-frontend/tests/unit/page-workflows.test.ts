@@ -12,6 +12,7 @@ import type { TripSchedule } from '@/features/schedules/types/schedule';
 import type { NotificationItem } from '@/features/reports/types/notifications';
 import type { DashboardSummary } from '@/features/reports/types/dashboard';
 import { notifyError } from '@/shared/notifications/toast';
+import AlertStream from '@/features/tracking/components/AlertStream.vue';
 
 // The admin shell owns one realtime stream; page workflow assertions still use the HTTP fixtures below.
 vi.mock('@/features/tracking/api/operations', () => ({
@@ -206,6 +207,7 @@ beforeEach(() => {
         return json(trips);
       if (request.path === '/api/v1/driver/schedules') return json([schedule]);
       if (request.path === '/api/v1/driver/dispatch/offers'
+          || request.path === '/api/v1/driver/assignment-requests'
           || request.path === '/api/v1/driver/dispatch/inbox?limit=50') return json([]);
       if (request.path === '/api/v1/notifications?unreadOnly=false')
         return json([alert, { ...alert, id: 2, type: 'REROUTE_CREATED', severity: 'MAJOR' }]);
@@ -277,7 +279,9 @@ test('driver redirects from admin URLs, fetches only assigned resources, keeps b
     '/api/v1/driver/schedules',
   ]);
   expect(requests.map((request) => request.path).slice(3).every((path) =>
-    path === '/api/v1/driver/dispatch/offers' || path === '/api/v1/driver/dispatch/inbox?limit=50')).toBe(true);
+    path === '/api/v1/driver/dispatch/offers'
+      || path === '/api/v1/driver/assignment-requests'
+      || path === '/api/v1/driver/dispatch/inbox?limit=50')).toBe(true);
   expect(requests.every((request) => request.options.credentials === 'include')).toBe(true);
 });
 
@@ -339,8 +343,12 @@ test('alerts filters, single read and read-all preserve HTTP payload and duplica
   handlers.set('POST /api/v1/notifications/read-all', () => json({ updated: 1 }));
   const { wrapper } = await open('/alerts');
   const filters = wrapper.findAll('.alerts-filters select');
-  await filters[0].setValue('OFF_ROUTE_DETECTED');
+  expect(filters[0].find('option[value="OFF_ROUTE_DETECTED"]').exists()).toBe(false);
+  expect(wrapper.findAll('.alerts-metrics strong')[2]!.text()).toBe('1');
+  await filters[0].setValue('REROUTE');
   expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
+  await filters[0].setValue('ALL');
+  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(2);
   expect(wrapper.get('.alerts-management-body > strong').text()).toBe(
     'Khoảng cách 450 m · ngưỡng 200 m · duy trì 90s',
   );
@@ -367,6 +375,64 @@ test('alerts filters, single read and read-all preserve HTTP payload and duplica
     expect(request.options.body).toBeUndefined();
     expect(new Headers(request.options.headers).get('X-XSRF-TOKEN')).toBe('fixture-csrf');
   }
+});
+
+test('stale notification polls cannot undo a confirmed read or dismissal', async () => {
+  user = admin;
+  const staleRead = deferred<Response>();
+  const staleDelete = deferred<Response>();
+  const rows = [alert, { ...alert, id: 2, type: 'REROUTE_CREATED', severity: 'MAJOR' }];
+  let loads = 0;
+  handlers.set('GET /api/v1/notifications?unreadOnly=false', () => {
+    loads += 1;
+    if (loads === 2) return staleRead.promise;
+    if (loads === 3) return staleDelete.promise;
+    return json(rows);
+  });
+  handlers.set('POST /api/v1/notifications/1/read', () => json({ ...alert, readAt: stamp }));
+  handlers.set('DELETE /api/v1/notifications/1', () => new Response(null, { status: 204 }));
+  const { wrapper } = await open('/alerts');
+
+  await vi.advanceTimersByTimeAsync(15_000);
+  await flushPromises();
+  await wrapper.findAll('.alerts-management-card')[0]!.find('button').trigger('click');
+  await flushPromises();
+  expect(wrapper.findAll('.alerts-management-card')[0]!.classes()).toContain('read');
+  staleRead.resolve(json(rows));
+  await flushPromises();
+  expect(wrapper.findAll('.alerts-management-card')[0]!.classes()).toContain('read');
+
+  await vi.advanceTimersByTimeAsync(15_000);
+  await flushPromises();
+  await wrapper.findAll('.alerts-management-card')[0]!.find('button').trigger('click');
+  await wrapper.get('dialog .danger-action').trigger('click');
+  await flushPromises();
+  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
+  staleDelete.resolve(json(rows));
+  await flushPromises();
+  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
+  expect(wrapper.get('.alerts-management-card').text()).toContain('Chuyến #100');
+});
+
+test('a newer notification poll wins over an older delayed response', async () => {
+  user = admin;
+  const delayed = deferred<Response>();
+  let loads = 0;
+  handlers.set('GET /api/v1/notifications?unreadOnly=false', () => {
+    loads += 1;
+    return loads === 1 ? delayed.promise : json([{ ...alert, id: 2, title: 'Cảnh báo mới', type: 'REROUTE_CREATED' }]);
+  });
+  const { wrapper } = await open('/alerts');
+  await vi.advanceTimersByTimeAsync(15_000);
+  await flushPromises();
+  expect(calls('/api/v1/notifications?unreadOnly=false')[0]!.options.signal?.aborted).toBe(true);
+  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
+  expect(wrapper.get('.alerts-management-card').text()).toContain('Cảnh báo mới');
+  delayed.resolve(json([alert]));
+  await flushPromises();
+  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
+  expect(wrapper.get('.alerts-management-card').text()).toContain('Cảnh báo mới');
+  expect(wrapper.get('.alerts-management-card').classes()).toContain('unread');
 });
 
 test('alert deletion stays behind confirmation, preserves conflict for retry and only removes acknowledged item', async () => {
@@ -417,4 +483,13 @@ test('alerts and dashboard polling stop after navigation and use server time for
   await vi.advanceTimersByTimeAsync(30_000);
   await flushPromises();
   expect(calls('/api/v1/dashboard/summary')).toHaveLength(2);
+});
+
+test('operations alert stream describes simulator notification categories', () => {
+  const wrapper = mount(AlertStream, { props: { notifications: [] } });
+  expect(wrapper.get('.alerts-empty p').text()).toContain('đổi tuyến và điều phối');
+  expect(wrapper.get('.alert-legend').text()).toContain('Đổi tuyến');
+  expect(wrapper.get('.alert-legend').text()).toContain('Điều phối');
+  expect(wrapper.get('.alert-legend').text()).not.toContain('Lệch tuyến');
+  wrapper.unmount();
 });

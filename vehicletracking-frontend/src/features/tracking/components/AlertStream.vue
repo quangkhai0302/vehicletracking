@@ -111,7 +111,7 @@ const remove = async () => {
       class="alerts-empty"
     >
       <BellOff :size="24" /><strong>Chưa có thông báo vận hành</strong>
-      <p>Cảnh báo lệch tuyến và thông báo đổi tuyến sẽ xuất hiện tại đây khi có sự kiện.</p>
+      <p>Thông báo đổi tuyến và điều phối sẽ xuất hiện tại đây khi có sự kiện.</p>
     </div>
     <div
       v-else
@@ -130,7 +130,7 @@ const remove = async () => {
             v-else-if="item.type === 'REROUTE_CREATED' || item.type === 'DRIVER_ROUTE_CHANGED'"
             :size="15"
           /><BellRing
-            v-else-if="item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED'"
+            v-else-if="item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED' || item.type === 'DIRECT_ASSIGNMENT_DECLINED'"
             :size="15"
           /><BellOff
             v-else
@@ -165,8 +165,8 @@ const remove = async () => {
       </article>
     </div>
     <div class="alert-legend">
-      <span><MapPinned :size="13" /> Lệch tuyến</span
-      ><span><Route :size="13" /> Đổi tuyến tự động</span>
+      <span><Route :size="13" /> Đổi tuyến</span
+      ><span><BellRing :size="13" /> Điều phối</span>
     </div>
     <FleetConfirmDialog
       v-if="confirmDelete"

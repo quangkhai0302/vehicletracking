@@ -4,11 +4,13 @@ import type { TripSummary } from '@/features/fleet/types/fleet';
 import FleetConfirmDialog from '@/features/fleet/components/FleetConfirmDialog.vue';
 import {
   DispatchApiError, acceptDispatchOffer, declineDispatchOffer, fetchDispatchInbox,
-  fetchDispatchOffers, fetchDriverDispatch, readDispatchInboxItem, readyForTrip, reportUnavailable,
+  fetchDispatchOffers, fetchDriverAssignmentRequests, fetchDriverDispatch, readDispatchInboxItem,
+  acceptDriverAssignmentRequest, declineDriverAssignmentRequest, readyForTrip, reportUnavailable,
 } from '../api/dispatch';
 import {
   DISPATCH_ATTENTION_LABELS, DISPATCH_STATE_LABELS,
-  type DispatchOffer, type DriverDispatchDetail, type DriverDispatchInboxItem,
+  type DispatchOffer, type DriverAssignmentRequest, type DriverDispatchDetail,
+  type DriverDispatchInboxItem,
 } from '../types/dispatch';
 import '../styles/dispatch.css';
 
@@ -18,10 +20,13 @@ const autoTrips = computed(() => props.trips.filter((trip) =>
   trip.status === 'SCHEDULED' && trip.dispatch?.startMode === 'AUTO_IF_READY'));
 const details = shallowRef<Record<number, DriverDispatchDetail>>({});
 const offers = shallowRef<DispatchOffer[]>([]);
+const assignmentRequests = shallowRef<DriverAssignmentRequest[]>([]);
 const inbox = shallowRef<DriverDispatchInboxItem[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const busy = ref<string | null>(null);
+const assignmentToDecline = ref<string | null>(null);
+const assignmentReason = ref('');
 const unavailableTrip = ref<number | null>(null);
 const unavailableReason = ref('');
 let controller: AbortController | null = null;
@@ -32,7 +37,7 @@ async function refresh() {
   const request = new AbortController();
   controller = request;
   try {
-    const [nextOffers, nextInbox, nextDetails] = await Promise.all([
+    const [offersResult, inboxResult, nextDetailsResult, assignmentsResult] = await Promise.allSettled([
       fetchDispatchOffers(request.signal),
       fetchDispatchInbox(request.signal),
       Promise.all(autoTrips.value.map(async (trip) => {
@@ -44,12 +49,20 @@ async function refresh() {
           throw cause;
         }
       })),
+      fetchDriverAssignmentRequests(request.signal),
     ]);
     if (request.signal.aborted) return;
-    offers.value = nextOffers;
-    inbox.value = nextInbox;
-    details.value = Object.fromEntries(nextDetails.filter((item) => item !== null));
-    error.value = null;
+    const problems: string[] = [];
+    if (offersResult.status === 'fulfilled') offers.value = offersResult.value;
+    else problems.push('Không thể tải lời mời nhận chuyến.');
+    if (inboxResult.status === 'fulfilled') inbox.value = inboxResult.value;
+    else problems.push('Không thể tải hộp công việc.');
+    if (nextDetailsResult.status === 'fulfilled') {
+      details.value = Object.fromEntries(nextDetailsResult.value.filter((item) => item !== null));
+    } else problems.push('Không thể tải trạng thái điều phối.');
+    if (assignmentsResult.status === 'fulfilled') assignmentRequests.value = assignmentsResult.value;
+    else problems.push('Không thể tải yêu cầu nhận chuyến.');
+    error.value = problems.length ? problems.join(' ') : null;
   } catch (cause) {
     if (!request.signal.aborted) error.value = cause instanceof Error ? cause.message : 'Không thể tải điều phối.';
   } finally {
@@ -98,6 +111,21 @@ function confirmUnavailable() {
   unavailableReason.value = '';
   void mutate(`busy:${tripId}`, () => reportUnavailable(tripId, dispatch.revision, reason), true);
 }
+function requestDecline(requestId: string) {
+  assignmentToDecline.value = requestId;
+  assignmentReason.value = '';
+}
+function confirmAssignmentDecline() {
+  const requestId = assignmentToDecline.value;
+  const reason = assignmentReason.value.trim();
+  if (!requestId || reason.length < 3) return;
+  assignmentToDecline.value = null;
+  assignmentReason.value = '';
+  void mutate(
+    `decline-assignment:${requestId}`,
+    () => declineDriverAssignmentRequest(requestId, reason),
+  );
+}
 </script>
 
 <template>
@@ -108,8 +136,27 @@ function confirmUnavailable() {
     </div>
     <p v-if="loading" role="status">Đang tải lời mời và trạng thái chuyến…</p>
     <p v-if="error" class="dispatch-error" role="alert">{{ error }}</p>
-    <div v-if="!loading && !autoTrips.length && !offers.length && !inbox.length" class="dispatch-empty">
+    <div v-if="!loading && !autoTrips.length && !offers.length && !assignmentRequests.length && !inbox.length" class="dispatch-empty">
       Chưa có yêu cầu xác nhận hoặc lời mời mới.
+    </div>
+    <div v-if="assignmentRequests.length" class="driver-assignment-requests">
+      <h3>Yêu cầu nhận chuyến tức thời</h3>
+      <article v-for="assignment in assignmentRequests" :key="assignment.requestId">
+        <div>
+          <strong>#{{ assignment.tripId }} · {{ assignment.routeName }}</strong>
+          <span>{{ assignment.vehiclePlate }} · Tạo {{ time(assignment.tripCreatedAt) }} · Gửi lúc
+            {{ time(assignment.requestedAt) }}</span>
+        </div>
+        <p>Điều phối viên đang chờ bạn xác nhận nhận chuyến.</p>
+        <div class="driver-dispatch-actions">
+          <button type="button" class="dispatch-primary" :disabled="!!busy"
+            @click="mutate(`accept-assignment:${assignment.requestId}`, () => acceptDriverAssignmentRequest(assignment.requestId), true)">
+            {{ busy === `accept-assignment:${assignment.requestId}` ? 'Đang nhận chuyến…' : 'Nhận chuyến' }}
+          </button>
+          <button type="button" class="dispatch-secondary" :disabled="!!busy"
+            @click="requestDecline(assignment.requestId)">Từ chối</button>
+        </div>
+      </article>
     </div>
     <div v-if="autoTrips.length" class="driver-dispatch-cards">
       <article v-for="trip in autoTrips" :key="trip.id" class="driver-dispatch-card">
@@ -164,6 +211,13 @@ function confirmUnavailable() {
       :on-close="() => (unavailableTrip = null)" :on-confirm="confirmUnavailable">
       <label class="dispatch-reason">Lý do *<textarea v-model="unavailableReason" maxlength="500" rows="3"
         placeholder="Ví dụ: Tôi có việc đột xuất và không thể nhận chuyến" /></label>
+    </FleetConfirmDialog>
+    <FleetConfirmDialog v-if="assignmentToDecline !== null" title="Từ chối nhận chuyến?"
+      message="Yêu cầu sẽ được chuyển cho điều phối viên để chọn tài xế khác."
+      confirm-label="Xác nhận từ chối" :busy="!!busy" :confirm-disabled="assignmentReason.trim().length < 3"
+      :on-close="() => (assignmentToDecline = null)" :on-confirm="confirmAssignmentDecline">
+      <label class="dispatch-reason">Lý do *<textarea v-model="assignmentReason" maxlength="500" rows="3"
+        placeholder="Nhập lý do từ chối (ít nhất 3 ký tự)" /></label>
     </FleetConfirmDialog>
   </section>
 </template>

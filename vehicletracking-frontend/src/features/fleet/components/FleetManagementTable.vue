@@ -205,7 +205,17 @@ const assignedVehicle = (id: number) =>
             <td data-label="Phân công">
               <div class="management-stacked">
                 <strong>{{ trip.vehiclePlateNumber }}</strong
-                ><small>{{ trip.driver?.fullName ?? 'Chưa gán tài xế' }}</small>
+                ><small v-if="trip.driver">{{ trip.driver.fullName }}</small
+                ><small v-else-if="trip.assignmentRequest?.status === 'PENDING'">
+                  Chờ tài xế phản hồi · {{ trip.assignmentRequest.candidateDriverName }}
+                </small
+                ><small v-else-if="trip.assignmentRequest?.status === 'DECLINED'">
+                  {{ trip.assignmentRequest.candidateDriverName }} đã từ chối
+                </small
+                ><small v-else-if="trip.assignmentRequest?.status === 'CANCELLED'">
+                  Yêu cầu đã hủy · {{ trip.assignmentRequest.candidateDriverName }}
+                </small
+                ><small v-else>Chưa gán tài xế</small>
               </div>
             </td>
             <td data-label="Hình thức / thời gian">

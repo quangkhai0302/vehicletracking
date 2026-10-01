@@ -1,12 +1,14 @@
 package com.quangkhai.vehicletracking_backend.dispatch.service;
 
+import static org.springframework.http.HttpStatus.CONFLICT;
+
+import org.springframework.stereotype.Service;
+
 import com.quangkhai.vehicletracking_backend.dispatch.entity.DispatchStartMode;
 import com.quangkhai.vehicletracking_backend.dispatch.repository.TripDispatchRepository;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-import static org.springframework.http.HttpStatus.CONFLICT;
 
 @Service
 @RequiredArgsConstructor

@@ -505,6 +505,83 @@ test('simulator panel shows check-in progress from the current attempt and opens
   expect(showStop).toHaveBeenCalledWith(2);
 });
 
+test('simulator panel displays Trạm đầu and Trạm cuối for first and last stops when trip has not started', () => {
+  const scheduledTrip: TripSummary = { ...trip, status: 'SCHEDULED', startedAt: null };
+  const stops: TripDetail['stops'] = [
+    { ...start, stationName: 'Trạm đầu Lê Thành', sequenceNumber: 1 },
+    {
+      ...start,
+      stationId: 2,
+      stationName: 'Trạm dừng Phoenix',
+      sequenceNumber: 2,
+      latitude: 10.81,
+      longitude: 106.71,
+    },
+    {
+      ...start,
+      stationId: 3,
+      stationName: 'Trạm dừng - Phan Văn Xảo',
+      sequenceNumber: 3,
+      latitude: 10.815,
+      longitude: 106.715,
+    },
+    {
+      ...start,
+      stationId: 4,
+      stationName: 'Trạm cuối - Đầm sen',
+      sequenceNumber: 4,
+      latitude: 10.82,
+      longitude: 106.72,
+    },
+  ];
+  const simulator: ReturnType<typeof useSimulator> = reactive({
+    tripId: 1,
+    trip: scheduledTrip,
+    detail: { trip: scheduledTrip, route, stops },
+    run: null,
+    loading: false,
+    busy: false,
+    error: null,
+    select: vi.fn(),
+    retry: vi.fn(),
+    command: vi.fn().mockResolvedValue(true),
+  });
+  const scheduledSnapshot: OperationsSnapshot = {
+    ...snapshot,
+    trips: [scheduledTrip],
+    checkIns: [
+      {
+        tripId: 1,
+        revision: 0,
+        nextStopSequence: 2,
+        awaitingExit: false,
+        visits: [],
+      },
+    ],
+  };
+  const wrapper = mount(SimulatorPanel, {
+    props: {
+      simulator,
+      snapshot: scheduledSnapshot,
+      connection: 'live',
+      connectionError: null,
+      onReconnect: vi.fn(),
+      onShowRoute: vi.fn(),
+      onShowStop: vi.fn(),
+      now: Date.parse(stamp),
+    },
+  });
+  disposals.push(() => wrapper.unmount());
+
+  const rows = wrapper.findAll('.simulation-stop-list li');
+  expect(rows).toHaveLength(4);
+  const statusTexts = rows.map((row) => row.find('.simulation-stop-status').text());
+  expect(statusTexts[0]).toBe('Trạm đầu');
+  expect(statusTexts[1]).toBe('Kế tiếp');
+  expect(statusTexts[2]).toBe('Chưa check-in');
+  expect(statusTexts[3]).toBe('Trạm cuối');
+});
+
 test('completed simulator trip can be prepared for replay from the operations vehicle card', async () => {
   const replay = vi.fn().mockResolvedValue(true);
   const completedTrip: TripSummary = {

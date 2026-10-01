@@ -16,6 +16,7 @@ public class DriverDispatchInboxEntity {
     @Column(name = "recipient_driver_id", nullable = false) private long recipientDriverId;
     @Column(name = "trip_id", nullable = false) private long tripId;
     @Column(name = "offer_id") private UUID offerId;
+    @Column(name = "assignment_request_id") private UUID assignmentRequestId;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 32) private DriverInboxKind kind;
     @Column(nullable = false, length = 180) private String title;
     @Column(length = 500) private String detail;
@@ -25,9 +26,15 @@ public class DriverDispatchInboxEntity {
 
     public DriverDispatchInboxEntity(long recipientDriverId, long tripId, UUID offerId, DriverInboxKind kind,
                                      String title, String detail, String dedupeKey, Instant now) {
+        this(recipientDriverId, tripId, offerId, null, kind, title, detail, dedupeKey, now);
+    }
+
+    public DriverDispatchInboxEntity(long recipientDriverId, long tripId, UUID offerId, UUID assignmentRequestId,
+                                     DriverInboxKind kind, String title, String detail, String dedupeKey, Instant now) {
         this.recipientDriverId = recipientDriverId;
         this.tripId = tripId;
         this.offerId = offerId;
+        this.assignmentRequestId = assignmentRequestId;
         this.kind = kind;
         this.title = title;
         this.detail = detail;

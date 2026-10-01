@@ -45,6 +45,16 @@ export interface VehicleInput {
 export type TripStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 export type TripAction = 'start' | 'complete' | 'cancel';
 export type TripDispatchMode = 'ON_DEMAND' | 'FIXED_SCHEDULE';
+export type TripAssignmentRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED';
+export interface TripAssignmentRequestSummary {
+  id: string;
+  status: TripAssignmentRequestStatus;
+  candidateDriverId: number;
+  candidateDriverName: string;
+  requestedAt: string;
+  respondedAt: string | null;
+  responseReason: string | null;
+}
 export interface TripInput {
   vehicleId: number;
   routeId: number;
@@ -70,6 +80,7 @@ export interface TripSummary {
   scheduleName: string | null;
   dispatch?: DispatchSummary | null;
   driver?: DriverSummary | null;
+  assignmentRequest?: TripAssignmentRequestSummary | null;
 }
 export interface TripStop {
   sequenceNumber: number;

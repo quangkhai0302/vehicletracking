@@ -1,4 +1,5 @@
 package com.quangkhai.vehicletracking_backend.telemetry.service;
+
 import com.quangkhai.vehicletracking_backend.telemetry.dto.*;
 import com.quangkhai.vehicletracking_backend.telemetry.repository.VehiclePositionRepository;
 import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository;
@@ -15,7 +16,9 @@ import org.springframework.transaction.annotation.*;
 import java.time.Clock;
 import java.util.stream.Collectors;
 import java.util.function.Function;
-@Service @RequiredArgsConstructor
+
+@Service
+@RequiredArgsConstructor
 public class OperationsSnapshotService {
     private final VehiclePositionRepository positions;
     private final SimulationRepository runs;
@@ -25,20 +28,23 @@ public class OperationsSnapshotService {
     private final CheckInQueryService checkIns;
     private final NotificationService notificationService;
     private final TripDispatchRepository dispatches;
-    @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public OperationsSnapshot snapshot() {
-        var tripList=trips.findAllByOrderByScheduledDepartureAtDescIdDesc();
-        var byId=tripList.stream().collect(Collectors.toMap(t->t.getId(),t->t));
-        var locationList=positions.findAllByOrderByVehicleIdAsc().stream()
-            .filter(p -> byId.containsKey(p.getSample().getTripId()) && p.getSample().getAttemptNumber()==byId.get(p.getSample().getTripId()).getAttemptNumber())
-            .map(p->TelemetryResponse.from(p.getSample())).toList();
-        var simulations=runs.findAllByOrderByIdAsc().stream().map(run->simulation.describeSnapshot(byId.get(run.getTripId()),run)).toList();
+        var tripList = trips.findAllByOrderByScheduledDepartureAtDescIdDesc();
+        var byId = tripList.stream().collect(Collectors.toMap(t -> t.getId(), t -> t));
+        var locationList = positions.findAllByOrderByVehicleIdAsc().stream()
+                .filter(p -> byId.containsKey(p.getSample().getTripId())
+                        && p.getSample().getAttemptNumber() == byId.get(p.getSample().getTripId()).getAttemptNumber())
+                .map(p -> TelemetryResponse.from(p.getSample())).toList();
+        var simulations = runs.findAllByOrderByIdAsc().stream()
+                .map(run -> simulation.describeSnapshot(byId.get(run.getTripId()), run)).toList();
         var byTripDispatch = dispatches.findAllById(byId.keySet()).stream()
-            .collect(Collectors.toMap(TripDispatchEntity::getTripId, Function.identity()));
-        var tripSummaries=tripList.stream()
-            .map(trip -> TripSummaryResponse.from(trip, byTripDispatch.get(trip.getId()))).toList();
-        var checkInList=checkIns.findAll(tripList.stream().map(t->t.getId()).toList());
-        return new OperationsSnapshot(operationsClock.instant(),locationList,simulations,tripSummaries,checkInList,
+                .collect(Collectors.toMap(TripDispatchEntity::getTripId, Function.identity()));
+        var tripSummaries = tripList.stream()
+                .map(trip -> TripSummaryResponse.from(trip, byTripDispatch.get(trip.getId()))).toList();
+        var checkInList = checkIns.findAll(tripList.stream().map(t -> t.getId()).toList());
+        return new OperationsSnapshot(operationsClock.instant(), locationList, simulations, tripSummaries, checkInList,
                 notificationService.recent(false));
     }
 }

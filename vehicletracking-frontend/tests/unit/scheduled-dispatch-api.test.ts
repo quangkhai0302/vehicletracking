@@ -2,7 +2,8 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { appFetch } from '@/shared/api/http';
 import {
   DispatchApiError, acceptDispatchOffer, fetchDispatchDetail, fetchDispatchInbox,
-  fetchDispatchOffers, fetchDriverDispatch, readyForTrip, reportUnavailable,
+  fetchDispatchOffers, fetchDriverAssignmentRequests, fetchDriverDispatch,
+  acceptDriverAssignmentRequest, declineDriverAssignmentRequest, readyForTrip, reportUnavailable,
   updateTripDispatchPolicy,
 } from '@/features/dispatch/api/dispatch';
 
@@ -20,6 +21,9 @@ test('admin and driver dispatch use scoped endpoints and revision payloads', asy
   await readyForTrip(7, 4);
   await reportUnavailable(7, 5, 'Bận việc');
   await fetchDispatchOffers(signal);
+  await fetchDriverAssignmentRequests(signal);
+  await acceptDriverAssignmentRequest('request-uuid');
+  await declineDriverAssignmentRequest('request-uuid-2', 'Không thể nhận chuyến');
   await acceptDispatchOffer('offer-uuid', 6);
   await fetchDispatchInbox(signal);
   expect(appFetch).toHaveBeenNthCalledWith(1, expect.stringContaining('/trips/7/dispatch'), expect.objectContaining({ signal }));
@@ -31,9 +35,15 @@ test('admin and driver dispatch use scoped endpoints and revision payloads', asy
   expect(appFetch).toHaveBeenNthCalledWith(5, expect.stringContaining('/driver/trips/7/dispatch/unavailable'),
     expect.objectContaining({ body: '{"expectedRevision":5,"reason":"Bận việc"}' }));
   expect(appFetch).toHaveBeenNthCalledWith(6, expect.stringContaining('/driver/dispatch/offers'), expect.objectContaining({ signal }));
-  expect(appFetch).toHaveBeenNthCalledWith(7, expect.stringContaining('/driver/dispatch/offers/offer-uuid/accept'),
+  expect(appFetch).toHaveBeenNthCalledWith(7, expect.stringContaining('/driver/assignment-requests'),
+    expect.objectContaining({ signal }));
+  expect(appFetch).toHaveBeenNthCalledWith(8, expect.stringContaining('/driver/assignment-requests/request-uuid/accept'),
+    expect.objectContaining({ method: 'POST' }));
+  expect(appFetch).toHaveBeenNthCalledWith(9, expect.stringContaining('/driver/assignment-requests/request-uuid-2/decline'),
+    expect.objectContaining({ method: 'POST', body: '{"reason":"Không thể nhận chuyến"}' }));
+  expect(appFetch).toHaveBeenNthCalledWith(10, expect.stringContaining('/driver/dispatch/offers/offer-uuid/accept'),
     expect.objectContaining({ body: '{"expectedRevision":6}' }));
-  expect(appFetch).toHaveBeenNthCalledWith(8, expect.stringContaining('/driver/dispatch/inbox?limit=50'),
+  expect(appFetch).toHaveBeenNthCalledWith(11, expect.stringContaining('/driver/dispatch/inbox?limit=50'),
     expect.objectContaining({ signal }));
 });
 

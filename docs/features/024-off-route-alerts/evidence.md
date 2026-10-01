@@ -2,6 +2,15 @@
 
 Ngày kiểm tra: **2026-09-21**.
 
+## Bổ sung 2026-09-30 — trung tâm cảnh báo trong phạm vi simulator-only
+
+Đây là bằng chứng cho thay đổi UI **sau** snapshot 2026-09-21 bên dưới; không phải thay đổi detector GPS của feature 024.
+
+- `vehicletracking-frontend/src/pages/AlertsManagementPage.vue`: nhãn read là “Đã đọc”, không còn tuyên bố đã giải quyết sự cố; KPI “Đổi tuyến” thay KPI “Lệch tuyến”, bỏ filter lệch tuyến nhưng vẫn hiển thị notification lịch sử trong “Tất cả”; polling hủy GET cũ và giữ state read/delete đã xác nhận khi response cũ tới sau.
+- `vehicletracking-frontend/tests/unit/page-workflows.test.ts`: kiểm tra filter/KPI simulator-only, read/delete không bị stale GET đảo ngược, poll mới thắng poll cũ. `npm run test:unit -- tests/unit/page-workflows.test.ts` exit 0 (**8/8**).
+- Node 24: `npm run lint`, `npm run typecheck`, `npm run test:unit` (**26 file, 196 test**), `npm run test:motion` (**5/5**), `npm run build` đều exit 0. Build cảnh báo bundle JS chính 535.55 kB > 500 kB. `git diff --check` exit 0.
+- Không sửa backend, API, migration hay dữ liệu cảnh báo. Không kiểm thử browser thật, HERE production hoặc full backend suite sau thay đổi UI. Báo sự cố thủ công, trạng thái resolved và phân trang vẫn chưa triển khai; xem `review.md`.
+
 ## Source evidence
 
 | Acceptance criterion | Evidence sau implementation |

@@ -23,7 +23,7 @@ import PageHeading from '@/shared/components/PageHeading.vue';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
 import { notifySuccess } from '@/shared/notifications/toast';
 import '@/features/reports/styles/alerts-management.css';
-type TypeFilter = 'ALL' | 'OFF_ROUTE_DETECTED' | 'REROUTE' | 'DISPATCH';
+type TypeFilter = 'ALL' | 'REROUTE' | 'DISPATCH';
 type SeverityFilter = 'ALL' | 'CRITICAL' | 'MAJOR';
 const formatDistance = (meters?: number | null) =>
   meters == null ? null : `${Math.round(meters)} m`;
@@ -46,6 +46,8 @@ function alertDetail(item: NotificationItem) {
       .join(' · ') || item.reason
   );
 }
+const confirmedReadAt = new Map<number, string>();
+const confirmedDeletedIds = new Set<number>();
 const items = shallowRef<NotificationItem[]>([]),
   loading = ref(true),
   error = ref<string | null>(null),
@@ -64,13 +66,21 @@ onScopeDispose(() => {
 watch(
   attempt,
   (_, _old, cleanup) => {
-    const controller = new AbortController();
+    let activeRequest: AbortController | null = null;
     function load(showLoading: boolean) {
+      activeRequest?.abort();
+      const controller = new AbortController();
+      activeRequest = controller;
       if (showLoading) loading.value = true;
       fetchNotifications(false, controller.signal)
         .then((next) => {
           if (!controller.signal.aborted) {
-            items.value = next;
+            items.value = next
+              .filter((item) => !confirmedDeletedIds.has(item.id))
+              .map((item) => {
+                const readAt = confirmedReadAt.get(item.id);
+                return readAt && !item.readAt ? { ...item, readAt } : item;
+              });
             error.value = null;
           }
         })
@@ -85,7 +95,7 @@ watch(
     load(true);
     const timer = window.setInterval(() => load(false), 15_000);
     cleanup(() => {
-      controller.abort();
+      activeRequest?.abort();
       window.clearInterval(timer);
     });
   },
@@ -95,18 +105,17 @@ const filtered = computed(() =>
   items.value.filter((item) => {
     const typeMatch =
       typeFilter.value === 'ALL' ||
-      (typeFilter.value === 'OFF_ROUTE_DETECTED'
-        ? item.type === typeFilter.value
-        : typeFilter.value === 'DISPATCH'
-          ? item.type === 'DISPATCH_ATTENTION' || item.type === 'DRIVER_UNAVAILABLE'
-            || item.type === 'DISPATCH_REASSIGNED' || item.type === 'TRIP_AUTO_STARTED'
-          : item.type === 'REROUTE_CREATED' || item.type === 'REROUTE_UNAVAILABLE' || item.type === 'DRIVER_ROUTE_CHANGED');
+      (typeFilter.value === 'DISPATCH'
+        ? item.type === 'DISPATCH_ATTENTION' || item.type === 'DRIVER_UNAVAILABLE'
+          || item.type === 'DISPATCH_REASSIGNED' || item.type === 'TRIP_AUTO_STARTED'
+          || item.type === 'DIRECT_ASSIGNMENT_DECLINED'
+        : item.type === 'REROUTE_CREATED' || item.type === 'REROUTE_UNAVAILABLE' || item.type === 'DRIVER_ROUTE_CHANGED');
     return typeMatch && (severityFilter.value === 'ALL' || item.severity === severityFilter.value);
   }),
 );
 const unread = computed(() => items.value.filter((item) => !item.readAt).length);
-const offRouteCount = computed(
-  () => items.value.filter((item) => item.type === 'OFF_ROUTE_DETECTED').length,
+const rerouteCount = computed(
+  () => items.value.filter((item) => item.type === 'REROUTE_CREATED' || item.type === 'REROUTE_UNAVAILABLE' || item.type === 'DRIVER_ROUTE_CHANGED').length,
 );
 async function read(item: NotificationItem) {
   if (busyId.value !== null || item.readAt) return;
@@ -115,8 +124,9 @@ async function read(item: NotificationItem) {
   try {
     const updated = await markNotificationRead(item.id);
     if (!disposed) {
+      if (updated.readAt) confirmedReadAt.set(updated.id, updated.readAt);
       items.value = items.value.map((row) => (row.id === updated.id ? updated : row));
-      notifySuccess('Đã đánh dấu cảnh báo là đã xử lý.');
+      notifySuccess('Đã đánh dấu cảnh báo là đã đọc.');
     }
   } catch (reason) {
     if (!disposed)
@@ -127,13 +137,15 @@ async function read(item: NotificationItem) {
 }
 async function readAll() {
   if (busyId.value !== null || unread.value === 0) return;
+  const ids = new Set(items.value.map((item) => item.id));
   busyId.value = -1;
   error.value = null;
   try {
     await markAllNotificationsRead();
     if (!disposed) {
       const now = new Date().toISOString();
-      items.value = items.value.map((item) => (item.readAt ? item : { ...item, readAt: now }));
+      ids.forEach((id) => confirmedReadAt.set(id, now));
+      items.value = items.value.map((item) => (ids.has(item.id) && !item.readAt ? { ...item, readAt: now } : item));
       notifySuccess('Đã đánh dấu tất cả cảnh báo là đã đọc.');
     }
   } catch (reason) {
@@ -151,6 +163,7 @@ async function remove() {
   try {
     await deleteNotification(id);
     if (!disposed) {
+      confirmedDeletedIds.add(id);
       items.value = items.value.filter((item) => item.id !== id);
       confirmDelete.value = null;
       notifySuccess('Đã xóa thông báo.');
@@ -166,9 +179,9 @@ async function remove() {
 <template>
   <div class="business-page alerts-management-page">
     <PageHeading
-      eyebrow="GIÁM SÁT & XỬ LÝ"
+      eyebrow="GIÁM SÁT & THÔNG BÁO"
       title="Cảnh báo vận hành"
-      description="Theo dõi sự cố, xác nhận xử lý và kiểm tra hành trình liên quan."
+      description="Theo dõi thông báo vận hành, đánh dấu đã đọc và kiểm tra hành trình liên quan."
       ><template #actions
         ><button
           class="business-button"
@@ -198,9 +211,9 @@ async function remove() {
         </div>
       </article>
       <article>
-        <MapPinned :size="19" />
+        <Route :size="19" />
         <div>
-          <span>Lệch tuyến</span><strong>{{ loading ? '—' : offRouteCount }}</strong>
+          <span>Đổi tuyến</span><strong>{{ loading ? '—' : rerouteCount }}</strong>
         </div>
       </article>
     </section>
@@ -222,7 +235,6 @@ async function remove() {
         <label
           >Loại<select v-model="typeFilter">
             <option value="ALL">Tất cả</option>
-            <option value="OFF_ROUTE_DETECTED">Lệch tuyến</option>
             <option value="REROUTE">Đổi tuyến</option>
             <option value="DISPATCH">Điều phối</option>
           </select></label
@@ -266,13 +278,13 @@ async function remove() {
           :class="`alerts-management-card ${item.readAt ? 'read' : 'unread'}`"
         >
           <div
-            :class="`alerts-management-icon ${item.type === 'OFF_ROUTE_DETECTED' ? 'off-route' : item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED' ? 'dispatch' : 'reroute'}`"
+          :class="`alerts-management-icon ${item.type === 'OFF_ROUTE_DETECTED' ? 'off-route' : item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED' || item.type === 'DIRECT_ASSIGNMENT_DECLINED' ? 'dispatch' : 'reroute'}`"
           >
             <MapPinned
               v-if="item.type === 'OFF_ROUTE_DETECTED'"
               :size="18"
             /><BellRing
-              v-else-if="item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED'"
+              v-else-if="item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED' || item.type === 'DIRECT_ASSIGNMENT_DECLINED'"
               :size="18"
             /><Route v-else :size="18" />
           </div>
@@ -293,7 +305,7 @@ async function remove() {
                 :disabled="busyId !== null"
                 @click="read(item)"
               >
-                <Check :size="14" />Đã xử lý</button
+                <Check :size="14" />Đã đọc</button
               ><button
                 :disabled="busyId !== null"
                 @click="

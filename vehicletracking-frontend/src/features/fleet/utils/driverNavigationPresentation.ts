@@ -30,6 +30,18 @@ export function driverNavigationPresentation(snapshot: DriverNavigationSnapshot)
       : nextStop?.sequenceNumber === sequenceNumber
         ? 'next'
         : 'pending';
+  const isNotStarted =
+    visits.size === 0 &&
+    snapshot.trip.status === 'SCHEDULED' &&
+    (!run || run.elapsedSeconds === 0);
+  const statusLabel = (sequenceNumber: number, index: number): string => {
+    if (visits.has(sequenceNumber)) return 'Đã check-in';
+    if (isNotStarted) {
+      if (index === 0) return 'Trạm đầu';
+      if (index === stops.length - 1) return 'Trạm cuối';
+    }
+    return state(sequenceNumber) === 'next' ? 'Trạm kế tiếp' : 'Chưa check-in';
+  };
   const speedKmh = frame?.speedKmh ?? snapshot.position?.speedKmh;
   return {
     stops,
@@ -37,6 +49,7 @@ export function driverNavigationPresentation(snapshot: DriverNavigationSnapshot)
     nextStop,
     role,
     state,
+    statusLabel,
     speedKmh: speedKmh === undefined ? null : Math.max(0, Math.round(speedKmh)),
     progressPercent: Math.min(
       100,

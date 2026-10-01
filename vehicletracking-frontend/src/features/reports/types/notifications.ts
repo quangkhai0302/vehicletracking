@@ -1,6 +1,7 @@
 export type NotificationType =
   | 'REROUTE_CREATED' | 'REROUTE_UNAVAILABLE' | 'OFF_ROUTE_DETECTED' | 'DRIVER_ROUTE_CHANGED'
-  | 'DISPATCH_ATTENTION' | 'DRIVER_UNAVAILABLE' | 'DISPATCH_REASSIGNED' | 'TRIP_AUTO_STARTED';
+  | 'DISPATCH_ATTENTION' | 'DRIVER_UNAVAILABLE' | 'DISPATCH_REASSIGNED' | 'TRIP_AUTO_STARTED'
+  | 'DIRECT_ASSIGNMENT_DECLINED';
 export type NotificationSeverity = 'CRITICAL' | 'MAJOR';
 export interface NotificationItem {
   id: number; tripId: number; vehicleId: number; vehiclePlateNumber: string; revisionId: number | null; type: NotificationType; severity: NotificationSeverity;

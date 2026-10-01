@@ -113,6 +113,20 @@ const stopState = (sequenceNumber: number) =>
       : 'pending';
 const stopRoleLabel = (index: number) =>
   index === 0 ? 'Điểm đầu' : index === orderedStops.value.length - 1 ? 'Điểm cuối' : 'Trạm dừng';
+const isNotStarted = computed(
+  () =>
+    completedStops.value === 0 &&
+    trip.value?.status === 'SCHEDULED' &&
+    (!run.value || run.value.elapsedSeconds === 0),
+);
+const stopStatusLabel = (sequenceNumber: number, index: number) => {
+  if (visitByStop.value.has(sequenceNumber)) return 'Đã check-in';
+  if (isNotStarted.value) {
+    if (index === 0) return 'Trạm đầu';
+    if (index === orderedStops.value.length - 1) return 'Trạm cuối';
+  }
+  return stopState(sequenceNumber) === 'next' ? 'Kế tiếp' : 'Chưa check-in';
+};
 const progressPercent = computed(() => {
   if (frame.value) return Math.min(100, Math.max(0, frame.value.progressPercent));
   if (trip.value?.status === 'COMPLETED') return 100;
@@ -488,13 +502,7 @@ const confirmCommand = () => {
                 </small>
               </span>
               <span class="simulation-stop-status">
-                {{
-                  stopState(stop.sequenceNumber) === 'checked-in'
-                    ? 'Đã check-in'
-                    : stopState(stop.sequenceNumber) === 'next'
-                      ? 'Kế tiếp'
-                      : 'Chưa check-in'
-                }}
+                {{ stopStatusLabel(stop.sequenceNumber, index) }}
               </span>
             </button>
           </li>

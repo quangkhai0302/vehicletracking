@@ -21,7 +21,7 @@ import {
   driverNavigationPresentation,
   formatSimulationDuration,
 } from '@/features/fleet/utils/driverNavigationPresentation';
-import { stopProgressLabel, stopRoleLabel } from '@/features/map/utils/routeStopPresentation';
+import { stopRoleLabel } from '@/features/map/utils/routeStopPresentation';
 import { displayTripTime } from '@/features/fleet/utils/tripTime';
 import { SIMULATION_LABELS } from '@/features/tracking/types/operations';
 import { formatDuration } from '@/shared/utils/format';
@@ -339,7 +339,7 @@ const distance = (meters: number) =>
                   >
                 </span>
                 <span class="driver-trip-stop-state">{{
-                  stopProgressLabel(info.state(stop.sequenceNumber))
+                  info.statusLabel(stop.sequenceNumber, index)
                 }}</span>
               </button>
             </li>

@@ -48,13 +48,24 @@ public class DispatchAvailabilityService {
     }
 
     public boolean vehicleAvailable(long vehicleId, TripEntity target, long durationSeconds) {
+        return vehicleAvailable(vehicleId, target, durationSeconds, false);
+    }
+
+    /**
+     * Direct assignment acceptance can reserve a vehicle against another
+     * scheduled ON_DEMAND trip. Scheduled-dispatch callers keep the legacy
+     * fixed-schedule-only check through the three-argument overload.
+     */
+    public boolean vehicleAvailable(long vehicleId, TripEntity target, long durationSeconds,
+                                    boolean includeOnDemandTrips) {
         if (vehicles.findById(vehicleId).filter(item -> item.isActive()).isEmpty()) return false;
         Instant start = target.getScheduledDepartureAt().minusSeconds(BUFFER_SECONDS);
         Instant end = target.getScheduledDepartureAt().plusSeconds(durationSeconds + BUFFER_SECONDS);
         for (TripEntity other : trips.findAllByVehicleIdOrderByScheduledDepartureAtDescIdDesc(vehicleId)) {
             if (other.getId().equals(target.getId())) continue;
             if (other.getStatus() == TripStatus.IN_PROGRESS) return false;
-            if (other.getStatus() != TripStatus.SCHEDULED || other.getSchedule() == null) continue;
+            if (other.getStatus() != TripStatus.SCHEDULED
+                    || (!includeOnDemandTrips && other.getSchedule() == null)) continue;
             if (overlaps(other, start, end)) return false;
         }
         return true;

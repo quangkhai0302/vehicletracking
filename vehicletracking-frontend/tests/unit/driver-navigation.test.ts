@@ -126,6 +126,8 @@ test('driver map offers start and passes official route to map', async () => {
   const wrapper = component(); await flushPromises();
   expect(wrapper.text()).toContain('Bắt đầu chuyến'); expect(wrapper.text()).toContain('Mô phỏng');
   expect(wrapper.findComponent({ name: 'DriverNavigationMap' }).props('snapshot').route).toEqual(driverSnapshot().route);
+  const stopLabels = wrapper.findAll('.driver-trip-stop-state').map(el => el.text());
+  expect(stopLabels).toEqual(['Trạm đầu', 'Trạm cuối']);
 });
 test('driver can view suggestions, choose a route and explicitly confirm', async () => {
   vi.mocked(api.fetchDriverNavigation).mockResolvedValue(driverSnapshot('IN_PROGRESS'));

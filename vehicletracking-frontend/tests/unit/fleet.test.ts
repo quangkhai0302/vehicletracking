@@ -204,6 +204,36 @@ test('trip detail replaces the list as a full-page workspace and returns without
   wrapper.unmount();
 });
 
+test('admin trip card shows cancelled assignment request history', async () => {
+  vi.mocked(api.fetchTrips).mockResolvedValue([{
+    ...trip(7),
+    driver: null,
+    assignmentRequest: {
+      id: 'request-cancelled',
+      status: 'CANCELLED',
+      candidateDriverId: driver.id,
+      candidateDriverName: driver.fullName,
+      requestedAt: stamp,
+      respondedAt: stamp,
+      responseReason: 'Admin đổi tài xế.',
+    },
+  }]);
+  const wrapper = mount(FleetWorkspace, {
+    props: {
+      initialTab: 'trips',
+      onToast: vi.fn(),
+      onFocusStop: vi.fn(),
+      onManageRoutes: vi.fn(),
+      onManageStations: vi.fn(),
+    },
+    global: { stubs: { TripDetailPanel: true } },
+  });
+  await flushPromises();
+  expect(wrapper.get('.fleet-trip-card').text()).toContain('Yêu cầu đã hủy');
+  expect(wrapper.get('.fleet-trip-card').text()).toContain(driver.fullName);
+  wrapper.unmount();
+});
+
 test('detail A cannot overwrite B; disposal aborts outstanding reads', async () => {
   const a = deferred<TripDetail>(),
     b = deferred<TripDetail>();
@@ -515,6 +545,84 @@ test('fixed-schedule trip shows vehicle and driver selectors without opening edi
   expect(wrapper.findAll('button').find((button) => button.text().includes('Lưu tài xế'))!.attributes('disabled')).toBeDefined();
   expect(wrapper.text()).not.toContain('Sửa giờ xuất phát');
   expect(wrapper.text()).not.toContain('Xóa chuyến');
+  wrapper.unmount();
+});
+
+test('admin sees a pending direct assignment separately from an assigned driver', async () => {
+  const pending: TripDetail = {
+    ...detail(1),
+    trip: {
+      ...trip(1),
+      driver: null,
+      assignmentRequest: {
+        id: 'request-1',
+        status: 'PENDING',
+        candidateDriverId: driver.id,
+        candidateDriverName: driver.fullName,
+        requestedAt: '2026-10-01T07:45:00Z',
+        respondedAt: null,
+        responseReason: null,
+      },
+    },
+  };
+  const wrapper = mount(TripDetailPanel, {
+    props: {
+      detail: pending,
+      loading: false,
+      busy: false,
+      drivers: [driver],
+      vehicles: [vehicle],
+      onClose: vi.fn(),
+      onRetry: vi.fn(),
+      onAction: vi.fn().mockResolvedValue(true),
+      onUpdateDriver: vi.fn().mockResolvedValue(true),
+      onFocusStop: vi.fn(),
+    },
+    global: { stubs: { RouteRevisionPanel: true } },
+  });
+  await flushPromises();
+  expect(wrapper.text()).toContain('Chờ tài xế phản hồi');
+  expect(wrapper.text()).toContain('Đã gửi yêu cầu lúc');
+  expect(wrapper.text()).toContain('Hủy yêu cầu');
+  expect(wrapper.text()).not.toContain('Tài xế phụ trách\n        Chưa phân công');
+  wrapper.unmount();
+});
+
+test('admin sees a cancelled direct assignment as history', async () => {
+  const cancelled: TripDetail = {
+    ...detail(1),
+    trip: {
+      ...trip(1),
+      driver: null,
+      assignmentRequest: {
+        id: 'request-cancelled',
+        status: 'CANCELLED',
+        candidateDriverId: driver.id,
+        candidateDriverName: driver.fullName,
+        requestedAt: '2026-10-01T07:45:00Z',
+        respondedAt: '2026-10-01T07:50:00Z',
+        responseReason: 'Admin đổi tài xế.',
+      },
+    },
+  };
+  const wrapper = mount(TripDetailPanel, {
+    props: {
+      detail: cancelled,
+      loading: false,
+      busy: false,
+      drivers: [driver],
+      vehicles: [vehicle],
+      onClose: vi.fn(),
+      onRetry: vi.fn(),
+      onAction: vi.fn().mockResolvedValue(true),
+      onUpdateDriver: vi.fn().mockResolvedValue(true),
+      onFocusStop: vi.fn(),
+    },
+    global: { stubs: { RouteRevisionPanel: true } },
+  });
+  await flushPromises();
+  expect(wrapper.text()).toContain('Yêu cầu đã hủy');
+  expect(wrapper.text()).toContain('Admin đổi tài xế.');
   wrapper.unmount();
 });
 

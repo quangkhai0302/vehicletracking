@@ -22,6 +22,11 @@ import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
+import com.quangkhai.vehicletracking_backend.assignment.service.TripAssignmentService;
+import com.quangkhai.vehicletracking_backend.assignment.dto.AssignmentRequestSummary;
+import com.quangkhai.vehicletracking_backend.auth.config.SecurityConfig.UserAccountPrincipal;
+import com.quangkhai.vehicletracking_backend.auth.entity.UserRole;
+import org.springframework.security.core.context.SecurityContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -54,6 +59,7 @@ public class TripService {
     private final DispatchAvailabilityService dispatchAvailability;
     private final Clock operationsClock;
     private final ApplicationEventPublisher events;
+    private final TripAssignmentService assignments;
 
     @Transactional(readOnly = true)
     public List<TripSummaryResponse> findAll(Long vehicleId) {
@@ -61,7 +67,10 @@ public class TripService {
                 : trips.findAllByVehicleIdOrderByScheduledDepartureAtDescIdDesc(vehicleId);
         var byTrip = dispatches.findAllById(result.stream().map(TripEntity::getId).toList()).stream()
                 .collect(Collectors.toMap(TripDispatchEntity::getTripId, Function.identity()));
-        return result.stream().map(item -> TripSummaryResponse.from(item, byTrip.get(item.getId()))).toList();
+        var assignmentByTrip = assignments == null ? java.util.Map.<Long, AssignmentRequestSummary>of()
+                : assignments.latestForTrips(result.stream().map(TripEntity::getId).toList());
+        return result.stream().map(item -> TripSummaryResponse.from(item, byTrip.get(item.getId()),
+                assignmentByTrip.get(item.getId()))).toList();
     }
     @Transactional(readOnly = true)
     public TripDetailResponse findById(long id) {
@@ -89,7 +98,9 @@ public class TripService {
         validateDeparture(departure);
         VehicleEntity vehicle = lockVehicle(vehicleId);
         requireActive(vehicle);
-        DriverEntity driver = resolveDriver(driverId);
+        Long adminAccountId = currentAdminAccountId();
+        boolean directRequest = schedule == null && driverId != null && assignments != null && adminAccountId != null;
+        DriverEntity driver = directRequest ? null : resolveDriver(driverId);
         var routeLookup = schedule == null ? routes.findById(routeId) : routes.findLockedById(routeId);
         var route = routeLookup.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy tuyến đường."));
         if (!route.isActive()) throw new ResponseStatusException(CONFLICT, "Tuyến đã ngừng sử dụng.");
@@ -114,6 +125,7 @@ public class TripService {
             throw new ResponseStatusException(BAD_REQUEST, "Thời gian lịch trình vượt phạm vi hỗ trợ.");
         }
         TripEntity saved = trips.saveAndFlush(trip);
+        if (directRequest) assignments.requestAssignment(saved, driverId, adminAccountId);
         if (schedule != null) {
             long duration = saved.getStops().stream().mapToLong(TripStopEntity::getDepartureOffsetSeconds)
                     .max().orElse(1);
@@ -132,6 +144,9 @@ public class TripService {
             throw new ResponseStatusException(CONFLICT, "Chỉ có thể xóa chuyến chưa khởi hành.");
         if (trip.getSchedule() != null)
             throw new ResponseStatusException(CONFLICT, "Chuyến được sinh từ lịch chạy không thể xóa; hãy hủy chuyến hoặc tạm dừng lịch.");
+        if (assignments != null && assignments.hasHistory(id))
+            throw assignmentError(CONFLICT, "ASSIGNMENT_HISTORY_REQUIRES_CANCEL",
+                    "Chuyến đã có lịch sử phân công; hãy hủy chuyến để bảo toàn lịch sử.");
         try { trips.delete(trip); trips.flush(); }
         catch (DataIntegrityViolationException ex) {
             throw new ResponseStatusException(CONFLICT, "Chuyến đã có dữ liệu vận hành và không thể xóa.", ex);
@@ -141,6 +156,14 @@ public class TripService {
     public TripDetailResponse assignDriver(long id, long driverId) {
         TripEntity trip = findScheduledLocked(id);
         Long previousDriverId = trip.getDriver() == null ? null : trip.getDriver().getId();
+        Long adminAccountId = currentAdminAccountId();
+        if (trip.getSchedule() == null && assignments != null && adminAccountId != null) {
+            if (previousDriverId != null && previousDriverId == driverId
+                    && !assignments.hasPending(id))
+                return response(trip);
+            assignments.requestAssignment(trip, driverId, adminAccountId);
+            return flushAssignment(trip);
+        }
         VehicleEntity vehicle = lockVehicle(trip.getVehicle().getId());
         requireActive(vehicle);
         DriverEntity driver = lockDriver(driverId);
@@ -157,6 +180,12 @@ public class TripService {
     public void unassignDriver(long id) {
         TripEntity trip = findScheduledLocked(id);
         Long previousDriverId = trip.getDriver() == null ? null : trip.getDriver().getId();
+        Long adminAccountId = currentAdminAccountId();
+        if (trip.getSchedule() == null && assignments != null && adminAccountId != null) {
+            assignments.unassign(trip, "Admin bỏ gán tài xế.");
+            trips.flush();
+            return;
+        }
         trip.assignDriver(null);
         if (previousDriverId != null)
             dispatchLifecycle.assignmentChanged(trip, previousDriverId, "Admin bỏ gán tài xế.");
@@ -175,6 +204,8 @@ public class TripService {
         if (dispatchAvailability.vehicleReservedForAuto(vehicleId, trip.getScheduledDepartureAt(),
                 trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId()))
             throw new ResponseStatusException(CONFLICT, "Xe đã được giữ chỗ cho chuyến tự động.");
+        if (trip.getSchedule() == null && assignments != null)
+            assignments.cancelPending(trip, "Admin đổi xe.");
         trip.assignVehicle(vehicle);
         dispatchLifecycle.assignmentChanged(trip, trip.getDriver() == null ? null : trip.getDriver().getId(), "Admin đổi xe.");
         return flushAssignment(trip, "xe");
@@ -237,6 +268,7 @@ public class TripService {
             case CANCELLED -> {
                 if (trip.getStatus() != TripStatus.SCHEDULED && trip.getStatus() != TripStatus.IN_PROGRESS) throw invalidTransition();
                 trip.cancel(now, cancellationReason == null ? "Hủy chuyến theo yêu cầu điều phối." : cancellationReason);
+                if (assignments != null) assignments.cancelPending(trip, "Chuyến đã bị hủy.");
             }
             default -> throw invalidTransition();
         }
@@ -271,7 +303,8 @@ public class TripService {
         TripEntity trip = trips.findLockedById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy chuyến đi."));
         if (trip.getStatus() != TripStatus.SCHEDULED)
-            throw new ResponseStatusException(CONFLICT, "Chỉ có thể thay đổi phân công của chuyến chưa khởi hành.");
+            throw assignmentError(CONFLICT, "ASSIGNMENT_INVALID_TRIP_STATE",
+                    "Chỉ có thể thay đổi phân công của chuyến chưa khởi hành.");
         return trip;
     }
     private TripDetailResponse flushAssignment(TripEntity trip) {
@@ -282,14 +315,32 @@ public class TripService {
             trips.flush();
             return response(trip);
         } catch (DataIntegrityViolationException ex) {
-            throw new ResponseStatusException(CONFLICT, "Không thể đổi " + assignment + ". Hãy tải lại.", ex);
+            throw assignmentError(CONFLICT, "ASSIGNMENT_RESOURCE_CONFLICT",
+                    "Không thể đổi " + assignment + ". Hãy tải lại.", ex);
         }
     }
     private ResponseStatusException invalidTransition() {
         return new ResponseStatusException(CONFLICT, "Không thể thực hiện thao tác với trạng thái chuyến hiện tại. Hãy tải lại.");
     }
+    private ResponseStatusException assignmentError(org.springframework.http.HttpStatus status, String code,
+                                                    String detail) {
+        return assignmentError(status, code, detail, null);
+    }
+    private ResponseStatusException assignmentError(org.springframework.http.HttpStatus status, String code,
+                                                    String detail, Throwable cause) {
+        var ex = new ResponseStatusException(status, detail, cause);
+        ex.getBody().setProperty("code", code);
+        return ex;
+    }
     private TripDetailResponse response(TripEntity trip) {
-        return TripDetailResponse.from(trip, dispatches.findById(trip.getId()).orElse(null));
+        return TripDetailResponse.from(trip, dispatches.findById(trip.getId()).orElse(null),
+                assignments == null ? null : assignments.latest(trip.getId()));
+    }
+    private Long currentAdminAccountId() {
+        Object value = SecurityContextHolder.getContext().getAuthentication() == null ? null
+                : SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return value instanceof UserAccountPrincipal principal && principal.role() == UserRole.ADMIN
+                ? principal.accountId() : null;
     }
     private Instant clockNow() {
         return (operationsClock == null ? Instant.now() : operationsClock.instant()).truncatedTo(ChronoUnit.MICROS);

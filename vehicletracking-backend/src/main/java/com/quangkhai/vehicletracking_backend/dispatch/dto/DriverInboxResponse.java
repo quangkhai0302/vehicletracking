@@ -6,9 +6,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record DriverInboxResponse(long id, DriverInboxKind type, String title, String detail, long tripId,
-                                  UUID offerId, Instant createdAt, Instant readAt) {
+                                  UUID offerId, UUID assignmentRequestId, Instant createdAt, Instant readAt) {
     public static DriverInboxResponse from(DriverDispatchInboxEntity item) {
         return new DriverInboxResponse(item.getId(), item.getKind(), item.getTitle(), item.getDetail(),
-                item.getTripId(), item.getOfferId(), item.getCreatedAt(), item.getReadAt());
+                item.getTripId(), item.getOfferId(), item.getAssignmentRequestId(), item.getCreatedAt(), item.getReadAt());
     }
 }

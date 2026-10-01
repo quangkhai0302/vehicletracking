@@ -537,22 +537,23 @@
   flex-direction: column;
   gap: 6px;
   padding: 12px 14px;
-  border: 1px solid rgba(34, 211, 238, 0.35);
-  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid #bae6fd;
+  background: #f0f9ff;
   border-radius: 10px;
-  color: #b9e6f8;
-  font-size: 11px;
+  color: #0369a1;
+  font-size: 12px;
 }
 .trip-preview strong {
-  color: #e0f8ff;
-  font-size: 14px;
-  font-weight: 600;
+  color: #0c4a6e;
+  font-size: 15px;
+  font-weight: 700;
 }
 .trip-dispatch-help {
   padding: 10px 12px;
-  border-left: 3px solid #22d3ee;
-  background: rgba(34, 211, 238, 0.07);
+  border-left: 3px solid #0284c7;
+  background: #f0f9ff;
   border-radius: 0 8px 8px 0;
+  color: #0369a1;
 }
 .trip-timeline {
   list-style: none;
@@ -1444,18 +1445,23 @@
   color: var(--text-primary);
 }
 .business-management-surface .fleet-editor .trip-preview {
-  color: #bae6fd;
-  background: rgba(14, 165, 233, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
   border-radius: 10px;
 }
 .business-management-surface .fleet-editor .trip-preview strong {
-  color: #e0f2fe;
+  color: #0c4a6e;
+}
+.business-management-surface .fleet-editor .trip-dispatch-help {
+  border-left-color: #0284c7;
+  background: #f8fafc;
+  color: var(--text-secondary);
 }
 .business-management-surface .fleet-editor .route-snapshot-note {
-  color: #bae6fd;
-  background: rgba(14, 165, 233, 0.08);
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
 }
 .business-management-surface .fleet-editor .trip-times > div,
 .business-management-surface .fleet-editor .trip-schedule-editor,
@@ -1631,3 +1637,24 @@
   border: 1px solid #fecdd3;
   border-radius: 8px;
 }
+.trip-assignment-pending,
+.trip-assignment-declined {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.trip-assignment-pending {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+}
+.trip-assignment-declined {
+  color: #9f1239;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+.trip-assignment-list-status { color: #92400e; }
+.trip-assignment-list-status.declined { color: #9f1239; }
+.trip-assignment-list-status.cancelled { color: #6b7280; }

@@ -54,8 +54,14 @@ const confirm = ref<'complete' | 'cancel' | null>(null),
   cancelReason = ref(''),
   driverId = ref(''),
   vehicleId = ref(''),
-  confirmDelete = ref(false);
+  confirmDelete = ref(false),
+  confirmDriverChange = ref(false);
 const trip = computed(() => props.detail?.trip);
+const assignmentRequest = computed(() => trip.value?.assignmentRequest ?? null);
+const hasPendingAssignment = computed(() => assignmentRequest.value?.status === 'PENDING');
+const selectedDriver = computed(() =>
+  props.drivers.find((driver) => driver.id === Number(driverId.value)) ?? null,
+);
 const availableVehicles = computed(() =>
   props.vehicles.filter((item) => item.active || item.id === trip.value?.vehicleId),
 );
@@ -125,10 +131,19 @@ async function saveDriver() {
   if (
     trip.value &&
     props.onUpdateDriver &&
-    driverId.value !== (trip.value.driver ? String(trip.value.driver.id) : '')
+    (driverId.value !== (trip.value.driver ? String(trip.value.driver.id) : '') || hasPendingAssignment.value)
   ) {
-    await props.onUpdateDriver(trip.value.id, driverId.value ? Number(driverId.value) : null);
+    if (trip.value.dispatchMode === 'ON_DEMAND' && (trip.value.driver || hasPendingAssignment.value)) {
+      confirmDriverChange.value = true;
+      return;
+    }
+    await commitDriverChange();
   }
+}
+async function commitDriverChange() {
+  if (!trip.value || !props.onUpdateDriver) return;
+  const success = await props.onUpdateDriver(trip.value.id, driverId.value ? Number(driverId.value) : null);
+  if (success) confirmDriverChange.value = false;
 }
 async function saveVehicle() {
   if (
@@ -240,7 +255,17 @@ function fallbackStopEta(stop: TripStop) {
               <span class="trip-summary-meta-icon"><UserRound :size="17" /></span>
               <span>
                 <small>Tài xế phụ trách</small>
-                <strong>{{ trip.driver?.fullName ?? 'Chưa phân công' }}</strong>
+                <strong v-if="trip.driver">{{ trip.driver.fullName }}</strong>
+                <strong v-else-if="assignmentRequest?.status === 'PENDING'">
+                  Chờ tài xế phản hồi · {{ assignmentRequest.candidateDriverName }}
+                </strong>
+                <strong v-else-if="assignmentRequest?.status === 'DECLINED'">
+                  {{ assignmentRequest.candidateDriverName }} đã từ chối
+                </strong>
+                <strong v-else-if="assignmentRequest?.status === 'CANCELLED'">
+                  Yêu cầu đã hủy · {{ assignmentRequest.candidateDriverName }}
+                </strong>
+                <strong v-else>Chưa phân công</strong>
                 <small
                   v-if="trip.driver"
                   class="trip-driver-contact"
@@ -250,6 +275,17 @@ function fallbackStopEta(stop: TripStop) {
               </span>
             </div>
           </div>
+          <p v-if="assignmentRequest?.status === 'PENDING'" class="trip-assignment-pending">
+            Đã gửi yêu cầu lúc {{ displayTripTime(assignmentRequest.requestedAt) }}. Tài xế phải
+            chấp nhận trước khi chuyến được gán và có thể khởi hành.
+          </p>
+          <p v-if="assignmentRequest?.status === 'DECLINED'" class="trip-assignment-declined">
+            Lý do từ chối: {{ assignmentRequest.responseReason || 'Không có lý do' }}. Hãy chọn tài
+            xế khác để gửi yêu cầu mới.
+          </p>
+          <p v-if="assignmentRequest?.status === 'CANCELLED'" class="trip-assignment-declined">
+            Yêu cầu nhận chuyến đã được hủy{{ assignmentRequest.responseReason ? `: ${assignmentRequest.responseReason}` : '.' }}
+          </p>
         </section>
 
         <section
@@ -383,11 +419,12 @@ function fallbackStopEta(stop: TripStop) {
               </select></label
             >
             <p class="fleet-help">
-              Chỉ đổi tài xế cho chuyến này. Lịch cố định và các chuyến tương lai không bị thay đổi.
+              Chỉ đổi tài xế cho chuyến này. Với chuyến tức thời, thao tác sẽ gửi yêu cầu xác nhận;
+              lịch cố định và các chuyến tương lai không bị thay đổi.
             </p>
             <div class="trip-assignment-actions">
               <button
-                v-if="driverId !== (trip.driver ? String(trip.driver.id) : '')"
+                v-if="driverId !== (trip.driver ? String(trip.driver.id) : '') || hasPendingAssignment"
                 class="btn-secondary trip-assignment-reset"
                 :disabled="busy"
                 @click="driverId = trip.driver ? String(trip.driver.id) : ''"
@@ -395,10 +432,16 @@ function fallbackStopEta(stop: TripStop) {
                 Đặt lại</button
               ><button
                 class="btn-primary trip-assignment-save"
-                :disabled="busy || driverId === (trip.driver ? String(trip.driver.id) : '')"
+                :disabled="busy || (!hasPendingAssignment && driverId === (trip.driver ? String(trip.driver.id) : ''))"
                 @click="saveDriver"
               >
-                <UserRound :size="14" />Lưu tài xế
+                <UserRound :size="14" />{{
+                  hasPendingAssignment && !driverId
+                    ? 'Hủy yêu cầu'
+                    : trip.dispatchMode === 'ON_DEMAND' && driverId
+                    ? 'Gửi yêu cầu nhận chuyến'
+                    : 'Lưu tài xế'
+                }}
               </button>
             </div>
           </div>
@@ -677,6 +720,21 @@ function fallbackStopEta(stop: TripStop) {
       :busy="busy"
       :on-close="() => (confirmDelete = false)"
       :on-confirm="deleteTrip"
+    />
+    <FleetConfirmDialog
+      v-if="confirmDriverChange && trip"
+      :title="hasPendingAssignment ? 'Thay đổi yêu cầu nhận chuyến?' : 'Đổi tài xế chuyến này?'"
+      :message="hasPendingAssignment
+        ? selectedDriver
+          ? `Yêu cầu hiện tại sẽ bị hủy và gửi yêu cầu mới cho ${selectedDriver.fullName}.`
+          : 'Yêu cầu hiện tại sẽ bị hủy; chuyến sẽ chưa có tài xế.'
+        : selectedDriver
+          ? `Quyền của ${trip.driver?.fullName ?? 'tài xế hiện tại'} sẽ bị thu hồi ngay và gửi yêu cầu nhận chuyến cho ${selectedDriver.fullName}.`
+          : 'Tài xế hiện tại sẽ bị bỏ gán khỏi chuyến.'"
+      :confirm-label="hasPendingAssignment && !selectedDriver ? 'Hủy yêu cầu' : 'Xác nhận đổi tài xế'"
+      :busy="busy"
+      :on-close="() => (confirmDriverChange = false)"
+      :on-confirm="() => { void commitDriverChange(); }"
     />
   </section>
 </template>

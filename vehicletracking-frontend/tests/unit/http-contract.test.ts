@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { createDriverAccount, resetDriverPassword } from '@/features/auth/api/users';
+import {
+  createDriverAccount,
+  resetDriverPassword,
+  uploadDriverAvatar,
+} from '@/features/auth/api/users';
 import { assignTripVehicle } from '@/features/fleet/api/fleet';
 import { appFetch } from '@/shared/api/http';
 
@@ -110,6 +114,21 @@ test('driver account creation only sends the selected driver id', async () => {
   const options = fetch.mock.calls[0][1] as RequestInit;
   expect(options.method).toBe('POST');
   expect(options.body).toBe('{"driverId":7}');
+});
+
+test('driver avatar upload leaves multipart content type to the browser', async () => {
+  document.cookie = 'XSRF-TOKEN=fixture-token; Path=/';
+  const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal('fetch', fetch);
+  const file = new File(['avatar'], 'driver.png', { type: 'image/png' });
+
+  await uploadDriverAvatar(7, file);
+
+  const options = fetch.mock.calls[0][1] as RequestInit;
+  expect(String(fetch.mock.calls[0][0])).toMatch(/\/api\/v1\/drivers\/7\/avatar$/);
+  expect(options.method).toBe('POST');
+  expect(options.body).toBeInstanceOf(FormData);
+  expect(new Headers(options.headers).has('Content-Type')).toBe(false);
 });
 
 test('trip vehicle assignment sends the selected vehicle to the dedicated endpoint', async () => {

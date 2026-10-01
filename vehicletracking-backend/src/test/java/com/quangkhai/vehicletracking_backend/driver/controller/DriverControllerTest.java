@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.mockito.ArgumentCaptor;
@@ -67,5 +68,22 @@ class DriverControllerTest {
 
         verify(drivers).update(eq(7L), any());
         verify(drivers).deactivate(7L);
+    }
+
+    @Test
+    void avatarEndpoints_delegateAndReturnImageBytes() throws Exception {
+        byte[] image = {1, 2, 3};
+        when(drivers.avatar(7L)).thenReturn(new DriverService.AvatarFile(image, MediaType.IMAGE_PNG_VALUE));
+
+        mvc.perform(multipart("/api/v1/drivers/7/avatar")
+                        .file(new MockMultipartFile("file", "driver.png", MediaType.IMAGE_PNG_VALUE, image)))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/drivers/7/avatar"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(content().bytes(image));
+
+        verify(drivers).updateAvatar(eq(7L), any());
+        verify(drivers).avatar(7L);
     }
 }

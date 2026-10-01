@@ -135,7 +135,7 @@ function submit() {
           </select></label
         >
         <label
-          >Tài xế thực hiện <span class="fleet-help">(bắt buộc trước khi khởi hành)</span
+          >Tài xế nhận chuyến <span class="fleet-help">(sẽ nhận yêu cầu xác nhận)</span
           ><select
             v-model="driverId"
             aria-label="Tài xế thực hiện"
@@ -197,8 +197,9 @@ function submit() {
           Chưa có tuyến. Tạo tuyến ở mục Tuyến & trạm, sau đó quay lại và tải lại danh sách.
         </p>
         <p class="fleet-help trip-dispatch-help">
-          Chuyến được tạo ở trạng thái chờ khởi hành. Thời gian thực tế bắt đầu khi điều phối viên
-          hoặc tài xế bấm khởi hành; chuyến chạy cố định được cấu hình tại Lịch chạy tự động.
+          Nếu chọn tài xế, hệ thống sẽ gửi yêu cầu nhận chuyến; chuyến chỉ được gán sau khi tài xế
+          chấp nhận. Chuyến được tạo ở trạng thái chờ khởi hành; chuyến chạy cố định được cấu hình
+          tại Lịch chạy tự động.
         </p>
         <div
           v-if="selectedRoute"

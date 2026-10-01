@@ -1,16 +1,61 @@
 package com.quangkhai.vehicletracking_backend.driverportal;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.web.server.ResponseStatusException;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
 import com.quangkhai.vehicletracking_backend.auth.config.SecurityConfig.UserAccountPrincipal;
 import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
 import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
 import com.quangkhai.vehicletracking_backend.driverportal.service.DriverNavigationService;
-import com.quangkhai.vehicletracking_backend.reroute.entity.*;
-import com.quangkhai.vehicletracking_backend.reroute.repository.*;
+import com.quangkhai.vehicletracking_backend.reroute.entity.NotificationSeverity;
+import com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType;
+import com.quangkhai.vehicletracking_backend.reroute.entity.RerouteReasonCode;
+import com.quangkhai.vehicletracking_backend.reroute.entity.RouteRevisionStatus;
+import com.quangkhai.vehicletracking_backend.reroute.entity.TripNotificationEntity;
+import com.quangkhai.vehicletracking_backend.reroute.entity.TripRouteRevisionEntity;
+import com.quangkhai.vehicletracking_backend.reroute.entity.TripRouteRevisionSectionEntity;
+import com.quangkhai.vehicletracking_backend.reroute.entity.TripRouteRevisionStopEntity;
+import com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository;
+import com.quangkhai.vehicletracking_backend.reroute.repository.TripRouteRevisionRepository;
 import com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryQueryService;
 import com.quangkhai.vehicletracking_backend.route.dto.RouteInstruction;
-import com.quangkhai.vehicletracking_backend.route.entity.*;
-import com.quangkhai.vehicletracking_backend.route.error.*;
-import com.quangkhai.vehicletracking_backend.route.provider.*;
+import com.quangkhai.vehicletracking_backend.route.error.RouteErrorCode;
+import com.quangkhai.vehicletracking_backend.route.error.RouteOperationException;
+import com.quangkhai.vehicletracking_backend.route.provider.CalculatedRoute;
+import com.quangkhai.vehicletracking_backend.route.provider.CalculatedSection;
+import com.quangkhai.vehicletracking_backend.route.provider.RoutingProvider;
+import com.quangkhai.vehicletracking_backend.route.provider.RoutingWaypoint;
 import com.quangkhai.vehicletracking_backend.route.repository.RouteRepository;
 import com.quangkhai.vehicletracking_backend.simulation.SimulationFixtures;
 import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationStatus;
@@ -19,27 +64,12 @@ import com.quangkhai.vehicletracking_backend.simulation.service.SimulationServic
 import com.quangkhai.vehicletracking_backend.station.entity.StationEntity;
 import com.quangkhai.vehicletracking_backend.station.repository.StationRepository;
 import com.quangkhai.vehicletracking_backend.telemetry.service.OperationsSnapshotService;
-import com.quangkhai.vehicletracking_backend.trip.dto.*;
+import com.quangkhai.vehicletracking_backend.trip.dto.TripCreateRequest;
+import com.quangkhai.vehicletracking_backend.trip.dto.TripDetailResponse;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
 import com.quangkhai.vehicletracking_backend.trip.service.TripService;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
-import org.junit.jupiter.api.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.web.server.ResponseStatusException;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.*;
-import java.math.BigDecimal;
-import java.time.*;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.*;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 @Testcontainers
 @SpringBootTest(properties = {"here.routing.enabled=false", "here.traffic.enabled=false",
