@@ -1,4 +1,3 @@
-import type { DispatchStartMode } from '@/features/dispatch/types/dispatch';
 export type ScheduleFrequency = 'ONCE' | 'WEEKLY';
 export type ScheduleRunStatus = 'SUCCESS' | 'FAILED';
 
@@ -23,9 +22,6 @@ export interface TripSchedule {
   lastRunAt: string | null;
   lastRunStatus: ScheduleRunStatus | null;
   lastRunMessage: string | null;
-  startMode?: DispatchStartMode;
-  backupEnabled?: boolean;
-  backupDriverIds?: number[];
 }
 
 export interface TripScheduleInput {
@@ -40,7 +36,4 @@ export interface TripScheduleInput {
   timezone: string;
   effectiveFrom: string;
   effectiveUntil: string | null;
-  startMode?: DispatchStartMode;
-  backupEnabled?: boolean;
-  backupDriverIds?: number[];
 }

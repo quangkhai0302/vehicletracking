@@ -54,6 +54,7 @@ const props = withDefaults(
     initialTab?: FleetTab;
     initialVehicleFilter?: number | null;
     initialRouteId?: number | null;
+    initialTripId?: number | null;
     openTripFromRoute?: boolean;
     onExitRoutePrefill?: () => void;
     lockedTab?: FleetTab;
@@ -71,6 +72,13 @@ const fleet = useFleetWorkspace(
   props.initialVehicleFilter,
 );
 useErrorToast(() => fleet.error);
+let appliedTripId: number | null = null;
+watch([() => props.initialTripId, () => fleet.busy], ([id, busy]) => {
+  if (props.lockedTab !== 'trips' || busy || (id ?? null) === appliedTripId) return;
+  if (id) void fleet.selectTrip(id);
+  else if (appliedTripId) fleet.close();
+  appliedTripId = id ?? null;
+}, { immediate: true });
 watch(
   [() => props.initialRouteId, () => props.openTripFromRoute],
   ([routeId, open]) => {

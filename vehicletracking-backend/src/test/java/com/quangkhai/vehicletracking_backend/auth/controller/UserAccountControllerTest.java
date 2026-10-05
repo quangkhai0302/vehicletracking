@@ -56,9 +56,40 @@ class UserAccountControllerTest {
         mvc.perform(post("/api/v1/users/7/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"short\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Mật khẩu phải có từ 8 đến 100 ký tự."));
 
         verifyNoInteractions(accounts);
+    }
+
+    @Test
+    void resetDriverPasswordRejectsTooManyUtf8BytesBeforeService() throws Exception {
+        mvc.perform(post("/api/v1/users/7/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"" + "ầ".repeat(25) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Mật khẩu không được vượt quá 72 byte UTF-8."));
+        verifyNoInteractions(accounts);
+    }
+
+    @Test
+    void resetRejectsFourSupplementaryCharactersWithoutInvokingService() throws Exception {
+        mvc.perform(post("/api/v1/users/7/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"" + "😀".repeat(4) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Mật khẩu phải có từ 8 đến 100 ký tự."));
+        verifyNoInteractions(accounts);
+    }
+
+    @Test
+    void resetAcceptsEightSupplementaryCharacters() throws Exception {
+        String password = "😀".repeat(8);
+        mvc.perform(post("/api/v1/users/7/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"" + password + "\"}"))
+                .andExpect(status().isNoContent());
+        verify(accounts).resetDriverPassword(7L, new DriverPasswordResetRequest(password));
     }
 
     @Test

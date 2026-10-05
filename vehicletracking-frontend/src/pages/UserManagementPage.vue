@@ -424,7 +424,7 @@ async function submitPasswordReset() {
           </dl>
           <p class="user-issued-note">
             Mật khẩu tạm thời chỉ hiển thị ở bước này. Nếu quên, hãy dùng chức năng đặt lại mật
-            khẩu.
+            khẩu. Tài xế phải đổi mật khẩu này ngay sau khi đăng nhập lần đầu.
           </p>
           <button
             type="button"
@@ -485,7 +485,7 @@ async function submitPasswordReset() {
         <div class="users-heading">
           <div>
             <h2>Đặt lại mật khẩu</h2>
-            <p>Tạo mật khẩu mới cho tài khoản tài xế.</p>
+            <p>Cấp mật khẩu tạm mới. Tài xế phải đổi mật khẩu sau khi đăng nhập.</p>
           </div>
           <button
             type="button"
@@ -534,7 +534,8 @@ async function submitPasswordReset() {
           </label>
           <p class="user-password-note">
             Sau khi đặt lại, các phiên đăng nhập cũ của tài xế sẽ bị kết thúc. Trạng thái khóa/mở
-            khóa của tài khoản không thay đổi.
+            khóa của tài khoản không thay đổi. Tài xế phải đổi mật khẩu này trước khi xem chuyến đi
+            và lịch chạy.
           </p>
           <button :disabled="resettingPassword">
             <KeyRound :size="15" />{{

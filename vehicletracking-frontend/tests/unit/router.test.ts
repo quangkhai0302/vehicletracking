@@ -13,7 +13,7 @@ import { fetchOperations, subscribeOperations } from '@/features/tracking/api/op
 
 vi.mock('@/features/tracking/api/operations', () => ({ fetchOperations: vi.fn(), subscribeOperations: vi.fn() }));
 
-vi.mock('@/features/auth/api/auth', () => ({ fetchCurrentUser: vi.fn(), login: vi.fn(), logout: vi.fn(), registerAdmin: vi.fn() }));
+vi.mock('@/features/auth/api/auth', () => ({ changePassword: vi.fn(), fetchCurrentUser: vi.fn(), login: vi.fn(), logout: vi.fn(), registerAdmin: vi.fn() }));
 const lifecycle = vi.hoisted(() => ({ mounted: vi.fn(), unmounted: vi.fn() }));
 vi.mock('@/features/map/components/MapComponent.vue', async () => {
   const { defineComponent, h, onMounted, onUnmounted } = await import('vue');
@@ -24,12 +24,13 @@ vi.mock('@/features/map/components/MapComponent.vue', async () => {
 });
 vi.mock('@/features/fleet/components/FleetWorkspace.vue', async () => {
   const { defineComponent, h, getCurrentInstance } = await import('vue');
-  return { default: defineComponent({ props: ['initialTab', 'initialVehicleFilter', 'initialRouteId', 'openTripFromRoute', 'onSimulateTrip', 'onViewRoute'], setup(props) {
+  return { default: defineComponent({ props: ['initialTab', 'initialVehicleFilter', 'initialRouteId', 'initialTripId', 'openTripFromRoute', 'onSimulateTrip', 'onViewRoute'], setup(props) {
     const instance = getCurrentInstance()!.uid;
     return () => h('div', {
       'data-fleet': props.initialTab,
       'data-filter': props.initialVehicleFilter,
       'data-route': props.initialRouteId,
+      'data-trip-id': props.initialTripId,
       'data-open-route-trip': props.openTripFromRoute,
       'data-instance': instance,
     }, [
@@ -38,7 +39,7 @@ vi.mock('@/features/fleet/components/FleetWorkspace.vue', async () => {
     ]);
   } }) };
 });
-const admin: AuthUser = { accountId: 1, username: 'admin.fixture', role: 'ADMIN', active: true, driverId: null, driverName: null };
+const admin: AuthUser = { accountId: 1, username: 'admin.fixture', role: 'ADMIN', active: true, passwordChangeRequired: false, driverId: null, driverName: null };
 const cleanups: (() => void)[] = [];
 const originalShowModal = Object.getOwnPropertyDescriptor(
   HTMLDialogElement.prototype,
@@ -88,15 +89,33 @@ test('planning navigation is represented once and resolves both legacy URLs', ()
   expect(findRoute('/routes')).toBe(planningItems[0]);
   expect(findRoute('/trips')).toBe(planningItems[0]);
 });
+test('removed board URL uses protected not-found page and trip deep links still work', async () => {
+  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
+  cleanups.push(installAuthGuards(router, auth));
+  expect(findRoute('/operations-board').label).toBe('Không tìm thấy');
+  expect(router.getRoutes().some(route => route.path === '/operations-board')).toBe(false);
+  expect(router.resolve('/operations-board').matched.slice(-1)[0]?.path).toBe('/:pathMatch(.*)*');
+  expect(router.resolve('/operations-board').meta.role).toBe('ADMIN');
+  await router.push('/operations-board?date=2026-10-01');
+  const wrapper = mount(App, { global: { plugins: [router], provide: { [authKey as symbol]: auth } } }); cleanups.push(() => wrapper.unmount()); await flushPromises();
+  expect(wrapper.get('.not-found-page').text()).toContain('Trang bạn cần không tồn tại');
+  expect(wrapper.find('.business-navigation a[href="/operations-board"]').exists()).toBe(false);
+  expect(wrapper.find('.operations-board').exists()).toBe(false);
+  await router.push('/trips?tripId=7&tripId=9&vehicleId=3');
+  await flushPromises();
+  expect(wrapper.get('[data-fleet]').attributes('data-trip-id')).toBe('7');
+  expect(wrapper.get('[data-fleet]').attributes('data-filter')).toBe('3');
+  await router.push('/trips?tripId=bad'); await flushPromises(); expect(wrapper.get('[data-fleet]').attributes('data-trip-id')).toBeUndefined();
+});
 
-test('application router covers all fifteen URLs, root redirect and the protected catch-all', () => {
+test('application router covers remaining URLs, root redirect and the protected catch-all', () => {
   const router = createApplicationRouter(createMemoryHistory());
   const adminPaths = ['/dashboard', '/operations', '/vehicles', '/drivers', '/trips', '/routes', '/stations', '/schedules', '/alerts', '/reports', '/users'];
   for (const path of adminPaths) {
     const resolved = router.resolve(path); expect(resolved.meta.role).toBe('ADMIN'); expect(resolved.matched.slice(-1)[0]?.path).toBe(path);
   }
   for (const path of ['/login', '/register']) expect(router.resolve(path).meta.guestOnly).toBe(true);
-  for (const path of ['/driver/today', '/driver/schedules']) expect(router.resolve(path).meta.role).toBe('DRIVER');
+  for (const path of ['/driver/today', '/driver/schedules', '/driver/change-password']) expect(router.resolve(path).meta.role).toBe('DRIVER');
   expect(router.resolve('/').matched.slice(-1)[0]?.redirect).toBe('/dashboard');
   expect(router.resolve('/unknown-fixture').matched.slice(-1)[0]?.path).toBe('/:pathMatch(.*)*');
   expect(router.resolve('/unknown-fixture').meta.role).toBe('ADMIN');
@@ -133,14 +152,33 @@ test('actual route graph enforces driver/admin/guest boundaries before mounting 
     { user: admin, path: '/driver/today', expected: '/dashboard' },
     { user: { ...admin, role: 'DRIVER' as const, driverId: 1 }, path: '/reports', expected: '/driver/today' },
     { user: null, path: '/operations?mode=simulation', expected: '/login' },
+    { user: null, path: '/driver/change-password', expected: '/login' },
+    { user: admin, path: '/driver/change-password', expected: '/dashboard' },
   ];
   for (const { user, path, expected } of cases) {
     vi.mocked(fetchCurrentUser).mockResolvedValue(user as AuthUser);
     const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
     const dispose = installAuthGuards(router, auth); cleanups.push(dispose);
     await router.push(path); expect(router.currentRoute.value.path).toBe(expected);
-    if (!user) expect(router.options.history.state.from).toBe('/operations');
+    if (!user) expect(router.options.history.state.from).toBe(path.split('?')[0]);
   }
+});
+
+test.each(['/driver/today', '/driver/schedules', '/driver/trips/7/navigate', '/reports', '/login', '/unknown-fixture'])('temporary-password bootstrap redirects %s before mounting business content', async path => {
+  vi.mocked(fetchCurrentUser).mockResolvedValue({ ...admin, role: 'DRIVER', driverId: 1, passwordChangeRequired: true });
+  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
+  cleanups.push(installAuthGuards(router, auth));
+  await router.push(path);
+  expect(router.currentRoute.value.path).toBe('/driver/change-password');
+  const wrapper = mount(App, { global: { plugins: [router], provide: { [authKey as symbol]: auth } } });
+  cleanups.push(() => wrapper.unmount());
+  await flushPromises();
+  expect(wrapper.get('h1').text()).toBe('Đổi mật khẩu');
+  expect(wrapper.find('.driver-portal').exists()).toBe(false);
+  expect(wrapper.find('.business-navigation').exists()).toBe(false);
+  expect(fetchOperations).not.toHaveBeenCalled();
+  await router.push('/driver/today');
+  expect(router.currentRoute.value.path).toBe('/driver/change-password');
 });
 
 test('map deep links, repeated query values and back/forward reuse the operations owner; route workspace remounts it', async () => {

@@ -30,3 +30,11 @@ Các đường dẫn `src/` thuộc frontend. Không đổi contract API, databa
 Script tự động, lệnh chạy, ảnh minh chứng và giới hạn kiểm tra xem [evidence.md](evidence.md). Các số liệu trong ảnh là fixture kiểm tra, không phải dữ liệu vận hành thật.
 
 Review độc lập chưa hoàn tất do giới hạn sử dụng subagent; feature được ghi **Verified**, chưa ghi Reviewed.
+
+## Follow-up 2026-10-05 — Bố cục thông tin lịch chạy trong Vue
+
+Trang `/schedules` đặt mỗi nhãn ngay trên giá trị trong grid responsive. Xe và tài xế có mục riêng; “Giờ khởi hành” và “Cách khởi hành” không còn trùng nhãn. Múi giờ `Asia/Ho_Chi_Minh` hiển thị “Giờ Việt Nam”. Chữ giá trị 14px, nhãn đậm màu hơn và dữ liệu dài được xuống dòng.
+
+Các file hiện tại: `vehicletracking-frontend/src/pages/ScheduleManagementPage.vue`, `src/features/schedules/styles/schedule-management.css` và `src/ui-refresh.css`. Không thay đổi lịch hoặc thời điểm tạo chuyến.
+
+Mở `/schedules` với một hoặc nhiều lịch; kiểm tra tên tài xế dài, khởi hành thủ công/tự động và trạng thái không có lần chạy tiếp theo. Kết quả browser ở 320/390/768/1440px cùng giới hạn lint/typecheck/unit/build được ghi ở phần follow-up trong [evidence.md](evidence.md).

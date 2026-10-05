@@ -19,8 +19,9 @@ const props = defineProps<{
   onClose: () => void;
   onManageRoutes: () => void;
 }>();
-const initialDriverId = props.vehicles.find((vehicle) => vehicle.id === props.initialVehicleId)
-  ?.driver?.id;
+// A vehicle's catalog driver is not a trip assignment. The dispatcher must
+// choose the trip driver explicitly, so opening the form never infers one.
+const initialDriverId: number | undefined = undefined;
 const vehicleId = ref(props.initialVehicleId ? String(props.initialVehicleId) : ''),
   routeId = ref(props.initialRouteId ? String(props.initialRouteId) : ''),
   driverId = ref(initialDriverId ? String(initialDriverId) : '');
@@ -73,14 +74,13 @@ const dirty = computed(
     vehicleId.value !== (props.initialVehicleId ? String(props.initialVehicleId) : '') ||
     driverId.value !== (initialDriverId ? String(initialDriverId) : ''),
 );
+
 function close() {
   if (dirty.value) confirm.value = true;
   else props.onClose();
 }
 function selectVehicle(event: Event) {
   vehicleId.value = (event.target as HTMLSelectElement).value;
-  const vehicle = props.vehicles.find((item) => item.id === Number(vehicleId.value));
-  driverId.value = vehicle?.driver ? String(vehicle.driver.id) : '';
 }
 function submit() {
   if (!props.busy && valid.value)

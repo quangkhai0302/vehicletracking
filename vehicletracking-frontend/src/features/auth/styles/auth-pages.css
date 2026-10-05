@@ -208,3 +208,29 @@
   color: var(--text-muted);
   font-weight: 600;
 }
+
+.auth-password-guidance {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.auth-password-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 20px;
+}
+
+.auth-password-actions button {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.auth-password-actions button:disabled,
+.auth-input input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

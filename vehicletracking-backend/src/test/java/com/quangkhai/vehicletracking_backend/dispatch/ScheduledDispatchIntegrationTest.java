@@ -31,7 +31,6 @@ import com.quangkhai.vehicletracking_backend.trip.dto.TripCreateRequest;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
 import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.RepeatedTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -46,7 +45,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -54,11 +52,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.Executors;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import org.springframework.dao.DataIntegrityViolationException;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -68,8 +65,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Testcontainers
 @SpringBootTest(properties = {"here.routing.enabled=false", "here.traffic.enabled=false",
-        "trip-scheduling.enabled=false", "trip-dispatch.enabled=false", "app.simulation.scheduling-enabled=false",
-        "auth.security-enabled=true"})
+        "trip-scheduling.enabled=false", "app.simulation.scheduling-enabled=false", "auth.security-enabled=true"})
 @AutoConfigureMockMvc
 class ScheduledDispatchIntegrationTest {
     @Container @ServiceConnection static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17");
@@ -82,35 +78,32 @@ class ScheduledDispatchIntegrationTest {
     @Autowired UserAccountRepository accounts;
     @Autowired TripScheduleRepository schedules;
     @Autowired TripDispatchRepository dispatches;
-    @Autowired TripDispatchEventRepository events;
-    @Autowired TripDispatchOfferRepository offers;
     @Autowired TripRepository trips;
     @Autowired TripService tripService;
+    @Autowired com.quangkhai.vehicletracking_backend.assignment.service.TripAssignmentService assignments;
     @Autowired TripScheduleService scheduleService;
+    @Autowired com.quangkhai.vehicletracking_backend.driverportal.service.DriverNavigationService navigation;
+    @Autowired com.quangkhai.vehicletracking_backend.simulation.service.SimulationService simulation;
+    @Autowired org.springframework.context.ApplicationContext context;
     @Autowired JdbcTemplate jdbc;
-    @MockitoSpyBean TripNotificationRepository notifications;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @Autowired DriverDispatchService driverDispatch;
-    @Autowired TripDispatchJobService job;
+    @Autowired DriverDispatchInboxRepository dispatchInbox;
     @Autowired SimulationRepository runs;
     @Autowired OperationsSnapshotService operationsSnapshot;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
-    @MockitoSpyBean DriverDispatchInboxRepository dispatchInbox;
     @MockitoBean Clock operationsClock;
     final AtomicReference<Instant> time = new AtomicReference<>(DEPARTURE.minusSeconds(60));
 
     record Fixture(long tripId, long scheduleId, long routeId, long vehicleId, long driverId,
-                   UserAccountPrincipal principal, Long backupId, UserAccountPrincipal backupPrincipal) {}
+                   UserAccountPrincipal principal) {}
 
-    Fixture fixture(DispatchStartMode mode) {
-        return fixture(mode, false);
+    private TripCreateRequest onDemandRequest(long vehicleId, long routeId, Long driverId) {
+        return new TripCreateRequest(vehicleId, routeId, driverId);
     }
 
-    Fixture fixture(DispatchStartMode mode, boolean withBackup) {
-        return fixture(mode, withBackup, null);
-    }
-
-    Fixture fixture(DispatchStartMode mode, boolean withBackup, Fixture sharedBackup) {
+    Fixture fixture() {
         when(operationsClock.instant()).thenAnswer(call -> time.get());
         int n = IDS.incrementAndGet();
         var a = stations.saveAndFlush(new StationEntity("A " + n, null,
@@ -122,105 +115,20 @@ class ScheduledDispatchIntegrationTest {
         var driver = drivers.saveAndFlush(new DriverEntity("Tài xế " + n, String.format("06%08d", n), "DSP-" + n));
         var account = accounts.saveAndFlush(new UserAccountEntity("dispatch-driver-" + n,
                 "unused-test-password-hash", UserRole.DRIVER, driver));
-        DriverEntity backup = null;
-        UserAccountEntity backupAccount = null;
-        if (sharedBackup != null) {
-            backup = drivers.findById(sharedBackup.backupId()).orElseThrow();
-        } else if (withBackup) {
-            backup = drivers.saveAndFlush(new DriverEntity("Dự phòng " + n,
-                    String.format("07%08d", n), "DSP-B-" + n));
-            backupAccount = accounts.saveAndFlush(new UserAccountEntity("dispatch-backup-" + n,
-                    "unused-test-password-hash", UserRole.DRIVER, backup));
-        }
+        // Dispatch fixtures represent drivers who have already changed their initial password.
+        account.changePassword(account.getPasswordHash());
+        accounts.saveAndFlush(account);
         var schedule = new TripScheduleEntity("Lịch kiểm thử " + n, route, vehicle, driver,
                 ScheduleFrequency.ONCE, LocalDate.of(2026, 10, 1), (short) 0,
                 LocalTime.of(15, 0), "Asia/Ho_Chi_Minh", LocalDate.of(2026, 10, 1), null);
-        schedule.setDispatchPolicy(mode, withBackup, withBackup ? List.of(backup.getId()) : List.of());
         schedules.saveAndFlush(schedule);
         var trip = tripService.createFromSchedule(schedule, DEPARTURE);
         var principal = mock(UserAccountPrincipal.class);
         when(principal.driverId()).thenReturn(driver.getId());
         when(principal.accountId()).thenReturn(account.getId());
         when(principal.getPassword()).thenReturn(account.getPasswordHash());
-        UserAccountPrincipal backupPrincipal = null;
-        if (sharedBackup != null) {
-            backupPrincipal = sharedBackup.backupPrincipal();
-        } else if (withBackup) {
-            backupPrincipal = mock(UserAccountPrincipal.class);
-            when(backupPrincipal.driverId()).thenReturn(backup.getId());
-            when(backupPrincipal.accountId()).thenReturn(backupAccount.getId());
-            when(backupPrincipal.getPassword()).thenReturn(backupAccount.getPasswordHash());
-        }
         return new Fixture(trip.trip().id(), schedule.getId(), route.getId(), vehicle.getId(),
-                driver.getId(), principal, backup == null ? null : backup.getId(), backupPrincipal);
-    }
-
-    @Test void snapshotAndReadyKeepTripScheduledUntilJobStartsSimulator() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY);
-        var dispatch = dispatches.findById(created.tripId()).orElseThrow();
-        assertThat(dispatch.getStartMode()).isEqualTo(DispatchStartMode.AUTO_IF_READY);
-        assertThat(dispatch.getState()).isEqualTo(DispatchState.WAITING_READY);
-        assertThat(dispatch.getBaselineDurationSeconds()).isPositive();
-        assertThat(events.findTop100ByDispatchTripIdOrderByCreatedAtDescIdDesc(created.tripId()))
-                .extracting(TripDispatchEventEntity::getKind).containsExactly(DispatchEventKind.CREATED);
-
-        var ready = driverDispatch.ready(created.principal(), created.tripId(), dispatch.getRevision());
-        assertThat(ready.state()).isEqualTo(DispatchState.READY);
-        assertThat(trips.findById(created.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.SCHEDULED);
-        assertThat(runs.findByTripId(created.tripId())).isEmpty();
-
-        time.set(DEPARTURE);
-        job.process(created.tripId());
-        assertThat(trips.findById(created.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.IN_PROGRESS);
-        assertThat(runs.findByTripId(created.tripId()).orElseThrow().getStatus()).isEqualTo(SimulationStatus.RUNNING);
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getState()).isEqualTo(DispatchState.STARTED);
-        var adminView = operationsSnapshot.snapshot();
-        assertThat(adminView.trips()).anyMatch(item -> item.id().equals(created.tripId())
-                && item.status() == TripStatus.IN_PROGRESS && item.dispatch() != null
-                && item.dispatch().state() == DispatchState.STARTED);
-        assertThat(adminView.simulations()).anyMatch(item ->
-                item.tripId() == created.tripId() && item.status() == SimulationStatus.RUNNING);
-        assertThat(adminView.positions()).anyMatch(item ->
-                item.tripId() == created.tripId() && item.source() == TelemetrySource.SIMULATOR);
-    }
-
-    @Test void separateAdminAndDriverSessionsSeeSameReadyAndStartedStateOverHttp() throws Exception {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY);
-        var adminAccount = accounts.saveAndFlush(new UserAccountEntity("dispatch-admin-http-" + IDS.incrementAndGet(),
-                "unused-test-password-hash", UserRole.ADMIN, null));
-        var admin = mock(UserAccountPrincipal.class);
-        when(admin.accountId()).thenReturn(adminAccount.getId());
-        when(admin.getPassword()).thenReturn(adminAccount.getPasswordHash());
-        MockHttpSession driverSession = session(created.principal(), UserRole.DRIVER);
-        MockHttpSession adminSession = session(admin, UserRole.ADMIN);
-        long revision = dispatches.findById(created.tripId()).orElseThrow().getRevision();
-
-        mvc.perform(get("/api/v1/trips/{id}/dispatch", created.tripId()).session(adminSession))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.summary.state").value("WAITING_READY"));
-        mvc.perform(get("/api/v1/driver/trips/{id}/dispatch", created.tripId()).session(driverSession))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.state").value("WAITING_READY"));
-        String csrf = mvc.perform(get("/api/v1/auth/csrf")).andExpect(status().isOk())
-                .andReturn().getResponse().getCookie("XSRF-TOKEN").getValue();
-        mvc.perform(post("/api/v1/driver/trips/{id}/dispatch/ready", created.tripId())
-                        .session(driverSession).cookie(new Cookie("XSRF-TOKEN", csrf))
-                        .header("X-XSRF-TOKEN", csrf).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"expectedRevision\":" + revision + "}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.state").value("READY"));
-        mvc.perform(get("/api/v1/trips/{id}/dispatch", created.tripId()).session(adminSession))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.summary.state").value("READY"));
-
-        time.set(DEPARTURE);
-        job.process(created.tripId());
-        mvc.perform(get("/api/v1/trips/{id}/dispatch", created.tripId()).session(adminSession))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.summary.state").value("STARTED"));
-        var snapshot = mvc.perform(get("/api/v1/telemetry/snapshot").session(adminSession))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        var body = json.readTree(snapshot);
-        assertThat(body.get("trips")).anyMatch(item -> item.get("id").asLong() == created.tripId()
-                && item.get("status").asString().equals("IN_PROGRESS")
-                && item.get("dispatch").get("state").asString().equals("STARTED"));
-        assertThat(body.get("simulations")).anyMatch(item -> item.get("tripId").asLong() == created.tripId()
-                && item.get("status").asString().equals("RUNNING"));
+                driver.getId(), principal);
     }
 
     private MockHttpSession session(UserAccountPrincipal principal, UserRole role) {
@@ -232,350 +140,196 @@ class ScheduledDispatchIntegrationTest {
         return session;
     }
 
-    @Test void manualScheduleSnapshotNeverAutoStarts() {
-        Fixture created = fixture(DispatchStartMode.MANUAL);
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getState()).isEqualTo(DispatchState.MANUAL);
-        time.set(DEPARTURE);
-        job.process(created.tripId());
-        assertThat(trips.findById(created.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.SCHEDULED);
-        assertThat(runs.findByTripId(created.tripId())).isEmpty();
+
+    @Test void scheduleOccurrenceHasNoDispatchAndRemainsScheduledAfterDeparture() {
+        var item = fixture();
+        time.set(DEPARTURE.plusSeconds(3600));
+        assertThat(dispatches.findById(item.tripId())).isEmpty();
+        assertThat(runs.findByTripId(item.tripId())).isEmpty();
+        assertThat(trips.findById(item.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.SCHEDULED);
+        assertThat(context.containsBean("tripDispatchPollingScheduler")).isFalse();
+        assertThat(context.containsBean("tripDispatchJobService")).isFalse();
     }
 
-    @Test void disablingAndEnablingScheduleInvalidatesReadyImmediately() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY);
-        long revision = dispatches.findById(created.tripId()).orElseThrow().getRevision();
-        driverDispatch.ready(created.principal(), created.tripId(), revision);
-        scheduleService.disable(created.scheduleId());
-        var paused = dispatches.findById(created.tripId()).orElseThrow();
-        assertThat(paused.getState()).isEqualTo(DispatchState.ATTENTION);
-        assertThat(paused.getAttentionCode()).isEqualTo(DispatchAttentionCode.SCHEDULE_DISABLED);
-        assertThat(paused.getReadyAt()).isNull();
-        assertThatThrownBy(() -> driverDispatch.ready(created.principal(), created.tripId(), revision))
-                .isInstanceOf(ResponseStatusException.class);
-        scheduleService.enable(created.scheduleId());
-        var resumed = dispatches.findById(created.tripId()).orElseThrow();
-        assertThat(resumed.getState()).isEqualTo(DispatchState.WAITING_READY);
-        assertThat(resumed.getReadyAt()).isNull();
-        assertThat(resumed.getScheduleEpoch())
-                .isEqualTo(schedules.findById(created.scheduleId()).orElseThrow().getDispatchEpoch());
+    @Test void driverStartsFixedScheduleWithArchivedAutoConfirmation() {
+        var item = fixture();
+        archivedAuto(item);
+        navigation.start(item.principal(), item.tripId());
+        assertThat(trips.findById(item.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.IN_PROGRESS);
+        assertThat(runs.findByTripId(item.tripId()).orElseThrow().getStatus()).isEqualTo(SimulationStatus.RUNNING);
+        assertThat(dispatches.findById(item.tripId()).orElseThrow().getState()).isEqualTo(DispatchState.CLOSED);
     }
 
-    @Test void noBackupUnassignIsAttentionAndScheduleEpochStillResumes() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY);
-        tripService.unassignDriver(created.tripId());
-        var unassigned = dispatches.findById(created.tripId()).orElseThrow();
-        assertThat(unassigned.getState()).isEqualTo(DispatchState.ATTENTION);
-        assertThat(unassigned.getAttentionCode()).isEqualTo(DispatchAttentionCode.NO_BACKUP);
-        assertThat(unassigned.getNextActionAt()).isNull();
-        scheduleService.disable(created.scheduleId());
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getAttentionCode())
-                .isEqualTo(DispatchAttentionCode.SCHEDULE_DISABLED);
-        scheduleService.enable(created.scheduleId());
-        var resumed = dispatches.findById(created.tripId()).orElseThrow();
-        assertThat(resumed.getAttentionCode()).isEqualTo(DispatchAttentionCode.NO_BACKUP);
-        assertThat(resumed.getScheduleEpoch())
-                .isEqualTo(schedules.findById(created.scheduleId()).orElseThrow().getDispatchEpoch());
+    @Test void adminSimulatorStartsFixedScheduleAndReplayStillWorks() {
+        var item = fixture();
+        archivedAuto(item);
+        simulation.play(item.tripId());
+        simulation.stop(item.tripId());
+        simulation.reset(item.tripId());
+        simulation.play(item.tripId());
+        assertThat(trips.findById(item.tripId()).orElseThrow().getAttemptNumber()).isEqualTo(2);
+        assertThat(runs.findByTripId(item.tripId()).orElseThrow().getStatus()).isEqualTo(SimulationStatus.RUNNING);
     }
 
-    @Test void legacyCreateCannotTakeAutoVehicleOrDriverReservation() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY);
-        assertThatThrownBy(() -> tripService.create(new TripCreateRequest(created.vehicleId(), created.routeId(), null)))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("giữ chỗ");
-        int n = IDS.incrementAndGet();
-        var spareVehicle = vehicles.saveAndFlush(new VehicleEntity("DSPX" + n, "Xe khác", null));
-        assertThatThrownBy(() -> tripService.create(new TripCreateRequest(spareVehicle.getId(),
-                created.routeId(), created.driverId())))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("giữ chỗ");
+    @Test void ordinaryStartAllowsArchivedPolicyButStillNeedsDriver() {
+        var item = fixture();
+        archivedAuto(item);
+        tripService.unassignDriver(item.tripId());
+        assertThatThrownBy(() -> tripService.start(item.tripId())).isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("gán tài xế");
+        tripService.assignDriver(item.tripId(), item.driverId());
+        assertThat(tripService.start(item.tripId()).trip().status()).isEqualTo(TripStatus.IN_PROGRESS);
     }
 
-    @Test void busyDriverLeadsToSequentialOfferAndBackupMustAcceptThenReady() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY, true);
-        long revision = dispatches.findById(created.tripId()).orElseThrow().getRevision();
-        driverDispatch.unavailable(created.principal(), created.tripId(), revision, "Bận việc đột xuất");
-        assertThat(trips.findById(created.tripId()).orElseThrow().getDriver()).isNull();
-        job.process(created.tripId());
-        var pending = offers.findByDispatchTripIdAndStatus(created.tripId(), DispatchOfferStatus.PENDING).orElseThrow();
-        assertThat(pending.getCandidateDriverId()).isEqualTo(created.backupId());
-        assertThatThrownBy(() -> driverDispatch.detail(created.principal(), created.tripId()))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("404");
-        assertThatThrownBy(() -> driverDispatch.detail(created.backupPrincipal(), created.tripId()))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("404");
-        assertThatThrownBy(() -> driverDispatch.accept(created.principal(), pending.getId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision()))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("404");
-        var accepted = driverDispatch.accept(created.backupPrincipal(), pending.getId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision());
-        assertThat(accepted.status()).isEqualTo(DispatchOfferStatus.ACCEPTED);
-        assertThat(trips.findById(created.tripId()).orElseThrow().getDriver().getId()).isEqualTo(created.backupId());
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getState()).isEqualTo(DispatchState.WAITING_READY);
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getReadyAt()).isNull();
-        driverDispatch.ready(created.backupPrincipal(), created.tripId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision());
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getState()).isEqualTo(DispatchState.READY);
+    @Test void ordinaryStartRejectsDriverRunningAnotherTrip() {
+        var waiting = fixture();
+        var other = fixture();
+        long running = tripService.create(onDemandRequest(other.vehicleId(), other.routeId(), waiting.driverId())).trip().id();
+        tripService.start(running);
+        assertThatThrownBy(() -> tripService.start(waiting.tripId())).isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Tài xế đang chạy");
+        assertThat(runs.findByTripId(waiting.tripId())).isEmpty();
     }
 
-    @Test void offerAtExactExpiryCannotBeAcceptedAndExhaustedPoolNeedsAdmin() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY, true);
-        driverDispatch.unavailable(created.principal(), created.tripId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision(), "Không thể nhận chuyến");
-        job.process(created.tripId());
-        var pending = offers.findByDispatchTripIdAndStatus(created.tripId(), DispatchOfferStatus.PENDING).orElseThrow();
-        time.set(pending.getExpiresAt());
-        assertThatThrownBy(() -> driverDispatch.accept(created.backupPrincipal(), pending.getId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision()))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("OFFER_EXPIRED");
-        job.process(created.tripId());
-        assertThat(offers.findById(pending.getId()).orElseThrow().getStatus())
-                .isEqualTo(DispatchOfferStatus.EXPIRED);
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getAttentionCode())
-                .isEqualTo(DispatchAttentionCode.NO_BACKUP);
-        assertThat(runs.findByTripId(created.tripId())).isEmpty();
-    }
-
-    @Test void clientWithoutPolicyCannotChangePrimaryToAConfiguredBackup() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY, true);
-        var schedule = schedules.findById(created.scheduleId()).orElseThrow();
-        var input = new ScheduleUpsertRequest(schedule.getName(), created.routeId(), created.vehicleId(),
-                created.backupId(), schedule.getFrequency(), schedule.getScheduledDate(),
-                schedule.getWeekdaysMask(), schedule.getDepartureTime(), schedule.getTimezone(),
-                schedule.getEffectiveFrom(), schedule.getEffectiveUntil(), null, null, null);
-        assertThatThrownBy(() -> scheduleService.update(created.scheduleId(), input))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("trùng tài xế chính");
-        assertThat(schedules.findById(created.scheduleId()).orElseThrow().getDriver().getId())
-                .isEqualTo(created.driverId());
-    }
-
-    @Test void dueWithoutReadyAlertsButLateReadyStartsBeforeCutoff() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY);
-        time.set(DEPARTURE);
-        job.process(created.tripId());
-        assertThat(trips.findById(created.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.SCHEDULED);
-        assertThat(runs.findByTripId(created.tripId())).isEmpty();
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getAttentionCode())
-                .isEqualTo(DispatchAttentionCode.DRIVER_NOT_READY);
-        time.set(DEPARTURE.plusSeconds(120));
-        driverDispatch.ready(created.principal(), created.tripId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision());
-        job.process(created.tripId());
-        assertThat(runs.findByTripId(created.tripId()).orElseThrow().getStatus()).isEqualTo(SimulationStatus.RUNNING);
-        assertThat(trips.findById(created.tripId()).orElseThrow().getStartedAt())
-                .isEqualTo(DEPARTURE.plusSeconds(120));
-    }
-
-    @Test void cutoffNeverCatchesUpAndDatabaseRejectsInvalidDispatchState() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY);
-        time.set(DEPARTURE.plusSeconds(15 * 60));
-        job.process(created.tripId());
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getAttentionCode())
-                .isEqualTo(DispatchAttentionCode.WINDOW_EXPIRED);
-        assertThat(runs.findByTripId(created.tripId())).isEmpty();
-        assertThatThrownBy(() -> driverDispatch.ready(created.principal(), created.tripId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision()))
-                .isInstanceOf(ResponseStatusException.class);
-        assertThatThrownBy(() -> jdbc.update(
-                "update vehicle_tracking.trip_dispatches set state = 'BROKEN' where trip_id = ?", created.tripId()))
-                .isInstanceOf(DataIntegrityViolationException.class);
-    }
-
-    @Test void concurrentJobCallsCreateOnlyOneRun() throws Exception {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY);
-        driverDispatch.ready(created.principal(), created.tripId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision());
-        time.set(DEPARTURE);
+    @Test void concurrentStartsSharingVehicleAllowOnlyOneTrip() throws Exception {
+        var first = fixture();
+        var second = fixture();
+        long rival = tripService.create(onDemandRequest(first.vehicleId(), first.routeId(), second.driverId())).trip().id();
+        var gate = new java.util.concurrent.CountDownLatch(1);
         try (var pool = Executors.newFixedThreadPool(2)) {
-            var first = pool.submit(() -> job.process(created.tripId()));
-            var second = pool.submit(() -> job.process(created.tripId()));
-            first.get(20, TimeUnit.SECONDS);
-            second.get(20, TimeUnit.SECONDS);
-        }
-        assertThat(trips.findById(created.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.IN_PROGRESS);
-        assertThat(runs.findByTripId(created.tripId())).isPresent();
-        assertThat(events.findTop100ByDispatchTripIdOrderByCreatedAtDescIdDesc(created.tripId())
-                .stream().filter(event -> event.getKind() == DispatchEventKind.AUTO_STARTED)).hasSize(1);
-    }
-
-    @Test void failedNotificationRollsBackTripAndRunThenRecordsStartFailure() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY);
-        driverDispatch.ready(created.principal(), created.tripId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision());
-        time.set(DEPARTURE);
-        doThrow(new IllegalStateException("fixture notification failure")).when(notifications)
-                .save(argThat((TripNotificationEntity item) -> item.getType() == NotificationType.TRIP_AUTO_STARTED));
-        assertThatThrownBy(() -> job.process(created.tripId()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("fixture notification failure");
-        assertThat(trips.findById(created.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.SCHEDULED);
-        assertThat(runs.findByTripId(created.tripId())).isEmpty();
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getState()).isEqualTo(DispatchState.READY);
-        job.markStartFailed(created.tripId());
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getAttentionCode())
-                .isEqualTo(DispatchAttentionCode.START_FAILED);
-    }
-
-    @Test void failedInboxWriteRollsBackAcceptAssignmentOfferAndEvent() {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY, true);
-        driverDispatch.unavailable(created.principal(), created.tripId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision(), "Bận đột xuất");
-        job.process(created.tripId());
-        var pending = offers.findByDispatchTripIdAndStatus(created.tripId(), DispatchOfferStatus.PENDING).orElseThrow();
-        long revision = dispatches.findById(created.tripId()).orElseThrow().getRevision();
-        long eventCount = events.findTop100ByDispatchTripIdOrderByCreatedAtDescIdDesc(created.tripId()).size();
-        doThrow(new IllegalStateException("fixture inbox write failure")).when(dispatchInbox)
-                .save(argThat((DriverDispatchInboxEntity item) -> item.getKind() == DriverInboxKind.TRIP_ASSIGNED));
-        assertThatThrownBy(() -> driverDispatch.accept(created.backupPrincipal(), pending.getId(), revision))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("fixture inbox write failure");
-        assertThat(trips.findById(created.tripId()).orElseThrow().getDriver()).isNull();
-        assertThat(offers.findById(pending.getId()).orElseThrow().getStatus()).isEqualTo(DispatchOfferStatus.PENDING);
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getState()).isEqualTo(DispatchState.OFFER_PENDING);
-        assertThat(dispatches.findById(created.tripId()).orElseThrow().getRevision()).isEqualTo(revision);
-        assertThat(events.findTop100ByDispatchTripIdOrderByCreatedAtDescIdDesc(created.tripId())).hasSize((int) eventCount);
-        assertThat(dispatchInbox.findByRecipientDriverIdOrderByCreatedAtDescIdDesc(created.backupId(),
-                org.springframework.data.domain.PageRequest.of(0, 50))).noneMatch(
-                        item -> item.getKind() == DriverInboxKind.TRIP_ASSIGNED);
-    }
-
-    @RepeatedTest(5) void twoTripsRacingForOneBackupCreateAtMostOnePendingOffer() throws Exception {
-        Fixture first = fixture(DispatchStartMode.AUTO_IF_READY, true);
-        Fixture second = fixture(DispatchStartMode.AUTO_IF_READY, true, first);
-        driverDispatch.unavailable(first.principal(), first.tripId(),
-                dispatches.findById(first.tripId()).orElseThrow().getRevision(), "Không nhận chuyến được");
-        driverDispatch.unavailable(second.principal(), second.tripId(),
-                dispatches.findById(second.tripId()).orElseThrow().getRevision(), "Không nhận chuyến được");
-        CountDownLatch gate = new CountDownLatch(1);
-        try (var pool = Executors.newFixedThreadPool(2)) {
-            var a = pool.submit(() -> { gate.await(); job.process(first.tripId()); return null; });
-            var b = pool.submit(() -> { gate.await(); job.process(second.tripId()); return null; });
+            var left = pool.submit(() -> attemptStart(first.tripId(), gate));
+            var right = pool.submit(() -> attemptStart(rival, gate));
             gate.countDown();
-            a.get(20, TimeUnit.SECONDS);
-            b.get(20, TimeUnit.SECONDS);
-        }
-        var pending = offers.findAllByCandidateDriverIdAndStatusOrderByExpiresAtAsc(
-                first.backupId(), DispatchOfferStatus.PENDING);
-        assertThat(pending).hasSize(1);
-        assertThat(pending.getFirst().getDispatch().getTripId())
-                .isIn(first.tripId(), second.tripId());
-        var winnerTrip = pending.getFirst().getDispatch().getTripId();
-        var accepted = driverDispatch.accept(first.backupPrincipal(), pending.getFirst().getId(),
-                dispatches.findById(winnerTrip).orElseThrow().getRevision());
-        assertThat(accepted.status()).isEqualTo(DispatchOfferStatus.ACCEPTED);
-        assertThat(trips.findById(winnerTrip).orElseThrow().getDriver().getId()).isEqualTo(first.backupId());
-        assertThat(trips.findById(winnerTrip == first.tripId() ? second.tripId() : first.tripId())
-                .orElseThrow().getDriver()).isNull();
-    }
-
-    @RepeatedTest(3) void adminAssignmentCannotTakeDriverWhileOfferIsAccepted() throws Exception {
-        Fixture automatic = fixture(DispatchStartMode.AUTO_IF_READY, true);
-        Fixture manual = fixture(DispatchStartMode.MANUAL);
-        driverDispatch.unavailable(automatic.principal(), automatic.tripId(),
-                dispatches.findById(automatic.tripId()).orElseThrow().getRevision(), "Bận việc đột xuất");
-        job.process(automatic.tripId());
-        var pending = offers.findByDispatchTripIdAndStatus(automatic.tripId(), DispatchOfferStatus.PENDING).orElseThrow();
-        long revision = dispatches.findById(automatic.tripId()).orElseThrow().getRevision();
-        CountDownLatch gate = new CountDownLatch(1);
-        try (var pool = Executors.newFixedThreadPool(2)) {
-            var accept = pool.submit(() -> {
-                gate.await();
-                return driverDispatch.accept(automatic.backupPrincipal(), pending.getId(), revision);
-            });
-            var admin = pool.submit(() -> {
-                gate.await();
-                try {
-                    tripService.assignDriver(manual.tripId(), automatic.backupId());
-                    return false;
-                } catch (ResponseStatusException conflict) {
-                    return conflict.getStatusCode().value() == 409;
-                }
-            });
-            gate.countDown();
-            assertThat(accept.get(20, TimeUnit.SECONDS).status()).isEqualTo(DispatchOfferStatus.ACCEPTED);
-            assertThat(admin.get(20, TimeUnit.SECONDS)).isTrue();
-        }
-        assertThat(trips.findById(automatic.tripId()).orElseThrow().getDriver().getId())
-                .isEqualTo(automatic.backupId());
-        assertThat(trips.findById(manual.tripId()).orElseThrow().getDriver().getId())
-                .isEqualTo(manual.driverId());
-    }
-
-    @RepeatedTest(3) void concurrentAcceptOfOneOfferAssignsDriverOnlyOnce() throws Exception {
-        Fixture created = fixture(DispatchStartMode.AUTO_IF_READY, true);
-        driverDispatch.unavailable(created.principal(), created.tripId(),
-                dispatches.findById(created.tripId()).orElseThrow().getRevision(), "Bận việc đột xuất");
-        job.process(created.tripId());
-        var pending = offers.findByDispatchTripIdAndStatus(created.tripId(), DispatchOfferStatus.PENDING).orElseThrow();
-        long revision = dispatches.findById(created.tripId()).orElseThrow().getRevision();
-        CountDownLatch gate = new CountDownLatch(1);
-        try (var pool = Executors.newFixedThreadPool(2)) {
-            var first = pool.submit(() -> acceptOnceAfterGate(created, pending.getId(), revision, gate));
-            var second = pool.submit(() -> acceptOnceAfterGate(created, pending.getId(), revision, gate));
-            gate.countDown();
-            assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
+            assertThat(List.of(left.get(15, TimeUnit.SECONDS), right.get(15, TimeUnit.SECONDS)))
                     .containsExactlyInAnyOrder(true, false);
         }
-        assertThat(offers.findById(pending.getId()).orElseThrow().getStatus()).isEqualTo(DispatchOfferStatus.ACCEPTED);
-        assertThat(trips.findById(created.tripId()).orElseThrow().getDriver().getId()).isEqualTo(created.backupId());
-        assertThat(events.findTop100ByDispatchTripIdOrderByCreatedAtDescIdDesc(created.tripId())
-                .stream().filter(item -> item.getKind() == DispatchEventKind.REASSIGNED)).hasSize(1);
-        assertThat(dispatchInbox.findByRecipientDriverIdOrderByCreatedAtDescIdDesc(created.backupId(),
-                org.springframework.data.domain.PageRequest.of(0, 50))
-                .stream().filter(item -> item.getKind() == DriverInboxKind.TRIP_ASSIGNED)).hasSize(1);
+        assertThat(trips.findAllByVehicleIdAndStatusIn(first.vehicleId(), List.of(TripStatus.IN_PROGRESS))).hasSize(1);
     }
 
-    private boolean acceptOnceAfterGate(Fixture created, java.util.UUID offerId, long revision,
-                                        CountDownLatch gate) throws InterruptedException {
-        gate.await();
-        try {
-            driverDispatch.accept(created.backupPrincipal(), offerId, revision);
-            return true;
-        } catch (ResponseStatusException conflict) {
-            if (conflict.getStatusCode().value() != 409) throw conflict;
+    @Test void concurrentStartsSharingDriverAllowOnlyOneTrip() throws Exception {
+        var first = fixture();
+        var second = fixture();
+        long rival = tripService.create(onDemandRequest(second.vehicleId(), second.routeId(), first.driverId())).trip().id();
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var left = pool.submit(() -> attemptStart(first.tripId(), gate));
+            var right = pool.submit(() -> attemptStart(rival, gate));
+            gate.countDown();
+            assertThat(List.of(left.get(15, TimeUnit.SECONDS), right.get(15, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(true, false);
+        }
+        assertThat(trips.findAllByDriverIdOrderByScheduledDepartureAtDescIdDesc(first.driverId()).stream()
+                .filter(trip -> trip.getStatus() == TripStatus.IN_PROGRESS)).hasSize(1);
+    }
+
+    @Test void operationsBoardEndpointsAreRemovedWhileTripAndTelemetryRemainAvailable() throws Exception {
+        var item = fixture();
+        var account = accounts.saveAndFlush(new UserAccountEntity("board-retired-admin-" + IDS.incrementAndGet(),
+                "unused-test-password-hash", UserRole.ADMIN, null));
+        var principal = mock(UserAccountPrincipal.class);
+        when(principal.accountId()).thenReturn(account.getId());
+        when(principal.getPassword()).thenReturn(account.getPasswordHash());
+        var admin = session(principal, UserRole.ADMIN);
+        mvc.perform(get("/api/v1/operations-board").param("date", "2026-10-01").session(admin))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/operations-board/trips/{id}", item.tripId()).session(admin))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/trips/{id}", item.tripId()).session(admin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.trip.id").value(item.tripId()));
+        mvc.perform(get("/api/v1/telemetry/snapshot").session(admin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.trips").isArray());
+        assertThat(context.containsBean("operationsBoardService")).isFalse();
+        assertThat(context.containsBean("operationsBoardRepository")).isFalse();
+        assertThat(trips.findById(item.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.SCHEDULED);
+    }
+
+    @Test void retiredDispatchEndpointsDoNotMutateTripOrSchedule() throws Exception {
+        var item = fixture();
+        var driver = session(item.principal(), UserRole.DRIVER);
+        var adminAccount = accounts.saveAndFlush(new UserAccountEntity("retire-052-admin-" + IDS.incrementAndGet(),
+                "unused-test-password-hash", UserRole.ADMIN, null));
+        var admin = mock(UserAccountPrincipal.class);
+        when(admin.accountId()).thenReturn(adminAccount.getId());
+        when(admin.getPassword()).thenReturn(adminAccount.getPasswordHash());
+        var adminSession = session(admin, UserRole.ADMIN);
+        String csrf = mvc.perform(get("/api/v1/auth/csrf")).andReturn().getResponse().getCookie("XSRF-TOKEN").getValue();
+        for (String action : List.of("ready", "unavailable")) {
+            mvc.perform(post("/api/v1/driver/trips/{id}/dispatch/" + action, item.tripId()).session(driver)
+                    .cookie(new Cookie("XSRF-TOKEN", csrf)).header("X-XSRF-TOKEN", csrf)
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"expectedRevision\":0,\"reason\":\"fixture\"}"))
+                    .andExpect(status().isNotFound());
+        }
+        mvc.perform(get("/api/v1/driver/trips/{id}/dispatch", item.tripId()).session(driver)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/trips/{id}/dispatch", item.tripId()).session(adminSession)).andExpect(status().isNotFound());
+        mvc.perform(put("/api/v1/trips/{id}/dispatch/policy", item.tripId()).session(adminSession)
+                .cookie(new Cookie("XSRF-TOKEN", csrf)).header("X-XSRF-TOKEN", csrf)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"startMode\":\"AUTO_IF_READY\",\"expectedRevision\":0}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/trips/{id}/dispatch/override-start", item.tripId()).session(adminSession)
+                .cookie(new Cookie("XSRF-TOKEN", csrf)).header("X-XSRF-TOKEN", csrf)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"fixture\",\"expectedRevision\":0}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/schedules/{id}", item.scheduleId()).session(adminSession))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.startMode").doesNotExist());
+        mvc.perform(get("/api/v1/driver/schedules").session(driver))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].startMode").doesNotExist());
+        mvc.perform(get("/api/v1/trips/{id}", item.tripId()).session(adminSession))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.trip.dispatch").doesNotExist());
+        assertThat(trips.findById(item.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.SCHEDULED);
+        assertThat(jdbc.queryForObject("select start_mode from vehicle_tracking.trip_schedules where id=?", String.class,
+                item.scheduleId())).isEqualTo("MANUAL");
+    }
+
+    @Test void inboxFiltersRetiredScheduledNoticesBeforeLimitAndKeepsDirectUnassignment() {
+        var item = fixture();
+        long direct = tripService.create(onDemandRequest(item.vehicleId(), item.routeId(), null)).trip().id();
+        dispatchInbox.saveAndFlush(new DriverDispatchInboxEntity(item.driverId(), direct, null,
+                DriverInboxKind.TRIP_UNASSIGNED, "Đã thu hồi phân công", null, "052-keep-" + direct, DEPARTURE.minusSeconds(60)));
+        for (var kind : List.of(DriverInboxKind.READY_WINDOW_OPEN, DriverInboxKind.TRIP_UNASSIGNED, DriverInboxKind.TRIP_STARTED)) {
+            dispatchInbox.saveAndFlush(new DriverDispatchInboxEntity(item.driverId(), item.tripId(), null,
+                    kind, "Thông báo cũ", null, "052-retired-" + item.tripId() + kind, DEPARTURE));
+        }
+        assertThat(driverDispatch.inbox(item.principal(), 1)).singleElement()
+                .satisfies(notice -> assertThat(notice.tripId()).isEqualTo(direct));
+    }
+
+    @Test void directAcceptCannotTakeVehicleOfOverlappingOnDemandTrip() {
+        Fixture first = fixture();
+        Fixture second = fixture();
+        tripService.cancel(first.tripId());
+        tripService.cancel(second.tripId());
+        var admin = accounts.saveAndFlush(new UserAccountEntity("assignment-050-" + IDS.incrementAndGet(),
+                "unused-test-password-hash", UserRole.ADMIN, null));
+        long firstDirect = tripService.create(onDemandRequest(first.vehicleId(), first.routeId(), null)).trip().id();
+        var tx = new org.springframework.transaction.support.TransactionTemplate(transactions);
+        var firstRequestId = tx.execute(status -> assignments.requestAssignment(
+                trips.findById(firstDirect).orElseThrow(), first.driverId(), admin.getId()).getId());
+        assignments.accept(first.principal(), firstRequestId);
+        long secondDirect = tripService.create(onDemandRequest(first.vehicleId(), first.routeId(), null)).trip().id();
+        var secondRequestId = tx.execute(status -> assignments.requestAssignment(
+                trips.findById(secondDirect).orElseThrow(), second.driverId(), admin.getId()).getId());
+        assertThatThrownBy(() -> assignments.accept(second.principal(), secondRequestId))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Tài xế hoặc xe đã có lịch xung đột");
+        assertThat(trips.findById(firstDirect).orElseThrow().getDriver().getId()).isEqualTo(first.driverId());
+        assertThat(trips.findById(secondDirect).orElseThrow().getDriver()).isNull();
+    }
+
+
+    private boolean attemptStart(long id, java.util.concurrent.CountDownLatch gate) throws Exception {
+        gate.await(10, TimeUnit.SECONDS);
+        try { tripService.start(id); return true; }
+        catch (ResponseStatusException ex) {
+            assertThat(ex.getStatusCode().value()).isEqualTo(409);
             return false;
         }
     }
 
-    @Test void freshSchedulerUsesPersistedReadyAfterPauseButNeverStartsAfterCutoff() {
-        Fixture starts = fixture(DispatchStartMode.AUTO_IF_READY);
-        driverDispatch.ready(starts.principal(), starts.tripId(),
-                dispatches.findById(starts.tripId()).orElseThrow().getRevision());
-        time.set(DEPARTURE.plusSeconds(120));
-        new TripDispatchPollingScheduler(dispatches, job, operationsClock).poll();
-        assertThat(runs.findByTripId(starts.tripId())).isPresent();
-
-        time.set(DEPARTURE.minusSeconds(60));
-        Fixture expired = fixture(DispatchStartMode.AUTO_IF_READY);
-        driverDispatch.ready(expired.principal(), expired.tripId(),
-                dispatches.findById(expired.tripId()).orElseThrow().getRevision());
-        time.set(DEPARTURE.plusSeconds(15 * 60));
-        new TripDispatchPollingScheduler(dispatches, job, operationsClock).poll();
-        assertThat(runs.findByTripId(expired.tripId())).isEmpty();
-        assertThat(dispatches.findById(expired.tripId()).orElseThrow().getAttentionCode())
-                .isEqualTo(DispatchAttentionCode.WINDOW_EXPIRED);
-    }
-
-    @Test void failedTripInPollingBatchDoesNotStopNextTrip() {
-        Fixture failing = fixture(DispatchStartMode.AUTO_IF_READY);
-        Fixture healthy = fixture(DispatchStartMode.AUTO_IF_READY);
-        driverDispatch.ready(failing.principal(), failing.tripId(),
-                dispatches.findById(failing.tripId()).orElseThrow().getRevision());
-        driverDispatch.ready(healthy.principal(), healthy.tripId(),
-                dispatches.findById(healthy.tripId()).orElseThrow().getRevision());
-        time.set(DEPARTURE);
-        doThrow(new IllegalStateException("fixture first trip failed")).when(notifications)
-                .save(argThat((TripNotificationEntity item) -> item.getType() == NotificationType.TRIP_AUTO_STARTED
-                        && item.getTrip().getId().equals(failing.tripId())));
-        new TripDispatchPollingScheduler(dispatches, job, operationsClock).poll();
-        assertThat(trips.findById(failing.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.SCHEDULED);
-        assertThat(runs.findByTripId(failing.tripId())).isEmpty();
-        assertThat(dispatches.findById(failing.tripId()).orElseThrow().getAttentionCode())
-                .isEqualTo(DispatchAttentionCode.START_FAILED);
-        assertThat(trips.findById(healthy.tripId()).orElseThrow().getStatus()).isEqualTo(TripStatus.IN_PROGRESS);
-        assertThat(runs.findByTripId(healthy.tripId()).orElseThrow().getStatus()).isEqualTo(SimulationStatus.RUNNING);
+    private void archivedAuto(Fixture item) {
+        jdbc.update("""
+                insert into vehicle_tracking.trip_dispatches(trip_id,start_mode,state,primary_driver_id,
+                    schedule_epoch,baseline_duration_seconds,created_at,updated_at,ready_driver_id,ready_vehicle_id,
+                    ready_attempt_number,ready_assignment_revision,ready_at)
+                values (?,'AUTO_IF_READY','CLOSED',?,0,60,now(),now(),?,?,1,0,now())
+                """, item.tripId(), item.driverId(), item.driverId(), item.vehicleId());
     }
 }

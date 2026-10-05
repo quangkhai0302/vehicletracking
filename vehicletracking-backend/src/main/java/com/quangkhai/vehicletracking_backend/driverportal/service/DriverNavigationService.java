@@ -37,7 +37,6 @@ import static org.springframework.http.HttpStatus.*;
 @Service
 @RequiredArgsConstructor
 public class DriverNavigationService {
-    private final com.quangkhai.vehicletracking_backend.dispatch.repository.TripDispatchRepository dispatches;
     private final TripRepository trips;
     private final VehicleRepository vehicles;
     private final SimulationRepository runs;
@@ -69,10 +68,6 @@ public class DriverNavigationService {
             return describe(trip);
         if (trip.getStatus() != TripStatus.SCHEDULED)
             throw conflict("Chuyến đã bắt đầu hoặc kết thúc. Không thể tự tiếp tục phiên mô phỏng đã tạm dừng.");
-        if (dispatches.findById(tripId).filter(item ->
-                item.getStartMode() == com.quangkhai.vehicletracking_backend.dispatch.entity.DispatchStartMode.AUTO_IF_READY).isPresent())
-            throw com.quangkhai.vehicletracking_backend.dispatch.service.DispatchProblemException
-                    .conflict("DISPATCH_AUTO_START_REQUIRED");
         simulation.play(tripId);
         return describe(trip);
     }
@@ -209,7 +204,7 @@ public class DriverNavigationService {
                 .filter(p -> p.getTripId().equals(trip.getId()) && p.getAttemptNumber() == trip.getAttemptNumber())
                 .map(TelemetryResponse::from).orElse(null);
         return new DriverNavigationResponse(operationsClock.instant(),
-                TripSummaryResponse.from(trip, dispatches.findById(trip.getId()).orElse(null)),
+                TripSummaryResponse.from(trip),
                 TripDetailResponse.from(trip).stops(), plan == null ? geometry.route(trip) : plan.route(), position,
                 run == null ? null : simulation.describeSnapshot(trip, run), plan == null ? null : plan.revisionId(),
                 plan == null ? null : plan.motion().guidance(run.getElapsedSeconds()), checkIns.find(trip.getId()),

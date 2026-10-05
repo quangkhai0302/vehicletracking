@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, defineComponent, h, ref } from 'vue';
+import { computed, defineAsyncComponent, defineComponent, h, ref, watch } from 'vue';
 import {
   Car,
   Check,
@@ -51,6 +51,9 @@ const confirm = ref<'stop' | 'reset' | null>(null);
 const trip = computed(() => props.simulator.trip);
 const run = computed(() => props.simulator.run);
 const detail = computed(() => props.simulator.detail);
+watch([() => trip.value?.attemptNumber, () => trip.value?.status], () => {
+  confirm.value = null;
+});
 const busy = computed(() => props.simulator.busy);
 const loading = computed(() => props.simulator.loading);
 const running = computed(() => run.value?.status === 'RUNNING');
@@ -67,7 +70,7 @@ const canPlay = computed(
     !!trip.value &&
     !usingGps.value &&
     active.value &&
-    (!run.value || run.value.status === 'PAUSED' || running.value),
+    (running.value || !run.value || run.value.status === 'PAUSED'),
 );
 const frame = computed(() => run.value?.frame);
 const options = computed(() => props.snapshot?.trips ?? []);
@@ -169,6 +172,7 @@ const simulationStatusLabel = computed(() => {
   }
   return active.value ? 'Sẵn sàng' : 'Chuyến đã kết thúc';
 });
+const replayAllowed = computed(() => !!run.value && !usingGps.value);
 const routeMovementLabel = computed(() => {
   if (!run.value) return 'Sẵn sàng tại trạm đầu';
   if (frame.value?.finished) return 'Đã hoàn tất lộ trình';
@@ -185,6 +189,7 @@ const selectTrip = (event: Event) => {
 };
 
 const confirmCommand = () => {
+  if (busy.value || (confirm.value === 'reset' && !replayAllowed.value)) return;
   if (confirm.value)
     void props.simulator.command(confirm.value).then((ok) => {
       if (ok) confirm.value = null;
@@ -290,7 +295,6 @@ const confirmCommand = () => {
           {{ simulationStatusLabel }}
         </span>
       </div>
-
       <div class="simulation-assignment-grid">
         <div>
           <UserRound :size="17" />
@@ -448,7 +452,7 @@ const confirmCommand = () => {
           </button>
           <button
             class="btn-secondary"
-            :disabled="!run"
+            :disabled="!replayAllowed"
             @click="confirm = 'reset'"
           >
             <RotateCcw :size="13" />Chạy lại
@@ -524,10 +528,11 @@ const confirmCommand = () => {
       :message="
         confirm === 'stop'
           ? 'Xe dừng mô phỏng và chuyến hiện tại được hủy. Lịch sử vị trí vẫn được lưu.'
-          : 'Giữ nguyên mã chuyến và tuyến. Xe trở về trạm đầu, chờ bạn bấm Bắt đầu. Lịch sử và check-in được lưu riêng theo từng lần chạy.'
+          : 'Xe sẽ trở về trạm đầu để chuẩn bị lượt mô phỏng mới. Bấm Bắt đầu để chạy; lịch sử cũ được giữ riêng từng lượt.'
       "
       :confirm-label="confirm === 'stop' ? 'Xác nhận dừng chuyến' : 'Đặt lại chuyến'"
       :busy="busy"
+      :confirm-disabled="confirm === 'reset' && !replayAllowed"
       :on-close="
         () => {
           confirm = null;

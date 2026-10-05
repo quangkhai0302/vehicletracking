@@ -34,6 +34,9 @@ public class UserAccountEntity {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "password_change_required", nullable = false)
+    private boolean passwordChangeRequired;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -45,6 +48,7 @@ public class UserAccountEntity {
         this.passwordHash = passwordHash;
         this.role = role;
         this.driver = driver;
+        this.passwordChangeRequired = role == UserRole.DRIVER;
     }
 
     @PrePersist
@@ -65,6 +69,16 @@ public class UserAccountEntity {
 
     public void changePassword(String passwordHash) {
         this.passwordHash = passwordHash;
+        passwordChangeRequired = false;
+        updatedAt = Instant.now();
+    }
+
+    public void resetPassword(String passwordHash) {
+        if (role != UserRole.DRIVER) {
+            throw new IllegalStateException("Only driver accounts can receive temporary passwords.");
+        }
+        this.passwordHash = passwordHash;
+        passwordChangeRequired = true;
         updatedAt = Instant.now();
     }
 }

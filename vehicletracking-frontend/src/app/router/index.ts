@@ -7,6 +7,7 @@ import FleetManagementPage from '@/pages/FleetManagementPage.vue';
 import ReportsPage from '@/pages/ReportsPage.vue';
 import ScheduleManagementPage from '@/pages/ScheduleManagementPage.vue';
 import LoginPage from '@/pages/LoginPage.vue';
+import ChangePasswordPage from '@/pages/ChangePasswordPage.vue';
 import DriverPortalPage from '@/pages/DriverPortalPage.vue';
 import DriverNavigationPage from '@/pages/DriverNavigationPage.vue';
 import UserManagementPage from '@/pages/UserManagementPage.vue';
@@ -19,6 +20,7 @@ export function createApplicationRouter(history: RouterHistory = createWebHistor
   return createRouter({ history, linkActiveClass: '', linkExactActiveClass: '', routes: [
     { path: '/login', component: LoginPage, meta: { guestOnly: true } },
     { path: '/register', component: AdminRegistrationPage, meta: { guestOnly: true } },
+    { path: '/driver/change-password', component: ChangePasswordPage, meta: { role: 'DRIVER' } },
     { path: '/driver/:view(today|schedules)', component: DriverPortalPage, meta: { role: 'DRIVER' } },
     { path: '/driver/trips/:tripId(\\d+)/navigate', component: DriverNavigationPage, meta: { role: 'DRIVER' } },
     { path: '/', component: ApplicationShell, meta: { role: 'ADMIN' }, children: [

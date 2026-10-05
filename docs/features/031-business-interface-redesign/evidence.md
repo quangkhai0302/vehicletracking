@@ -80,3 +80,40 @@ Kiểm tra computed style ở `/operations`, `/routes`, `/stations`, rộng 1440
 - Chưa kiểm tra Firefox/Safari, thiết bị thật, screen reader hay audit WCAG đầy đủ.
 - Frontend survey độc lập đã hoàn thành. Reviewer Sol/high được gọi nhưng bị giới hạn sử dụng; main agent đã tự rà soát, không ghi thành review độc lập.
 - Không đọc giá trị secret từ `.env`; không thêm secret/dependency/provider key vào UI. Fixture chứa thông tin kiểm thử được đặt tên rõ, chỉ nằm trong script verification.
+
+## Follow-up 2026-10-05 — Thông tin lịch chạy dễ đọc
+
+Áp dụng quy trình rút gọn Survey → Plan ngắn → Implement → Verify cho yêu cầu trực tiếp chỉnh bố cục thông tin lịch chạy. Phần bên trên là evidence lịch sử của implementation React; phần này kiểm chứng code Vue hiện tại.
+
+Survey: các hàng `dl` trong `ScheduleManagementPage.vue` trước thay đổi dùng nhãn bên trái và giá trị canh phải; CSS `.schedule-card dl div` có `justify-content: space-between`, khiến một lịch đơn kéo nhãn và giá trị ra hai mép. `ui-refresh.css` còn đặt nhãn màu `--text-muted`, rộng cố định 90px; hai trường giờ và cách khởi hành cùng mang tên “Khởi hành”.
+
+Plan/implementation chỉ thay phần trình bày: nhóm nhãn/giá trị thành grid responsive, tách xe và tài xế, phân biệt giờ với cách khởi hành, tăng độ tương phản và cho nội dung dài xuống dòng. Bảo toàn các thay đổi đang có về cấu hình chuyển tiếp và các feature khác; không sửa API, backend, schema hay trạng thái lịch.
+
+| Hành vi sau thay đổi | Evidence code/verification |
+|---|---|
+| Sáu nhóm rõ ràng: Lịch chạy, Giờ khởi hành, Xe, Tài xế, Cách khởi hành, Lần chạy kế tiếp | `vehicletracking-frontend/src/pages/ScheduleManagementPage.vue`, template `.schedule-details` |
+| Nhãn nằm ngay trên giá trị, canh trái; giá trị 14px, nội dung dài không bị ellipsis | `vehicletracking-frontend/src/features/schedules/styles/schedule-management.css`, `.schedule-details`, `dt`, `dd` |
+| Màu nhãn `--text-secondary` trên nền sáng, không kế thừa cách canh phải cũ | `vehicletracking-frontend/src/ui-refresh.css`, `.business-ui .schedule-details dt/dd` |
+| Múi giờ Việt Nam hiển thị “Giờ Việt Nam”; múi giờ khác vẫn giữ giá trị thật | `ScheduleManagementPage.vue`, `.schedule-details dd small` |
+| Một/nhiều lịch, tên tài xế dài, khởi hành thủ công/tự động, giờ kế tiếp có/không có | Browser fixture-only, 8 trường hợp ở 320/390/768/1440px; [results](verification/artifacts/schedule-readability-results.json) |
+
+Lệnh thực chạy tại `vehicletracking-frontend/`, Node 24.16.0:
+
+```bash
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run test:motion
+npm run build
+npm run test:unit -- tests/unit/business-pages.test.ts -t schedule
+```
+
+- Lint: exit 0. Motion: exit 0, 1 test pass. Production build cuối: exit 0; còn cảnh báo chunk JS >500 kB.
+- Các test lịch đã có: exit 0, 2 pass, 7 test khác không được chọn bởi filter.
+- Full unit: exit 1, 287 pass/1 fail trong 288 test, 38 file pass/1 fail. Finding ngoài phần đã sửa: test reports tại `tests/unit/business-pages.test.ts:222` kỳ vọng 7 `.reports-metric`, nhưng trang Báo cáo hiện render 6.
+- Typecheck: exit 2, ba import chưa sử dụng `BusFront`, `Gauge`, `UserRound` trong `src/pages/ReportsPage.vue`. Không sửa trang Báo cáo hoặc test của nó trong follow-up này.
+- Browser: preview production tại `http://localhost:4190`, Chromium headless; script `/tmp/vehicletracking-schedule-readability-check.mjs`, exit 0. Kiểm chứng viewport/giá trị không tràn ngang, nhãn và giá trị cùng mép trái, khoảng cách tối đa 8px, giá trị >=14px, độ tương phản nhãn/giá trị >=4.5:1, không pageerror và không mutation API. Fixture intercept mọi request nghiệp vụ; không phải kiểm thử backend thật.
+- Logs: `/tmp/vehicletracking-schedule-readability-{lint,typecheck,test-unit,test-motion,build,schedule-tests,browser}.log`.
+- Ảnh đã xem trực tiếp: [desktop một lịch](verification/artifacts/schedule-readability-1440.png), [mobile nhiều lịch](verification/artifacts/schedule-readability-390.png).
+
+`git status` được kiểm tra trước/sau; không commit/push, không đọc giá trị `.env`. Không chạy backend tests vì không thay backend. Follow-up UI đã được kiểm chứng trong trình duyệt; toàn frontend chưa đạt quality gate do các lỗi trang Báo cáo nêu trên.

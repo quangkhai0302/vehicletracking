@@ -5,25 +5,26 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createAuthState } from '@/features/auth/composables/authState';
 import { authKey } from '@/features/auth/composables/useAuth';
 import { installAuthGuards } from '@/app/router/guards';
-import { fetchCurrentUser, login, logout, registerAdmin } from '@/features/auth/api/auth';
+import { changePassword, fetchCurrentUser, login, logout, registerAdmin } from '@/features/auth/api/auth';
 import type { AuthUser } from '@/features/auth/types/auth';
 import LoginPage from '../../src/pages/LoginPage.vue';
 import AdminRegistrationPage from '../../src/pages/AdminRegistrationPage.vue';
 import SidePanel from '@/shared/components/SidePanel.vue';
 import { notifyError, notifySuccess } from '@/shared/notifications/toast';
 
-vi.mock('@/features/auth/api/auth', () => ({ fetchCurrentUser: vi.fn(), login: vi.fn(), logout: vi.fn(), registerAdmin: vi.fn() }));
+vi.mock('@/features/auth/api/auth', () => ({ changePassword: vi.fn(), fetchCurrentUser: vi.fn(), login: vi.fn(), logout: vi.fn(), registerAdmin: vi.fn() }));
 vi.mock('@/shared/notifications/toast', () => ({
   notifyError: vi.fn(),
   notifySuccess: vi.fn(),
 }));
-const admin: AuthUser = { accountId: 1, username: 'admin.fixture', role: 'ADMIN', active: true, driverId: null, driverName: null };
+const admin: AuthUser = { accountId: 1, username: 'admin.fixture', role: 'ADMIN', active: true, passwordChangeRequired: false, driverId: null, driverName: null };
 const driver: AuthUser = { ...admin, role: 'DRIVER', driverId: 1, driverName: 'Fixture driver' };
 const Page = defineComponent({ template: '<div />' });
 const makeRouter = () => createRouter({ history: createMemoryHistory(), linkActiveClass: '', linkExactActiveClass: '', routes: [
   { path: '/login', component: LoginPage, meta: { guestOnly: true } }, { path: '/register', component: AdminRegistrationPage, meta: { guestOnly: true } },
   { path: '/dashboard', component: Page, meta: { role: 'ADMIN' } }, { path: '/reports', component: Page, meta: { role: 'ADMIN' } },
   { path: '/driver/today', component: Page, meta: { role: 'DRIVER' } },
+  { path: '/driver/change-password', component: Page, meta: { role: 'DRIVER' } },
 ] });
 beforeEach(() => { vi.resetAllMocks(); window.history.replaceState({}, ''); });
 afterEach(() => { document.body.innerHTML = ''; });
@@ -38,6 +39,40 @@ test('session bootstrap is single-flight and a late bootstrap cannot overwrite l
   resolve(driver); await first;
   expect(auth.user).toEqual(admin); expect(auth.loading).toBe(false);
   expect(fetchCurrentUser).toHaveBeenCalledTimes(1);
+});
+test('an in-flight login cannot restore a session after logout', async () => {
+  let resolve!: (user: AuthUser) => void;
+  vi.mocked(login).mockReturnValue(new Promise(r => { resolve = r; }));
+  const auth = createAuthState();
+  const pending = auth.login({ username: 'driver.fixture', password: 'fixture-pass' });
+  await auth.logout();
+  resolve(driver);
+  await expect(pending).rejects.toThrow('Phiên đăng nhập đã thay đổi');
+  expect(auth.user).toBeNull();
+});
+test('successful password change clears the session and rejects a stale bootstrap', async () => {
+  let resolve!: (user: AuthUser) => void;
+  vi.mocked(fetchCurrentUser).mockReturnValue(new Promise(r => { resolve = r; }));
+  vi.mocked(changePassword).mockResolvedValue(undefined);
+  const auth = createAuthState();
+  const initial = auth.initialize();
+  auth.user = driver;
+  await auth.changePassword({ currentPassword: 'current-password', newPassword: 'new-password', confirmPassword: 'new-password' });
+  resolve(driver); await initial;
+  expect(auth.user).toBeNull();
+  expect(auth.loading).toBe(false);
+  expect(logout).not.toHaveBeenCalled();
+});
+test('a validation failure keeps the driver session but an expired password-change session clears it', async () => {
+  const auth = createAuthState();
+  auth.user = driver;
+  vi.mocked(changePassword).mockRejectedValueOnce(Object.assign(new Error('Mật khẩu hiện tại không đúng.'), { status: 400 }));
+  const input = { currentPassword: 'current-password', newPassword: 'new-password', confirmPassword: 'new-password' };
+  await expect(auth.changePassword(input)).rejects.toThrow('Mật khẩu hiện tại không đúng.');
+  expect(auth.user).toEqual(driver);
+  vi.mocked(changePassword).mockRejectedValueOnce(Object.assign(new Error('Phiên đăng nhập đã hết hạn.'), { status: 401 }));
+  await expect(auth.changePassword(input)).rejects.toThrow('Phiên đăng nhập đã hết hạn.');
+  expect(auth.user).toBeNull();
 });
 test.each([['guest', null, '/reports', '/login'], ['driver', driver, '/reports', '/driver/today'], ['admin', admin, '/driver/today', '/dashboard'], ['signed-in', admin, '/register', '/dashboard']] as const)('%s role redirect preserves boundary', async (_label, user, from, to) => {
   vi.mocked(fetchCurrentUser).mockResolvedValue(user as AuthUser);
@@ -65,6 +100,20 @@ test('login trims username, retains password and returns admin to requested rout
   await wrapper.find('form').trigger('submit'); await flushPromises();
   expect(login).toHaveBeenCalledWith({ username: 'admin.fixture', password: '  fixture-password  ' });
   expect(router.currentRoute.value.path).toBe('/reports'); wrapper.unmount();
+});
+
+test('first login always sends a temporary-password driver to self-change', async () => {
+  vi.mocked(fetchCurrentUser).mockResolvedValue(null as unknown as AuthUser);
+  vi.mocked(login).mockResolvedValue({ ...driver, passwordChangeRequired: true });
+  const auth = createAuthState(), router = makeRouter();
+  await router.push('/login');
+  window.history.replaceState({ from: '/driver/today' }, '');
+  const wrapper = mount(LoginPage, { global: { plugins: [router], provide: { [authKey as symbol]: auth } } });
+  await wrapper.get('input[autocomplete=username]').setValue('driver.fixture');
+  await wrapper.get('input[type=password]').setValue('temp-password');
+  await wrapper.get('form').trigger('submit'); await flushPromises();
+  expect(router.currentRoute.value.path).toBe('/driver/change-password');
+  wrapper.unmount();
 });
 
 test('registration mismatch and success use toast notifications', async () => {

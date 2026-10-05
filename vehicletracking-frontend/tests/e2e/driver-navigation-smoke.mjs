@@ -57,7 +57,7 @@ async function context(role, viewport) {
     const path = new URL(route.request().url()).pathname.replace('/api/v1', '');
     const json = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
     if (path === '/auth/me') return json({ accountId: role === 'ADMIN' ? 1 : 2, username: role.toLowerCase(), role,
-      active: true, driverId: role === 'DRIVER' ? 1 : null, driverName: role === 'DRIVER' ? 'Tài xế thử nghiệm' : null });
+      active: true, passwordChangeRequired: false, driverId: role === 'DRIVER' ? 1 : null, driverName: role === 'DRIVER' ? 'Tài xế thử nghiệm' : null });
     if (path === '/auth/csrf') return route.fulfill({ contentType: 'application/json',
       headers: { 'set-cookie': 'XSRF-TOKEN=fixture-csrf; Path=/; SameSite=Lax' }, body: '{}' });
     if (path === '/driver/trips/7/navigation') { counters.navigation++; ownCounters.navigation++; return json(navigation()); }

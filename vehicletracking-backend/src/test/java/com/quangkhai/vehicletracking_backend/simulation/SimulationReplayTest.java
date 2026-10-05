@@ -63,9 +63,7 @@ class SimulationReplayTest {
         when(runs.findByTripId(5L)).thenReturn(Optional.of(run));
         when(eta.cachedSimulationRate(eq(5L),anyDouble())).thenReturn(1d);
         service=new SimulationService(runs,trips,vehicles,tripService,telemetry,samples,positions,Clock.fixed(now,ZoneOffset.UTC),eta,
-            attempts,checkpoints,alerts,revisions,new com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService(revisions),
-            mock(com.quangkhai.vehicletracking_backend.dispatch.service.DispatchStartGuard.class),
-            mock(com.quangkhai.vehicletracking_backend.dispatch.service.DispatchLifecycleService.class));
+            attempts,checkpoints,alerts,revisions,new com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService(revisions));
     }
 
     @Test void realtimeSnapshotDoesNotCalculateTrafficOrCallProvider() {

@@ -30,8 +30,6 @@ import type { StopVisit } from '@/features/fleet/types/checkin';
 import { useTripEta } from '@/features/fleet/composables/useTripEta';
 import { trafficSourceLabel } from '@/features/traffic/utils/tripTraffic';
 import RouteRevisionPanel from './RouteRevisionPanel.vue';
-import AdminDispatchPanel from '@/features/dispatch/components/AdminDispatchPanel.vue';
-import { DISPATCH_STATE_LABELS } from '@/features/dispatch/types/dispatch';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
 const props = defineProps<{
   detail: TripDetail | null;
@@ -114,7 +112,6 @@ const canComplete = computed(() => {
 const canStart = computed(
   () =>
     trip.value?.status === 'SCHEDULED' &&
-    trip.value?.dispatch?.startMode !== 'AUTO_IF_READY' &&
     !!trip.value.driver &&
     props.drivers.some((driver) => driver.id === trip.value?.driver?.id && driver.active),
 );
@@ -204,9 +201,6 @@ function fallbackStopEta(stop: TripStop) {
             :class="`trip-status ${trip.status.toLowerCase()}`"
             >{{ TRIP_STATUS_LABELS[trip.status] }}</span
           >
-          <span v-if="trip?.dispatch" class="dispatch-badge">
-            {{ DISPATCH_STATE_LABELS[trip.dispatch.state] }}
-          </span>
         </div>
         <p v-if="trip">Theo dõi phân công, thời gian và tiến độ qua từng điểm dừng.</p>
       </div>
@@ -446,7 +440,6 @@ function fallbackStopEta(stop: TripStop) {
             </div>
           </div>
         </div>
-        <AdminDispatchPanel v-if="isFixedSchedule" :trip="trip" :drivers="drivers" :on-changed="onRetry" />
 
         <div
           v-if="onViewRoute || onSimulate"
@@ -463,7 +456,7 @@ function fallbackStopEta(stop: TripStop) {
               <MapPin :size="15" />Xem tuyến đường
             </button>
             <button
-              v-if="onSimulate && !(trip.status === 'SCHEDULED' && trip.dispatch?.startMode === 'AUTO_IF_READY')"
+              v-if="onSimulate"
               class="fleet-text-button trip-simulation-button"
               :disabled="busy"
               @click="onSimulate(trip.id)"
@@ -594,7 +587,7 @@ function fallbackStopEta(stop: TripStop) {
                 }}</template>
               </div>
               <p
-                v-if="trip.status === 'SCHEDULED' && !canStart && trip.dispatch?.startMode !== 'AUTO_IF_READY'"
+                v-if="trip.status === 'SCHEDULED' && !canStart"
                 class="fleet-prerequisite"
               >
                 Gán tài xế đang hoạt động trước khi khởi hành chuyến này.
@@ -665,10 +658,10 @@ function fallbackStopEta(stop: TripStop) {
       >
         <X :size="14" />Hủy chuyến</button
       ><button
-        v-if="trip.status === 'SCHEDULED' && trip.dispatch?.startMode !== 'AUTO_IF_READY'"
+        v-if="trip.status === 'SCHEDULED'"
         class="btn-primary"
         :disabled="busy || !canStart"
-        :title="!canStart ? 'Cần gán tài xế active trước khi khởi hành' : undefined"
+        :title="!canStart ? 'Cần gán tài xế đang hoạt động trước khi khởi hành.' : undefined"
         @click="onAction('start')"
       >
         <Play :size="14" />{{ busy ? 'Đang xử lý…' : 'Khởi hành' }}</button

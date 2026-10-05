@@ -222,12 +222,13 @@ export async function installFixture(context, base, state = { role: 'ADMIN', mod
         username: 'ui.fixture',
         role: state.role,
         active: true,
+        passwordChangeRequired: false,
         driverId: state.role === 'DRIVER' ? 1 : null,
         driverName: state.role === 'DRIVER' ? drivers[0].fullName : null,
       });
       if (path === '/auth/me')
         return state.role === 'GUEST' ? json({ detail: 'Fixture guest' }, 401) : json(user());
-      if (path === '/auth/csrf') return json({});
+      if (path === '/auth/csrf') return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'set-cookie': 'XSRF-TOKEN=fixture-csrf; Path=/; SameSite=Lax' }, body: '{}' });
       if (path === '/auth/register-admin')
         return json({ id: 99, username: 'ui.new', role: 'ADMIN', active: true });
       if (path === '/auth/login') {
@@ -259,12 +260,14 @@ export async function installFixture(context, base, state = { role: 'ADMIN', mod
       if (path === '/vehicles') return json(list(vehicles));
       if (path === '/drivers') return json(list(drivers));
       if (path === '/trips' || path === '/driver/trips') return json(list(trips));
-      if (/^\/(driver\/)?trips\/\d+$/.test(path))
+      if (/^\/(driver\/)?trips\/\d+$/.test(path)) {
+        const requestedId = Number(path.split('/').at(-1));
         return json({
-          trip: trips.find((t) => t.id === Number(path.split('/').at(-1))) ?? trips[0],
+          trip: trips.find((t) => t.id === requestedId) ?? trips[0],
           stops,
           route: routeDetail,
         });
+      }
       if (path.endsWith('/check-ins'))
         return json({
           tripId: Number(path.split('/').at(-2)),
@@ -284,6 +287,7 @@ export async function installFixture(context, base, state = { role: 'ADMIN', mod
       if (path === '/routes') return json(list(routes));
       if (/^\/routes\/\d+$/.test(path)) return json(routeDetail);
       if (path === '/stations') return json(list(stations));
+      if (path === '/stations/reverse-geocode') return json({ address: 'Địa chỉ gợi ý fixture tại điểm đã chọn', distanceMeters: 12 });
       if (path === '/schedules' || path === '/driver/schedules') return json(list(schedules));
       if (path.startsWith('/notifications')) return json(list(alerts));
       if (path.startsWith('/traffic/'))

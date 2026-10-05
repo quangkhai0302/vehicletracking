@@ -20,6 +20,7 @@ import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
+import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
@@ -43,6 +44,7 @@ public class TripAssignmentService {
     private final TripAssignmentRequestRepository requests;
     private final TripRepository trips;
     private final DriverRepository drivers;
+    private final VehicleRepository vehicles;
     private final UserAccountRepository accounts;
     private final DriverDispatchInboxRepository inbox;
     private final TripNotificationRepository notifications;
@@ -52,6 +54,7 @@ public class TripAssignmentService {
     @Transactional
     public TripAssignmentRequestEntity requestAssignment(TripEntity trip, long candidateId, long requestedByAccountId) {
         requireDirectTrip(trip);
+        lockVehicle(trip);
         var candidate = drivers.findLockedById(candidateId)
                 .orElseThrow(() -> error(NOT_FOUND, "ASSIGNMENT_REQUEST_NOT_FOUND", "Không tìm thấy tài xế."));
         requireCandidate(candidate, trip);
@@ -117,6 +120,7 @@ public class TripAssignmentService {
         var preview = ownRequest(requestId, driverId);
         TripEntity trip = trips.findLockedById(preview.getTrip().getId())
                 .orElseThrow(() -> error(NOT_FOUND, "ASSIGNMENT_REQUEST_NOT_FOUND", "Không tìm thấy yêu cầu."));
+        VehicleEntity vehicle = lockVehicle(trip);
         DriverEntity driver = drivers.findLockedById(driverId)
                 .orElseThrow(() -> error(CONFLICT, "ASSIGNMENT_RESOURCE_CONFLICT", "Tài xế không còn khả dụng."));
         var request = requests.findLockedById(requestId)
@@ -126,15 +130,11 @@ public class TripAssignmentService {
         if (request.getStatus() != TripAssignmentStatus.PENDING)
             throw error(CONFLICT, "ASSIGNMENT_REQUEST_NOT_PENDING", "Yêu cầu không còn chờ phản hồi.");
         requireDirectTrip(trip);
-        VehicleEntity vehicle = trip.getVehicle();
         if (!vehicle.isActive() || !driver.isActive() || !accounts.existsActiveDriverAccount(driverId))
             throw error(CONFLICT, "ASSIGNMENT_RESOURCE_CONFLICT", "Xe hoặc tài xế không còn hoạt động.");
-        if (availability.driverReservedForAuto(driverId, trip.getScheduledDepartureAt(),
-                trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId())
-                || !availability.driverAvailable(driverId, trip, trip.getRoute().getEstimatedTripDurationSeconds(),
-                        true)
+        if (!availability.driverAvailable(driverId, trip, trip.getRoute().getEstimatedTripDurationSeconds())
                 || !availability.vehicleAvailable(vehicle.getId(), trip,
-                        trip.getRoute().getEstimatedTripDurationSeconds(), true))
+                        trip.getRoute().getEstimatedTripDurationSeconds()))
             throw error(CONFLICT, "ASSIGNMENT_RESOURCE_CONFLICT", "Tài xế hoặc xe đã có lịch xung đột.");
         trip.assignDriver(driver);
         Instant now = now();
@@ -205,6 +205,11 @@ public class TripAssignmentService {
                 .isPresent();
     }
 
+    private VehicleEntity lockVehicle(TripEntity trip) {
+        return vehicles.findLockedById(trip.getVehicle().getId())
+                .orElseThrow(() -> error(CONFLICT, "ASSIGNMENT_RESOURCE_CONFLICT", "Xe không còn khả dụng."));
+    }
+
     private void requireDirectTrip(TripEntity trip) {
         if (trip.getSchedule() != null || trip.getStatus() != TripStatus.SCHEDULED)
             throw error(CONFLICT, "ASSIGNMENT_INVALID_TRIP_STATE",
@@ -219,11 +224,8 @@ public class TripAssignmentService {
                 .anyMatch(item -> !item.getTrip().getId().equals(trip.getId()));
         if (busyByOtherTrip)
             throw error(CONFLICT, "ASSIGNMENT_CANDIDATE_BUSY", "Tài xế đang có yêu cầu nhận chuyến khác.");
-        if (availability.driverReservedForAuto(driver.getId(), trip.getScheduledDepartureAt(),
-                trip.getRoute().getEstimatedTripDurationSeconds(), trip.getId()))
-            throw error(CONFLICT, "ASSIGNMENT_CANDIDATE_BUSY", "Tài xế đang được giữ chỗ cho chuyến tự động.");
         if (!availability.driverAvailable(driver.getId(), trip,
-                trip.getRoute().getEstimatedTripDurationSeconds(), false))
+                trip.getRoute().getEstimatedTripDurationSeconds()))
             throw error(CONFLICT, "ASSIGNMENT_CANDIDATE_BUSY", "Tài xế đã có lịch chạy xung đột.");
     }
 

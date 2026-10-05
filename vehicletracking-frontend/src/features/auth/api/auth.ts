@@ -1,4 +1,4 @@
-import type { AdminRegistrationInput, AuthUser, LoginInput, RegisteredAdmin } from '../types/auth';
+import type { AdminRegistrationInput, AuthUser, ChangePasswordInput, LoginInput, RegisteredAdmin } from '../types/auth';
 import { appFetch } from '@/shared/api/http';
 
 const BASE = `${(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')}/api/v1`;
@@ -25,3 +25,4 @@ export const login = (input: LoginInput) => request<AuthUser>('/auth/login', { m
 export const registerAdmin = (input: AdminRegistrationInput) => request<RegisteredAdmin>('/auth/register-admin', { method: 'POST', body: JSON.stringify(input) });
 export const fetchCurrentUser = () => request<AuthUser>('/auth/me');
 export const logout = () => request<void>('/auth/logout', { method: 'POST' });
+export const changePassword = (input: ChangePasswordInput) => request<void>('/auth/change-password', { method: 'POST', body: JSON.stringify(input) });

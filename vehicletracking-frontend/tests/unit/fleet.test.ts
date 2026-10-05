@@ -204,6 +204,22 @@ test('trip detail replaces the list as a full-page workspace and returns without
   wrapper.unmount();
 });
 
+test('trip deep link selects requested detail, follows query changes and closes without clearing the vehicle filter', async () => {
+  const wrapper = mount(FleetWorkspace, {
+    props: { initialTab: 'trips', lockedTab: 'trips', initialVehicleFilter: 1, initialTripId: 7, onToast: vi.fn(), onFocusStop: vi.fn(), onManageRoutes: vi.fn(), onManageStations: vi.fn() },
+    global: { stubs: { TripDetailPanel: { props: ['detail'], template: '<section data-deep-trip>{{ detail?.trip.id }}</section>' } } },
+  });
+  await flushPromises();
+  expect(api.fetchTrip).toHaveBeenCalledWith(7, expect.any(AbortSignal));
+  expect(wrapper.get('[data-deep-trip]').text()).toBe('7');
+  await wrapper.setProps({ initialTripId: 2 }); await flushPromises();
+  expect(wrapper.get('[data-deep-trip]').text()).toBe('2');
+  await wrapper.setProps({ initialTripId: null }); await flushPromises();
+  expect(wrapper.find('[data-deep-trip]').exists()).toBe(false);
+  expect(wrapper.get('.fleet-list-view').attributes('hidden')).toBeUndefined();
+  wrapper.unmount();
+});
+
 test('admin trip card shows cancelled assignment request history', async () => {
   vi.mocked(api.fetchTrips).mockResolvedValue([{
     ...trip(7),
@@ -727,7 +743,7 @@ test('driver form validates phone and uppercases license', async () => {
   wrapper.unmount();
 });
 
-test('trip form inherits assigned driver and clears it when changing to unassigned vehicle', async () => {
+test('trip form keeps driver selection independent from the vehicle catalog', async () => {
   vi.mocked(fetchRoutes).mockResolvedValue([
     { ...route, startStationName: 'A', endStationName: 'B', stopCount: 2 },
   ]);
@@ -747,12 +763,16 @@ test('trip form inherits assigned driver and clears it when changing to unassign
   await flushPromises();
   expect(
     (wrapper.get('select[aria-label="Tài xế thực hiện"]').element as HTMLSelectElement).value,
-  ).toBe('1');
+  ).toBe('');
   await wrapper.get('select[aria-label="Xe thực hiện *"]').setValue('2');
   await wrapper.get('select[aria-label="Tuyến đường *"]').setValue('1');
   expect(wrapper.find('input[type=datetime-local]').exists()).toBe(false);
   await wrapper.get('form').trigger('submit');
-  expect(onSave).toHaveBeenCalledWith({ vehicleId: 2, routeId: 1, driverId: null });
+  expect(onSave).toHaveBeenCalledWith({
+    vehicleId: 2,
+    routeId: 1,
+    driverId: null,
+  });
   wrapper.unmount();
 });
 
@@ -781,5 +801,29 @@ test('preselected route is the trip draft baseline and can be closed without a f
   await wrapper.get('[aria-label="Đóng biểu mẫu chuyến"]').trigger('click');
   expect(onClose).toHaveBeenCalledTimes(1);
   expect(wrapper.find('dialog').exists()).toBe(false);
+  wrapper.unmount();
+});
+
+
+test.each(['ON_DEMAND', 'FIXED_SCHEDULE'] as const)('%s trip with an active driver supports manual start and simulation without readiness', async (dispatchMode) => {
+  const onAction = vi.fn().mockResolvedValue(true);
+  const onSimulate = vi.fn();
+  const current = { ...detail(1), trip: { ...trip(1), dispatchMode } };
+  const wrapper = mount(TripDetailPanel, {
+    props: {
+      detail: current, loading: false, busy: false, drivers: [driver], vehicles: [vehicle],
+      onClose: vi.fn(), onRetry: vi.fn(), onAction, onFocusStop: vi.fn(), onSimulate,
+    },
+    global: { stubs: { RouteRevisionPanel: true } },
+  });
+  await flushPromises();
+  const startButton = wrapper.findAll('button').find((button) => button.text().includes('Khởi hành'))!;
+  expect(startButton.attributes('disabled')).toBeUndefined();
+  await startButton.trigger('click');
+  expect(onAction).toHaveBeenCalledWith('start');
+  await wrapper.get('.trip-simulation-button').trigger('click');
+  expect(onSimulate).toHaveBeenCalledWith(1);
+  expect(wrapper.find('.dispatch-admin-panel').exists()).toBe(false);
+  expect(wrapper.find('[aria-label="Khả dụng tài nguyên"]').exists()).toBe(false);
   wrapper.unmount();
 });

@@ -61,9 +61,6 @@ const blankForm = (): FormState => ({
   timezone: 'Asia/Ho_Chi_Minh',
   effectiveFrom: new Date().toLocaleDateString('en-CA'),
   effectiveUntil: null,
-  startMode: 'MANUAL',
-  backupEnabled: false,
-  backupDriverIds: [],
 });
 const dateTime = (value: string | null, timezone: string) =>
   value
@@ -142,30 +139,6 @@ const activeVehicles = computed(
   () => data.value?.vehicles.filter((vehicle) => vehicle.active) ?? [],
 );
 const activeDrivers = computed(() => data.value?.drivers.filter((driver) => driver.active) ?? []);
-const backupChoice = ref(0);
-const backupDriverOptions = computed(() => [
-  { value: 0, label: 'Chọn tài xế dự phòng', disabled: true },
-  ...activeDrivers.value
-    .filter((driver) => driver.id !== form.value.driverId && !form.value.backupDriverIds?.includes(driver.id))
-    .map((driver) => ({ value: driver.id, label: driver.fullName })),
-]);
-function addBackupDriver() {
-  const id = Number(backupChoice.value);
-  if (!id || id === form.value.driverId || form.value.backupDriverIds?.includes(id)) return;
-  form.value.backupDriverIds = [...(form.value.backupDriverIds ?? []), id];
-  backupChoice.value = 0;
-}
-function moveBackupDriver(index: number, offset: number) {
-  const ids = [...(form.value.backupDriverIds ?? [])];
-  const next = index + offset;
-  if (next < 0 || next >= ids.length) return;
-  [ids[index], ids[next]] = [ids[next]!, ids[index]!];
-  form.value.backupDriverIds = ids;
-}
-function backupName(id: number) {
-  return data.value?.drivers.find((driver) => driver.id === id)?.fullName ?? `Tài xế #${id}`;
-}
-
 const routeFilterOptions = computed(() => [
   { value: '', label: 'Tất cả tuyến' },
   ...(data.value?.routes ?? []).map((r) => ({ value: String(r.id), label: r.name })),
@@ -216,9 +189,6 @@ function openEdit(s: TripSchedule) {
     timezone: s.timezone,
     effectiveFrom: s.effectiveFrom,
     effectiveUntil: s.effectiveUntil,
-    startMode: s.startMode ?? 'MANUAL',
-    backupEnabled: s.backupEnabled ?? false,
-    backupDriverIds: [...(s.backupDriverIds ?? [])],
   };
   formError.value = null;
   editorOpen.value = true;
@@ -249,11 +219,6 @@ async function save() {
     formError.value = 'Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.';
     return;
   }
-  if (f.backupEnabled && (!f.backupDriverIds?.length || f.backupDriverIds.length > 20
-    || f.backupDriverIds.includes(f.driverId) || new Set(f.backupDriverIds).size !== f.backupDriverIds.length)) {
-    formError.value = 'Chọn 1–20 tài xế dự phòng không trùng tài xế chính và xếp theo thứ tự ưu tiên.';
-    return;
-  }
   saving.value = true;
   formError.value = null;
   const input: TripScheduleInput = {
@@ -268,9 +233,6 @@ async function save() {
     timezone: f.timezone.trim(),
     effectiveFrom: f.effectiveFrom,
     effectiveUntil: f.effectiveUntil || null,
-    startMode: f.startMode ?? 'MANUAL',
-    backupEnabled: f.startMode === 'AUTO_IF_READY' && !!f.backupEnabled,
-    backupDriverIds: f.startMode === 'AUTO_IF_READY' && f.backupEnabled ? [...(f.backupDriverIds ?? [])] : [],
   };
   try {
     const saved = f.id ? await updateSchedule(f.id, input) : await createSchedule(input);
@@ -452,9 +414,9 @@ async function toggle() {
           </div>
           <h3>{{ schedule.name || schedule.routeName }}</h3>
           <p class="schedule-route">{{ schedule.routeName }}</p>
-          <dl>
+          <dl class="schedule-details">
             <div>
-              <dt>Tần suất</dt>
+              <dt>Lịch chạy</dt>
               <dd>
                 {{
                   schedule.frequency === 'ONCE'
@@ -464,16 +426,19 @@ async function toggle() {
               </dd>
             </div>
             <div>
-              <dt>Khởi hành</dt>
-              <dd>{{ schedule.departureTime.slice(0, 5) }} · {{ schedule.timezone }}</dd>
+              <dt>Giờ khởi hành</dt>
+              <dd>
+                {{ schedule.departureTime.slice(0, 5) }}
+                <small>{{ schedule.timezone === 'Asia/Ho_Chi_Minh' ? 'Giờ Việt Nam' : schedule.timezone }}</small>
+              </dd>
             </div>
             <div>
-              <dt>Phân công</dt>
-              <dd>{{ schedule.vehiclePlate }} · {{ schedule.driverName }}</dd>
+              <dt>Xe</dt>
+              <dd>{{ schedule.vehiclePlate }}</dd>
             </div>
             <div>
-              <dt>Khởi hành</dt>
-              <dd>{{ schedule.startMode === 'AUTO_IF_READY' ? 'Tự chạy khi tài xế sẵn sàng' : 'Tài xế bắt đầu thủ công' }}</dd>
+              <dt>Tài xế</dt>
+              <dd>{{ schedule.driverName }}</dd>
             </div>
             <div>
               <dt>Lần chạy kế tiếp</dt>
@@ -573,47 +538,6 @@ async function toggle() {
               />
             </label>
           </div>
-          <fieldset class="schedule-dispatch-policy">
-            <legend>Cách khởi hành chuyến</legend>
-            <label class="schedule-policy-option">
-              <input v-model="form.startMode" type="radio" value="MANUAL"
-                @change="form.backupEnabled = false; form.backupDriverIds = []" />
-              <span>Thủ công — tài xế bấm bắt đầu chuyến</span>
-            </label>
-            <label class="schedule-policy-option">
-              <input v-model="form.startMode" type="radio" value="AUTO_IF_READY" />
-              <span>Tự khởi hành khi tài xế đã xác nhận sẵn sàng</span>
-            </label>
-            <template v-if="form.startMode === 'AUTO_IF_READY'">
-              <p>Tài xế xác nhận từ 30 phút trước giờ chạy. Nếu chưa xác nhận, chuyến không tự chạy.</p>
-              <label class="schedule-policy-option">
-                <input v-model="form.backupEnabled" type="checkbox"
-                  @change="!form.backupEnabled && (form.backupDriverIds = [])" />
-                <span>Mời tài xế dự phòng khi người được gán báo bận</span>
-              </label>
-              <div v-if="form.backupEnabled" class="schedule-backup-list">
-                <strong>Thứ tự mời tài xế dự phòng</strong>
-                <ol>
-                  <li v-for="(id, index) in form.backupDriverIds" :key="id">
-                    <span>{{ backupName(id) }}</span>
-                    <button type="button" :disabled="index === 0" :aria-label="`Ưu tiên ${backupName(id)} lên`"
-                      @click="moveBackupDriver(index, -1)">↑</button>
-                    <button type="button" :disabled="index === (form.backupDriverIds?.length ?? 0) - 1"
-                      :aria-label="`Ưu tiên ${backupName(id)} xuống`" @click="moveBackupDriver(index, 1)">↓</button>
-                    <button type="button" :aria-label="`Xóa ${backupName(id)} khỏi dự phòng`"
-                      @click="form.backupDriverIds = form.backupDriverIds?.filter((item) => item !== id)">Xóa</button>
-                  </li>
-                </ol>
-                <div class="schedule-backup-add">
-                  <AppSelect v-model="backupChoice" :options="backupDriverOptions" placeholder="Chọn tài xế" />
-                  <button type="button" :disabled="!backupChoice || (form.backupDriverIds?.length ?? 0) >= 20"
-                    @click="addBackupDriver">Thêm</button>
-                </div>
-                <small>Chỉ hiện tài xế đang hoạt động; backend kiểm tra thêm tài khoản DRIVER khi lưu.</small>
-              </div>
-            </template>
-            <p v-if="form.id">Thay đổi này chỉ áp dụng cho chuyến được sinh sau khi lưu. Chuyến đã sinh cần sửa chính sách trong chi tiết chuyến.</p>
-          </fieldset>
           <fieldset class="schedule-frequency-fieldset">
             <legend>Tần suất</legend>
             <div class="schedule-frequency">

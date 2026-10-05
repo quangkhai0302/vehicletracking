@@ -48,7 +48,7 @@ export function useSimulator(snapshot: MaybeRefOrGetter<OperationsSnapshot | nul
       localRun.value = response;
       if (response.tripId !== id) { tripId.value = response.tripId; loadedDetail.value = null; loading.value = true; }
       if (action === 'reset') { loadedDetail.value = null; loading.value = true; attempt.value++; }
-      onToast(action === 'reset' ? `Đã đặt lại chuyến #${response.tripId}. Bấm Bắt đầu để chạy lại; lịch sử cũ được giữ.` :
+      onToast(action === 'reset' ? `Đã chuẩn bị lượt mới cho chuyến #${response.tripId}. Bấm Bắt đầu để chạy; lịch sử cũ được giữ.` :
         action === 'stop' ? 'Đã dừng mô phỏng và hủy chuyến.' : action === 'pause' ? 'Đã tạm dừng mô phỏng.' :
         action === 'play' ? 'Đang mô phỏng theo tuyến đã lưu.' : `Tốc độ phát ${multiplier}×.`);
       return true;

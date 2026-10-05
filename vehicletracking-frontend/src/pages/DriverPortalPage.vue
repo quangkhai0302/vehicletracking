@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  KeyRound,
   LogOut,
   Navigation,
   RefreshCw,
@@ -130,6 +131,7 @@ async function signOut() {
       </div>
       <div class="driver-portal-account">
         <UserRound :size="16" /><span>{{ auth.user?.driverName ?? auth.user?.username }}</span
+        ><button @click="router.push('/driver/change-password')"><KeyRound :size="15" />Đổi mật khẩu</button
         ><button @click="signOut"><LogOut :size="15" />Đăng xuất</button>
       </div>
     </header>
@@ -154,7 +156,7 @@ async function signOut() {
         >
       </nav>
       <template v-if="!schedulesView"
-        ><DriverDispatchWorkspace :trips="trips" @changed="attempt++" />
+        ><DriverDispatchWorkspace @changed="attempt++" />
         <section class="driver-summary-grid">
           <article>
             <Clock3 :size="20" /><span

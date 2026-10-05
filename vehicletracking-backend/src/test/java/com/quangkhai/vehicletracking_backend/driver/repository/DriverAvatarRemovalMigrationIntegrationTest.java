@@ -46,6 +46,7 @@ class DriverAvatarRemovalMigrationIntegrationTest {
                 .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
                 .defaultSchema("vehicle_tracking")
                 .schemas("vehicle_tracking")
+                .target("24")
                 .load();
         assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
 

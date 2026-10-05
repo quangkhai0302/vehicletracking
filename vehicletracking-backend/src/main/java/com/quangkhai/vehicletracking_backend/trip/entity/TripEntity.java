@@ -47,6 +47,8 @@ public class TripEntity {
     @Column(nullable = false, length = 20)
     private TripStatus status = TripStatus.SCHEDULED;
     @Column(name = "attempt_number", nullable = false) private int attemptNumber = 1;
+    /** Historical marker retained after the turnaround policy was removed. */
+    @Column(name = "turnaround_legacy_max_attempt", nullable = false) private int turnaroundLegacyMaxAttempt = 0;
     @Column(name = "started_at") private Instant startedAt;
     @Column(name = "ended_at") private Instant endedAt;
     @Column(name = "cancellation_reason", length = 500) private String cancellationReason;

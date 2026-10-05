@@ -146,13 +146,6 @@ const metrics = computed(() => {
           icon: MapPinned,
           tone: 'amber',
         },
-        {
-          label: 'Lần vượt ngưỡng tốc độ',
-          value: r.overspeedEventCount.toLocaleString('vi-VN'),
-          detail: `Theo ngưỡng ${r.speedLimitKmh.toLocaleString('vi-VN')} km/h`,
-          icon: Gauge,
-          tone: 'rose',
-        },
       ]
     : [];
 });
@@ -294,7 +287,7 @@ const metrics = computed(() => {
         <p>Thử chọn khoảng thời gian khác hoặc bỏ bớt bộ lọc.</p>
       </div>
     </section>
-    <section class="business-surface reports-definition">
+    <!-- <section class="business-surface reports-definition">
       <div>
         <div class="reports-definition-icon"><BusFront :size="18" /></div>
         <div>
@@ -308,6 +301,6 @@ const metrics = computed(() => {
       <div>
         <UserRound :size="16" /><span>Lọc tài xế dựa trên tài xế đang gán cho chuyến.</span>
       </div>
-    </section>
+    </section> -->
   </div>
 </template>

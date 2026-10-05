@@ -19,6 +19,11 @@ const initialRouteId = computed(() => {
   return raw && Number.isSafeInteger(value) && value > 0 ? value : null;
 });
 const openTripFromRoute = computed(() => route.query.create === '1' && initialRouteId.value !== null);
+const initialTripId = computed(() => {
+  const raw = Array.isArray(route.query.tripId) ? route.query.tripId[0] : route.query.tripId;
+  const value = Number(raw);
+  return props.tab === 'trips' && raw && /^\d+$/.test(raw) && Number.isSafeInteger(value) && value > 0 ? value : null;
+});
 const operations = () => {
   void router.push('/operations');
 };
@@ -33,6 +38,7 @@ const simulateTrip = (tripId: number) => {
         :initial-tab="tab"
         :initial-vehicle-filter="initialVehicleFilter"
         :initial-route-id="initialRouteId"
+        :initial-trip-id="initialTripId"
         :open-trip-from-route="openTripFromRoute"
         :on-exit-route-prefill="() => router.replace('/trips')"
         :locked-tab="tab"

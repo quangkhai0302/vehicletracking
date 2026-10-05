@@ -4,6 +4,7 @@ import com.quangkhai.vehicletracking_backend.auth.dto.AdminRegistrationRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreateRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreatedResponse;
 import com.quangkhai.vehicletracking_backend.auth.dto.DriverPasswordResetRequest;
+import com.quangkhai.vehicletracking_backend.auth.dto.DriverPasswordChangeRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.UserAccountResponse;
 import com.quangkhai.vehicletracking_backend.auth.entity.UserAccountEntity;
 import com.quangkhai.vehicletracking_backend.auth.entity.UserRole;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
+import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
@@ -77,7 +79,7 @@ public class UserAccountService {
 
     @Transactional
     public UserAccountResponse setActive(long id, boolean active) {
-        UserAccountEntity account = accounts.findById(id)
+        UserAccountEntity account = accounts.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy tài khoản."));
         if (active && account.getDriver() != null && !account.getDriver().isActive())
             throw new ResponseStatusException(CONFLICT, "Hồ sơ tài xế đã ngừng sử dụng.");
@@ -87,13 +89,62 @@ public class UserAccountService {
 
     @Transactional
     public void resetDriverPassword(long id, DriverPasswordResetRequest input) {
-        UserAccountEntity account = accounts.findById(id)
+        UserAccountEntity account = accounts.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy tài khoản."));
         if (account.getRole() != UserRole.DRIVER) {
             throw new ResponseStatusException(CONFLICT,
                     "Chỉ có thể đặt lại mật khẩu cho tài khoản tài xế.");
         }
-        account.changePassword(passwordEncoder.encode(input.password()));
+        if (input.password() == null || input.password().isBlank()
+                || !input.isPasswordLengthValid()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Mật khẩu phải có từ 8 đến 100 ký tự.");
+        }
+        if (input.password().getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ResponseStatusException(BAD_REQUEST, "Mật khẩu không được vượt quá 72 byte UTF-8.");
+        }
+        account.resetPassword(passwordEncoder.encode(input.password()));
+    }
+
+    @Transactional
+    public void changeDriverPassword(long id, String sessionPasswordHash, DriverPasswordChangeRequest input) {
+        UserAccountEntity account = accounts.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Phiên đăng nhập không còn hợp lệ."));
+        if (account.getRole() != UserRole.DRIVER) {
+            throw new ResponseStatusException(FORBIDDEN, "Chỉ tài xế được sử dụng chức năng đổi mật khẩu này.");
+        }
+        if (!account.isActive() || account.getDriver() == null || !account.getDriver().isActive()) {
+            throw new ResponseStatusException(FORBIDDEN, "Tài khoản hoặc hồ sơ tài xế đã ngừng hoạt động.");
+        }
+        if (!account.getPasswordHash().equals(sessionPasswordHash)) {
+            throw new ResponseStatusException(UNAUTHORIZED, "Mật khẩu đã thay đổi. Vui lòng đăng nhập lại.");
+        }
+        validatePasswordChange(input);
+        if (!passwordEncoder.matches(input.currentPassword(), account.getPasswordHash())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Mật khẩu hiện tại không đúng.");
+        }
+        if (passwordEncoder.matches(input.newPassword(), account.getPasswordHash())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Mật khẩu mới phải khác mật khẩu hiện tại.");
+        }
+        account.changePassword(passwordEncoder.encode(input.newPassword()));
+    }
+
+    private void validatePasswordChange(DriverPasswordChangeRequest input) {
+        if (input == null || input.currentPassword() == null || input.currentPassword().isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Nhập mật khẩu hiện tại.");
+        }
+        if (input.currentPassword().getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ResponseStatusException(BAD_REQUEST, "Mật khẩu hiện tại không đúng.");
+        }
+        if (input.newPassword() == null || input.newPassword().isBlank()
+                || !input.isNewPasswordLengthValid()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Mật khẩu mới phải có từ 8 đến 100 ký tự.");
+        }
+        if (input.newPassword().getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ResponseStatusException(BAD_REQUEST, "Mật khẩu mới không được vượt quá 72 byte UTF-8.");
+        }
+        if (!input.newPassword().equals(input.confirmPassword())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Xác nhận mật khẩu mới không khớp.");
+        }
     }
 
     String nextDriverUsername(String fullName) {

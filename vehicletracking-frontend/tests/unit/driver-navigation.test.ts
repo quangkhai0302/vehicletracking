@@ -122,12 +122,19 @@ function component() {
   const wrapper = mount(DriverNavigation, { props: { tripId: 7 }, global: { stubs: { DriverNavigationMap: true, RouterLink: { template: '<a><slot /></a>' } } } });
   unmounts.push(() => wrapper.unmount()); return wrapper;
 }
-test('driver map offers start and passes official route to map', async () => {
+test.each(['ON_DEMAND', 'FIXED_SCHEDULE'] as const)('driver map supports %s manual start and passes official route to map', async (dispatchMode) => {
+  const snapshot = driverSnapshot();
+  snapshot.trip.dispatchMode = dispatchMode;
+  vi.mocked(api.fetchDriverNavigation).mockResolvedValue(snapshot);
   const wrapper = component(); await flushPromises();
   expect(wrapper.text()).toContain('Bắt đầu chuyến'); expect(wrapper.text()).toContain('Mô phỏng');
   expect(wrapper.findComponent({ name: 'DriverNavigationMap' }).props('snapshot').route).toEqual(driverSnapshot().route);
   const stopLabels = wrapper.findAll('.driver-trip-stop-state').map(el => el.text());
   expect(stopLabels).toEqual(['Trạm đầu', 'Trạm cuối']);
+  expect(wrapper.text()).not.toContain('xác nhận Sẵn sàng');
+  await wrapper.get('button.driver-navigation-primary').trigger('click');
+  await flushPromises();
+  expect(api.startDriverTrip).toHaveBeenCalledWith(7, expect.any(AbortSignal));
 });
 test('driver can view suggestions, choose a route and explicitly confirm', async () => {
   vi.mocked(api.fetchDriverNavigation).mockResolvedValue(driverSnapshot('IN_PROGRESS'));

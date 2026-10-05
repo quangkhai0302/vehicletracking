@@ -238,17 +238,13 @@ const distance = (meters: number) =>
           {{ navigation.error }}
         </p>
         <button
-          v-if="navigation.snapshot.trip.status === 'SCHEDULED' && navigation.snapshot.trip.dispatch?.startMode !== 'AUTO_IF_READY'"
+          v-if="navigation.snapshot.trip.status === 'SCHEDULED'"
           class="driver-navigation-primary"
           :disabled="navigation.busy || !navigation.connected"
           @click="navigation.start"
         >
           <Play :size="18" />{{ navigation.busy ? 'Đang khởi hành…' : 'Bắt đầu chuyến' }}
         </button>
-        <p v-else-if="navigation.snapshot.trip.status === 'SCHEDULED' && navigation.snapshot.trip.dispatch?.startMode === 'AUTO_IF_READY'"
-          class="driver-navigation-error" role="status">
-          Chuyến sẽ tự khởi hành sau khi bạn xác nhận Sẵn sàng tại Cổng tài xế.
-        </p>
         <button
           v-else-if="!navigation.options && navigation.snapshot.trip.status === 'IN_PROGRESS'"
           class="driver-navigation-primary"

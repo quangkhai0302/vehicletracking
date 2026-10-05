@@ -254,6 +254,7 @@ test('user creation only selects an available driver and shows generated credent
   expect(notifySuccess).toHaveBeenCalledWith('Đã cấp tài khoản drivera.');
   expect(wrapper.get('.user-issued-account').text()).toContain('drivera');
   expect(wrapper.get('.user-issued-account').text()).toContain('Tmp8Pass');
+  expect(wrapper.get('.user-issued-note').text()).toContain('đổi mật khẩu này ngay sau khi đăng nhập lần đầu');
   expect(wrapper.get('.user-account-modal').attributes('open')).toBeDefined();
   expect(wrapper.get('.business-button.primary').attributes('disabled')).toBeDefined();
   await wrapper.get('.user-issued-done').trigger('click');
@@ -305,6 +306,7 @@ test('admin resets a driver password through a guarded modal', async () => {
   await wrapper.get('[aria-label="Đặt lại mật khẩu tài khoản linked.driver"]').trigger('click');
   expect(wrapper.get('.user-password-reset-modal').attributes('open')).toBeDefined();
   expect(wrapper.get('.user-password-target').text()).toContain('Linked driver');
+  expect(wrapper.get('.user-password-note').text()).toContain('Tài xế phải đổi mật khẩu này');
 
   const inputs = wrapper.findAll('.user-password-reset input');
   await inputs[0].setValue('pass1234');
@@ -355,6 +357,8 @@ test('schedule form validates weekdays and sends ONCE payload without weekly mas
   await flushPromises();
   await wrapper.get('.business-button.primary').trigger('click');
   const form = wrapper.get('form');
+  expect(form.text()).not.toContain('Cách khởi hành');
+  expect(form.find('.schedule-dispatch-policy').exists()).toBe(false);
   await form.get('input[maxlength="150"]').setValue(' One time ');
   for (const select of form.findAll('select')) await select.setValue('1');
   await form.findAll('input[type=date]')[0].setValue('2026-09-23');
@@ -384,9 +388,6 @@ test('schedule form validates weekdays and sends ONCE payload without weekly mas
     timezone: 'Asia/Ho_Chi_Minh',
     effectiveFrom: '2026-09-23',
     effectiveUntil: null,
-    startMode: 'MANUAL',
-    backupEnabled: false,
-    backupDriverIds: [],
   });
   await wrapper.get('dialog').trigger('cancel');
   expect(wrapper.find('dialog').exists()).toBe(true);
@@ -447,4 +448,16 @@ test('fleet confirmation keeps slot, busy Escape and disabled-confirm semantics'
   expect(onClose).toHaveBeenCalledTimes(1);
   wrapper.unmount();
   expect(nativeClose).toHaveBeenCalledTimes(1);
+});
+
+
+test('schedule without a reported run has no run warning or turnaround inputs', async () => {
+  vi.mocked(fetchSchedules).mockResolvedValue([{ ...schedule, lastRunStatus: null, lastRunMessage: null }]);
+  const wrapper = mount(ScheduleManagementPage, { global: { stubs: { RouterLink: true } } });
+  cleanups.push(() => wrapper.unmount());
+  await flushPromises();
+  expect(wrapper.find('.schedule-last-run').exists()).toBe(false);
+  await wrapper.get('[aria-label^="Sửa lịch"]').trigger('click');
+  expect(wrapper.find('.schedule-turnaround-fields').exists()).toBe(false);
+  expect(wrapper.text()).toContain('Chỉnh sửa lịch chạy');
 });

@@ -2,6 +2,7 @@ package com.quangkhai.vehicletracking_backend.auth.controller;
 
 import com.quangkhai.vehicletracking_backend.auth.config.SecurityConfig.UserAccountPrincipal;
 import com.quangkhai.vehicletracking_backend.auth.dto.AuthUserResponse;
+import com.quangkhai.vehicletracking_backend.auth.dto.DriverPasswordChangeRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.AdminRegistrationRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.LoginRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.UserAccountResponse;
@@ -80,6 +81,16 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
+        new SecurityContextLogoutHandler().logout(request, response, authentication);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody DriverPasswordChangeRequest input,
+                                               Authentication authentication, HttpServletRequest request,
+                                               HttpServletResponse response) {
+        UserAccountPrincipal principal = (UserAccountPrincipal) authentication.getPrincipal();
+        userAccounts.changeDriverPassword(principal.accountId(), principal.getPassword(), input);
         new SecurityContextLogoutHandler().logout(request, response, authentication);
         return ResponseEntity.noContent().build();
     }

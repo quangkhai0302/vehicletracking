@@ -4,6 +4,8 @@ import com.quangkhai.vehicletracking_backend.auth.dto.AdminRegistrationRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreateRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.DriverAccountCreatedResponse;
 import com.quangkhai.vehicletracking_backend.auth.dto.DriverPasswordResetRequest;
+import com.quangkhai.vehicletracking_backend.auth.dto.DriverPasswordChangeRequest;
+import com.quangkhai.vehicletracking_backend.auth.dto.LoginRequest;
 import com.quangkhai.vehicletracking_backend.auth.dto.UserAccountResponse;
 import com.quangkhai.vehicletracking_backend.auth.entity.UserAccountEntity;
 import com.quangkhai.vehicletracking_backend.auth.entity.UserRole;
@@ -32,6 +34,16 @@ class UserAccountServiceTest {
     @Mock PasswordEncoder passwordEncoder;
 
     @Test
+    void requestDiagnosticsNeverIncludeCredentials() {
+        assertThat(new LoginRequest("driver", "Temporary1").toString())
+                .contains("REDACTED").doesNotContain("Temporary1");
+        assertThat(new DriverPasswordChangeRequest(" Current1 ", "NewPass1", "NewPass1").toString())
+                .contains("REDACTED").doesNotContain("Current1", "NewPass1");
+        assertThat(new DriverPasswordResetRequest("ResetPass1").toString())
+                .contains("REDACTED").doesNotContain("ResetPass1");
+    }
+
+    @Test
     void normalizeUsernameLowercasesAndRejectsUnsafeValues() {
         UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
 
@@ -47,13 +59,31 @@ class UserAccountServiceTest {
         driver.deactivate();
         UserAccountEntity account = new UserAccountEntity("driver.a", "hash", UserRole.DRIVER, driver);
         ReflectionTestUtils.setField(account, "id", 7L);
-        when(accounts.findById(7L)).thenReturn(Optional.of(account));
+        when(accounts.findByIdForUpdate(7L)).thenReturn(Optional.of(account));
         UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
 
         assertThatThrownBy(() -> service.setActive(7L, true))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         error -> assertThat(error.getStatusCode().value()).isEqualTo(409));
         verify(accounts, never()).save(any());
+        verify(accounts).findByIdForUpdate(7L);
+    }
+
+    @Test
+    void setActiveUsesSameAccountLockAndPreservesCurrentCredentialState() {
+        DriverEntity driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        UserAccountEntity account = new UserAccountEntity("driver.a", "latest-hash", UserRole.DRIVER, driver);
+        account.changePassword("latest-hash");
+        when(accounts.findByIdForUpdate(7L)).thenReturn(Optional.of(account));
+        UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
+
+        service.setActive(7L, false);
+
+        assertThat(account.isActive()).isFalse();
+        assertThat(account.getPasswordHash()).isEqualTo("latest-hash");
+        assertThat(account.isPasswordChangeRequired()).isFalse();
+        verify(accounts).findByIdForUpdate(7L);
+        verify(accounts, never()).findById(anyLong());
     }
 
     @Test
@@ -62,7 +92,8 @@ class UserAccountServiceTest {
         UserAccountEntity account = new UserAccountEntity("driver.a", "old-hash", UserRole.DRIVER, driver);
         account.disable();
         ReflectionTestUtils.setField(account, "id", 7L);
-        when(accounts.findById(7L)).thenReturn(Optional.of(account));
+        account.changePassword("old-hash");
+        when(accounts.findByIdForUpdate(7L)).thenReturn(Optional.of(account));
         when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
         UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
 
@@ -71,6 +102,7 @@ class UserAccountServiceTest {
         assertThat(account.getPasswordHash()).isEqualTo("new-hash");
         assertThat(account.getUpdatedAt()).isNotNull();
         assertThat(account.isActive()).isFalse();
+        assertThat(account.isPasswordChangeRequired()).isTrue();
         verify(passwordEncoder).encode("new-password");
     }
 
@@ -79,7 +111,7 @@ class UserAccountServiceTest {
         UserAccountEntity account = new UserAccountEntity(
                 "admin", "old-hash", UserRole.ADMIN, null);
         ReflectionTestUtils.setField(account, "id", 8L);
-        when(accounts.findById(8L)).thenReturn(Optional.of(account));
+        when(accounts.findByIdForUpdate(8L)).thenReturn(Optional.of(account));
         UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
 
         assertThatThrownBy(() -> service.resetDriverPassword(
@@ -91,6 +123,46 @@ class UserAccountServiceTest {
                                     "Chỉ có thể đặt lại mật khẩu cho tài khoản tài xế.");
                         });
         verify(passwordEncoder, never()).encode(anyString());
+    }
+
+    @Test
+    void resetRejectsPasswordBeyondBcryptByteLimitWithoutChangingAccount() {
+        DriverEntity driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        UserAccountEntity account = new UserAccountEntity("driver.a", "old-hash", UserRole.DRIVER, driver);
+        account.changePassword("old-hash");
+        when(accounts.findByIdForUpdate(7L)).thenReturn(Optional.of(account));
+        UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
+
+        assertThatThrownBy(() -> service.resetDriverPassword(7L, new DriverPasswordResetRequest("ầ".repeat(25))))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        error -> assertThat(error.getStatusCode().value()).isEqualTo(400));
+        assertThat(account.getPasswordHash()).isEqualTo("old-hash");
+        assertThat(account.isPasswordChangeRequired()).isFalse();
+        verify(passwordEncoder, never()).encode(anyString());
+    }
+
+    @Test
+    void resetCountsUnicodeCodePointsAndRequiresAtLeastEightCharacters() {
+        DriverEntity driver = new DriverEntity("Nguyễn Văn A", "0901234567", "B2-123");
+        UserAccountEntity account = new UserAccountEntity("driver.a", "old-hash", UserRole.DRIVER, driver);
+        account.changePassword("old-hash");
+        when(accounts.findByIdForUpdate(7L)).thenReturn(Optional.of(account));
+        UserAccountService service = new UserAccountService(accounts, drivers, passwordEncoder);
+        String tooShort = "😀".repeat(4);
+
+        assertThatThrownBy(() -> service.resetDriverPassword(7L, new DriverPasswordResetRequest(tooShort)))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        error -> assertThat(error.getStatusCode().value()).isEqualTo(400));
+        assertThat(account.getPasswordHash()).isEqualTo("old-hash");
+        assertThat(account.isPasswordChangeRequired()).isFalse();
+        verify(passwordEncoder, never()).encode(anyString());
+
+        String validPassword = "😀".repeat(8);
+        when(passwordEncoder.encode(validPassword)).thenReturn("unicode-hash");
+        service.resetDriverPassword(7L, new DriverPasswordResetRequest(validPassword));
+        assertThat(account.getPasswordHash()).isEqualTo("unicode-hash");
+        assertThat(account.isPasswordChangeRequired()).isTrue();
+        verify(passwordEncoder).encode(validPassword);
     }
 
     @Test
@@ -108,7 +180,8 @@ class UserAccountServiceTest {
         assertThat(response.driverId()).isNull();
         verify(passwordEncoder).encode("secure-admin-password");
         verify(accounts).saveAndFlush(argThat(account -> account.getRole() == UserRole.ADMIN
-                && account.getDriver() == null && account.getPasswordHash().equals("bcrypt-hash")));
+                && account.getDriver() == null && account.getPasswordHash().equals("bcrypt-hash")
+                && !account.isPasswordChangeRequired()));
     }
 
     @Test
@@ -145,7 +218,7 @@ class UserAccountServiceTest {
         verify(accounts).saveAndFlush(argThat(saved ->
                 saved.getUsername().equals("khainq")
                         && saved.getPasswordHash().equals("temporary-hash")
-                        && saved.getDriver() == driver));
+                        && saved.getDriver() == driver && saved.isPasswordChangeRequired()));
     }
 
     @Test

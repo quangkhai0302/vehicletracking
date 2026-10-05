@@ -5,11 +5,18 @@ export interface AuthUser {
   username: string;
   role: UserRole;
   active: boolean;
+  passwordChangeRequired: boolean;
   driverId: number | null;
   driverName: string | null;
 }
 
 export interface LoginInput { username: string; password: string }
+
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
 
 export interface AdminRegistrationInput {
   username: string;

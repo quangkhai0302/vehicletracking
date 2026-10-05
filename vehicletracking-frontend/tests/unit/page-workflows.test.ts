@@ -34,6 +34,7 @@ vi.mock('@/shared/notifications/toast', () => ({
 // dialog top-layer APIs are fixtures; this is not a real backend/browser E2E test.
 const stamp = '2026-09-22T17:30:00Z'; // 00:30 on 23 September in the business timezone.
 const driver: AuthUser = {
+  passwordChangeRequired: false,
   accountId: 2,
   username: 'driver.fixture',
   role: 'DRIVER',
@@ -43,6 +44,7 @@ const driver: AuthUser = {
 };
 const admin: AuthUser = {
   ...driver,
+  passwordChangeRequired: false,
   accountId: 1,
   username: 'admin.fixture',
   role: 'ADMIN',
@@ -206,8 +208,7 @@ beforeEach(() => {
       if (request.path === '/api/v1/driver/trips' || request.path === '/api/v1/trips')
         return json(trips);
       if (request.path === '/api/v1/driver/schedules') return json([schedule]);
-      if (request.path === '/api/v1/driver/dispatch/offers'
-          || request.path === '/api/v1/driver/assignment-requests'
+      if (request.path === '/api/v1/driver/assignment-requests'
           || request.path === '/api/v1/driver/dispatch/inbox?limit=50') return json([]);
       if (request.path === '/api/v1/notifications?unreadOnly=false')
         return json([alert, { ...alert, id: 2, type: 'REROUTE_CREATED', severity: 'MAJOR' }]);
@@ -279,8 +280,7 @@ test('driver redirects from admin URLs, fetches only assigned resources, keeps b
     '/api/v1/driver/schedules',
   ]);
   expect(requests.map((request) => request.path).slice(3).every((path) =>
-    path === '/api/v1/driver/dispatch/offers'
-      || path === '/api/v1/driver/assignment-requests'
+    path === '/api/v1/driver/assignment-requests'
       || path === '/api/v1/driver/dispatch/inbox?limit=50')).toBe(true);
   expect(requests.every((request) => request.options.credentials === 'include')).toBe(true);
 });
@@ -327,13 +327,25 @@ test('driver API problem uses toast and remains retryable; logout clears role ac
   await wrapper.get('[aria-label="Tải lại chuyến được phân công"]').trigger('click');
   await flushPromises();
   expect(wrapper.findAll('.driver-trip-card')).toHaveLength(2);
-  await wrapper.get('.driver-portal-account button').trigger('click');
+  await wrapper.findAll('.driver-portal-account button').find(button => button.text() === 'Đăng xuất')!.trigger('click');
   await flushPromises();
   expect(router.currentRoute.value.path).toBe('/login');
   expect(auth.user).toBeNull();
   const request = calls('/api/v1/auth/logout', 'POST')[0];
   expect(request.options.credentials).toBe('include');
   expect(new Headers(request.options.headers).get('X-XSRF-TOKEN')).toBe('fixture-csrf');
+});
+
+test('driver header opens voluntary self-change without requesting more business data', async () => {
+  const { wrapper, router, auth } = await open('/driver/today');
+  const previousRequests = calls('/api/v1/driver/trips').length;
+  await wrapper.findAll('.driver-portal-account button').find(button => button.text() === 'Đổi mật khẩu')!.trigger('click');
+  await flushPromises();
+  expect(router.currentRoute.value.path).toBe('/driver/change-password');
+  expect(wrapper.get('h1').text()).toBe('Đổi mật khẩu');
+  expect(wrapper.text()).toContain('Quay lại cổng tài xế');
+  expect(auth.user?.passwordChangeRequired).toBe(false);
+  expect(calls('/api/v1/driver/trips')).toHaveLength(previousRequests);
 });
 
 test('alerts filters, single read and read-all preserve HTTP payload and duplicate-submit lock', async () => {

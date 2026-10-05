@@ -1,5 +1,4 @@
 import type { RouteDetail } from '@/features/routes/types/route';
-import type { DispatchSummary } from '@/features/dispatch/types/dispatch';
 
 export type VehicleType = 'CAR' | 'MOTORCYCLE';
 export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
@@ -60,6 +59,7 @@ export interface TripInput {
   routeId: number;
   driverId: number | null;
 }
+
 export interface TripSummary {
   attemptNumber?: number;
   id: number;
@@ -78,7 +78,6 @@ export interface TripSummary {
   dispatchMode: TripDispatchMode;
   scheduleId: number | null;
   scheduleName: string | null;
-  dispatch?: DispatchSummary | null;
   driver?: DriverSummary | null;
   assignmentRequest?: TripAssignmentRequestSummary | null;
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
   BusFront,
   CircleCheck,
@@ -36,6 +36,11 @@ const props = withDefaults(
 );
 
 const replayConfirm = ref(false);
+const replayAllowed = computed(() => props.simulationReplayAvailable
+  && !props.simulationBusy && !props.simulationReplayDisabledReason);
+watch([() => props.trip?.id, () => props.trip?.attemptNumber, () => props.trip?.status], () => {
+  replayConfirm.value = false;
+});
 const routeStops = computed(() =>
   [...(props.route?.stops ?? [])].sort((left, right) => left.sequenceNumber - right.sequenceNumber),
 );
@@ -60,7 +65,7 @@ function stopRole(stop: RouteStop) {
 }
 
 async function replaySimulation() {
-  if (!props.trip) return;
+  if (!props.trip || !replayAllowed.value) return;
   const replayed = await props.onReplaySimulation(props.trip.id);
   if (replayed) replayConfirm.value = false;
 }
@@ -254,7 +259,7 @@ async function replaySimulation() {
       confirm-label="Chuẩn bị lượt chạy mới"
       variant="replay"
       :busy="simulationBusy"
-      :confirm-disabled="!!simulationReplayDisabledReason"
+      :confirm-disabled="!replayAllowed"
       :on-close="
         () => {
           replayConfirm = false;

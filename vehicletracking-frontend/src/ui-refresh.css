@@ -3377,24 +3377,19 @@
   font-weight: 600;
   white-space: normal;
 }
-.business-ui .schedule-card dl {
+.business-ui .schedule-card .schedule-details {
   background: #f8fafc;
-  padding: 14px;
+  padding: 16px;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
 }
-.business-ui .schedule-card dl div {
-  gap: 16px;
-}
-.business-ui .schedule-card dt {
-  color: var(--text-muted);
+.business-ui .schedule-details dt {
+  color: var(--text-secondary);
   font-size: 12px;
-  flex: 0 0 90px;
 }
-.business-ui .schedule-card dd {
+.business-ui .schedule-details dd {
   color: var(--text-primary);
-  font-size: 12.5px;
-  overflow-wrap: anywhere;
+  font-size: 14px;
 }
 .business-ui .schedule-card-header button {
   color: #64748b;

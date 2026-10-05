@@ -3,7 +3,8 @@ import {
   createDriverAccount,
   resetDriverPassword,
 } from '@/features/auth/api/users';
-import { assignTripVehicle } from '@/features/fleet/api/fleet';
+import { assignTripVehicle, createTrip } from '@/features/fleet/api/fleet';
+import { changePassword } from '@/features/auth/api/auth';
 import { appFetch } from '@/shared/api/http';
 
 beforeEach(() => {
@@ -87,6 +88,21 @@ test('driver password reset sends the new password to the dedicated account endp
   expect(new Headers(options.headers).get('X-XSRF-TOKEN')).toBe('fixture-token');
 });
 
+test('driver self-change retains exact passwords, uses session CSRF and accepts 204', async () => {
+  document.cookie = 'XSRF-TOKEN=fixture-token; Path=/';
+  const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal('fetch', fetch);
+  const input = { currentPassword: ' current-pass ', newPassword: ' new-password ', confirmPassword: ' new-password ' };
+  await expect(changePassword(input)).resolves.toBeUndefined();
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(String(fetch.mock.calls[0][0])).toMatch(/\/api\/v1\/auth\/change-password$/);
+  const options = fetch.mock.calls[0][1] as RequestInit;
+  expect(options.method).toBe('POST');
+  expect(JSON.parse(String(options.body))).toEqual(input);
+  expect(options.credentials).toBe('include');
+  expect(new Headers(options.headers).get('X-XSRF-TOKEN')).toBe('fixture-token');
+});
+
 test('driver account creation only sends the selected driver id', async () => {
   document.cookie = 'XSRF-TOKEN=fixture-token; Path=/';
   const fetch = vi.fn().mockResolvedValue(
@@ -131,4 +147,17 @@ test('trip vehicle assignment sends the selected vehicle to the dedicated endpoi
   const options = fetch.mock.calls[0][1] as RequestInit;
   expect(options.method).toBe('PUT');
   expect(options.body).toBe('{"vehicleId":9}');
+});
+
+
+test('trip creation sends resource selection without requiring depot data', async () => {
+  document.cookie = 'XSRF-TOKEN=fixture-token; Path=/';
+  const fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+  vi.stubGlobal('fetch', fetch);
+  await createTrip({ vehicleId: 3, routeId: 9, driverId: null });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(String(fetch.mock.calls[0][0])).toMatch(/\/api\/v1\/trips$/);
+  const options = fetch.mock.calls[0][1] as RequestInit;
+  expect(options.method).toBe('POST');
+  expect(JSON.parse(String(options.body))).toEqual({ vehicleId: 3, routeId: 9, driverId: null });
 });

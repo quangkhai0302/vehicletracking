@@ -1,6 +1,6 @@
 import { appFetch } from '@/shared/api/http';
 import type {
-  DispatchDetail, DispatchOffer, DriverDispatchDetail, DriverDispatchInboxItem,
+  DriverDispatchInboxItem,
   AssignmentActionResponse, DriverAssignmentRequest,
 } from '../types/dispatch';
 
@@ -29,27 +29,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export const fetchDispatchDetail = (tripId: number, signal?: AbortSignal) =>
-  request<DispatchDetail>(`/trips/${tripId}/dispatch`, { signal });
-export const updateTripDispatchPolicy = (tripId: number, input: {
-  expectedRevision: number | null; startMode: 'MANUAL' | 'AUTO_IF_READY';
-  backupEnabled: boolean; backupDriverIds: number[];
-}) => request<DispatchDetail>(`/trips/${tripId}/dispatch/policy`,
-  { method: 'PUT', body: JSON.stringify(input) });
-export const overrideTripStart = (tripId: number, expectedRevision: number, reason: string) =>
-  request<{ dispatch: DispatchDetail; simulation: unknown }>(`/trips/${tripId}/dispatch/override-start`,
-    { method: 'POST', body: JSON.stringify({ expectedRevision, reason }) });
-
-export const fetchDriverDispatch = (tripId: number, signal?: AbortSignal) =>
-  request<DriverDispatchDetail>(`/driver/trips/${tripId}/dispatch`, { signal });
-export const readyForTrip = (tripId: number, expectedRevision: number) =>
-  request<DriverDispatchDetail>(`/driver/trips/${tripId}/dispatch/ready`,
-    { method: 'POST', body: JSON.stringify({ expectedRevision }) });
-export const reportUnavailable = (tripId: number, expectedRevision: number, reason: string) =>
-  request<{ tripId: number; state: string; revision: number }>(`/driver/trips/${tripId}/dispatch/unavailable`,
-    { method: 'POST', body: JSON.stringify({ expectedRevision, reason }) });
-export const fetchDispatchOffers = (signal?: AbortSignal) =>
-  request<DispatchOffer[]>('/driver/dispatch/offers', { signal });
 export const fetchDriverAssignmentRequests = (signal?: AbortSignal) =>
   request<DriverAssignmentRequest[]>('/driver/assignment-requests', { signal });
 export const acceptDriverAssignmentRequest = (requestId: string) =>
@@ -62,14 +41,6 @@ export const declineDriverAssignmentRequest = (requestId: string, reason: string
     `/driver/assignment-requests/${encodeURIComponent(requestId)}/decline`,
     { method: 'POST', body: JSON.stringify({ reason }) },
   );
-export const acceptDispatchOffer = (offerId: string, expectedRevision: number) =>
-  request<{ tripId: number; status: 'ACCEPTED'; dispatch: DriverDispatchDetail }>(
-    `/driver/dispatch/offers/${encodeURIComponent(offerId)}/accept`,
-    { method: 'POST', body: JSON.stringify({ expectedRevision }) });
-export const declineDispatchOffer = (offerId: string, expectedRevision: number, reason?: string) =>
-  request<{ tripId: number; status: 'DECLINED' }>(
-    `/driver/dispatch/offers/${encodeURIComponent(offerId)}/decline`,
-    { method: 'POST', body: JSON.stringify({ expectedRevision, reason: reason || null }) });
 export const fetchDispatchInbox = (signal?: AbortSignal) =>
   request<DriverDispatchInboxItem[]>('/driver/dispatch/inbox?limit=50', { signal });
 export const readDispatchInboxItem = (id: number) =>

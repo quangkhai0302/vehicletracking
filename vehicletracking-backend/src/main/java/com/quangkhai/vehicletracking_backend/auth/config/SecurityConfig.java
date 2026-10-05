@@ -105,6 +105,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/auth/csrf").permitAll()
                         .requestMatchers("/api/v1/auth/register-admin").permitAll()
+                        .requestMatchers("/api/v1/auth/change-password").hasRole("DRIVER")
                         .requestMatchers("/api/v1/auth/**").authenticated()
                         .requestMatchers("/api/v1/driver/**").hasRole("DRIVER")
                         .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
@@ -126,19 +127,22 @@ public class SecurityConfig {
         private final Long driverId;
         private final String driverName;
         private final boolean active;
+        private final boolean passwordChangeRequired;
 
         private UserAccountPrincipal(long accountId, String username, String passwordHash,
                                      com.quangkhai.vehicletracking_backend.auth.entity.UserRole role,
-                                     Long driverId, String driverName, boolean active) {
+                                     Long driverId, String driverName, boolean active, boolean passwordChangeRequired) {
             this.accountId = accountId; this.username = username; this.passwordHash = passwordHash;
             this.role = role; this.driverId = driverId; this.driverName = driverName; this.active = active;
+            this.passwordChangeRequired = passwordChangeRequired;
         }
 
         static UserAccountPrincipal from(UserAccountEntity account) {
             boolean active = account.isActive() && (account.getDriver() == null || account.getDriver().isActive());
             return new UserAccountPrincipal(account.getId(), account.getUsername(), account.getPasswordHash(),
                     account.getRole(), account.getDriver() == null ? null : account.getDriver().getId(),
-                    account.getDriver() == null ? null : account.getDriver().getFullName(), active);
+                    account.getDriver() == null ? null : account.getDriver().getFullName(), active,
+                    account.isPasswordChangeRequired());
         }
 
         public long accountId() { return accountId; }
@@ -146,6 +150,7 @@ public class SecurityConfig {
         public com.quangkhai.vehicletracking_backend.auth.entity.UserRole role() { return role; }
         public Long driverId() { return driverId; }
         public String driverName() { return driverName; }
+        public boolean passwordChangeRequired() { return passwordChangeRequired; }
         @Override public String getUsername() { return username; }
         @Override public String getPassword() { return passwordHash; }
         @Override public java.util.Collection<org.springframework.security.core.GrantedAuthority> getAuthorities() {

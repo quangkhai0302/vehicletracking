@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { ArrowRight, LockKeyhole, Navigation, UserRound } from '@lucide/vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { useAuth } from '@/features/auth/composables/useAuth';
-import { roleHome } from '@/app/router/guards';
+import { authHome } from '@/app/router/guards';
 import AuthLayout from '@/app/layouts/AuthLayout.vue';
 import { notifyError } from '@/shared/notifications/toast';
 import '@/features/auth/styles/auth-pages.css';
@@ -21,7 +21,7 @@ async function submit() {
     await router.replace(
       typeof requested === 'string' && requested && next.role === 'ADMIN'
         ? requested
-        : roleHome(next.role),
+        : authHome(next),
     );
   } catch (reason) {
     notifyError(reason instanceof Error ? reason.message : 'Không thể đăng nhập.');

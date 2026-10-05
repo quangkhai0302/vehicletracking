@@ -2,11 +2,6 @@ package com.quangkhai.vehicletracking_backend.trip.service;
 
 import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
 import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
-import com.quangkhai.vehicletracking_backend.dispatch.repository.TripDispatchRepository;
-import com.quangkhai.vehicletracking_backend.dispatch.repository.TripDispatchEventRepository;
-import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchStartGuard;
-import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchLifecycleService;
-import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchAvailabilityService;
 import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
 import com.quangkhai.vehicletracking_backend.trip.dto.*;
 import com.quangkhai.vehicletracking_backend.trip.entity.*;
@@ -47,11 +42,6 @@ class TripServiceTest {
     @Mock RouteRepository routes;
     @Mock TripScheduleRepository schedules;
     @Mock TripStopVisitRepository visits;
-    @Mock TripDispatchRepository dispatches;
-    @Mock TripDispatchEventRepository dispatchEvents;
-    @Mock DispatchStartGuard dispatchStartGuard;
-    @Mock DispatchLifecycleService dispatchLifecycle;
-    @Mock DispatchAvailabilityService dispatchAvailability;
     @Mock Clock operationsClock;
     @Mock ApplicationEventPublisher events;
     @InjectMocks TripService service;
@@ -123,6 +113,20 @@ class TripServiceTest {
         ReflectionTestUtils.setField(trip, "status", TripStatus.IN_PROGRESS);
         assertConflict(() -> service.unassignDriver(3L));
     }
+    @Test void assignDriver_rejectsDriverRunningAnotherTrip() {
+        var driver = new DriverEntity("Tài xế bận", "0901234567", "BUSY-10");
+        ReflectionTestUtils.setField(driver, "id", 10L);
+        var trip = new TripEntity(vehicle, route, departure, null);
+        ReflectionTestUtils.setField(trip, "id", 3L);
+        when(trips.findLockedById(3L)).thenReturn(Optional.of(trip));
+        when(vehicles.findLockedById(1L)).thenReturn(Optional.of(vehicle));
+        when(drivers.findLockedById(10L)).thenReturn(Optional.of(driver));
+        when(trips.existsByDriverIdAndStatusAndIdNot(10L, TripStatus.IN_PROGRESS, 3L)).thenReturn(true);
+        assertConflict(() -> service.assignDriver(3L, 10L));
+        assertThat(trip.getDriver()).isNull();
+        verify(trips, never()).flush();
+    }
+
     @Test void assignDriver_allowsOverlappingScheduledTrip() {
         lockedTrip();
         var driver = new DriverEntity("Nguyễn Văn B", "0907654321", "B2-456");

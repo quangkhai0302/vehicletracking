@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -49,6 +50,7 @@ import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
+import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 
 @ExtendWith(MockitoExtension.class)
 class TripAssignmentServiceTest {
@@ -57,6 +59,7 @@ class TripAssignmentServiceTest {
     @Mock TripAssignmentRequestRepository requests;
     @Mock TripRepository trips;
     @Mock DriverRepository drivers;
+    @Mock VehicleRepository vehicles;
     @Mock UserAccountRepository accounts;
     @Mock DriverDispatchInboxRepository inbox;
     @Mock TripNotificationRepository notifications;
@@ -72,7 +75,7 @@ class TripAssignmentServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TripAssignmentService(requests, trips, drivers, accounts, inbox, notifications,
+        service = new TripAssignmentService(requests, trips, drivers, vehicles, accounts, inbox, notifications,
                 availability, Clock.fixed(NOW, ZoneOffset.UTC));
         vehicle = new VehicleEntity("51B12345", "Xe A", null);
         ReflectionTestUtils.setField(vehicle, "id", 3L);
@@ -89,6 +92,7 @@ class TripAssignmentServiceTest {
         trip = new TripEntity(vehicle, route, NOW.plusSeconds(3600));
         ReflectionTestUtils.setField(trip, "id", 101L);
         lenient().when(inbox.existsByDedupeKey(anyString())).thenReturn(false);
+        lenient().when(vehicles.findLockedById(3L)).thenReturn(Optional.of(vehicle));
     }
 
     @Test
@@ -101,8 +105,7 @@ class TripAssignmentServiceTest {
                 .thenReturn(Optional.of(oldRequest));
         when(requests.findAllByCandidateDriverIdAndStatusOrderByRequestedAtDescIdDesc(eq(driverB.getId()),
                 eq(TripAssignmentStatus.PENDING), any())).thenReturn(List.of());
-        when(availability.driverReservedForAuto(anyLong(), any(), anyLong(), eq(trip.getId()))).thenReturn(false);
-        when(availability.driverAvailable(eq(driverB.getId()), eq(trip), anyLong(), eq(false))).thenReturn(true);
+        when(availability.driverAvailable(eq(driverB.getId()), eq(trip), anyLong())).thenReturn(true);
         when(requests.saveAndFlush(any(TripAssignmentRequestEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -110,7 +113,10 @@ class TripAssignmentServiceTest {
 
         assertThat(oldRequest.getStatus()).isEqualTo(TripAssignmentStatus.CANCELLED);
         assertThat(replacement.getStatus()).isEqualTo(TripAssignmentStatus.PENDING);
-        InOrder order = inOrder(requests);
+        InOrder order = inOrder(vehicles, drivers, availability, requests);
+        order.verify(vehicles).findLockedById(vehicle.getId());
+        order.verify(drivers).findLockedById(driverB.getId());
+        order.verify(availability).driverAvailable(driverB.getId(), trip, route.getEstimatedTripDurationSeconds());
         order.verify(requests).flush();
         order.verify(requests).saveAndFlush(any(TripAssignmentRequestEntity.class));
         verify(inbox).save(argThat(item -> item.getKind() == DriverInboxKind.DIRECT_ASSIGNMENT_REQUESTED
@@ -127,21 +133,51 @@ class TripAssignmentServiceTest {
         when(drivers.findLockedById(driverA.getId())).thenReturn(Optional.of(driverA));
         when(requests.findLockedById(request.getId())).thenReturn(Optional.of(request));
         when(accounts.existsActiveDriverAccount(driverA.getId())).thenReturn(true);
-        when(availability.driverReservedForAuto(driverA.getId(), trip.getScheduledDepartureAt(),
-                route.getEstimatedTripDurationSeconds(), trip.getId())).thenReturn(false);
-        when(availability.driverAvailable(driverA.getId(), trip, route.getEstimatedTripDurationSeconds(), true))
+        when(availability.driverAvailable(driverA.getId(), trip, route.getEstimatedTripDurationSeconds()))
                 .thenReturn(true);
-        when(availability.vehicleAvailable(vehicle.getId(), trip, route.getEstimatedTripDurationSeconds(), true))
+        when(availability.vehicleAvailable(vehicle.getId(), trip, route.getEstimatedTripDurationSeconds()))
                 .thenReturn(true);
 
         var result = service.accept(principal, request.getId());
 
         assertThat(result.status()).isEqualTo(TripAssignmentStatus.ACCEPTED);
         assertThat(trip.getDriver()).isSameAs(driverA);
-        verify(availability).vehicleAvailable(vehicle.getId(), trip, route.getEstimatedTripDurationSeconds(), true);
+        InOrder locks = inOrder(trips, vehicles, drivers, requests, availability);
+        locks.verify(trips).findLockedById(trip.getId());
+        locks.verify(vehicles).findLockedById(vehicle.getId());
+        locks.verify(drivers).findLockedById(driverA.getId());
+        locks.verify(requests).findLockedById(request.getId());
+        locks.verify(availability).driverAvailable(driverA.getId(), trip, route.getEstimatedTripDurationSeconds());
+        verify(availability).vehicleAvailable(vehicle.getId(), trip, route.getEstimatedTripDurationSeconds());
         verify(trips).flush();
         verify(inbox).save(argThat(item -> item.getKind() == DriverInboxKind.DIRECT_ASSIGNMENT_ACCEPTED
                 && item.getAssignmentRequestId().equals(request.getId())));
+    }
+
+    @Test
+    void acceptRejectsConflictingVehicleWithoutChangingAssignment() {
+        var request = request(driverA);
+        when(requests.findById(request.getId())).thenReturn(Optional.of(request));
+        when(trips.findLockedById(trip.getId())).thenReturn(Optional.of(trip));
+        when(drivers.findLockedById(driverA.getId())).thenReturn(Optional.of(driverA));
+        when(requests.findLockedById(request.getId())).thenReturn(Optional.of(request));
+        when(accounts.existsActiveDriverAccount(driverA.getId())).thenReturn(true);
+        when(availability.driverAvailable(driverA.getId(), trip, route.getEstimatedTripDurationSeconds()))
+                .thenReturn(true);
+        // The vehicle is reserved by another overlapping trip.
+        when(availability.vehicleAvailable(vehicle.getId(), trip, route.getEstimatedTripDurationSeconds()))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> service.accept(principal(driverA.getId()), request.getId()))
+                .isInstanceOfSatisfying(ResponseStatusException.class, error -> {
+                    assertThat(error.getStatusCode().value()).isEqualTo(409);
+                    assertThat(error.getBody().getProperties()).containsEntry("code", "ASSIGNMENT_RESOURCE_CONFLICT");
+                });
+
+        assertThat(trip.getDriver()).isNull();
+        assertThat(request.getStatus()).isEqualTo(TripAssignmentStatus.PENDING);
+        verify(trips, never()).flush();
+        verifyNoInteractions(inbox);
     }
 
     @Test

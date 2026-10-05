@@ -24,7 +24,6 @@ import type { RouteDraftStop } from '@/features/routes/types/route';
 import type { Station, StationFormState } from '@/features/stations/types/station';
 
 vi.mock('@/features/routes/api/routes', () => ({ shapeRoute: vi.fn() }));
-
 const stamp = '2026-09-22T01:00:00Z';
 const trip: TripSummary = {
   id: 1,
@@ -333,6 +332,7 @@ test('simulator panel keeps GPS exclusion, connection gating and speed command p
     },
   });
   disposals.push(() => wrapper.unmount());
+  await flushPromises();
   await wrapper.get('.play-button').trigger('click');
   expect(command).toHaveBeenCalledWith('play');
   await wrapper.setProps({
@@ -587,6 +587,8 @@ test('completed simulator trip can be prepared for replay from the operations ve
   const completedTrip: TripSummary = {
     ...trip,
     status: 'COMPLETED',
+    startedAt: stamp,
+    endedAt: stamp,
     driver: {
       id: 1,
       fullName: 'Fixture Driver',
@@ -664,6 +666,7 @@ test('completed simulator trip can be prepared for replay from the operations ve
   expect(wrapper.find('.tracking-vehicle-start').text()).toContain('Mô phỏng lại');
   await wrapper.get('.tracking-vehicle-replay').trigger('click');
   expect(wrapper.find('.replay-confirm').exists()).toBe(true);
+  await flushPromises();
   await wrapper.get('.confirm-replay').trigger('click');
   await flushPromises();
 

@@ -1,6 +1,7 @@
 import type { TripSummary } from '@/features/fleet/types/fleet';
 
-/** Backend uses UTC instants; forms and labels use the browser's local timezone. */
+const FLEET_TIMEZONE = 'Asia/Ho_Chi_Minh';
+/** Backend uses UTC instants; labels use the fixed business timezone. */
 export const displayTripTime = (value: string | null) =>
   value
     ? new Date(value).toLocaleString('vi-VN', {
@@ -9,6 +10,7 @@ export const displayTripTime = (value: string | null) =>
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        timeZone: FLEET_TIMEZONE,
       })
     : '—';
 
