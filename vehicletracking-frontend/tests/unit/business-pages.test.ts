@@ -219,7 +219,7 @@ test('reports reject incomplete dates without HTTP and can reset/retry an API fa
   expect(notifyError).toHaveBeenCalledWith('Fixture unavailable');
   await wrapper.get('.reports-refresh').trigger('click');
   await flushPromises();
-  expect(wrapper.findAll('.reports-metric')).toHaveLength(7);
+  expect(wrapper.findAll('.reports-metric')).toHaveLength(6);
 });
 
 test('user creation only selects an available driver and shows generated credentials', async () => {

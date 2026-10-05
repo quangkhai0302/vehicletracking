@@ -3,15 +3,12 @@ import { computed, ref, shallowRef, watch } from 'vue';
 import {
   AlertTriangle,
   BarChart3,
-  BusFront,
   CalendarRange,
   CheckCircle2,
   Clock3,
-  Gauge,
   MapPinned,
   RefreshCw,
   Route,
-  UserRound,
 } from '@lucide/vue';
 import { fetchDrivers, fetchFleetVehicles } from '@/features/fleet/api/fleet';
 import { fetchOperationalReport } from '@/features/reports/api/reports';

@@ -117,3 +117,25 @@ npm run test:unit -- tests/unit/business-pages.test.ts -t schedule
 - Ảnh đã xem trực tiếp: [desktop một lịch](verification/artifacts/schedule-readability-1440.png), [mobile nhiều lịch](verification/artifacts/schedule-readability-390.png).
 
 `git status` được kiểm tra trước/sau; không commit/push, không đọc giá trị `.env`. Không chạy backend tests vì không thay backend. Follow-up UI đã được kiểm chứng trong trình duyệt; toàn frontend chưa đạt quality gate do các lỗi trang Báo cáo nêu trên.
+
+
+## Follow-up 2026-10-05 — Sửa lỗi trang Báo cáo chặn deploy
+
+Áp dụng quy trình rút gọn Survey → Plan ngắn → Implement → Verify cho yêu cầu sửa lỗi TS6133 khi deploy. Base commit trước sửa: d9c05325; working tree ban đầu sạch.
+
+Survey: `vehicletracking-frontend/src/pages/ReportsPage.vue` vẫn import BusFront/Gauge/UserRound, nhưng Gauge không còn metric sử dụng và BusFront/UserRound chỉ xuất hiện trong template đã comment. Trang hiện render sáu metric; `vehicletracking-frontend/tests/unit/business-pages.test.ts`, reports reject incomplete dates without HTTP and can reset/retry an API failure, vẫn kỳ vọng bảy. `.github/workflows/ci-cd.yml` chạy lint → typecheck → unit → motion → build, nên cả typecheck và test cũ sẽ chặn pipeline.
+
+Plan/implementation: bỏ đúng ba import thừa; cập nhật kỳ vọng số metric từ7 về6 theo giao diện hiện có. Không đổi nội dung/logic trang, API, backend hoặc workflow. Chạy đủ các frontend checks của CI bằng Node24.16.0 tại vehicletracking-frontend.
+
+| Lệnh | Exit | Kết quả |
+|---|---:|---|
+| npm run lint | 0 | Pass |
+| npm run typecheck | 0 | Không còn TS6133 |
+| npm run test:unit | 0 | 231/231tests, 28/28files pass |
+| npm run test:motion | 0 | 5/5pass |
+| npm run build | 0 | Production build thành công; cảnh báo chunk529.34kB có sẵn |
+| git diff --check | 0 | Pass |
+
+Các lệnh dùng `PATH=/home/khainq/.nvm/versions/node/v24.16.0/bin:$PATH`. Logs: `/tmp/vehicletracking-reports-deploy-{lint,typecheck,unit,motion,build}.log`. Đây là kiểm chứng local các bước frontend CI, chưa chạy lại workflow trên GitHub hoặc deploy production. Không chạy backend test vì không đổi backend; không mở/in giá trị secret từ .env, không commit/push.
+
+Các lỗi ReportsPage từng ghi trong các follow-up trước đã được xử lý tại lượt này; giữ nội dung trước đó làm evidence lịch sử.

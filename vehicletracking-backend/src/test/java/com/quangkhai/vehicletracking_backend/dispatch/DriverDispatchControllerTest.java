@@ -1,21 +1,20 @@
 package com.quangkhai.vehicletracking_backend.dispatch;
 
-import com.quangkhai.vehicletracking_backend.auth.config.*;
-import com.quangkhai.vehicletracking_backend.auth.controller.AuthController;
-import com.quangkhai.vehicletracking_backend.auth.entity.UserRole;
-import com.quangkhai.vehicletracking_backend.auth.repository.UserAccountRepository;
-import com.quangkhai.vehicletracking_backend.auth.service.UserAccountService;
-import com.quangkhai.vehicletracking_backend.config.CorsProperties;
-import com.quangkhai.vehicletracking_backend.dispatch.entity.*;
-import com.quangkhai.vehicletracking_backend.dispatch.service.*;
-import com.quangkhai.vehicletracking_backend.driverportal.controller.DriverDispatchController;
-import jakarta.servlet.http.Cookie;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -23,10 +22,18 @@ import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import java.util.List;
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import com.quangkhai.vehicletracking_backend.auth.config.SecurityConfig;
+import com.quangkhai.vehicletracking_backend.auth.config.SessionAccountValidationFilter;
+import com.quangkhai.vehicletracking_backend.auth.controller.AuthController;
+import com.quangkhai.vehicletracking_backend.auth.entity.UserRole;
+import com.quangkhai.vehicletracking_backend.auth.repository.UserAccountRepository;
+import com.quangkhai.vehicletracking_backend.auth.service.UserAccountService;
+import com.quangkhai.vehicletracking_backend.config.CorsProperties;
+import com.quangkhai.vehicletracking_backend.dispatch.service.DriverDispatchService;
+import com.quangkhai.vehicletracking_backend.driverportal.controller.DriverDispatchController;
+
+import jakarta.servlet.http.Cookie;
 
 @WebMvcTest(controllers = {DriverDispatchController.class, AuthController.class},
         properties = {"auth.security-enabled=true", "app.cors.allowed-origins=http://localhost:5173"})
