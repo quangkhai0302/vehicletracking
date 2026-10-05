@@ -581,32 +581,8 @@
 }
 
 .business-ui .user-identity {
-  display: flex;
+  display: block;
   min-width: 0;
-  align-items: center;
-  gap: 12px;
-}
-
-.business-ui .user-avatar {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 12px;
-}
-
-.business-ui .user-avatar.admin {
-  color: #6d28d9;
-  background: #ede9fe;
-  border-color: #ddd6fe;
-}
-
-.business-ui .user-avatar.driver {
-  color: #0369a1;
-  background: #e0f2fe;
-  border-color: #bae6fd;
 }
 
 .business-ui .user-account-copy,

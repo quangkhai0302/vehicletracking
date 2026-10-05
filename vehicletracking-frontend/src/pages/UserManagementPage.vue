@@ -275,16 +275,6 @@ async function submitPasswordReset() {
               class="user-identity"
               role="cell"
             >
-              <span :class="`user-avatar ${account.role.toLowerCase()}`">
-                <ShieldCheck
-                  v-if="account.role === 'ADMIN'"
-                  :size="19"
-                />
-                <UserRound
-                  v-else
-                  :size="22"
-                />
-              </span>
               <div class="user-account-copy">
                 <strong>{{ account.username }}</strong>
                 <small>{{

@@ -287,7 +287,7 @@ test('user page visually separates roles and locked access states', async () => 
   expect(wrapper.get('.users-overview-card.locked strong').text()).toBe('1');
   expect(wrapper.get('.user-role.admin').text()).toContain('Quản trị viên');
   expect(wrapper.findAll('.user-role.driver')).toHaveLength(2);
-  expect(wrapper.findAll('.user-avatar.driver .lucide-user-round')).toHaveLength(2);
+  expect(wrapper.findAll('.user-role.driver .lucide-user-round')).toHaveLength(2);
   expect(wrapper.find('input[type=file]').exists()).toBe(false);
   expect(wrapper.find('.user-identity img').exists()).toBe(false);
   expect(wrapper.get('.user-row.is-locked').attributes('data-active')).toBe('false');
