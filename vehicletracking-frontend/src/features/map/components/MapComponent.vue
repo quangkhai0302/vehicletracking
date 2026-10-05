@@ -46,6 +46,7 @@ import {
   MapPin,
   PanelLeftClose,
   Play,
+  SlidersHorizontal,
   X,
 } from '@lucide/vue';
 import SimulatorPanel from '@/features/simulation/components/SimulatorPanel.vue';
@@ -80,6 +81,7 @@ const workspace = ref<WorkspaceMode>(props.initialWorkspace),
 const activePanel = ref<'context' | 'simulator' | 'alerts' | null>('context'),
   drawerOpen = ref(props.initialWorkspace !== 'tracking'),
   sheetExpanded = ref(false);
+const vehicleView = ref<'stops' | 'controls'>('stops');
 const simulatorExpanded = ref(true),
   alertsOpen = ref(false),
   alertCloseButtonRef = shallowRef<HTMLButtonElement | null>(null);
@@ -97,6 +99,7 @@ watch(
     workspace.value = mode;
     drawerOpen.value = mode !== 'tracking';
     activePanel.value = mode === 'simulation' ? 'simulator' : 'context';
+    vehicleView.value = mode === 'simulation' ? 'controls' : 'stops';
     if (mode === 'simulation') simulatorExpanded.value = true;
   },
   { immediate: true },
@@ -240,6 +243,7 @@ const selectMode = (mode: WorkspaceMode) => {
   sheetExpanded.value = false;
   drawerOpen.value = mode !== 'tracking';
   activePanel.value = mode === 'simulation' ? 'simulator' : 'context';
+  vehicleView.value = mode === 'simulation' ? 'controls' : 'stops';
   if (mode === 'simulation') simulatorExpanded.value = true;
 };
 const openPanel = (panel: 'context' | 'simulator' | 'alerts') => {
@@ -328,6 +332,9 @@ const selectedTripId = computed(
         selectedWaitingVehicle.value?.trip.id ??
         (simulator.trip?.vehicleId === selectedVehicleId.value ? simulator.trip.id : null))),
 );
+watch(selectedTripId, () => {
+  vehicleView.value = workspace.value === 'simulation' ? 'controls' : 'stops';
+});
 const selectedTrip = computed(
   () => live.snapshot?.trips.find((trip) => trip.id === selectedTripId.value) ?? null,
 );
@@ -530,7 +537,8 @@ const startSelectedSimulation = (id: number) => {
     simulator.busy
   )
     return;
-  openSimulation(id);
+  if (simulator.tripId !== id) simulator.select(id);
+  vehicleView.value = 'controls';
   void simulator.command('play');
 };
 const replaySelectedSimulation = async (id: number) => {
@@ -543,7 +551,7 @@ const replaySelectedSimulation = async (id: number) => {
     return false;
   if (simulator.tripId !== id) simulator.select(id);
   const replayed = await simulator.command('reset');
-  if (replayed) selectMode('simulation');
+  if (replayed) vehicleView.value = 'controls';
   return replayed;
 };
 const selectSimulationVehicle = (tripId: number) => {
@@ -687,6 +695,12 @@ const collapseContext = () => {
   rootRef.value?.querySelector<HTMLButtonElement>('.panel-launchers button')?.focus();
 };
 const showSimulatorRoute = () => {
+  if (workspace.value === 'tracking') {
+    if (plannedRouteBounds.value) fitBounds(plannedRouteBounds.value);
+    else if (selectedVehicle.value)
+      focusLocation([selectedVehicle.value.latitude, selectedVehicle.value.longitude], 16);
+    return;
+  }
   workspace.value = 'simulation';
   props.onWorkspaceChange?.('simulation');
   if (simulator.trip) {
@@ -928,6 +942,29 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
         </div>
       </div>
       <div
+        v-if="(workspace === 'tracking' || workspace === 'simulation') && selectedTrip"
+        class="planning-tabs tracking-panel-switch"
+        role="group"
+        aria-label="Nội dung xe được chọn"
+      >
+        <button
+          type="button"
+          :aria-pressed="vehicleView === 'stops'"
+          aria-controls="tracking-stops-panel"
+          @click="vehicleView = 'stops'"
+        >
+          <List :size="15" />Danh sách trạm
+        </button>
+        <button
+          type="button"
+          :aria-pressed="vehicleView === 'controls'"
+          aria-controls="vehicle-controls-panel"
+          @click="vehicleView = 'controls'"
+        >
+          <SlidersHorizontal :size="15" />Bảng điều khiển
+        </button>
+      </div>
+      <div
         class="planning-tabs"
         :hidden="workspace !== 'routes'"
         aria-label="Dữ liệu lộ trình"
@@ -945,8 +982,11 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
         </button>
       </div>
       <div
+        id="tracking-stops-panel"
         class="context-content"
-        :hidden="workspace !== 'tracking'"
+        :hidden="
+          (workspace !== 'tracking' && workspace !== 'simulation') || vehicleView !== 'stops'
+        "
       >
         <TrackingVehicleCard
           :trip="selectedTrip"
@@ -962,8 +1002,11 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
         />
       </div>
       <div
+        id="vehicle-controls-panel"
         class="context-content simulator-workspace"
-        :hidden="workspace !== 'simulation'"
+        :hidden="
+          (workspace !== 'tracking' && workspace !== 'simulation') || vehicleView !== 'controls'
+        "
       >
         <SimulatorPanel
           :simulator="simulator"
@@ -972,7 +1015,8 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
           :connection="live.connection"
           :connection-error="live.error"
           :on-reconnect="live.reconnect"
-          :fleet="simulationFleet"
+          :show-trip-selector="workspace === 'simulation'"
+          :fleet="workspace === 'simulation' ? simulationFleet : undefined"
           :on-select-vehicle="selectSimulationVehicle"
           :on-fit-fleet="fitSimulationFleet"
           :on-manage-fleet="() => selectMode('tracking')"
@@ -1270,7 +1314,22 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
 </template>
 
 <style scoped>
+.tracking-panel-switch {
+  flex-shrink: 0;
+}
+.tracking-panel-switch button {
+  min-width: 0;
+  min-height: 40px;
+  white-space: nowrap;
+}
 @media (max-width: 899px), (max-height: 650px) {
+  .map-first:is([data-workspace='tracking'], [data-workspace='simulation']) .context-drawer {
+    z-index: 1210;
+  }
+  .map-first:is([data-workspace='tracking'], [data-workspace='simulation'])[data-drawer-open='true']
+    .live-follow {
+    display: none;
+  }
   /* A visible station sheet must stay above map controls, including its save action. */
   .context-drawer.station-form-open {
     z-index: 1060;

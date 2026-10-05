@@ -13,6 +13,11 @@ import { fetchOperations, subscribeOperations } from '@/features/tracking/api/op
 
 vi.mock('@/features/tracking/api/operations', () => ({ fetchOperations: vi.fn(), subscribeOperations: vi.fn() }));
 
+// Navigation tests isolate browser map resources; real Leaflet behavior is covered in route-map-detail.test.ts.
+vi.mock('@/features/routes/components/RouteMapCanvas.vue', () => ({
+  default: { name: 'RouteMapCanvas', template: '<div data-route-map-fixture />' },
+}));
+
 vi.mock('@/features/auth/api/auth', () => ({ changePassword: vi.fn(), fetchCurrentUser: vi.fn(), login: vi.fn(), logout: vi.fn(), registerAdmin: vi.fn() }));
 const lifecycle = vi.hoisted(() => ({ mounted: vi.fn(), unmounted: vi.fn() }));
 vi.mock('@/features/map/components/MapComponent.vue', async () => {

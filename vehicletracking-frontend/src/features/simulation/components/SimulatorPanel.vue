@@ -32,20 +32,24 @@ const SimulationFleetList = defineAsyncComponent({
   loadingComponent: defineComponent({ setup: () => () => h('p', 'Đang mở đội xe…') }),
 });
 
-const props = defineProps<{
-  simulator: ReturnType<typeof useSimulator>;
-  snapshot: OperationsSnapshot | null;
-  connection: StreamConnection;
-  connectionError: string | null;
-  onReconnect: () => void;
-  onShowRoute: () => void;
-  now: number;
-  fleet?: ReturnType<typeof useSimulationFleet>;
-  onSelectVehicle?: (tripId: number) => void;
-  onFitFleet?: () => void;
-  onManageFleet?: () => void;
-  onShowStop?: (sequenceNumber: number) => void;
-}>();
+const props = withDefaults(
+  defineProps<{
+    simulator: ReturnType<typeof useSimulator>;
+    snapshot: OperationsSnapshot | null;
+    connection: StreamConnection;
+    connectionError: string | null;
+    onReconnect: () => void;
+    onShowRoute: () => void;
+    now: number;
+    fleet?: ReturnType<typeof useSimulationFleet>;
+    onSelectVehicle?: (tripId: number) => void;
+    onFitFleet?: () => void;
+    onManageFleet?: () => void;
+    onShowStop?: (sequenceNumber: number) => void;
+    showTripSelector?: boolean;
+  }>(),
+  { showTripSelector: true },
+);
 
 const confirm = ref<'stop' | 'reset' | null>(null);
 const trip = computed(() => props.simulator.trip);
@@ -174,6 +178,7 @@ const simulationStatusLabel = computed(() => {
 });
 const replayAllowed = computed(() => !!run.value && !usingGps.value);
 const routeMovementLabel = computed(() => {
+  if (usingGps.value) return active.value ? 'Đang theo dõi GPS trực tiếp' : 'Chuyến đã kết thúc';
   if (!run.value) return 'Sẵn sàng tại trạm đầu';
   if (frame.value?.finished) return 'Đã hoàn tất lộ trình';
   if (run.value.status === 'PAUSED') return 'Đang tạm dừng';
@@ -229,7 +234,10 @@ const confirmCommand = () => {
       :on-manage="onManageFleet"
     />
 
-    <label class="simulation-select">
+    <label
+      v-if="showTripSelector"
+      class="simulation-select"
+    >
       <span>Xe và chuyến đang điều khiển</span>
       <select
         aria-label="Chọn chuyến mô phỏng"

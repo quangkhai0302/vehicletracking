@@ -86,7 +86,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', pointerDown));
                 type="checkbox"
                 :checked="showRoutes"
                 @change="onToggleRoutes"
-              /><span class="gm-overlay-name">Tuyến &amp; điểm nháp</span></label
+              /><span class="gm-overlay-name">Tuyến đường</span></label
             >
           </div>
         </div>

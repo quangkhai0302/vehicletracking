@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onScopeDispose, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   ArrowRight,
@@ -18,6 +18,7 @@ import {
 import PageHeading from '@/shared/components/PageHeading.vue';
 import SidePanel from '@/shared/components/SidePanel.vue';
 import RouteDeactivateConfirm from '@/features/routes/components/RouteDeactivateConfirm.vue';
+import RouteMapDetail from '@/features/routes/components/RouteMapDetail.vue';
 import {
   createRoute,
   deactivateRoute,
@@ -135,16 +136,23 @@ function formatDistance(meters: number) {
 }
 
 let detailRequestId = 0;
+let detailAbort: AbortController | null = null;
+onScopeDispose(() => {
+  detailRequestId++;
+  detailAbort?.abort();
+});
 let openedRouteId: number | null = null;
 async function loadDetailById(id: number) {
   const requestId = ++detailRequestId;
+  detailAbort?.abort();
+  detailAbort = new AbortController();
   openedRouteId = id;
   detailDrawerOpen.value = true;
   loadingDetail.value = true;
   viewingRoute.value = null;
   detailError.value = null;
   try {
-    const detail = await fetchRouteById(id);
+    const detail = await fetchRouteById(id, detailAbort.signal);
     if (requestId === detailRequestId) viewingRoute.value = detail;
   } catch (e) {
     if (requestId === detailRequestId)
@@ -162,6 +170,7 @@ watch(
     if (id !== null && openedRouteId !== id) void loadDetailById(id);
     if (id === null && openedRouteId !== null) {
       detailRequestId++;
+      detailAbort?.abort();
       openedRouteId = null;
       detailDrawerOpen.value = false;
     }
@@ -170,6 +179,7 @@ watch(
 );
 function closeDetail() {
   detailRequestId++;
+  detailAbort?.abort();
   openedRouteId = null;
   detailDrawerOpen.value = false;
   detailError.value = null;
@@ -182,6 +192,36 @@ function createTripFromRoute() {
       path: '/trips',
       query: { routeId: String(viewingRoute.value.id), create: '1' },
     });
+}
+
+function savedRoute(detail: RouteDetail) {
+  viewingRoute.value = detail;
+  openedRouteId = detail.id;
+  const current = routes.value.find((route) => route.id === detail.id);
+  const summary: RouteSummary = {
+    id: detail.id,
+    name: detail.name,
+    transportMode: detail.transportMode,
+    routingProvider: detail.routingProvider,
+    startStationName: detail.stops[0]?.stationName || '',
+    endStationName: detail.stops[detail.stops.length - 1]?.stationName || '',
+    stopCount: detail.stops.length,
+    totalDistanceMeters: detail.totalDistanceMeters,
+    estimatedTravelDurationSeconds: detail.estimatedTravelDurationSeconds,
+    totalDwellDurationSeconds: detail.totalDwellDurationSeconds,
+    estimatedTripDurationSeconds: detail.estimatedTripDurationSeconds,
+    calculatedAt: detail.calculatedAt,
+    createdAt: detail.createdAt,
+    active: current?.active ?? true,
+  };
+  if (current)
+    routes.value = routes.value.map((route) => (route.id === detail.id ? summary : route));
+  else routes.value.unshift(summary);
+  void router.replace({
+    path: '/routes',
+    query: { ...location.query, routeId: String(detail.id) },
+  });
+  notifySuccess(`Đã lưu tuyến đường “${detail.name}”.`);
 }
 
 function openCreate() {
@@ -449,9 +489,9 @@ async function confirmDeactivate() {
               >
                 <td data-label="Tuyến đường">
                   <div class="management-identity route-name-cell">
-                    <div class="management-avatar route-icon-chip">
+                    <span class="management-avatar route-icon-chip">
                       <RouteIcon :size="16" />
-                    </div>
+                    </span>
                     <div>
                       <strong>{{ rt.name }}</strong>
                       <small class="route-id-code">Mã tuyến #{{ rt.id }}</small>
@@ -520,116 +560,22 @@ async function confirmDeactivate() {
       </div>
     </section>
 
-    <!-- SidePanel Route Detail View -->
-    <SidePanel
+    <RouteMapDetail
       v-if="detailDrawerOpen"
-      class-name="schedule-editor"
-      :label="viewingRoute?.name || 'Chi tiết tuyến đường'"
-      :busy="loadingDetail"
+      :key="requestedRouteId ?? 'detail'"
+      :route="viewingRoute"
+      :loading="loadingDetail"
+      :error="detailError"
+      :editable="routes.some((route) => route.id === viewingRoute?.id && route.active !== false)"
       :on-close="closeDetail"
-    >
-      <header>
-        <div>
-          <span>CHI TIẾT LỘ TRÌNH</span>
-          <h2>{{ viewingRoute?.name || 'Đang tải…' }}</h2>
-        </div>
-        <button
-          type="button"
-          aria-label="Đóng chi tiết"
-          @click="closeDetail"
-        >
-          <X :size="18" />
-        </button>
-      </header>
-
-      <div class="schedule-form-content">
-        <div
-          v-if="loadingDetail"
-          class="route-table-empty"
-        >
-          Đang tải dữ liệu lộ trình…
-        </div>
-        <div
-          v-else-if="viewingRoute"
-          class="route-detail-flow"
-        >
-          <!-- Summary chips -->
-          <div class="route-detail-summary-chips">
-            <div class="detail-summary-item">
-              <span class="panel-eyebrow">TỔNG CỰ LY</span>
-              <strong>{{ formatDistance(viewingRoute.totalDistanceMeters) }}</strong>
-            </div>
-            <div class="detail-summary-item">
-              <span class="panel-eyebrow">DỰ KIẾN</span>
-              <strong>{{ formatDuration(viewingRoute.estimatedTripDurationSeconds) }}</strong>
-            </div>
-            <div class="detail-summary-item">
-              <span class="panel-eyebrow">SỐ TRẠM</span>
-              <strong>{{ viewingRoute.stops.length }} điểm</strong>
-            </div>
-          </div>
-
-          <!-- Stops Timeline List -->
-          <h3 class="route-timeline-heading">Thứ tự các điểm dừng</h3>
-          <div class="route-stops-timeline">
-            <div
-              v-for="(stop, index) in viewingRoute.stops"
-              :key="stop.sequenceNumber"
-              class="timeline-stop-item"
-            >
-              <div class="timeline-stop-marker">
-                <span class="stop-seq-number">{{ index + 1 }}</span>
-                <div
-                  v-if="index < viewingRoute.stops.length - 1"
-                  class="timeline-line"
-                />
-              </div>
-              <div class="timeline-stop-content">
-                <div class="timeline-stop-header">
-                  <strong>{{ stop.stationName }}</strong>
-                  <span
-                    class="stop-role-badge"
-                    :class="stop.role.toLowerCase()"
-                  >
-                    {{
-                      stop.role === 'START'
-                        ? 'ĐIỂM ĐẦU'
-                        : stop.role === 'END'
-                          ? 'ĐIỂM CUỐI'
-                          : 'TRẠM DỪNG'
-                    }}
-                  </span>
-                </div>
-                <div class="timeline-stop-meta">
-                  <small>Dừng đón/trả: {{ stop.dwellDurationSeconds }} giây</small>
-                  <small v-if="stop.distanceFromPreviousMeters > 0">
-                    Cách trạm trước: {{ formatDistance(stop.distanceFromPreviousMeters) }}
-                  </small>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <footer class="schedule-editor-footer">
-        <button
-          type="button"
-          class="schedule-button-secondary"
-          @click="closeDetail"
-        >
-          Đóng
-        </button>
-        <button
-          v-if="viewingRoute && routes.some((route) => route.id === viewingRoute?.id)"
-          type="button"
-          class="schedule-button-primary"
-          @click="createTripFromRoute"
-        >
-          Tạo chuyến từ tuyến này
-        </button>
-      </footer>
-    </SidePanel>
+      :on-retry="
+        () => {
+          if (openedRouteId !== null) void loadDetailById(openedRouteId);
+        }
+      "
+      :on-saved="savedRoute"
+      :on-create-trip="createTripFromRoute"
+    />
 
     <!-- SidePanel Create Route -->
     <SidePanel
@@ -1096,126 +1042,6 @@ async function confirmDeactivate() {
   color: #e11d48;
   background: #fff1f2;
   border-color: #fecdd3;
-}
-
-/* Detail Timeline */
-.route-detail-summary-chips {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  padding: 14px 16px;
-  background: #f8fafc;
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-}
-
-.detail-summary-item strong {
-  display: block;
-  font-size: 16px;
-  color: #0284c7;
-  margin-top: 4px;
-}
-
-.route-timeline-heading {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-top: 8px;
-}
-
-.route-stops-timeline {
-  display: flex;
-  flex-direction: column;
-}
-
-.timeline-stop-item {
-  display: flex;
-  gap: 14px;
-  position: relative;
-  padding-bottom: 20px;
-}
-
-.timeline-stop-item:last-child {
-  padding-bottom: 0;
-}
-
-.timeline-stop-marker {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 28px;
-  flex-shrink: 0;
-}
-
-.stop-seq-number {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #0284c7;
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
-  display: grid;
-  place-items: center;
-  z-index: 1;
-}
-
-.timeline-line {
-  position: absolute;
-  top: 24px;
-  bottom: 0;
-  left: 13px;
-  width: 2px;
-  background: #cbd5e1;
-}
-
-.timeline-stop-content {
-  flex: 1;
-  background: #ffffff;
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 10px 14px;
-}
-
-.timeline-stop-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.timeline-stop-header strong {
-  font-size: 13.5px;
-  color: var(--text-primary);
-}
-
-.stop-role-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.stop-role-badge.start {
-  color: #0284c7;
-  background: #e0f2fe;
-}
-
-.stop-role-badge.end {
-  color: #16a34a;
-  background: #dcfce7;
-}
-
-.stop-role-badge.stop {
-  color: #64748b;
-  background: #f1f5f9;
-}
-
-.timeline-stop-meta {
-  display: flex;
-  gap: 12px;
-  margin-top: 4px;
-  color: var(--text-muted);
 }
 
 /* Route Create Stops */

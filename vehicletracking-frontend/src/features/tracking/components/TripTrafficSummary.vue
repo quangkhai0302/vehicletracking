@@ -160,7 +160,7 @@ const movementState = computed(() => {
       v-if="view.delay !== null && view.delay >= 60"
       class="trip-traffic-delay"
     >
-      Chậm hơn khoảng {{ remainingTime(Math.ceil(view.delay)) }} so với tuyến đã lưu.
+      Chậm hơn khoảng {{ remainingTime(Math.ceil(view.delay)) }} so với thời gian dự kiến.
     </p>
     <p
       v-if="!sample"

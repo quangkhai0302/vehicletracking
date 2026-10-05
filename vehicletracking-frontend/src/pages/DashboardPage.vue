@@ -157,7 +157,7 @@ const metricCards = computed(() => [
     ></PageHeading>
     <div class="dashboard-section-label">
       <h3>Hoạt động đội xe</h3>
-      <span>Cập nhật mỗi 15 giây</span>
+      <!-- <span>Cập nhật mỗi 15 giây</span> -->
     </div>
     <section
       class="dashboard-metrics"

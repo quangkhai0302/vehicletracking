@@ -153,9 +153,9 @@ watch(
     }
     cleanup(() => {
       finishDrag?.();
+      layer.remove();
       layer.eachLayer((item) => item.off());
       layer.clearLayers();
-      layer.remove();
       renderer.remove();
     });
   },
@@ -183,16 +183,21 @@ const execute = async (action: 'preview' | 'save' | 'copy') => {
     if (alive) busy.value = false;
   }
 };
-const close = () => {
+let closeTarget = props.onClose;
+const requestClose = (target: () => void = props.onClose) => {
+  if (busy.value) return;
+  closeTarget = target;
   if (dirty.value) confirmClose.value = true;
-  else props.onClose();
+  else closeTarget();
 };
+const close = () => requestClose();
 const moveUp = (index: number) =>
   updatePoints((current) => {
     const next = [...current];
     [next[index - 1], next[index]] = [next[index], next[index - 1]];
     return next;
   });
+defineExpose({ requestClose, busy });
 </script>
 <template>
   <aside
@@ -298,9 +303,10 @@ const moveUp = (index: number) =>
       :on-close="
         () => {
           confirmClose = false;
+          closeTarget = onClose;
         }
       "
-      :on-confirm="onClose"
+      :on-confirm="() => closeTarget()"
     />
   </aside>
 </template>
