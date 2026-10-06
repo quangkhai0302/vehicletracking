@@ -73,7 +73,6 @@ const adminPaths = mapsOnly
         '/drivers',
         '/trips',
         '/schedules',
-        '/alerts',
         '/reports',
         '/users',
       ]
@@ -83,7 +82,6 @@ const adminPaths = mapsOnly
         '/drivers',
         '/trips',
         '/schedules',
-        '/alerts',
         '/reports',
         '/users',
         '/operations',
@@ -141,7 +139,7 @@ async function capture(name) {
   metrics[name] = await page.evaluate(() =>
     [
       ...document.querySelectorAll(
-        '.business-sidebar,.business-topbar,.business-content,.map-canvas,.workspace-context,.fleet-workspace,.management-table,dialog[open],.auth-card,.driver-portal',
+        '.business-sidebar,.business-topbar,.business-content,.admin-notification-trigger,.admin-notification-panel,.map-canvas,.workspace-context,.fleet-workspace,.management-table,dialog[open],.auth-card,.driver-portal',
       ),
     ].map((el) => {
       const { x, y, width, height } = el.getBoundingClientRect();
@@ -192,6 +190,12 @@ try {
       await visit(path);
       await capture(`${path.slice(1).replaceAll('/', '-')}-${width}`);
     }
+    if (!mapsOnly) {
+      state.role = 'ADMIN';
+      await visit('/dashboard?notifications=open');
+      await page.getByRole('dialog', { name: 'Thông báo', exact: true }).waitFor();
+      await capture(`admin-notifications-${width}`);
+    }
   }
   state.role = 'ADMIN';
   for (const [width, height] of businessOnly
@@ -214,6 +218,11 @@ try {
     )) {
       await visit(path);
       await capture(`${path.slice(1)}-${mode}`);
+    }
+    if (!mapsOnly) {
+      await visit('/dashboard?notifications=open');
+      await page.getByRole('dialog', { name: 'Thông báo', exact: true }).waitFor();
+      await capture(`admin-notifications-${mode}`);
     }
   }
   state.mode = 'data';

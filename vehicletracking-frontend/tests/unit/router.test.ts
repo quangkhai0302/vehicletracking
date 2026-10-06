@@ -11,50 +11,131 @@ import { fetchCurrentUser } from '@/features/auth/api/auth';
 import type { AuthUser } from '@/features/auth/types/auth';
 import { fetchOperations, subscribeOperations } from '@/features/tracking/api/operations';
 
-vi.mock('@/features/tracking/api/operations', () => ({ fetchOperations: vi.fn(), subscribeOperations: vi.fn() }));
+vi.mock('@/features/tracking/api/operations', () => ({
+  fetchOperations: vi.fn(),
+  subscribeOperations: vi.fn(),
+}));
 
 // Navigation tests isolate browser map resources; real Leaflet behavior is covered in route-map-detail.test.ts.
 vi.mock('@/features/routes/components/RouteMapCanvas.vue', () => ({
   default: { name: 'RouteMapCanvas', template: '<div data-route-map-fixture />' },
 }));
 
-vi.mock('@/features/auth/api/auth', () => ({ changePassword: vi.fn(), fetchCurrentUser: vi.fn(), login: vi.fn(), logout: vi.fn(), registerAdmin: vi.fn() }));
+vi.mock('@/features/auth/api/auth', () => ({
+  changePassword: vi.fn(),
+  fetchCurrentUser: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+  registerAdmin: vi.fn(),
+}));
+// Real notification HTTP/Teleport lifecycle is exercised in page-workflows.test.ts.
+vi.mock('@/features/reports/components/AdminNotificationBell.vue', () => ({
+  default: { template: '<button data-admin-notification-fixture aria-label="Thông báo admin" />' },
+}));
 const lifecycle = vi.hoisted(() => ({ mounted: vi.fn(), unmounted: vi.fn() }));
 vi.mock('@/features/map/components/MapComponent.vue', async () => {
   const { defineComponent, h, onMounted, onUnmounted } = await import('vue');
-  return { __esModule: true, default: defineComponent({ name: 'MapFixture', props: ['initialWorkspace', 'initialTripId', 'initialRevisionId', 'onComparisonClose', 'onWorkspaceChange'], setup(props) {
-    onMounted(lifecycle.mounted); onUnmounted(lifecycle.unmounted);
-    return () => h('div', { 'data-workspace': props.initialWorkspace, 'data-trip': props.initialTripId, 'data-revision': props.initialRevisionId }, [h('button', { onClick: () => props.onWorkspaceChange('simulation') }, 'Simulate'), h('button', { 'data-close-comparison': true, onClick: () => props.onComparisonClose() }, 'Exit comparison')]);
-  } }) };
+  return {
+    __esModule: true,
+    default: defineComponent({
+      name: 'MapFixture',
+      props: [
+        'initialWorkspace',
+        'initialTripId',
+        'initialRevisionId',
+        'onComparisonClose',
+        'onWorkspaceChange',
+      ],
+      setup(props) {
+        onMounted(lifecycle.mounted);
+        onUnmounted(lifecycle.unmounted);
+        return () =>
+          h(
+            'div',
+            {
+              'data-workspace': props.initialWorkspace,
+              'data-trip': props.initialTripId,
+              'data-revision': props.initialRevisionId,
+            },
+            [
+              h('button', { onClick: () => props.onWorkspaceChange('simulation') }, 'Simulate'),
+              h(
+                'button',
+                { 'data-close-comparison': true, onClick: () => props.onComparisonClose() },
+                'Exit comparison',
+              ),
+            ],
+          );
+      },
+    }),
+  };
 });
 vi.mock('@/features/fleet/components/FleetWorkspace.vue', async () => {
   const { defineComponent, h, getCurrentInstance } = await import('vue');
-  return { default: defineComponent({ props: ['initialTab', 'initialVehicleFilter', 'initialRouteId', 'initialTripId', 'openTripFromRoute', 'onSimulateTrip', 'onViewRoute'], setup(props) {
-    const instance = getCurrentInstance()!.uid;
-    return () => h('div', {
-      'data-fleet': props.initialTab,
-      'data-filter': props.initialVehicleFilter,
-      'data-route': props.initialRouteId,
-      'data-trip-id': props.initialTripId,
-      'data-open-route-trip': props.openTripFromRoute,
-      'data-instance': instance,
-    }, [
-      h('button', { 'data-simulate-trip': '42', onClick: () => props.onSimulateTrip(42) }, 'Mô phỏng chuyến 42'),
-      h('button', { 'data-view-route': '7', onClick: () => props.onViewRoute(7) }, 'Xem tuyến 7'),
-    ]);
-  } }) };
+  return {
+    default: defineComponent({
+      props: [
+        'initialTab',
+        'initialVehicleFilter',
+        'initialRouteId',
+        'initialTripId',
+        'openTripFromRoute',
+        'onSimulateTrip',
+        'onViewRoute',
+      ],
+      setup(props) {
+        const instance = getCurrentInstance()!.uid;
+        return () =>
+          h(
+            'div',
+            {
+              'data-fleet': props.initialTab,
+              'data-filter': props.initialVehicleFilter,
+              'data-route': props.initialRouteId,
+              'data-trip-id': props.initialTripId,
+              'data-open-route-trip': props.openTripFromRoute,
+              'data-instance': instance,
+            },
+            [
+              h(
+                'button',
+                { 'data-simulate-trip': '42', onClick: () => props.onSimulateTrip(42) },
+                'Mô phỏng chuyến 42',
+              ),
+              h(
+                'button',
+                { 'data-view-route': '7', onClick: () => props.onViewRoute(7) },
+                'Xem tuyến 7',
+              ),
+            ],
+          );
+      },
+    }),
+  };
 });
-const admin: AuthUser = { accountId: 1, username: 'admin.fixture', role: 'ADMIN', active: true, passwordChangeRequired: false, driverId: null, driverName: null };
+const admin: AuthUser = {
+  accountId: 1,
+  username: 'admin.fixture',
+  role: 'ADMIN',
+  active: true,
+  passwordChangeRequired: false,
+  driverId: null,
+  driverName: null,
+};
 const cleanups: (() => void)[] = [];
-const originalShowModal = Object.getOwnPropertyDescriptor(
-  HTMLDialogElement.prototype,
-  'showModal',
-);
+const originalShowModal = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
 const originalDialogClose = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close');
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(fetchCurrentUser).mockResolvedValue(admin);
-  vi.mocked(fetchOperations).mockResolvedValue({ serverTime: new Date().toISOString(), positions: [], trips: [], simulations: [], checkIns: [], notifications: [] });
+  vi.mocked(fetchOperations).mockResolvedValue({
+    serverTime: new Date().toISOString(),
+    positions: [],
+    trips: [],
+    simulations: [],
+    checkIns: [],
+    notifications: [],
+  });
   vi.mocked(subscribeOperations).mockReturnValue(vi.fn());
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
     configurable: true,
@@ -70,7 +151,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
-  cleanups.splice(0).forEach(dispose => dispose());
+  cleanups.splice(0).forEach((dispose) => dispose());
   vi.unstubAllGlobals();
   for (const [key, descriptor] of [
     ['showModal', originalShowModal],
@@ -95,14 +176,19 @@ test('planning navigation is represented once and resolves both legacy URLs', ()
   expect(findRoute('/trips')).toBe(planningItems[0]);
 });
 test('removed board URL uses protected not-found page and trip deep links still work', async () => {
-  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
+  const router = createApplicationRouter(createMemoryHistory()),
+    auth = createAuthState();
   cleanups.push(installAuthGuards(router, auth));
   expect(findRoute('/operations-board').label).toBe('Không tìm thấy');
-  expect(router.getRoutes().some(route => route.path === '/operations-board')).toBe(false);
+  expect(router.getRoutes().some((route) => route.path === '/operations-board')).toBe(false);
   expect(router.resolve('/operations-board').matched.slice(-1)[0]?.path).toBe('/:pathMatch(.*)*');
   expect(router.resolve('/operations-board').meta.role).toBe('ADMIN');
   await router.push('/operations-board?date=2026-10-01');
-  const wrapper = mount(App, { global: { plugins: [router], provide: { [authKey as symbol]: auth } } }); cleanups.push(() => wrapper.unmount()); await flushPromises();
+  const wrapper = mount(App, {
+    global: { plugins: [router], provide: { [authKey as symbol]: auth } },
+  });
+  cleanups.push(() => wrapper.unmount());
+  await flushPromises();
   expect(wrapper.get('.not-found-page').text()).toContain('Trang bạn cần không tồn tại');
   expect(wrapper.find('.business-navigation a[href="/operations-board"]').exists()).toBe(false);
   expect(wrapper.find('.operations-board').exists()).toBe(false);
@@ -110,24 +196,69 @@ test('removed board URL uses protected not-found page and trip deep links still 
   await flushPromises();
   expect(wrapper.get('[data-fleet]').attributes('data-trip-id')).toBe('7');
   expect(wrapper.get('[data-fleet]').attributes('data-filter')).toBe('3');
-  await router.push('/trips?tripId=bad'); await flushPromises(); expect(wrapper.get('[data-fleet]').attributes('data-trip-id')).toBeUndefined();
+  await router.push('/trips?tripId=bad');
+  await flushPromises();
+  expect(wrapper.get('[data-fleet]').attributes('data-trip-id')).toBeUndefined();
 });
 
 test('application router covers remaining URLs, root redirect and the protected catch-all', () => {
   const router = createApplicationRouter(createMemoryHistory());
-  const adminPaths = ['/dashboard', '/operations', '/vehicles', '/drivers', '/trips', '/routes', '/stations', '/schedules', '/alerts', '/reports', '/users'];
+  const adminPaths = [
+    '/dashboard',
+    '/operations',
+    '/vehicles',
+    '/drivers',
+    '/trips',
+    '/routes',
+    '/stations',
+    '/schedules',
+    '/alerts',
+    '/reports',
+    '/users',
+  ];
   for (const path of adminPaths) {
-    const resolved = router.resolve(path); expect(resolved.meta.role).toBe('ADMIN'); expect(resolved.matched.slice(-1)[0]?.path).toBe(path);
+    const resolved = router.resolve(path);
+    expect(resolved.meta.role).toBe('ADMIN');
+    expect(resolved.matched.slice(-1)[0]?.path).toBe(path);
   }
-  for (const path of ['/login', '/register']) expect(router.resolve(path).meta.guestOnly).toBe(true);
-  for (const path of ['/driver/today', '/driver/schedules', '/driver/change-password']) expect(router.resolve(path).meta.role).toBe('DRIVER');
+  for (const path of ['/login', '/register'])
+    expect(router.resolve(path).meta.guestOnly).toBe(true);
+  for (const path of ['/driver/today', '/driver/schedules', '/driver/change-password'])
+    expect(router.resolve(path).meta.role).toBe('DRIVER');
   expect(router.resolve('/').matched.slice(-1)[0]?.redirect).toBe('/dashboard');
   expect(router.resolve('/unknown-fixture').matched.slice(-1)[0]?.path).toBe('/:pathMatch(.*)*');
   expect(router.resolve('/unknown-fixture').meta.role).toBe('ADMIN');
 });
 
+test('legacy alerts URL opens the admin notification menu without restoring the removed sidebar item', async () => {
+  const router = createApplicationRouter(createMemoryHistory()),
+    auth = createAuthState();
+  cleanups.push(installAuthGuards(router, auth));
+  await router.push('/alerts');
+  expect(router.currentRoute.value.path).toBe('/dashboard');
+  expect(router.currentRoute.value.query.notifications).toBe('open');
+  expect(
+    navigationGroups.flatMap((group) => group.items).some((item) => item.path === '/alerts'),
+  ).toBe(false);
+  const wrapper = mount(App, {
+    global: { plugins: [router], provide: { [authKey as symbol]: auth } },
+  });
+  cleanups.push(() => wrapper.unmount());
+  await flushPromises();
+  expect(wrapper.find('a[href="/alerts"]').exists()).toBe(false);
+  expect(wrapper.find('[data-admin-notification-fixture]').exists()).toBe(true);
+  expect(wrapper.get('.business-topbar-copy').text()).toBe('Tổng quan vận hành');
+  expect(wrapper.get('.business-logout-button').attributes('aria-label')).toBe('Đăng xuất');
+  await router.push('/operations');
+  await flushPromises();
+  expect(wrapper.find('[data-admin-notification-fixture]').exists()).toBe(true);
+  expect(wrapper.get('.business-shell').attributes('data-map-focus')).toBe('true');
+  expect(wrapper.get('.business-topbar-copy').text()).toBe('Giám sát trực tiếp');
+});
+
 test('legacy route and trip URLs share the planning workspace while selecting the correct tab', async () => {
-  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
+  const router = createApplicationRouter(createMemoryHistory()),
+    auth = createAuthState();
   cleanups.push(installAuthGuards(router, auth));
   await router.push('/routes');
   const wrapper = mount(App, {
@@ -136,46 +267,74 @@ test('legacy route and trip URLs share the planning workspace while selecting th
   cleanups.push(() => wrapper.unmount());
   await flushPromises();
   const workspace = wrapper.get('.planning-workspace').element;
-  expect(wrapper.get('.planning-workspace-tabs a[href="/routes"]').attributes('aria-current')).toBe('page');
+  expect(wrapper.get('.planning-workspace-tabs a[href="/routes"]').attributes('aria-current')).toBe(
+    'page',
+  );
   expect(wrapper.get('.business-navigation a[href="/trips"]').classes()).toContain('active');
 
   await wrapper.get('.planning-workspace-tabs a[href="/trips"]').trigger('click');
   await flushPromises();
   expect(router.currentRoute.value.path).toBe('/trips');
   expect(wrapper.get('.planning-workspace').element).toBe(workspace);
-  expect(wrapper.get('.planning-workspace-tabs a[href="/trips"]').attributes('aria-current')).toBe('page');
+  expect(wrapper.get('.planning-workspace-tabs a[href="/trips"]').attributes('aria-current')).toBe(
+    'page',
+  );
   expect(wrapper.get('[data-fleet]').attributes('data-fleet')).toBe('trips');
 
   router.back();
   await flushPromises();
   expect(router.currentRoute.value.path).toBe('/routes');
-  expect(wrapper.get('.planning-workspace-tabs a[href="/routes"]').attributes('aria-current')).toBe('page');
+  expect(wrapper.get('.planning-workspace-tabs a[href="/routes"]').attributes('aria-current')).toBe(
+    'page',
+  );
 });
 
 test('actual route graph enforces driver/admin/guest boundaries before mounting a page', async () => {
   const cases = [
     { user: admin, path: '/driver/today', expected: '/dashboard' },
-    { user: { ...admin, role: 'DRIVER' as const, driverId: 1 }, path: '/reports', expected: '/driver/today' },
+    {
+      user: { ...admin, role: 'DRIVER' as const, driverId: 1 },
+      path: '/reports',
+      expected: '/driver/today',
+    },
     { user: null, path: '/operations?mode=simulation', expected: '/login' },
     { user: null, path: '/driver/change-password', expected: '/login' },
     { user: admin, path: '/driver/change-password', expected: '/dashboard' },
   ];
   for (const { user, path, expected } of cases) {
     vi.mocked(fetchCurrentUser).mockResolvedValue(user as AuthUser);
-    const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
-    const dispose = installAuthGuards(router, auth); cleanups.push(dispose);
-    await router.push(path); expect(router.currentRoute.value.path).toBe(expected);
+    const router = createApplicationRouter(createMemoryHistory()),
+      auth = createAuthState();
+    const dispose = installAuthGuards(router, auth);
+    cleanups.push(dispose);
+    await router.push(path);
+    expect(router.currentRoute.value.path).toBe(expected);
     if (!user) expect(router.options.history.state.from).toBe(path.split('?')[0]);
   }
 });
 
-test.each(['/driver/today', '/driver/schedules', '/driver/trips/7/navigate', '/reports', '/login', '/unknown-fixture'])('temporary-password bootstrap redirects %s before mounting business content', async path => {
-  vi.mocked(fetchCurrentUser).mockResolvedValue({ ...admin, role: 'DRIVER', driverId: 1, passwordChangeRequired: true });
-  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
+test.each([
+  '/driver/today',
+  '/driver/schedules',
+  '/driver/trips/7/navigate',
+  '/reports',
+  '/login',
+  '/unknown-fixture',
+])('temporary-password bootstrap redirects %s before mounting business content', async (path) => {
+  vi.mocked(fetchCurrentUser).mockResolvedValue({
+    ...admin,
+    role: 'DRIVER',
+    driverId: 1,
+    passwordChangeRequired: true,
+  });
+  const router = createApplicationRouter(createMemoryHistory()),
+    auth = createAuthState();
   cleanups.push(installAuthGuards(router, auth));
   await router.push(path);
   expect(router.currentRoute.value.path).toBe('/driver/change-password');
-  const wrapper = mount(App, { global: { plugins: [router], provide: { [authKey as symbol]: auth } } });
+  const wrapper = mount(App, {
+    global: { plugins: [router], provide: { [authKey as symbol]: auth } },
+  });
   cleanups.push(() => wrapper.unmount());
   await flushPromises();
   expect(wrapper.get('h1').text()).toBe('Đổi mật khẩu');
@@ -187,39 +346,71 @@ test.each(['/driver/today', '/driver/schedules', '/driver/trips/7/navigate', '/r
 });
 
 test('map deep links, repeated query values and back/forward reuse the operations owner; route workspace remounts it', async () => {
-  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
-  const dispose = installAuthGuards(router, auth); cleanups.push(dispose);
+  const router = createApplicationRouter(createMemoryHistory()),
+    auth = createAuthState();
+  const dispose = installAuthGuards(router, auth);
+  cleanups.push(dispose);
   await router.push('/operations?tripId=7');
-  const wrapper = mount(App, { global: { plugins: [router], provide: { [authKey as symbol]: auth } } }); cleanups.push(() => wrapper.unmount());
-  await flushPromises(); const map = () => wrapper.get('[data-workspace]');
-  expect(map().attributes('data-trip')).toBe('7'); expect(lifecycle.mounted).toHaveBeenCalledTimes(1);
-  await map().get('button').trigger('click'); await flushPromises();
-  expect(router.currentRoute.value.fullPath).toBe('/operations?mode=simulation&tripId=7'); expect(map().attributes('data-workspace')).toBe('simulation');
-  router.back(); await flushPromises(); expect(map().attributes('data-trip')).toBe('7'); expect(map().attributes('data-workspace')).toBe('tracking');
-  router.forward(); await flushPromises(); expect(map().attributes('data-workspace')).toBe('simulation');
-  await router.push('/operations?mode=simulation&mode=tracking&tripId=8&tripId=9'); await flushPromises();
-  expect(map().attributes('data-trip')).toBe('8'); expect(map().attributes('data-workspace')).toBe('simulation');
-  await router.push('/operations?tripId=-1'); await flushPromises(); expect(map().attributes('data-trip')).toBeUndefined();
-  expect(lifecycle.mounted).toHaveBeenCalledTimes(1); expect(lifecycle.unmounted).not.toHaveBeenCalled();
-  await router.push('/routes?tripId=7'); await flushPromises();
+  const wrapper = mount(App, {
+    global: { plugins: [router], provide: { [authKey as symbol]: auth } },
+  });
+  cleanups.push(() => wrapper.unmount());
+  await flushPromises();
+  const map = () => wrapper.get('[data-workspace]');
+  expect(map().attributes('data-trip')).toBe('7');
+  expect(lifecycle.mounted).toHaveBeenCalledTimes(1);
+  await map().get('button').trigger('click');
+  await flushPromises();
+  expect(router.currentRoute.value.fullPath).toBe('/operations?mode=simulation&tripId=7');
+  expect(map().attributes('data-workspace')).toBe('simulation');
+  router.back();
+  await flushPromises();
+  expect(map().attributes('data-trip')).toBe('7');
+  expect(map().attributes('data-workspace')).toBe('tracking');
+  router.forward();
+  await flushPromises();
+  expect(map().attributes('data-workspace')).toBe('simulation');
+  await router.push('/operations?mode=simulation&mode=tracking&tripId=8&tripId=9');
+  await flushPromises();
+  expect(map().attributes('data-trip')).toBe('8');
+  expect(map().attributes('data-workspace')).toBe('simulation');
+  await router.push('/operations?tripId=-1');
+  await flushPromises();
+  expect(map().attributes('data-trip')).toBeUndefined();
+  expect(lifecycle.mounted).toHaveBeenCalledTimes(1);
+  expect(lifecycle.unmounted).not.toHaveBeenCalled();
+  await router.push('/routes?tripId=7');
+  await flushPromises();
   expect(wrapper.find('[data-workspace]').exists()).toBe(false);
   expect(wrapper.find('.routes-page').exists()).toBe(true);
   expect(lifecycle.unmounted).toHaveBeenCalledTimes(1);
-  await router.push('/operations'); await flushPromises();
+  await router.push('/operations');
+  await flushPromises();
   expect(wrapper.find('[data-workspace]').exists()).toBe(true);
   expect(lifecycle.mounted).toHaveBeenCalledTimes(2);
 });
 
 test('fleet query updates reuse a page; changing tabs resets the workspace owner', async () => {
-  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
-  cleanups.push(installAuthGuards(router, auth)); await router.push('/trips?vehicleId=4&vehicleId=5');
-  const wrapper = mount(App, { global: { plugins: [router], provide: { [authKey as symbol]: auth } } }); cleanups.push(() => wrapper.unmount());
-  await flushPromises(); const fleet = () => wrapper.get('[data-fleet]');
-  expect(fleet().attributes('data-filter')).toBe('4'); const instance = fleet().attributes('data-instance');
-  await router.replace('/trips?vehicleId=invalid'); await flushPromises();
-  expect(fleet().attributes('data-filter')).toBeUndefined(); expect(fleet().attributes('data-instance')).toBe(instance);
-  await router.push('/vehicles?vehicleId=4'); await flushPromises();
-  expect(fleet().attributes('data-fleet')).toBe('vehicles'); expect(fleet().attributes('data-filter')).toBeUndefined();
+  const router = createApplicationRouter(createMemoryHistory()),
+    auth = createAuthState();
+  cleanups.push(installAuthGuards(router, auth));
+  await router.push('/trips?vehicleId=4&vehicleId=5');
+  const wrapper = mount(App, {
+    global: { plugins: [router], provide: { [authKey as symbol]: auth } },
+  });
+  cleanups.push(() => wrapper.unmount());
+  await flushPromises();
+  const fleet = () => wrapper.get('[data-fleet]');
+  expect(fleet().attributes('data-filter')).toBe('4');
+  const instance = fleet().attributes('data-instance');
+  await router.replace('/trips?vehicleId=invalid');
+  await flushPromises();
+  expect(fleet().attributes('data-filter')).toBeUndefined();
+  expect(fleet().attributes('data-instance')).toBe(instance);
+  await router.push('/vehicles?vehicleId=4');
+  await flushPromises();
+  expect(fleet().attributes('data-fleet')).toBe('vehicles');
+  expect(fleet().attributes('data-filter')).toBeUndefined();
   expect(fleet().attributes('data-instance')).not.toBe(instance);
 });
 
@@ -265,7 +456,8 @@ test('route and trip cross-links preserve the selected route without creating da
   });
   vi.stubGlobal('fetch', fetch);
 
-  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
+  const router = createApplicationRouter(createMemoryHistory()),
+    auth = createAuthState();
   cleanups.push(installAuthGuards(router, auth));
   await router.push('/routes?routeId=7');
   const wrapper = mount(App, {
@@ -294,7 +486,8 @@ test('route and trip cross-links preserve the selected route without creating da
 });
 
 test('invalid trip route query does not preselect or open the create form', async () => {
-  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
+  const router = createApplicationRouter(createMemoryHistory()),
+    auth = createAuthState();
   cleanups.push(installAuthGuards(router, auth));
   await router.push('/trips?routeId=invalid&create=1');
   const wrapper = mount(App, {
@@ -307,10 +500,13 @@ test('invalid trip route query does not preselect or open the create form', asyn
 });
 
 test('opening a trip simulator from management carries its exact trip into the simulation map', async () => {
-  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
+  const router = createApplicationRouter(createMemoryHistory()),
+    auth = createAuthState();
   cleanups.push(installAuthGuards(router, auth));
   await router.push('/trips');
-  const wrapper = mount(App, { global: { plugins: [router], provide: { [authKey as symbol]: auth } } });
+  const wrapper = mount(App, {
+    global: { plugins: [router], provide: { [authKey as symbol]: auth } },
+  });
   cleanups.push(() => wrapper.unmount());
   await flushPromises();
   await wrapper.get('[data-simulate-trip="42"]').trigger('click');
@@ -320,23 +516,35 @@ test('opening a trip simulator from management carries its exact trip into the s
   expect(wrapper.get('[data-workspace]').attributes('data-workspace')).toBe('simulation');
 });
 
-
 test('revision history links parse safe IDs and exit preserves the trip without remounting the map', async () => {
-  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
+  const router = createApplicationRouter(createMemoryHistory()),
+    auth = createAuthState();
   cleanups.push(installAuthGuards(router, auth));
   await router.push('/operations?tripId=7&revisionId=11&revisionId=12');
-  const wrapper = mount(App, { global: { plugins: [router], provide: { [authKey as symbol]: auth } } });
-  cleanups.push(() => wrapper.unmount()); await flushPromises();
+  const wrapper = mount(App, {
+    global: { plugins: [router], provide: { [authKey as symbol]: auth } },
+  });
+  cleanups.push(() => wrapper.unmount());
+  await flushPromises();
   const map = () => wrapper.get('[data-workspace]');
   expect(map().attributes('data-revision')).toBe('11');
-  await router.push('/operations?tripId=7&revisionId=12'); await flushPromises();
+  await router.push('/operations?tripId=7&revisionId=12');
+  await flushPromises();
   expect(map().attributes('data-revision')).toBe('12');
-  await map().get('[data-close-comparison]').trigger('click'); await flushPromises();
+  await map().get('[data-close-comparison]').trigger('click');
+  await flushPromises();
   expect(router.currentRoute.value.fullPath).toBe('/operations?tripId=7');
   expect(map().attributes('data-revision')).toBeUndefined();
   expect(lifecycle.mounted).toHaveBeenCalledTimes(1);
-  for (const query of ['tripId=7&revisionId=bad', 'tripId=7&revisionId=-1', 'tripId=7&revisionId=9007199254740993', 'tripId=9007199254740993&revisionId=11', 'tripId=7&revisionId=11&mode=simulation']) {
-    await router.push(`/operations?${query}`); await flushPromises();
+  for (const query of [
+    'tripId=7&revisionId=bad',
+    'tripId=7&revisionId=-1',
+    'tripId=7&revisionId=9007199254740993',
+    'tripId=9007199254740993&revisionId=11',
+    'tripId=7&revisionId=11&mode=simulation',
+  ]) {
+    await router.push(`/operations?${query}`);
+    await flushPromises();
     expect(map().attributes('data-revision')).toBeUndefined();
   }
 });

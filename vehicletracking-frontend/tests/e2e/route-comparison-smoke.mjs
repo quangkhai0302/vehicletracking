@@ -78,7 +78,7 @@ try {
       page.on('pageerror', error => errors.push(error.stack || error.message));
       await page.clock.install({ time: new Date(stamp) });
       await page.goto(`${base}/alerts`);
-      const cards = page.locator('.alerts-management-card');
+      const cards = page.locator('.admin-notification-card');
       await cards.first().waitFor();
       assert.equal(await cards.count(), 2);
       assert.equal(await cards.first().getByRole('link', { name: 'Mở giám sát', exact: true }).getAttribute('href'),

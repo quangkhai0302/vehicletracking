@@ -117,7 +117,13 @@
 }
 /* Sửa contrast cho các ghi chú, callout trên nền xanh nhạt: chữ xanh đậm (#0369a1), nền #f0f9ff, viền #bae6fd */
 .business-ui
-  :is(.route-snapshot-note, .route-draft-note, .trip-checkin-summary, .trip-eta-summary, .trip-preview) {
+  :is(
+    .route-snapshot-note,
+    .route-draft-note,
+    .trip-checkin-summary,
+    .trip-eta-summary,
+    .trip-preview
+  ) {
   color: #0369a1 !important;
   background: #f0f9ff !important;
   border: 1px solid #bae6fd !important;
@@ -232,63 +238,43 @@
 .business-ui .business-topbar-copy {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-.business-ui .business-topbar-copy > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  color: #7b8ba1;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-.business-ui .business-topbar-copy > span::after {
-  width: 1px;
-  height: 16px;
-  content: '';
-  background: var(--border-default);
 }
 .business-ui .business-topbar-copy h1 {
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 700;
   letter-spacing: 0;
   color: var(--text-secondary);
 }
 .business-ui .business-account {
-  gap: 9px;
-  padding: 4px 5px 4px 11px;
+  gap: 7px;
+  padding: 4px;
   background: #ffffff;
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow: 0 4px 14px -12px rgb(15 23 42 / 0.5);
 }
-.business-ui .business-account span {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.business-ui .business-account small {
+.business-ui .business-account-avatar {
   color: #0284c7;
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
+  background: #eef8ff;
+  border-color: #c7e8f9;
 }
-.business-ui .business-account button {
-  width: 34px;
-  height: 34px;
+.business-ui .business-account-copy strong {
+  color: #172c43;
+  font-size: 12px;
+}
+.business-ui .business-account-copy small {
+  color: #71859a;
+}
+.business-ui .business-logout-button {
   color: #64748b;
-  border-radius: 6px;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  border-radius: 9px;
 }
-.business-ui .business-account button:hover {
-  color: #ef4444;
-  background: #fef2f2;
+.business-ui .business-logout-button:hover {
+  color: #e11d48;
+  background: #fff1f2;
+  border-color: #fecdd3;
 }
 .business-ui .business-menu-button {
   color: var(--text-primary);
@@ -4302,16 +4288,13 @@
   .business-ui .business-topbar-copy {
     min-width: 0;
   }
-  .business-ui .business-topbar-copy > span {
-    display: none;
-  }
   .business-ui .business-topbar-copy h1 {
     overflow: hidden;
     font-size: 13px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .business-ui .business-account > span {
+  .business-ui .business-account-copy {
     display: none;
   }
   .business-ui .business-account {

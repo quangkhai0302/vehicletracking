@@ -2,7 +2,6 @@ import { h } from 'vue';
 import { createRouter, createWebHistory, type RouterHistory } from 'vue-router';
 import ApplicationShell from '../layouts/ApplicationShell.vue';
 import DashboardPage from '@/pages/DashboardPage.vue';
-import AlertsManagementPage from '@/pages/AlertsManagementPage.vue';
 import FleetManagementPage from '@/pages/FleetManagementPage.vue';
 import ReportsPage from '@/pages/ReportsPage.vue';
 import ScheduleManagementPage from '@/pages/ScheduleManagementPage.vue';
@@ -32,7 +31,7 @@ export function createApplicationRouter(history: RouterHistory = createWebHistor
       { path: 'stations', component: MapPage, props: { workspace: 'stations', mapKey: 'stations-map' } },
       // Distinct wrappers retain React's explicit per-tab remount/reset boundary.
       ...(['vehicles', 'drivers'] as const).map(tab => ({ path: tab, component: { render: () => h(FleetManagementPage, { key: `${tab}-page`, tab }) } })),
-      { path: 'alerts', component: AlertsManagementPage },
+      { path: 'alerts', redirect: { path: '/dashboard', query: { notifications: 'open' } } },
       { path: 'reports', component: ReportsPage },
       { path: 'schedules', component: ScheduleManagementPage },
       { path: 'users', component: UserManagementPage },

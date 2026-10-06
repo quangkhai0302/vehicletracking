@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from 'vue';
+import { computed, inject, ref, shallowRef, watch } from 'vue';
 import {
   AlertTriangle,
   ArrowRight,
@@ -25,6 +25,9 @@ import {
 import PageHeading from '@/shared/components/PageHeading.vue';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
 import '@/features/reports/styles/business-pages.css';
+import { adminNotificationMenuKey } from '@/features/reports/composables/adminNotificationMenu';
+import { notificationMonitoringLink } from '@/features/reroute/utils/notificationLink';
+const openNotifications = inject(adminNotificationMenuKey, () => {});
 const data = shallowRef<{ summary: DashboardSummary; trips: TripSummary[] } | null>(null);
 const loading = ref(true),
   error = ref<string | null>(null),
@@ -270,7 +273,13 @@ const metricCards = computed(() => [
                 }}
               </p>
             </div>
-            <RouterLink to="/alerts">Mở trung tâm <ArrowRight :size="14" /></RouterLink>
+            <button
+              type="button"
+              class="dashboard-open-notifications"
+              @click="openNotifications"
+            >
+              Mở thông báo <ArrowRight :size="14" />
+            </button>
           </div>
           <p
             v-if="loading"
@@ -290,7 +299,7 @@ const metricCards = computed(() => [
             ><RouterLink
               v-for="alert in data?.summary.pendingAlerts"
               :key="alert.id"
-              :to="`/operations?tripId=${alert.tripId}`"
+              :to="notificationMonitoringLink(alert)"
               class="dashboard-alert-row"
               ><span
                 :class="`dashboard-alert-icon ${alert.type === 'OFF_ROUTE_DETECTED' ? 'off-route' : 'reroute'}`"

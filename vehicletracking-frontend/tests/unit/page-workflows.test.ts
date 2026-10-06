@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { flushPromises, mount } from '@vue/test-utils';
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory } from 'vue-router';
 import App from '../../src/App.vue';
 import { createApplicationRouter } from '@/app/router';
@@ -18,6 +18,11 @@ import AlertStream from '@/features/tracking/components/AlertStream.vue';
 vi.mock('@/features/tracking/api/operations', () => ({
   fetchOperations: async () => ({ serverTime: new Date().toISOString(), positions: [], trips: [], simulations: [], checkIns: [], notifications: [] }),
   subscribeOperations: () => () => {},
+}));
+// These workflows assert notification navigation rather than Leaflet rendering.
+vi.mock('@/features/map/components/MapComponent.vue', () => ({
+  __esModule: true,
+  default: { template: '<div data-workflow-map-fixture />' },
 }));
 
 vi.mock('@/shared/notifications/toast', () => ({
@@ -179,6 +184,8 @@ const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 const calls = (path: string, method = 'GET') =>
   requests.filter((request) => request.path === path && request.method === method);
+const documentView = () => new DOMWrapper(document.body);
+const notificationPanel = () => documentView().get('.admin-notification-panel');
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((r) => {
@@ -355,41 +362,45 @@ test('driver header opens voluntary self-change without requesting more business
   expect(calls('/api/v1/driver/trips')).toHaveLength(previousRequests);
 });
 
-test('alerts filters, single read and read-all preserve HTTP payload and duplicate-submit lock', async () => {
+test('admin bell filters, single read and read-all preserve HTTP payload and duplicate-submit lock', async () => {
   user = admin;
   const pending = deferred<Response>();
   handlers.set('POST /api/v1/notifications/1/read', () => pending.promise);
   handlers.set('POST /api/v1/notifications/read-all', () => json({ updated: 1 }));
-  const { wrapper } = await open('/alerts');
-  const filters = wrapper.findAll('.alerts-filters select');
+  const { wrapper, router } = await open('/alerts');
+  const panel = notificationPanel();
+  expect(panel.attributes('style')).toContain('max-height:');
+  expect(router.currentRoute.value.path).toBe('/dashboard');
+  expect(wrapper.find('a[href="/alerts"]').exists()).toBe(false);
+  const filters = panel.findAll('.admin-notification-filters select');
   expect(filters[0].find('option[value="OFF_ROUTE_DETECTED"]').exists()).toBe(false);
-  expect(wrapper.findAll('.alerts-metrics strong')[2]!.text()).toBe('1');
+  expect(wrapper.get('.admin-notification-trigger').attributes('aria-expanded')).toBe('true');
   await filters[0].setValue('REROUTE');
-  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
   await filters[0].setValue('ALL');
-  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(2);
-  expect(wrapper.get('.alerts-management-body > strong').text()).toBe(
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(2);
+  expect(panel.get('.admin-notification-detail').text()).toBe(
     'Khoảng cách 450 m · ngưỡng 200 m · duy trì 90s',
   );
-  expect(wrapper.get('.alerts-management-actions a').attributes('href')).toBe(
+  expect(panel.get('.admin-notification-actions a').attributes('href')).toBe(
     '/operations?tripId=100',
   );
-  const mark = wrapper.get('.alerts-management-actions button');
+  const mark = panel.get('.admin-notification-actions button');
   await mark.trigger('click');
   await mark.trigger('click');
   await flushPromises();
   expect(calls('/api/v1/notifications/1/read', 'POST')).toHaveLength(1);
-  expect(wrapper.get('.alerts-read-all').attributes('disabled')).toBeDefined();
+  expect(panel.get('.admin-notification-read-all').attributes('disabled')).toBeDefined();
   pending.resolve(json({ ...alert, readAt: stamp }));
   await flushPromises();
-  expect(wrapper.get('.alerts-management-card').classes()).toContain('read');
+  expect(panel.get('.admin-notification-card').classes()).toContain('read');
   await filters[0].setValue('ALL');
   await filters[1].setValue('MAJOR');
-  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
-  await wrapper.get('.alerts-read-all').trigger('click');
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
+  await panel.get('.admin-notification-read-all').trigger('click');
   await flushPromises();
   expect(calls('/api/v1/notifications/read-all', 'POST')).toHaveLength(1);
-  expect(wrapper.get('.alerts-read-all').attributes('disabled')).toBeDefined();
+  expect(panel.get('.admin-notification-read-all').attributes('disabled')).toBeDefined();
   for (const request of requests.filter((request) => request.method === 'POST')) {
     expect(request.options.body).toBeUndefined();
     expect(new Headers(request.options.headers).get('X-XSRF-TOKEN')).toBe('fixture-csrf');
@@ -410,27 +421,28 @@ test('stale notification polls cannot undo a confirmed read or dismissal', async
   });
   handlers.set('POST /api/v1/notifications/1/read', () => json({ ...alert, readAt: stamp }));
   handlers.set('DELETE /api/v1/notifications/1', () => new Response(null, { status: 204 }));
-  const { wrapper } = await open('/alerts');
+  await open('/alerts');
+  const panel = notificationPanel();
 
   await vi.advanceTimersByTimeAsync(15_000);
   await flushPromises();
-  await wrapper.findAll('.alerts-management-card')[0]!.find('button').trigger('click');
+  await panel.findAll('.admin-notification-card')[0]!.find('button').trigger('click');
   await flushPromises();
-  expect(wrapper.findAll('.alerts-management-card')[0]!.classes()).toContain('read');
+  expect(panel.findAll('.admin-notification-card')[0]!.classes()).toContain('read');
   staleRead.resolve(json(rows));
   await flushPromises();
-  expect(wrapper.findAll('.alerts-management-card')[0]!.classes()).toContain('read');
+  expect(panel.findAll('.admin-notification-card')[0]!.classes()).toContain('read');
 
   await vi.advanceTimersByTimeAsync(15_000);
   await flushPromises();
-  await wrapper.findAll('.alerts-management-card')[0]!.find('button').trigger('click');
-  await wrapper.get('dialog .danger-action').trigger('click');
+  await panel.findAll('.admin-notification-card')[0]!.find('button').trigger('click');
+  await documentView().get('dialog .danger-action').trigger('click');
   await flushPromises();
-  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
   staleDelete.resolve(json(rows));
   await flushPromises();
-  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
-  expect(wrapper.get('.alerts-management-card').text()).toContain('Chuyến #100');
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
+  expect(panel.get('.admin-notification-card').text()).toContain('Chuyến #100');
 });
 
 test('a newer notification poll wins over an older delayed response', async () => {
@@ -441,53 +453,59 @@ test('a newer notification poll wins over an older delayed response', async () =
     loads += 1;
     return loads === 1 ? delayed.promise : json([{ ...alert, id: 2, title: 'Cảnh báo mới', type: 'REROUTE_CREATED' }]);
   });
-  const { wrapper } = await open('/alerts');
+  await open('/alerts');
+  const panel = notificationPanel();
   await vi.advanceTimersByTimeAsync(15_000);
   await flushPromises();
   expect(calls('/api/v1/notifications?unreadOnly=false')[0]!.options.signal?.aborted).toBe(true);
-  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
-  expect(wrapper.get('.alerts-management-card').text()).toContain('Cảnh báo mới');
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
+  expect(panel.get('.admin-notification-card').text()).toContain('Cảnh báo mới');
   delayed.resolve(json([alert]));
   await flushPromises();
-  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
-  expect(wrapper.get('.alerts-management-card').text()).toContain('Cảnh báo mới');
-  expect(wrapper.get('.alerts-management-card').classes()).toContain('unread');
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
+  expect(panel.get('.admin-notification-card').text()).toContain('Cảnh báo mới');
+  expect(panel.get('.admin-notification-card').classes()).toContain('unread');
 });
 
 test('alert deletion stays behind confirmation, preserves conflict for retry and only removes acknowledged item', async () => {
   user = admin;
   handlers.set('DELETE /api/v1/notifications/1', () => json({ detail: 'Fixture conflict' }, 409));
-  const { wrapper } = await open('/alerts');
-  await wrapper.findAll('.alerts-management-card')[0].findAll('button')[1].trigger('click');
+  await open('/alerts');
+  const panel = notificationPanel();
+  await panel.findAll('.admin-notification-card')[0].findAll('button')[1].trigger('click');
   expect(calls('/api/v1/notifications/1', 'DELETE')).toHaveLength(0);
-  await wrapper.get('dialog .danger-action').trigger('click');
+  await documentView().get('dialog .danger-action').trigger('click');
   await flushPromises();
-  expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('HTTP 409'));
-  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(2);
+  expect(documentView().get('dialog').text()).toContain('HTTP 409');
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(2);
   const pending = deferred<Response>();
   handlers.set('DELETE /api/v1/notifications/1', () => pending.promise);
-  await wrapper.get('dialog .danger-action').trigger('click');
+  await documentView().get('dialog .danger-action').trigger('click');
   await flushPromises();
-  await wrapper.get('dialog').trigger('cancel');
-  expect(wrapper.find('dialog').exists()).toBe(true);
+  await documentView().get('dialog').trigger('cancel');
+  expect(documentView().find('dialog').exists()).toBe(true);
   pending.resolve(new Response(null, { status: 204 }));
   await flushPromises();
-  expect(wrapper.find('dialog').exists()).toBe(false);
-  expect(wrapper.findAll('.alerts-management-card')).toHaveLength(1);
+  expect(documentView().find('dialog').exists()).toBe(false);
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
 });
 
-test('alerts and dashboard polling stop after navigation and use server time for overdue status', async () => {
+test('admin notifications retain one shell polling source across navigation and abort it on unmount', async () => {
   user = admin;
+  handlers.set('GET /api/v1/trips', () =>
+    json([{ ...trips[0], status: 'IN_PROGRESS', plannedEndAt: '2026-09-22T17:29:59Z' }, trips[1]]),
+  );
+  handlers.set('GET /api/v1/users', () => json([]));
   const { wrapper, router } = await open('/alerts');
   await vi.advanceTimersByTimeAsync(15_000);
   await flushPromises();
   expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(2);
-  handlers.set('GET /api/v1/trips', () =>
-    json([{ ...trips[0], status: 'IN_PROGRESS', plannedEndAt: '2026-09-22T17:29:59Z' }, trips[1]]),
-  );
-  await router.push('/dashboard');
+  const trigger = wrapper.get('.admin-notification-trigger').element;
+  await router.push('/dashboard?view=all');
   await flushPromises();
-  expect(calls('/api/v1/notifications?unreadOnly=false')[0].options.signal?.aborted).toBe(true);
+  expect(wrapper.get('.admin-notification-trigger').element).toBe(trigger);
+  expect(documentView().find('.admin-notification-panel').exists()).toBe(false);
+  expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(2);
   expect(wrapper.findAll('.dashboard-trip-id').map((item) => item.text())).toEqual([
     '#101',
     '#100',
@@ -495,13 +513,140 @@ test('alerts and dashboard polling stop after navigation and use server time for
   expect(wrapper.get('.dashboard-status.in_progress').text()).toBe('Đang trễ');
   await vi.advanceTimersByTimeAsync(15_000);
   await flushPromises();
-  expect(calls('/api/v1/dashboard/summary')).toHaveLength(2);
-  expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(2);
+  expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(3);
+  const summaryRequests = calls('/api/v1/dashboard/summary').length;
+  await router.push('/users');
+  await flushPromises();
+  await vi.advanceTimersByTimeAsync(15_000);
+  await flushPromises();
+  expect(calls('/api/v1/dashboard/summary')).toHaveLength(summaryRequests);
+  expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(4);
   wrapper.unmount();
   expect(calls('/api/v1/dashboard/summary')[0].options.signal?.aborted).toBe(true);
   await vi.advanceTimersByTimeAsync(30_000);
   await flushPromises();
-  expect(calls('/api/v1/dashboard/summary')).toHaveLength(2);
+  expect(calls('/api/v1/notifications?unreadOnly=false')[3].options.signal?.aborted).toBe(true);
+  expect(calls('/api/v1/dashboard/summary')).toHaveLength(summaryRequests);
+  expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(4);
+});
+
+test('read-all preserves a notification that arrives while the acknowledgement is pending', async () => {
+  user = admin;
+  const pending = deferred<Response>();
+  handlers.set('POST /api/v1/notifications/read-all', () => pending.promise);
+  const { wrapper } = await open('/alerts');
+  const panel = notificationPanel();
+  await panel.get('.admin-notification-read-all').trigger('click');
+  handlers.set('GET /api/v1/notifications?unreadOnly=false', () => json([
+    { ...alert, id: 3, title: 'Thông báo mới trong lúc xác nhận' }, alert,
+    { ...alert, id: 2, type: 'REROUTE_CREATED', severity: 'MAJOR' },
+  ]));
+  await vi.advanceTimersByTimeAsync(15_000);
+  await flushPromises();
+  pending.resolve(json({ updated: 2 }));
+  await flushPromises();
+  expect(panel.findAll('.admin-notification-card.unread')).toHaveLength(1);
+  expect(panel.get('.admin-notification-card.unread').text()).toContain('Thông báo mới trong lúc xác nhận');
+  expect(wrapper.get('.admin-notification-badge').text()).toBe('1');
+  expect(panel.findAll('.admin-notification-card.read')).toHaveLength(2);
+});
+
+test('hidden tabs pause notification polling; failed reads retry without losing the existing list', async () => {
+  user = admin;
+  const { wrapper } = await open('/alerts');
+  const panel = notificationPanel();
+  const originalVisibility = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+  try {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    await vi.advanceTimersByTimeAsync(30_000);
+    await flushPromises();
+    expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(1);
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    handlers.set('GET /api/v1/notifications?unreadOnly=false', () => json({ detail: 'Fixture unavailable' }, 503));
+    await vi.advanceTimersByTimeAsync(15_000);
+    await flushPromises();
+    expect(panel.get('[role="alert"]').text()).toContain('HTTP 503');
+    expect(wrapper.find('.admin-notification-error-dot').exists()).toBe(true);
+    expect(panel.findAll('.admin-notification-card')).toHaveLength(2);
+    handlers.delete('GET /api/v1/notifications?unreadOnly=false');
+    await panel.get('[role="alert"] button').trigger('click');
+    await flushPromises();
+    expect(panel.find('[role="alert"]').exists()).toBe(false);
+    expect(wrapper.find('.admin-notification-error-dot').exists()).toBe(false);
+    expect(panel.findAll('.admin-notification-card')).toHaveLength(2);
+  } finally {
+    if (originalVisibility) Object.defineProperty(document, 'visibilityState', originalVisibility);
+    else Reflect.deleteProperty(document, 'visibilityState');
+  }
+});
+
+test('unmounted admin menu ignores late mutation responses and cleans its Teleport and polling request', async () => {
+  user = admin;
+  const pending = deferred<Response>();
+  handlers.set('POST /api/v1/notifications/1/read', () => pending.promise);
+  const { wrapper } = await open('/alerts');
+  await notificationPanel().get('.admin-notification-actions button').trigger('click');
+  const requestsBeforeUnmount = requests.length;
+  wrapper.unmount();
+  expect(documentView().find('.admin-notification-panel').exists()).toBe(false);
+  expect(calls('/api/v1/notifications?unreadOnly=false')[0].options.signal?.aborted).toBe(true);
+  pending.resolve(json({ ...alert, readAt: stamp }));
+  await flushPromises();
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(documentView().find('.admin-notification-panel').exists()).toBe(false);
+  expect(requests).toHaveLength(requestsBeforeUnmount);
+});
+
+test('dashboard opens the shared bell, caps a long response at fifty and preserves unrelated query when closing', async () => {
+  user = admin;
+  handlers.set('GET /api/v1/notifications?unreadOnly=false', () => json(
+    Array.from({ length: 60 }, (_, index) => ({ ...alert, id: index + 1, title: `Thông báo ${index + 1}` })),
+  ));
+  const { wrapper, router } = await open('/dashboard?view=summary');
+  expect(documentView().find('.admin-notification-panel').exists()).toBe(false);
+  const sourceRequests = calls('/api/v1/notifications?unreadOnly=false').length;
+  const openButton = wrapper.findAll('button').find(button => button.text() === 'Mở thông báo');
+  expect(openButton).toBeDefined();
+  await openButton!.trigger('click');
+  await flushPromises();
+  expect(notificationPanel().findAll('.admin-notification-card')).toHaveLength(50);
+  expect(wrapper.get('.admin-notification-badge').text()).toBe('50');
+  expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(sourceRequests);
+  await router.push('/dashboard?view=summary&notifications=open');
+  await flushPromises();
+  await notificationPanel().get('[aria-label="Đóng thông báo admin"]').trigger('click');
+  await flushPromises();
+  expect(router.currentRoute.value.query).toEqual({ view: 'summary' });
+  expect(documentView().find('.admin-notification-panel').exists()).toBe(false);
+});
+
+test('a legacy-open menu navigates to the exact revision without its close-query cleanup winning the route change', async () => {
+  user = admin;
+  handlers.set('GET /api/v1/notifications?unreadOnly=false', () => json([
+    { ...alert, type: 'DRIVER_ROUTE_CHANGED', revisionId: 11 },
+  ]));
+  const { wrapper, router } = await open('/alerts');
+  await notificationPanel().get('.admin-notification-actions a').trigger('click');
+  await flushPromises();
+  expect(router.currentRoute.value.path).toBe('/operations');
+  expect(router.currentRoute.value.query).toEqual({ tripId: '100', revisionId: '11' });
+  expect(documentView().find('.admin-notification-panel').exists()).toBe(false);
+  expect(wrapper.find('[data-workflow-map-fixture]').exists()).toBe(true);
+  expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(1);
+});
+
+test('route navigation closes an outstanding delete confirmation without acknowledging the resource', async () => {
+  user = admin;
+  handlers.set('GET /api/v1/users', () => json([]));
+  const { router } = await open('/alerts');
+  await notificationPanel().findAll('.admin-notification-card')[0].findAll('button')[1].trigger('click');
+  expect(documentView().get('dialog').attributes('open')).toBeDefined();
+  await router.push('/users');
+  await flushPromises();
+  expect(documentView().find('dialog').exists()).toBe(false);
+  expect(documentView().find('.admin-notification-panel').exists()).toBe(false);
+  expect(calls('/api/v1/notifications/1', 'DELETE')).toHaveLength(0);
+  expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(1);
 });
 
 test('operations alert stream describes simulator notification categories', () => {

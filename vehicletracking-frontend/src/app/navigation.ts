@@ -1,4 +1,4 @@
-import { BellRing, BusFront, CalendarClock, ClipboardList, LayoutDashboard, MapPinned, ShieldCheck, SquareChartGantt, UserRound, UsersRound } from '@lucide/vue';
+import { BusFront, CalendarClock, ClipboardList, LayoutDashboard, MapPinned, ShieldCheck, SquareChartGantt, UserRound, UsersRound } from '@lucide/vue';
 import type { Component } from 'vue';
 export interface NavigationItem { path: string; aliases?: readonly string[]; label: string; title: string; description: string; icon: Component; planned?: boolean; fullBleed?: boolean }
 export interface NavigationGroup { label: string; items: NavigationItem[] }
@@ -14,8 +14,7 @@ export const navigationGroups: NavigationGroup[] = [
     { path: '/trips', aliases: ['/routes'], label: 'Tuyến & chuyến', title: 'Kế hoạch vận hành', description: 'Thiết lập tuyến đường, lập chuyến và phân công vận hành.', icon: ClipboardList },
   ] },
   { label: 'Mở rộng hệ thống', items: [
-    { path: '/schedules', label: 'Lịch chạy tự động', title: 'Lịch chạy tự động', description: 'Cấu hình lịch cố định và tự động tạo chuyến.', icon: CalendarClock },
-    { path: '/alerts', label: 'Cảnh báo', title: 'Trung tâm cảnh báo', description: 'Theo dõi lệch tuyến và các cảnh báo cần xử lý.', icon: BellRing },
+    { path: '/schedules', label: 'Lịch chạy', title: 'Lịch chạy tự động', description: 'Cấu hình lịch cố định và tự động tạo chuyến.', icon: CalendarClock },
     { path: '/reports', label: 'Báo cáo', title: 'Báo cáo và thống kê', description: 'Phân tích hiệu suất vận hành theo thời gian.', icon: SquareChartGantt },
     { path: '/users', label: 'Người dùng', title: 'Người dùng và phân quyền', description: 'Quản lý tài khoản và phạm vi truy cập.', icon: UsersRound },
   ] },

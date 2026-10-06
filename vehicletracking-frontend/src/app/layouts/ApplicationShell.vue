@@ -1,14 +1,51 @@
 <script setup lang="ts">
 import { computed, onScopeDispose, provide, ref, shallowRef, watch } from 'vue';
-import { BookOpen, LogOut, Menu, Navigation, PanelLeftClose, PanelLeftOpen } from '@lucide/vue';
-import { RouterLink, RouterView, useRoute } from 'vue-router';
-import { findRoute, matchesNavigationItem, navigationGroups, type NavigationItem } from '../navigation';
+import {
+  BookOpen,
+  LogOut,
+  Menu,
+  Navigation,
+  PanelLeftClose,
+  PanelLeftOpen,
+  UserRound,
+} from '@lucide/vue';
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
+import {
+  findRoute,
+  matchesNavigationItem,
+  navigationGroups,
+  type NavigationItem,
+} from '../navigation';
 import { useAuth } from '@/features/auth/composables/useAuth';
-import { liveOperationsKey, useLiveOperations } from '@/features/tracking/composables/useLiveOperations';
+import {
+  liveOperationsKey,
+  useLiveOperations,
+} from '@/features/tracking/composables/useLiveOperations';
 import { useDriverRouteNotifications } from '@/features/tracking/composables/useDriverRouteNotifications';
 import './application-shell.css';
+import AdminNotificationBell from '@/features/reports/components/AdminNotificationBell.vue';
+import { adminNotificationMenuKey } from '@/features/reports/composables/adminNotificationMenu';
 const location = useRoute(),
+  router = useRouter(),
   auth = useAuth();
+const notificationsOpen = ref(false);
+provide(adminNotificationMenuKey, () => {
+  notificationsOpen.value = true;
+});
+watch(
+  () => location.fullPath,
+  () => {
+    notificationsOpen.value = location.query.notifications === 'open';
+  },
+  { immediate: true },
+);
+watch(notificationsOpen, (open) => {
+  if (!open && location.query.notifications === 'open') {
+    const query = { ...location.query };
+    delete query.notifications;
+    void router.replace({ path: location.path, query, hash: location.hash });
+  }
+});
 const live = useLiveOperations();
 provide(liveOperationsKey, live);
 useDriverRouteNotifications(() => live.snapshot);
@@ -159,18 +196,26 @@ const activePath = (item: NavigationItem) => matchesNavigationItem(item, locatio
           <Menu :size="20" />
         </button>
         <div class="business-topbar-copy">
-          <span>{{ route.planned ? 'LỘ TRÌNH SẢN PHẨM' : 'TRUNG TÂM ĐIỀU HÀNH' }}</span>
           <h1>{{ route.title }}</h1>
         </div>
-        <div class="business-account">
-          <span>{{ auth.user?.username }}</span
-          ><small>ADMIN</small
-          ><button
-            aria-label="Đăng xuất"
-            @click="auth.logout"
-          >
-            <LogOut :size="15" />
-          </button>
+        <div class="business-topbar-actions">
+          <AdminNotificationBell v-model="notificationsOpen" />
+          <div class="business-account">
+            <div class="business-account-avatar"><UserRound :size="16" /></div>
+            <div class="business-account-copy">
+              <strong>{{ auth.user?.username }}</strong>
+              <small>Quản trị viên</small>
+            </div>
+            <button
+              type="button"
+              class="business-logout-button"
+              aria-label="Đăng xuất"
+              title="Đăng xuất khỏi hệ thống"
+              @click="auth.logout"
+            >
+              <LogOut :size="16" />
+            </button>
+          </div>
         </div>
       </header>
       <main
