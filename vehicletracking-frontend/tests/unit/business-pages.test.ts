@@ -6,7 +6,7 @@ import ScheduleManagementPage from '../../src/pages/ScheduleManagementPage.vue';
 import FleetConfirmDialog from '@/features/fleet/components/FleetConfirmDialog.vue';
 import { fetchDrivers, fetchFleetVehicles } from '@/features/fleet/api/fleet';
 import { fetchRoutes } from '@/features/routes/api/routes';
-import { fetchOperationalReport } from '@/features/reports/api/reports';
+import { fetchOperationalReportDetail } from '@/features/reports/api/reports';
 import {
   createDriverAccount,
   fetchUserAccounts,
@@ -21,7 +21,7 @@ import {
   setScheduleEnabled,
 } from '@/features/schedules/api/schedules';
 import type { Driver, FleetVehicle } from '@/features/fleet/types/fleet';
-import type { OperationalReport } from '@/features/reports/types/reports';
+import type { OperationalReportDetail } from '@/features/reports/types/reports';
 import type { TripSchedule } from '@/features/schedules/types/schedule';
 import type { RouteSummary } from '@/features/routes/types/route';
 import { notifyError, notifySuccess } from '@/shared/notifications/toast';
@@ -31,7 +31,7 @@ vi.mock('@/features/fleet/api/fleet', () => ({
   fetchFleetVehicles: vi.fn(),
 }));
 vi.mock('@/features/routes/api/routes', () => ({ fetchRoutes: vi.fn() }));
-vi.mock('@/features/reports/api/reports', () => ({ fetchOperationalReport: vi.fn() }));
+vi.mock('@/features/reports/api/reports', () => ({ fetchOperationalReportDetail: vi.fn() }));
 vi.mock('@/features/auth/api/users', () => ({
   createDriverAccount: vi.fn(),
   fetchUserAccounts: vi.fn(),
@@ -85,19 +85,13 @@ const route: RouteSummary = {
   createdAt: stamp,
   active: true,
 };
-const report: OperationalReport = {
+const report: OperationalReportDetail = {
   from: '2026-09-01',
   to: '2026-09-23',
   generatedAt: stamp,
-  tripCount: 142,
-  completedTripCount: 124,
-  totalDistanceMeters: 1000,
-  totalRunningSeconds: 3600,
-  onTimeRatePercent: 95,
-  lateTripCount: 3,
-  offRouteEventCount: 2,
-  overspeedEventCount: 1,
-  speedLimitKmh: 60,
+  summary: { from: '2026-09-01', to: '2026-09-23', generatedAt: stamp, tripCount: 142, completedTripCount: 124, totalDistanceMeters: 1000, totalRunningSeconds: 3600, onTimeRatePercent: 95, lateTripCount: 3, offRouteEventCount: 2, overspeedEventCount: 0, speedLimitKmh: 80 },
+  vehicles: [], drivers: [], lateStops: [], incidents: [], employeePassengerDataAvailable: false,
+  employeePassengerDataNote: 'Chưa có dữ liệu',
 };
 const account: UserAccount = {
   id: 2,
@@ -149,7 +143,7 @@ beforeEach(() => {
   ]);
   vi.mocked(fetchFleetVehicles).mockResolvedValue([vehicle]);
   vi.mocked(fetchRoutes).mockResolvedValue([route]);
-  vi.mocked(fetchOperationalReport).mockResolvedValue(report);
+  vi.mocked(fetchOperationalReportDetail).mockResolvedValue(report);
   vi.mocked(fetchUserAccounts).mockResolvedValue([account]);
   vi.mocked(fetchSchedules).mockResolvedValue([schedule]);
   // jsdom lifecycle only; native focus trapping still needs the browser suite.
@@ -181,26 +175,26 @@ test('reports keep numeric filters, abort stale loads and do not replace a newer
   const wrapper = mount(ReportsPage);
   cleanups.push(() => wrapper.unmount());
   await flushPromises();
-  const old = deferred<OperationalReport>();
-  vi.mocked(fetchOperationalReport).mockReturnValueOnce(old.promise);
+  const old = deferred<OperationalReportDetail>();
+  vi.mocked(fetchOperationalReportDetail).mockReturnValueOnce(old.promise);
   await wrapper.findAll('select')[0].setValue('1');
-  expect(fetchOperationalReport).toHaveBeenLastCalledWith(
+  expect(fetchOperationalReportDetail).toHaveBeenLastCalledWith(
     expect.objectContaining({ vehicleId: 1 }),
     expect.any(AbortSignal),
   );
-  const signal = vi.mocked(fetchOperationalReport).mock.calls[1][1]!;
-  vi.mocked(fetchOperationalReport).mockResolvedValueOnce({ ...report, tripCount: 9 });
+  const signal = vi.mocked(fetchOperationalReportDetail).mock.calls[1][1]!;
+  vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce({ ...report, summary: { ...report.summary, tripCount: 9 } });
   await wrapper.findAll('select')[1].setValue('2');
   await flushPromises();
   expect(signal.aborted).toBe(true);
-  old.resolve({ ...report, tripCount: 999 });
+  old.resolve({ ...report, summary: { ...report.summary, tripCount: 999 } });
   await flushPromises();
-  expect(wrapper.findAll('.reports-metric strong')[0].text()).toBe('9');
-  expect(fetchOperationalReport).toHaveBeenLastCalledWith(
+  expect(wrapper.find('.reports-summary-strip strong').text()).toBe('9');
+  expect(fetchOperationalReportDetail).toHaveBeenLastCalledWith(
     expect.objectContaining({ vehicleId: 1, driverId: 2 }),
     expect.any(AbortSignal),
   );
-  const lastSignal = vi.mocked(fetchOperationalReport).mock.calls[2][1]!;
+  const lastSignal = vi.mocked(fetchOperationalReportDetail).mock.calls[2][1]!;
   wrapper.unmount();
   expect(lastSignal.aborted).toBe(true);
 });
@@ -211,15 +205,15 @@ test('reports reject incomplete dates without HTTP and can reset/retry an API fa
   await flushPromises();
   await wrapper.findAll('input[type=date]')[0].setValue('');
   await flushPromises();
-  expect(fetchOperationalReport).toHaveBeenCalledTimes(1);
+  expect(fetchOperationalReportDetail).toHaveBeenCalledTimes(1);
   expect(notifyError).toHaveBeenCalledWith('Hãy chọn đầy đủ ngày bắt đầu và ngày kết thúc.');
-  vi.mocked(fetchOperationalReport).mockRejectedValueOnce(new Error('Fixture unavailable'));
+  vi.mocked(fetchOperationalReportDetail).mockRejectedValueOnce(new Error('Fixture unavailable'));
   await wrapper.get('.reports-reset').trigger('click');
   await flushPromises();
   expect(notifyError).toHaveBeenCalledWith('Fixture unavailable');
   await wrapper.get('.reports-refresh').trigger('click');
   await flushPromises();
-  expect(wrapper.findAll('.reports-metric')).toHaveLength(6);
+  expect(wrapper.findAll('.report-table-card')).toHaveLength(4);
 });
 
 test('user creation only selects an available driver and shows generated credentials', async () => {
@@ -254,7 +248,9 @@ test('user creation only selects an available driver and shows generated credent
   expect(notifySuccess).toHaveBeenCalledWith('Đã cấp tài khoản drivera.');
   expect(wrapper.get('.user-issued-account').text()).toContain('drivera');
   expect(wrapper.get('.user-issued-account').text()).toContain('Tmp8Pass');
-  expect(wrapper.get('.user-issued-note').text()).toContain('đổi mật khẩu này ngay sau khi đăng nhập lần đầu');
+  expect(wrapper.get('.user-issued-note').text()).toContain(
+    'đổi mật khẩu này ngay sau khi đăng nhập lần đầu',
+  );
   expect(wrapper.get('.user-account-modal').attributes('open')).toBeDefined();
   expect(wrapper.get('.business-button.primary').attributes('disabled')).toBeDefined();
   await wrapper.get('.user-issued-done').trigger('click');
@@ -450,9 +446,10 @@ test('fleet confirmation keeps slot, busy Escape and disabled-confirm semantics'
   expect(nativeClose).toHaveBeenCalledTimes(1);
 });
 
-
 test('schedule without a reported run has no run warning or turnaround inputs', async () => {
-  vi.mocked(fetchSchedules).mockResolvedValue([{ ...schedule, lastRunStatus: null, lastRunMessage: null }]);
+  vi.mocked(fetchSchedules).mockResolvedValue([
+    { ...schedule, lastRunStatus: null, lastRunMessage: null },
+  ]);
   const wrapper = mount(ScheduleManagementPage, { global: { stubs: { RouterLink: true } } });
   cleanups.push(() => wrapper.unmount());
   await flushPromises();

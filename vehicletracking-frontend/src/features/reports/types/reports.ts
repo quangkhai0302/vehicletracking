@@ -19,3 +19,113 @@ export interface OperationalReport {
   overspeedEventCount: number;
   speedLimitKmh: number;
 }
+
+export interface OperationalReportVehicleRow {
+  vehicleId: number | null;
+  plateNumber: string | null;
+  vehicleName: string | null;
+  tripCount: number;
+  completedTripCount: number;
+  lateTripCount: number;
+  lateStopCount: number;
+  incidentCount: number;
+  employeePassengerCount: number | null;
+}
+
+export interface OperationalReportDriverRow {
+  driverId: number | null;
+  driverName: string | null;
+  tripCount: number;
+  completedTripCount: number;
+  lateTripCount: number;
+  lateStopCount: number;
+  incidentCount: number;
+  employeePassengerCount: number | null;
+}
+
+export interface OperationalReportLateStop {
+  tripId: number;
+  routeName: string | null;
+  vehiclePlateNumber: string | null;
+  driverName: string | null;
+  stationName: string;
+  stopSequence: number;
+  plannedArrivalAt: string;
+  actualArrivalAt: string;
+  delaySeconds: number;
+}
+
+export interface OperationalReportIncidentRow {
+  type: string;
+  severity: string;
+  count: number;
+}
+
+export interface OperationalReportDetail {
+  from: string;
+  to: string;
+  generatedAt: string;
+  summary: OperationalReport;
+  vehicles: OperationalReportVehicleRow[];
+  drivers: OperationalReportDriverRow[];
+  lateStops: OperationalReportLateStop[];
+  incidents: OperationalReportIncidentRow[];
+  employeePassengerDataAvailable: boolean;
+  employeePassengerDataNote: string;
+}
+
+export type SimulationReportMetric = 'ALL' | 'COMPLETED' | 'ON_TIME' | 'LATE' | 'OFF_ROUTE';
+export interface SimulationReportFilters extends OperationalReportFilters {
+  metric?: SimulationReportMetric;
+  page?: number;
+  size?: number;
+}
+export interface SimulationReportRevision {
+  revisionId: number;
+  revisionNumber: number;
+  createdAt: string;
+  baselineEtaSeconds: number | null;
+  revisedEtaSeconds: number | null;
+}
+export interface SimulationReportItem {
+  tripId: number;
+  attemptNumber: number;
+  current: boolean;
+  vehicleId: number | null;
+  vehiclePlateNumber: string | null;
+  driverId: number | null;
+  driverName: string | null;
+  routeName: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  status: string;
+  scenario: string | null;
+  plannedDurationSeconds: number | null;
+  plannedDistanceMeters: number | null;
+  virtualElapsedSeconds: number | null;
+  progressSeconds: number | null;
+  latenessSeconds: number | null;
+  punctuality: 'ON_TIME' | 'LATE' | 'IN_PROGRESS' | 'NOT_COMPLETED' | 'UNKNOWN';
+  metadataComplete: boolean;
+  offRouteEventCount: number;
+  routeRevisions: SimulationReportRevision[];
+}
+export interface SimulationReport {
+  from: string;
+  to: string;
+  generatedAt: string;
+  attemptCount: number;
+  completedAttemptCount: number;
+  knownCompletedAttemptCount: number;
+  totalPlannedDistanceMeters: number;
+  totalVirtualSeconds: number;
+  onTimeRatePercent: number | null;
+  lateAttemptCount: number;
+  offRouteEventCount: number;
+  unknownAttemptCount: number;
+  items: SimulationReportItem[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}

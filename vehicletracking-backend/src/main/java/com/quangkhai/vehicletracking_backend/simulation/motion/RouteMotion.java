@@ -1,10 +1,15 @@
 package com.quangkhai.vehicletracking_backend.simulation.motion;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing;
 import com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse;
 import com.quangkhai.vehicletracking_backend.route.dto.RouteInstruction;
-import com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing;
 import com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline.Point;
-import java.util.*;
 
 public final class RouteMotion {
     public record Frame(double latitude,double longitude,double heading,double speedKmh,double progressPercent,
@@ -68,6 +73,16 @@ public final class RouteMotion {
         return base;
     }
     public double duration() { return simulationDuration; }
+    public double nextBoundary(double elapsed) {
+        double result=duration();
+        for (var leg:legs) {
+            if (leg.start()>elapsed+1e-9) result=Math.min(result,leg.start());
+            if (leg.end()>elapsed+1e-9) result=Math.min(result,leg.end());
+        }
+        for (double departure:departureOffsets.values()) if (departure>elapsed+1e-9) result=Math.min(result,departure);
+        return result;
+    }
+    public double arrivalAt(int stopSequence) { return arrivalOffsets.getOrDefault(stopSequence,duration()); }
 
     /** Next provider maneuver along the travelled path, not nearest point across a loop. */
     public Guidance guidance(double elapsed) {

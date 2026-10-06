@@ -1,5 +1,24 @@
 package com.quangkhai.vehicletracking_backend.reroute;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.Test;
+
 import com.quangkhai.vehicletracking_backend.checkin.repository.TripStopVisitRepository;
 import com.quangkhai.vehicletracking_backend.config.OffRouteProperties;
 import com.quangkhai.vehicletracking_backend.reroute.entity.TripOffRouteAlertStateEntity;
@@ -17,18 +36,6 @@ import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
 import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
 import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
-import org.junit.jupiter.api.Test;
-
-import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 
 class OffRouteEvaluationServiceTest {
     private static final Instant START = Instant.parse("2026-01-01T08:00:00Z");
@@ -42,6 +49,7 @@ class OffRouteEvaluationServiceTest {
     private final OffRouteProperties properties = properties();
     private final TripEntity trip = mock(TripEntity.class);
     private final VehicleEntity vehicle = mock(VehicleEntity.class);
+    private final com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository simulations = mock(com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository.class);
 
     @Test
     void emitsOneNotificationAfterThreeSamplesAndThirtySecondsOutsideTheRoute() {
@@ -84,9 +92,51 @@ class OffRouteEvaluationServiceTest {
         assertThat(state.getConsecutiveBreachCount()).isZero();
     }
 
+    @Test void simulatorUsesVirtualClockAndCurrentAttemptThenEmitsOnlyOneEventPerEpisode() {
+        stubTripAndRoute();
+        when(trip.getAttemptNumber()).thenReturn(2);
+        when(visits.findAllByTripIdAndAttemptNumberOrderByStopSequenceAsc(1L,2)).thenReturn(List.of());
+        var run=mock(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationRunEntity.class);
+        when(run.getStatus()).thenReturn(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationStatus.RUNNING);
+        when(simulations.findByTripId(1L)).thenReturn(Optional.of(run));
+        var state=new TripOffRouteAlertStateEntity(trip,1,START);
+        when(states.findLockedByTripId(1L)).thenReturn(Optional.of(state));
+        var service=service();
+        for(int index=0; index<4; index++) {
+            var sample=sample(START.plusSeconds(index+1),10.7800,106.7100);
+            when(sample.getSource()).thenReturn(TelemetrySource.SIMULATOR);
+            when(sample.getAttemptNumber()).thenReturn(2);
+            when(run.getVirtualElapsedSeconds()).thenReturn(new double[]{0,15,31,40}[index]);
+            when(positions.findById(2L)).thenReturn(Optional.of(new VehiclePositionEntity(2L,sample)));
+            service.evaluateCurrent(1L);
+        }
+        var notification=org.mockito.ArgumentCaptor.forClass(com.quangkhai.vehicletracking_backend.reroute.entity.TripNotificationEntity.class);
+        verify(notifications,times(1)).save(notification.capture());
+        assertThat(notification.getValue().getSource()).isEqualTo(TelemetrySource.SIMULATOR);
+        assertThat(notification.getValue().getAttemptNumber()).isEqualTo(2);
+        assertThat(notification.getValue().getBreachDurationSeconds()).isEqualTo(31);
+        assertThat(state.getAttemptNumber()).isEqualTo(2);
+        verify(visits,never()).findAllByTripIdOrderByStopSequenceAsc(anyLong());
+        service.clearScenarioEpisode(1L,START.plusSeconds(10));
+        assertThat(state.isActive()).isFalse();
+        assertThat(state.getEpisode()).isEqualTo(1);
+    }
+
+    @Test void legacySimulatorWithoutVirtualClockDoesNotInventBreachDuration() {
+        stubTripAndRoute();
+        var sample=sample(START.plusSeconds(100),10.7800,106.7100);
+        when(sample.getSource()).thenReturn(TelemetrySource.SIMULATOR);
+        var run=mock(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationRunEntity.class);
+        when(simulations.findByTripId(1L)).thenReturn(Optional.of(run));
+        when(positions.findById(2L)).thenReturn(Optional.of(new VehiclePositionEntity(2L,sample)));
+        service().evaluateCurrent(1L);
+        verifyNoInteractions(states,notifications);
+    }
+
     private OffRouteEvaluationService service() {
         return new OffRouteEvaluationService(trips, visits, positions, geometry, states, notifications,
-                Clock.fixed(START.plusSeconds(40), ZoneOffset.UTC), properties);
+                Clock.fixed(START.plusSeconds(40), ZoneOffset.UTC), properties,
+                simulations);
     }
 
     private void stubTripAndRoute() {
@@ -96,7 +146,7 @@ class OffRouteEvaluationServiceTest {
         when(trip.getAttemptNumber()).thenReturn(1);
         when(trip.getStatus()).thenReturn(TripStatus.IN_PROGRESS);
         when(vehicle.getId()).thenReturn(2L);
-        when(visits.findAllByTripIdOrderByStopSequenceAsc(1L)).thenReturn(List.of());
+        when(visits.findAllByTripIdAndAttemptNumberOrderByStopSequenceAsc(1L,1)).thenReturn(List.of());
         when(geometry.routeForTracking(trip)).thenReturn(route());
     }
 

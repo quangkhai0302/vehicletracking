@@ -63,7 +63,8 @@ class SimulationReplayTest {
         when(runs.findByTripId(5L)).thenReturn(Optional.of(run));
         when(eta.cachedSimulationRate(eq(5L),anyDouble())).thenReturn(1d);
         service=new SimulationService(runs,trips,vehicles,tripService,telemetry,samples,positions,Clock.fixed(now,ZoneOffset.UTC),eta,
-            attempts,checkpoints,alerts,revisions,new com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService(revisions));
+            attempts,checkpoints,alerts,revisions,new com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService(revisions),
+            mock(com.quangkhai.vehicletracking_backend.reroute.service.OffRouteEvaluationService.class));
     }
 
     @Test void realtimeSnapshotDoesNotCalculateTrafficOrCallProvider() {
@@ -99,7 +100,7 @@ class SimulationReplayTest {
 
     @ParameterizedTest @EnumSource(SimulationStatus.class)
     void replayKeepsIdentityArchivesOldStateAndResetsEveryStatus(SimulationStatus status) {
-        run.changeStatus(status,now.minusSeconds(10));
+        run.changeStatus(status,now);
         if (status==SimulationStatus.COMPLETED) trip.complete(now.minusSeconds(10));
         if (status==SimulationStatus.STOPPED) trip.cancel(now.minusSeconds(10));
         if (status==SimulationStatus.FAILED) run.fail("Old failure",now.minusSeconds(10));
@@ -139,6 +140,77 @@ class SimulationReplayTest {
     @Test void rejectsGpsWithoutChangingState() {
         when(samples.existsByTripIdAndSource(5L,TelemetrySource.GPS)).thenReturn(true);
         rejects();
+    }
+    private void knownRun(SimulationScenario scenario, int multiplier, long wallSeconds) {
+        run.replay(now.minusSeconds(wallSeconds));
+        run.captureFirstPlay(SimulationAttemptMetadata.capture(trip,now.minusSeconds(wallSeconds),44,312));
+        run.changeScenario(scenario); run.changeMultiplier(multiplier,now.minusSeconds(wallSeconds));
+        run.changeStatus(SimulationStatus.RUNNING,now.minusSeconds(wallSeconds));
+        doAnswer(call -> { trip.complete(now); return null; }).when(tripService).complete(5L);
+    }
+
+    @Test void acceleratedNormalCapsVirtualClockAtFinishInsteadOfWallTickOvershoot() {
+        knownRun(SimulationScenario.NORMAL,10,20);
+        service.tick(5L);
+        assertThat(run.getStatus()).isEqualTo(SimulationStatus.COMPLETED);
+        assertThat(run.getElapsedSeconds()).isEqualTo(44);
+        assertThat(run.getVirtualElapsedSeconds()).isEqualTo(44);
+        assertThat(run.getMetadata().getPlannedDurationSeconds()).isEqualTo(44);
+    }
+
+    @Test void congestionSlowsTravelButDoesNotDoubleStationDwell() {
+        knownRun(SimulationScenario.CONGESTION,5,20);
+        service.tick(5L);
+        assertThat(run.getStatus()).isEqualTo(SimulationStatus.COMPLETED);
+        assertThat(run.getVirtualElapsedSeconds()).isEqualTo(84);
+        assertThat(run.getElapsedSeconds()).isEqualTo(44);
+    }
+
+    @Test void blockedClockContinuesWhileProgressStaysStillAndPauseDoesNotAdvance() {
+        knownRun(SimulationScenario.BLOCKED,5,10);
+        service.pause(5L);
+        assertThat(run.getElapsedSeconds()).isZero();
+        assertThat(run.getVirtualElapsedSeconds()).isEqualTo(50);
+        service.tick(5L);
+        assertThat(run.getVirtualElapsedSeconds()).isEqualTo(50);
+    }
+
+    @Test void resetSettlesRunningTimeAndArchivesFrozenBaselineBeforeNewAttempt() {
+        knownRun(SimulationScenario.BLOCKED,10,10);
+        trip.getVehicle().updateDetails("NEW123","Renamed",null);
+        service.reset(5L);
+        var archive=ArgumentCaptor.forClass(SimulationAttemptEntity.class);
+        verify(attempts).saveAndFlush(archive.capture());
+        assertThat(archive.getValue().getVirtualElapsedSeconds()).isEqualTo(100);
+        assertThat(archive.getValue().getMetadata().getVehiclePlateNumber()).isEqualTo("TEST123");
+        assertThat(archive.getValue().getMetadata().getPlannedDurationSeconds()).isEqualTo(44);
+        assertThat(run.getVirtualElapsedSeconds()).isNull();
+        assertThat(run.getMetadata()).isNull();
+        assertThat(run.getScenario()).isEqualTo(SimulationScenario.CURRENT_TRAFFIC);
+    }
+
+    @Test void offRouteResponseSnapshotAndTelemetryUseSameOffsetPosition() {
+        knownRun(SimulationScenario.OFF_ROUTE,1,1);
+        service.tick(5L);
+        var request=ArgumentCaptor.forClass(com.quangkhai.vehicletracking_backend.telemetry.dto.TelemetryRequest.class);
+        verify(telemetry).ingestSimulator(request.capture(),any());
+        var response=service.describeSnapshot(trip,run);
+        assertThat(response.frame().latitude()).isEqualTo(request.getValue().latitude());
+        assertThat(response.frame().longitude()).isEqualTo(request.getValue().longitude());
+        assertThat(request.getValue().source()).isEqualTo(TelemetrySource.SIMULATOR);
+        var expected=new com.quangkhai.vehicletracking_backend.simulation.motion.RouteMotion(
+            com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse.from(trip.getRoute())).at(1);
+        assertThat(com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing.distance(
+            new com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing.Point(expected.latitude(),expected.longitude()),
+            new com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing.Point(response.frame().latitude(),response.frame().longitude()))).isGreaterThan(300);
+    }
+
+    @Test void staleScenarioDoesNotSettleOrChangeTheCurrentAttempt() {
+        knownRun(SimulationScenario.BLOCKED,10,10);
+        assertThatThrownBy(() -> service.scenario(5L,SimulationScenario.NORMAL,2)).isInstanceOf(ResponseStatusException.class);
+        assertThat(run.getVirtualElapsedSeconds()).isZero();
+        assertThat(run.getScenario()).isEqualTo(SimulationScenario.BLOCKED);
+        verifyNoInteractions(telemetry);
     }
     @Test void rejectsInactiveVehicleWithoutChangingState() {
         trip.getVehicle().deactivate(); rejects();

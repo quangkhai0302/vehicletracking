@@ -348,6 +348,18 @@ class AuthSecurityControllerTest {
                 .andExpect(jsonPath("$.passwordChangeRequired").value(required)).andReturn();
         return new LoginSession((MockHttpSession) login.getRequest().getSession(false), csrf);
     }
+    @Test void simulationReportsAndScenarioControlsRemainAdminOnlyAndCsrfProtected() throws Exception {
+        mvc.perform(get("/api/v1/reports/simulation")).andExpect(status().isUnauthorized());
+        var login=loginDriver(false);
+        mvc.perform(get("/api/v1/reports/simulation").session(login.session())).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/trips/1/simulation/scenario").session(login.session())
+            .cookie(login.csrf()).header("X-XSRF-TOKEN",login.csrf().getValue())
+            .contentType(MediaType.APPLICATION_JSON).content("{\"scenario\":\"NORMAL\",\"attemptNumber\":1}"))
+            .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/trips/1/simulation/scenario").session(login.session())
+            .contentType(MediaType.APPLICATION_JSON).content("{\"scenario\":\"NORMAL\",\"attemptNumber\":1}"))
+            .andExpect(status().isForbidden());
+    }
 
     private String validChangeBody() {
         return "{\"currentPassword\":\"password-12345\",\"newPassword\":\"NewPass1\",\"confirmPassword\":\"NewPass1\"}";

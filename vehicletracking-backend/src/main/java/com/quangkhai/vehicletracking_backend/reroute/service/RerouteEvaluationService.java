@@ -80,9 +80,14 @@ public class RerouteEvaluationService {
                 revisions.saveAndFlush(revision);
                 String key = "REROUTE_CREATED:" + dedupeBase;
                 if (notifications.findByDedupeKey(key).isEmpty()) {
-                    notifications.save(new TripNotificationEntity(trip, revision, NotificationType.REROUTE_CREATED,
+                    var notification=new TripNotificationEntity(trip, revision, NotificationType.REROUTE_CREATED,
                             revision.getSeverity(), "Đã tạo tuyến thay thế", revision.getReasonDetail(), revision.getTriggerIncidentId(),
-                            affectedStops(currentEta), currentEta.baselineRemainingSeconds(), revision.getRevisedRemainingSeconds(), key, now));
+                            affectedStops(currentEta), currentEta.baselineRemainingSeconds(), revision.getRevisedRemainingSeconds(), key, now);
+                    positions.findById(trip.getVehicle().getId()).map(p -> p.getSample())
+                        .filter(p -> trip.getId().equals(p.getTripId()) && p.getAttemptNumber()==trip.getAttemptNumber()
+                            && p.getSource()==com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR)
+                        .ifPresent(p -> notification.attributeSimulation(trip.getAttemptNumber()));
+                    notifications.save(notification);
                 }
             }
         } catch (RuntimeException ex) {
@@ -118,7 +123,7 @@ public class RerouteEvaluationService {
     private TripRouteRevisionEntity buildRevision(TripEntity trip, TripEtaResponse currentEta, boolean closure, Instant now) {
         var position = positions.findById(trip.getVehicle().getId()).map(p -> p.getSample()).orElse(null);
         if (position == null || !trip.getId().equals(position.getTripId()) || position.getAttemptNumber()!=trip.getAttemptNumber()) return null;
-        Set<Integer> checked = visits.findAllByTripIdOrderByStopSequenceAsc(trip.getId()).stream()
+        Set<Integer> checked = visits.findAllByTripIdAndAttemptNumberOrderByStopSequenceAsc(trip.getId(),trip.getAttemptNumber()).stream()
                 .map(v -> v.getStopSequence()).collect(Collectors.toSet());
         Integer simulationNext=null;
         if (position.getSource()==com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR

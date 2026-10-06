@@ -1,34 +1,51 @@
 package com.quangkhai.vehicletracking_backend.simulation.service;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
+
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
 import com.quangkhai.vehicletracking_backend.checkin.repository.TripCheckInStateRepository;
 import com.quangkhai.vehicletracking_backend.reroute.entity.RouteRevisionStatus;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripRouteRevisionRepository;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripTrafficAlertStateRepository;
-import com.quangkhai.vehicletracking_backend.simulation.dto.*;
-import com.quangkhai.vehicletracking_backend.simulation.entity.*;
+import com.quangkhai.vehicletracking_backend.simulation.dto.SimulationAttemptResponse;
+import com.quangkhai.vehicletracking_backend.simulation.dto.SimulationResponse;
+import com.quangkhai.vehicletracking_backend.simulation.dto.SimulationTrafficMetadata;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationAttemptEntity;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationAttemptMetadata;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationRunEntity;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationScenario;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationStatus;
 import com.quangkhai.vehicletracking_backend.simulation.motion.RouteMotion;
 import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationAttemptRepository;
 import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository;
-import com.quangkhai.vehicletracking_backend.trip.entity.*;
-import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
-import com.quangkhai.vehicletracking_backend.trip.service.TripService;
 import com.quangkhai.vehicletracking_backend.telemetry.dto.TelemetryRequest;
 import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource;
-import com.quangkhai.vehicletracking_backend.telemetry.repository.*;
+import com.quangkhai.vehicletracking_backend.telemetry.repository.TelemetryRepository;
+import com.quangkhai.vehicletracking_backend.telemetry.repository.VehiclePositionRepository;
 import com.quangkhai.vehicletracking_backend.telemetry.service.TelemetryService;
-import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 import com.quangkhai.vehicletracking_backend.traffic.TrafficSource;
 import com.quangkhai.vehicletracking_backend.traffic.TrafficStatus;
-import com.quangkhai.vehicletracking_backend.traffic.eta.TripEtaResponse;
 import com.quangkhai.vehicletracking_backend.traffic.eta.TrafficEtaService;
+import com.quangkhai.vehicletracking_backend.traffic.eta.TripEtaResponse;
+import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
+import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
+import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
+import com.quangkhai.vehicletracking_backend.trip.service.TripService;
+import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
-import java.time.*;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
-import static org.springframework.http.HttpStatus.*;
 
 @Service @RequiredArgsConstructor
 public class SimulationService {
@@ -46,6 +63,7 @@ public class SimulationService {
     private final TripTrafficAlertStateRepository alertStates;
     private final TripRouteRevisionRepository revisions;
     private final com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry;
+    private final com.quangkhai.vehicletracking_backend.reroute.service.OffRouteEvaluationService offRoutes;
 
     @Transactional
     public SimulationResponse play(long tripId) {
@@ -55,10 +73,12 @@ public class SimulationService {
         if(run!=null && run.getStatus()!=SimulationStatus.PAUSED) throw conflict("Phiên đã kết thúc. Dùng Chạy lại để bắt đầu lần mô phỏng mới.");
         if(trip.getStatus()!=TripStatus.SCHEDULED && trip.getStatus()!=TripStatus.IN_PROGRESS) throw conflict("Chuyến đã kết thúc.");
         if(samples.existsByTripIdAndSource(tripId,TelemetrySource.GPS)) throw conflict("Chuyến đã nhận GPS; hãy tạo chuyến khác để mô phỏng.");
-        motion(trip); // Validate before modifying trip lifecycle.
+        var baseline=motion(trip); // Validate before modifying trip lifecycle.
+        boolean firstPlay=run==null || trip.getStartedAt()==null;
         tripService.start(tripId);
         var now=now();
         if(run==null) run=runs.saveAndFlush(new SimulationRunEntity(tripId,now));
+        if(firstPlay) run.captureFirstPlay(SimulationAttemptMetadata.capture(trip,now,baseline.duration(),baseline.snapshot().totalDistanceMeters()));
         run.changeStatus(SimulationStatus.RUNNING,now);
         emit(trip,run,false);
         return describe(trip,run);
@@ -84,6 +104,7 @@ public class SimulationService {
     @Transactional
     public SimulationResponse stop(long tripId) {
         var trip=lockTrip(tripId); var run=requireRun(tripId);
+        advance(trip,run,now());
         stop(trip,run);
         return describe(trip,run);
     }
@@ -97,6 +118,7 @@ public class SimulationService {
             throw conflict("Xe đang thực hiện chuyến khác. Hãy kết thúc chuyến đó trước.");
         motion(trip);
         var now=now();
+        advance(trip,run,now);
         if (trip.getStatus()==TripStatus.SCHEDULED && run.getStatus()==SimulationStatus.PAUSED && run.getElapsedSeconds()==0) {
             // Keep the same clean attempt, but refresh its time anchor when an
             // operator comes back days later and chooses replay again.
@@ -117,6 +139,24 @@ public class SimulationService {
     public List<SimulationAttemptResponse> attempts(long tripId) {
         if (!trips.existsById(tripId)) throw new ResponseStatusException(NOT_FOUND,"Không tìm thấy chuyến.");
         return attempts.findAllByTripIdOrderByAttemptNumberDesc(tripId).stream().map(SimulationAttemptResponse::from).toList();
+    }
+    @Transactional
+    public SimulationResponse scenario(long tripId, SimulationScenario scenario, int attemptNumber) {
+        if (scenario==null || attemptNumber<1) throw new ResponseStatusException(BAD_REQUEST,"Kịch bản hoặc lượt chạy không hợp lệ.");
+        var trip=lockTrip(tripId); var run=requireRun(tripId);
+        if(trip.getAttemptNumber()!=attemptNumber) throw conflict("Lượt chạy đã thay đổi. Hãy tải lại mô phỏng.");
+        if(samples.existsByTripIdAndSource(tripId,TelemetrySource.GPS)) throw conflict("Chuyến đã nhận GPS; không thể đổi kịch bản.");
+        if(run.getStatus()!=SimulationStatus.RUNNING && run.getStatus()!=SimulationStatus.PAUSED) throw conflict("Phiên đã kết thúc.");
+        advance(trip,run,now());
+        if(run.getStatus()==SimulationStatus.COMPLETED) throw conflict("Phiên đã kết thúc.");
+        if(run.getScenario()!=scenario) offRoutes.clearScenarioEpisode(tripId,now());
+        run.changeScenario(scenario,now());
+        if(trip.getStatus()==TripStatus.IN_PROGRESS) emit(trip,run,run.getStatus()!=SimulationStatus.RUNNING);
+        if(scenario!=SimulationScenario.OFF_ROUTE && run.getStatus()==SimulationStatus.RUNNING
+                && run.getElapsedSeconds()>=motion(trip).duration()) {
+            tripService.complete(tripId); run.changeStatus(SimulationStatus.COMPLETED,now());
+        }
+        return describe(trip,run);
     }
     @Transactional
     public void tick(long tripId) {
@@ -159,13 +199,29 @@ public class SimulationService {
         try { geometry.applyActive(trip,run.getElapsedSeconds()); }
         catch (IllegalArgumentException ex) { /* A disconnected replacement must not teleport or fail the running vehicle. */ }
         var motion=motion(trip);
-        double baselineRemaining = Math.max(0, motion.duration() - run.getElapsedSeconds());
-        double trafficRate = motion.at(run.getElapsedSeconds()).dwelling() ? 1d
-            : trafficEta.cachedSimulationRate(trip.getId(), baselineRemaining);
-        double progressDelta = delta * run.getMultiplier() * trafficRate;
-        run.advance(Math.min(motion.duration(),run.getElapsedSeconds()+progressDelta),now);
+        double budget=delta*run.getMultiplier(), elapsed=run.getElapsedSeconds(), consumed=0;
+        double progressLimit=motion.duration();
+        if(run.getScenario()==SimulationScenario.OFF_ROUTE) {
+            int target=nextUnvisitedStop(trip,motion,elapsed);
+            progressLimit=Math.max(elapsed,Math.min(progressLimit,motion.arrivalAt(target)));
+        }
+        double trafficRate=1;
+        while(budget>1e-9 && elapsed<progressLimit) {
+            trafficRate=rate(trip,run,motion,elapsed);
+            if(trafficRate<=0) { consumed+=budget; budget=0; break; }
+            double boundary=Math.min(progressLimit,motion.nextBoundary(elapsed));
+            double used=Math.min(budget,(boundary-elapsed)/trafficRate);
+            if(used<=0) break;
+            elapsed=Math.min(boundary,elapsed+used*trafficRate); consumed+=used; budget-=used;
+        }
+        if(run.getScenario()==SimulationScenario.OFF_ROUTE) {
+            consumed+=budget;
+            if(elapsed>=progressLimit-1e-9) trafficRate=0;
+        }
+        run.addVirtualSeconds(consumed);
+        run.advance(Math.min(motion.duration(),elapsed),now);
         emit(trip,run,false,trafficRate);
-        if(run.getElapsedSeconds()>=motion.duration()) { tripService.complete(trip.getId()); run.changeStatus(SimulationStatus.COMPLETED,now); }
+        if(run.getElapsedSeconds()>=motion.duration() && run.getScenario()!=SimulationScenario.OFF_ROUTE) { tripService.complete(trip.getId()); run.changeStatus(SimulationStatus.COMPLETED,now); }
     }
     private void stop(TripEntity trip,SimulationRunEntity run) {
         if(trip.getStatus()==TripStatus.SCHEDULED || trip.getStatus()==TripStatus.IN_PROGRESS) {
@@ -175,12 +231,11 @@ public class SimulationService {
         if(run.getStatus()!=SimulationStatus.COMPLETED && run.getStatus()!=SimulationStatus.STOPPED) run.changeStatus(SimulationStatus.STOPPED,now());
     }
     private void emit(TripEntity trip,SimulationRunEntity run,boolean stationary) {
-        double baselineRemaining = Math.max(0, motion(trip).duration() - run.getElapsedSeconds());
-        double trafficRate = stationary ? 0d : trafficEta.cachedSimulationRate(trip.getId(), baselineRemaining);
+        double trafficRate = stationary ? 0d : rate(trip,run,motion(trip),run.getElapsedSeconds());
         emit(trip, run, stationary, trafficRate);
     }
     private void emit(TripEntity trip,SimulationRunEntity run,boolean stationary,double trafficRate) {
-        var frame=motion(trip).at(run.getElapsedSeconds());
+        var frame=scenarioFrame(run,motion(trip).at(run.getElapsedSeconds()));
         if (!stationary && frame.speedKmh() > 0 && Double.isFinite(trafficRate)) {
             frame = new RouteMotion.Frame(frame.latitude(), frame.longitude(), frame.heading(),
                 frame.speedKmh() * Math.max(0, trafficRate), frame.progressPercent(),
@@ -213,12 +268,11 @@ public class SimulationService {
         RouteMotion.Frame frame=null;
         double duration=trip.getRoute().getEstimatedTripDurationSeconds();
         if(run.getStatus()!=SimulationStatus.FAILED) {
-            try { var motion=motion(trip); duration=motion.duration(); frame=motion.at(run.getElapsedSeconds()); }
+            try { var motion=motion(trip); duration=motion.duration(); frame=scenarioFrame(run,motion.at(run.getElapsedSeconds())); }
             catch(ResponseStatusException ignored) { /* Historical malformed geometry remains inspectable. */ }
         }
         if (frame != null && run.getStatus() == SimulationStatus.RUNNING && !snapshot) {
-            double baselineRemaining = Math.max(0, motion(trip).duration() - run.getElapsedSeconds());
-            double trafficRate = trafficEta.cachedSimulationRate(trip.getId(), baselineRemaining);
+            double trafficRate = rate(trip,run,motion(trip),run.getElapsedSeconds());
             if (frame.speedKmh() > 0 && Double.isFinite(trafficRate)) {
                 frame = new RouteMotion.Frame(frame.latitude(), frame.longitude(), frame.heading(),
                     frame.speedKmh() * Math.max(0, trafficRate), frame.progressPercent(),
@@ -241,7 +295,32 @@ public class SimulationService {
         return new SimulationResponse(run.getId(),trip.getId(),run.getStatus(),run.getMultiplier(),run.getElapsedSeconds(),
             duration,simulatedAt(trip,run),run.getUpdatedAt(),run.getErrorMessage(),run.getReplacementTripId(),frame,
             trafficMetadata(trip, snapshot),
-            trip.getAttemptNumber(),frame==null?null:geometry.resolve(trip).revisionId());
+            trip.getAttemptNumber(),frame==null?null:geometry.resolve(trip).revisionId(),run.getScenario(),run.getVirtualElapsedSeconds());
+    }
+    private double rate(TripEntity trip, SimulationRunEntity run, RouteMotion motion, double elapsed) {
+        if(run.getScenario()==SimulationScenario.BLOCKED) return 0;
+        if(run.getScenario()==SimulationScenario.OFF_ROUTE && elapsed>=motion.arrivalAt(nextUnvisitedStop(trip,motion,elapsed))-1e-9) return 0;
+        if(motion.at(elapsed).dwelling()) return 1;
+        return switch(run.getScenario()) {
+            case NORMAL, OFF_ROUTE -> 1;
+            case CONGESTION -> .5;
+            case BLOCKED -> 0;
+            case CURRENT_TRAFFIC -> trafficEta.cachedSimulationRate(trip.getId(),Math.max(0,motion.duration()-elapsed));
+        };
+    }
+    private int nextUnvisitedStop(TripEntity trip, RouteMotion motion, double elapsed) {
+        return checkInStates.findById(trip.getId()).map(state -> state.getNextStopSequence())
+            .orElse(motion.at(elapsed).nextStopSequence());
+    }
+    private RouteMotion.Frame scenarioFrame(SimulationRunEntity run, RouteMotion.Frame frame) {
+        if(run.getScenario()!=SimulationScenario.OFF_ROUTE) return frame;
+        // Deterministic perpendicular offset of 350 m; never labels simulator samples as GPS.
+        double bearing=Math.toRadians(frame.heading()+90);
+        double latitude=frame.latitude()+Math.cos(bearing)*350/111_195d;
+        double longitude=frame.longitude()+Math.sin(bearing)*350/(111_195d*Math.max(.01,Math.cos(Math.toRadians(frame.latitude()))));
+        latitude=Math.max(-89.99,Math.min(89.99,latitude)); longitude=((longitude+540)%360)-180;
+        return new RouteMotion.Frame(latitude,longitude,frame.heading(),frame.speedKmh(),frame.progressPercent(),frame.nextStopSequence(),
+            frame.nextStopEtaSeconds(),frame.dwellRemainingSeconds(),frame.dwelling(),frame.finished());
     }
     private SimulationTrafficMetadata trafficMetadata(TripEntity trip, boolean snapshot) {
         try {

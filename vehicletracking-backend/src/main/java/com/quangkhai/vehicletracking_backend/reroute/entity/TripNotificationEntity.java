@@ -1,12 +1,23 @@
 package com.quangkhai.vehicletracking_backend.reroute.entity;
 
+import java.time.Instant;
+
 import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
-import jakarta.persistence.*;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.Instant;
 
 @Entity
 @Table(name = "trip_notifications", schema = "vehicle_tracking")
@@ -69,6 +80,13 @@ public class TripNotificationEntity {
      */
     @Column(name = "dismissed_at")
     private Instant dismissedAt;
+    @Column(name="attempt_number") private Integer attemptNumber;
+    @Enumerated(EnumType.STRING) @Column(length=20) private com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource source;
+
+    public void attributeSimulation(int attempt) {
+        if(attempt<1) throw new IllegalArgumentException("Invalid notification attempt");
+        attemptNumber=attempt; source=com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR;
+    }
 
     public TripNotificationEntity(TripEntity trip, TripRouteRevisionEntity revision, NotificationType type,
                                   NotificationSeverity severity, String title, String reason, String incidentId,
@@ -84,6 +102,8 @@ public class TripNotificationEntity {
                                   Double measuredDistanceMeters, Double thresholdDistanceMeters,
                                   Long breachDurationSeconds, String dedupeKey, Instant createdAt) {
         this.trip = trip;
+        this.attemptNumber=trip.getAttemptNumber();
+        if(revision!=null && revision.getSimulationAttemptNumber()!=null) attributeSimulation(revision.getSimulationAttemptNumber());
         this.revision = revision;
         this.type = type;
         this.severity = severity;

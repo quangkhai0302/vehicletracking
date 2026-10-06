@@ -306,6 +306,67 @@ test('inspection card teleports without wrapper, stays in viewport, and disposes
   expect(disconnect).toHaveBeenCalledTimes(1);
 });
 
+test('simulator panel exposes scenarios and virtual time independently of playback speed', async () => {
+  const setScenario = vi.fn().mockResolvedValue(true);
+  const simulator: ReturnType<typeof useSimulator> = reactive({
+    tripId: 1,
+    trip,
+    detail: { trip, route, stops: [start] },
+    run: {
+      id: 1,
+      tripId: 1,
+      attemptNumber: 1,
+      status: 'RUNNING',
+      multiplier: 10,
+      elapsedSeconds: 60,
+      durationSeconds: 600,
+      virtualElapsedSeconds: 120,
+      scenario: 'BLOCKED',
+      simulatedAt: stamp,
+      updatedAt: stamp,
+      errorMessage: null,
+      replacementTripId: null,
+      frame: null,
+    },
+    loading: false,
+    busy: false,
+    error: null,
+    select: vi.fn(),
+    retry: vi.fn(),
+    command: vi.fn().mockResolvedValue(true),
+    setScenario,
+  });
+  const wrapper = mount(SimulatorPanel, {
+    props: {
+      simulator,
+      snapshot,
+      connection: 'live',
+      connectionError: null,
+      onReconnect: vi.fn(),
+      onShowRoute: vi.fn(),
+      now: Date.parse(stamp),
+    },
+  });
+  disposals.push(() => wrapper.unmount());
+  expect(wrapper.get('select[aria-label="Tình huống mô phỏng"]').findAll('option')).toHaveLength(5);
+  expect(wrapper.get('.simulation-journey-time strong').text()).toBe('2 phút');
+  expect(wrapper.get('.simulation-scenario').text()).toContain('Xe đứng chờ');
+  await wrapper.get('.simulation-scenario button').trigger('click');
+  expect(setScenario).toHaveBeenCalledWith('NORMAL');
+  await wrapper.get('select[aria-label="Tình huống mô phỏng"]').setValue('OFF_ROUTE');
+  expect(setScenario).toHaveBeenLastCalledWith('OFF_ROUTE');
+  simulator.busy = true;
+  await nextTick();
+  expect(wrapper.get('.simulation-scenario select').attributes('disabled')).toBeDefined();
+  simulator.busy = false;
+  await wrapper.setProps({ connection: 'reconnecting' });
+  expect(wrapper.get('.simulation-scenario select').attributes('disabled')).toBeDefined();
+  if (simulator.run) simulator.run.virtualElapsedSeconds = null;
+  await nextTick();
+  expect(wrapper.get('.simulation-journey-time').text()).toContain('Lượt cũ chưa có đồng hồ');
+  expect(wrapper.get('.simulation-journey-time strong').text()).toBe('—');
+});
+
 test('simulator panel keeps GPS exclusion, connection gating and speed command payload', async () => {
   const command = vi.fn().mockResolvedValue(true);
   const simulator: ReturnType<typeof useSimulator> = reactive({
@@ -319,6 +380,7 @@ test('simulator panel keeps GPS exclusion, connection gating and speed command p
     select: vi.fn(),
     retry: vi.fn(),
     command,
+    setScenario: vi.fn().mockResolvedValue(true),
   });
   const wrapper = mount(SimulatorPanel, {
     props: {
@@ -425,6 +487,7 @@ test('simulator panel shows check-in progress from the current attempt and opens
     select: vi.fn(),
     retry: vi.fn(),
     command: vi.fn().mockResolvedValue(true),
+    setScenario: vi.fn().mockResolvedValue(true),
   });
   const replaySnapshot: OperationsSnapshot = {
     ...snapshot,
@@ -545,6 +608,7 @@ test('simulator panel displays Trạm đầu and Trạm cuối for first and las
     select: vi.fn(),
     retry: vi.fn(),
     command: vi.fn().mockResolvedValue(true),
+    setScenario: vi.fn().mockResolvedValue(true),
   });
   const scheduledSnapshot: OperationsSnapshot = {
     ...snapshot,

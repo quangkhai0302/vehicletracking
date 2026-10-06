@@ -335,6 +335,14 @@ class DriverNavigationIntegrationTest {
                 .singleElement().satisfies(n -> assertThat(n.revisionId()).isEqualTo(revision.getId()));
         if (simulated) {
             // A proposal that has not reached a simulator tick is not the effective before path.
+            assertThat(revisions.findAllForSimulationReport(List.of(trip.id())))
+                .extracting(r -> r.getId()).contains(revision.getId());
+            assertThat(notifications.findAllByTripIdOrderByCreatedAtDescIdDesc(trip.id()))
+                .filteredOn(n -> n.getType()==NotificationType.REROUTE_CREATED)
+                .singleElement().satisfies(n -> {
+                    assertThat(n.getAttemptNumber()).isEqualTo(1);
+                    assertThat(n.getSource()).isEqualTo(com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR);
+                });
             assertThat(revision.getSimulationStartElapsed()).isNull();
             time.updateAndGet(t -> t.plusSeconds(301));
             for (int observation=0;observation<2;observation++) {

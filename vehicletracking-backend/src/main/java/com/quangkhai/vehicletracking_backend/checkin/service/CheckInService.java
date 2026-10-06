@@ -1,19 +1,27 @@
 package com.quangkhai.vehicletracking_backend.checkin.service;
 
-import com.quangkhai.vehicletracking_backend.checkin.entity.*;
-import com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing;
-import com.quangkhai.vehicletracking_backend.checkin.repository.*;
-import com.quangkhai.vehicletracking_backend.telemetry.entity.*;
-import com.quangkhai.vehicletracking_backend.trip.entity.*;
-import lombok.RequiredArgsConstructor;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.quangkhai.vehicletracking_backend.checkin.entity.CheckInEvidenceKind;
+import com.quangkhai.vehicletracking_backend.checkin.entity.TripCheckInStateEntity;
+import com.quangkhai.vehicletracking_backend.checkin.entity.TripStopVisitEntity;
+import com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing;
+import com.quangkhai.vehicletracking_backend.checkin.repository.TripCheckInStateRepository;
+import com.quangkhai.vehicletracking_backend.checkin.repository.TripStopVisitRepository;
+import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySampleEntity;
+import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource;
+import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
+import com.quangkhai.vehicletracking_backend.trip.entity.TripStopEntity;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import lombok.RequiredArgsConstructor;
 
 /** Automatic, ordered stop detection. It is called inside TelemetryService's
  * transaction, so a committed sample always has a durable detector checkpoint. */
@@ -120,9 +128,16 @@ public class CheckInService {
             if (current.getSimulatedAt()==null || previous.getSimulatedAt()==null) return pointIfInside(stop,current,radius);
             double fromElapsed=Duration.between(trip.simulationOriginAt(),previous.getSimulatedAt()).toNanos()/1_000_000_000d;
             double toElapsed=Duration.between(trip.simulationOriginAt(),current.getSimulatedAt()).toNanos()/1_000_000_000d;
+            var motion=geometry.resolve(trip).motion();
+            var expectedCurrent=motion.at(toElapsed); var expectedPrevious=motion.at(fromElapsed);
+            // Route interpolation only proves a crossing for samples actually on that trace.
+            // OFF_ROUTE demo samples must not create phantom station visits.
+            if(GeofenceCrossing.distance(now,new GeofenceCrossing.Point(expectedCurrent.latitude(),expectedCurrent.longitude()))>5
+                || GeofenceCrossing.distance(new GeofenceCrossing.Point(previous.getLatitude(),previous.getLongitude()),new GeofenceCrossing.Point(expectedPrevious.latitude(),expectedPrevious.longitude()))>5)
+                return pointIfInside(stop,current,radius);
             if (toElapsed<=fromElapsed) return GeofenceCrossing.inside(now,stop.getLatitude().doubleValue(),stop.getLongitude().doubleValue(),radius)
                 ? Optional.of(new Evidence(1,current.getLatitude(),current.getLongitude(),CheckInEvidenceKind.POINT)) : Optional.empty();
-            var crossing=geometry.resolve(trip).motion().firstEntryBetween(fromElapsed,toElapsed,
+            var crossing=motion.firstEntryBetween(fromElapsed,toElapsed,
                 stop.getLatitude().doubleValue(),stop.getLongitude().doubleValue(),radius,minimumFraction);
             if(crossing==null) return Optional.empty();
             return Optional.of(new Evidence(crossing.fraction(),crossing.latitude(),crossing.longitude(),CheckInEvidenceKind.ROUTE_TRACE));

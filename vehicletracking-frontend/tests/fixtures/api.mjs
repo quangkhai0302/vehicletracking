@@ -167,6 +167,159 @@ export const snapshot = {
   notifications: alerts,
 };
 
+// Report fixtures are simulation attempts, including a frozen archive and an unknown legacy run.
+export const simulationAttempts = Array.from({ length: 25 }, (_, index) => {
+  const unknown = index === 2;
+  const archived = index === 1;
+  const late = index % 3 === 0;
+  return {
+    tripId: 100 + index,
+    attemptNumber: archived ? 1 : 2,
+    current: !archived,
+    vehicleId: unknown ? null : (index % 3) + 1,
+    vehiclePlateNumber: unknown ? null : vehicles[index % 3].plateNumber,
+    driverId: unknown ? null : (index % 3) + 1,
+    driverName: unknown ? null : drivers[index % 3].fullName,
+    routeName: unknown ? null : 'Bến Thành → Suối Tiên',
+    startedAt: stamp,
+    endedAt: index === 0 ? null : '2026-09-22T02:00:00Z',
+    status: index === 0 ? 'RUNNING' : 'COMPLETED',
+    scenario: unknown ? 'CURRENT_TRAFFIC' : late ? 'CONGESTION' : 'NORMAL',
+    plannedDurationSeconds: unknown ? null : 3600,
+    plannedDistanceMeters: unknown ? null : 24500,
+    virtualElapsedSeconds: unknown ? null : late ? 4800 : 3600,
+    progressSeconds: 3600,
+    latenessSeconds: unknown ? null : late ? 1200 : 0,
+    punctuality: unknown ? 'UNKNOWN' : late ? 'LATE' : 'ON_TIME',
+    metadataComplete: !unknown,
+    offRouteEventCount: index === 1 ? 2 : 0,
+    routeRevisions:
+      index === 1
+        ? [
+            {
+              revisionId: 11,
+              revisionNumber: 1,
+              createdAt: stamp,
+              baselineEtaSeconds: 2700,
+              revisedEtaSeconds: 1800,
+            },
+          ]
+        : [],
+  };
+});
+
+export function simulationReportFixture(params = new URLSearchParams(), empty = false) {
+  const vehicle = params.get('vehicleId'),
+    driver = params.get('driverId');
+  const base = (empty ? [] : simulationAttempts).filter(
+    (item) =>
+      (!vehicle || item.vehicleId === Number(vehicle)) &&
+      (!driver || item.driverId === Number(driver)),
+  );
+  const knownCompleted = base.filter(
+    (item) => item.status === 'COMPLETED' && item.metadataComplete,
+  );
+  const metric = params.get('metric') || 'ALL';
+  const filtered = base.filter(
+    (item) =>
+      metric === 'ALL' ||
+      (metric === 'COMPLETED' && item.status === 'COMPLETED') ||
+      (metric === 'ON_TIME' && item.punctuality === 'ON_TIME') ||
+      (metric === 'LATE' && item.punctuality === 'LATE') ||
+      (metric === 'OFF_ROUTE' && item.offRouteEventCount > 0),
+  );
+  const page = Number(params.get('page') || 0),
+    size = Number(params.get('size') || 20);
+  return {
+    from: params.get('from') || '2026-09-01',
+    to: params.get('to') || '2026-09-22',
+    generatedAt: stamp,
+    attemptCount: base.length,
+    completedAttemptCount: base.filter((item) => item.status === 'COMPLETED').length,
+    knownCompletedAttemptCount: knownCompleted.length,
+    totalPlannedDistanceMeters: base.reduce(
+      (sum, item) => sum + (item.plannedDistanceMeters || 0),
+      0,
+    ),
+    totalVirtualSeconds: base.reduce((sum, item) => sum + (item.virtualElapsedSeconds || 0), 0),
+    onTimeRatePercent: knownCompleted.length
+      ? Math.round(
+          (knownCompleted.filter((item) => item.punctuality === 'ON_TIME').length /
+            knownCompleted.length) *
+            10000,
+        ) / 100
+      : null,
+    lateAttemptCount: base.filter((item) => item.punctuality === 'LATE').length,
+    offRouteEventCount: base.reduce((sum, item) => sum + item.offRouteEventCount, 0),
+    unknownAttemptCount: base.filter((item) => !item.metadataComplete).length,
+    items: filtered.slice(page * size, (page + 1) * size),
+    page,
+    size,
+    totalElements: filtered.length,
+    totalPages: Math.ceil(filtered.length / size),
+  };
+}
+
+export function operationalReportFixture(params = new URLSearchParams(), empty = false) {
+  const from = params.get('from') || '2026-09-01';
+  const to = params.get('to') || '2026-09-22';
+  const summary = {
+    from,
+    to,
+    generatedAt: stamp,
+    tripCount: empty ? 0 : 12,
+    completedTripCount: empty ? 0 : 8,
+    totalDistanceMeters: empty ? 0 : 294000,
+    totalRunningSeconds: empty ? 0 : 86400,
+    onTimeRatePercent: empty ? 0 : 75,
+    lateTripCount: empty ? 0 : 2,
+    offRouteEventCount: empty ? 0 : 1,
+    overspeedEventCount: empty ? 0 : 1,
+    speedLimitKmh: 80,
+  };
+  return {
+    from,
+    to,
+    generatedAt: stamp,
+    summary,
+    vehicles: empty ? [] : vehicles.slice(0, 3).map((vehicle, index) => ({
+      vehicleId: vehicle.id,
+      plateNumber: vehicle.plateNumber,
+      vehicleName: vehicle.name,
+      tripCount: 4,
+      completedTripCount: index === 0 ? 3 : 2,
+      lateTripCount: index === 0 ? 1 : 0,
+      lateStopCount: index === 0 ? 2 : 0,
+      incidentCount: index === 0 ? 1 : 0,
+      employeePassengerCount: null,
+    })),
+    drivers: empty ? [] : drivers.slice(0, 3).map((driver, index) => ({
+      driverId: driver.id,
+      driverName: driver.fullName,
+      tripCount: 4,
+      completedTripCount: index === 0 ? 3 : 2,
+      lateTripCount: index === 0 ? 1 : 0,
+      lateStopCount: index === 0 ? 2 : 0,
+      incidentCount: index === 0 ? 1 : 0,
+      employeePassengerCount: null,
+    })),
+    lateStops: empty ? [] : [{
+      tripId: 100,
+      routeName: routes[0].name,
+      vehiclePlateNumber: vehicles[0].plateNumber,
+      driverName: drivers[0].fullName,
+      stationName: stations[1].name,
+      stopSequence: 2,
+      plannedArrivalAt: stamp,
+      actualArrivalAt: '2026-09-22T01:02:00Z',
+      delaySeconds: 120,
+    }],
+    incidents: empty ? [] : [{ type: 'OFF_ROUTE_DETECTED', severity: 'CRITICAL', count: 1 }, { type: 'OVERSPEED', severity: 'MAJOR', count: 1 }],
+    employeePassengerDataAvailable: false,
+    employeePassengerDataNote: 'Chưa có dữ liệu số nhân viên/hành khách vì chuyến chưa lưu danh sách người đi xe.',
+  };
+}
+
 export async function installFixture(context, base, state = { role: 'ADMIN', mode: 'data' }) {
   const requests = [];
   await context.addInitScript(
@@ -228,7 +381,13 @@ export async function installFixture(context, base, state = { role: 'ADMIN', mod
       });
       if (path === '/auth/me')
         return state.role === 'GUEST' ? json({ detail: 'Fixture guest' }, 401) : json(user());
-      if (path === '/auth/csrf') return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'set-cookie': 'XSRF-TOKEN=fixture-csrf; Path=/; SameSite=Lax' }, body: '{}' });
+      if (path === '/auth/csrf')
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'set-cookie': 'XSRF-TOKEN=fixture-csrf; Path=/; SameSite=Lax' },
+          body: '{}',
+        });
       if (path === '/auth/register-admin')
         return json({ id: 99, username: 'ui.new', role: 'ADMIN', active: true });
       if (path === '/auth/login') {
@@ -243,6 +402,30 @@ export async function installFixture(context, base, state = { role: 'ADMIN', mod
         return json({ detail: 'Dữ liệu kiểm thử: không thể tải, vui lòng thử lại.' }, 503);
       const list = (value) => (state.mode === 'empty' ? [] : value);
       if (path === '/telemetry/snapshot') return json(snapshot);
+      if (path === '/reports/simulation')
+        return json(simulationReportFixture(url.searchParams, state.mode === 'empty'));
+      if (path === '/reports/operations/detail')
+        return json(operationalReportFixture(url.searchParams, state.mode === 'empty'));
+      if (/^\/trips\/\d+\/simulation\/scenario$/.test(path)) {
+        const body = request.postDataJSON();
+        const tripId = Number(path.split('/')[2]);
+        return json({
+          id: tripId,
+          tripId,
+          attemptNumber: body.attemptNumber,
+          status: 'RUNNING',
+          multiplier: 1,
+          elapsedSeconds: 60,
+          durationSeconds: 3600,
+          virtualElapsedSeconds: 120,
+          scenario: body.scenario,
+          simulatedAt: stamp,
+          updatedAt: '2026-09-22T01:00:01Z',
+          errorMessage: null,
+          replacementTripId: null,
+          frame: null,
+        });
+      }
       if (path === '/dashboard/summary')
         return json({
           serverTime: stamp,
@@ -287,7 +470,8 @@ export async function installFixture(context, base, state = { role: 'ADMIN', mod
       if (path === '/routes') return json(list(routes));
       if (/^\/routes\/\d+$/.test(path)) return json(routeDetail);
       if (path === '/stations') return json(list(stations));
-      if (path === '/stations/reverse-geocode') return json({ address: 'Địa chỉ gợi ý fixture tại điểm đã chọn', distanceMeters: 12 });
+      if (path === '/stations/reverse-geocode')
+        return json({ address: 'Địa chỉ gợi ý fixture tại điểm đã chọn', distanceMeters: 12 });
       if (path === '/schedules' || path === '/driver/schedules') return json(list(schedules));
       if (path.startsWith('/notifications')) return json(list(alerts));
       if (path.startsWith('/traffic/'))
