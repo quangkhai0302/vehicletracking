@@ -772,7 +772,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     <TrafficLayer
       :map="mapInstanceRef"
       :map-ready="mapReady"
-      :visible="showTraffic && !comparisonActive"
+      :visible="showTraffic"
       :incidents="traffic.incidents"
     />
     <template v-if="workspace === 'simulation'"
@@ -1312,7 +1312,6 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       <span />
     </div>
     <MapControls
-      :historical="comparisonActive"
       :theme="theme"
       :on-theme-change="
         (value) => {

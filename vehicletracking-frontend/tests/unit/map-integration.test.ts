@@ -183,7 +183,10 @@ test('historical comparison suppresses the live route and camera until exit, kee
   expect(wrapper.find('.route-inspection-hit').exists()).toBe(false);
   expect(wrapper.find('.live-vehicle-marker').exists()).toBe(false);
   expect(wrapper.find('.panel-launchers').exists()).toBe(false);
-  expect(wrapper.find('.gm-traffic-floating-pill').exists()).toBe(false);
+  expect(wrapper.find('.gm-traffic-floating-pill').exists()).toBe(true);
+  expect(wrapper.get('.gm-traffic-toggle-switch').attributes('aria-pressed')).toBe('true');
+  await wrapper.get('.gm-traffic-toggle-switch').trigger('click');
+  expect(wrapper.get('.gm-traffic-toggle-switch').attributes('aria-pressed')).toBe('false');
   expect(wrapper.get('.context-drawer').attributes('hidden')).toBeDefined();
   expect(wrapper.findAll('.route-comparison-before').length).toBeGreaterThan(0);
   const cameraCalls = camera.mock.calls.length;

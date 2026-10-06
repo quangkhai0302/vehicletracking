@@ -115,8 +115,15 @@ try {
         return 1.05 / (luminance + 0.05);
       });
       assert(headingContrast >= 4.5, `History heading remains readable on the white panel at ${width}px`);
-      assert.equal(await page.getByRole('region', { name: 'Thông tin giao thông', exact: true }).isVisible(), false,
-        'Live traffic controls must not obscure or mislabel a historical comparison');
+      const trafficRegion = page.getByRole('region', { name: 'Thông tin giao thông', exact: true });
+      assert.equal(await trafficRegion.isVisible(), true,
+        'Live traffic controls remain available during a route comparison');
+      const trafficToggle = page.locator('.gm-traffic-toggle-switch');
+      assert.equal(await trafficToggle.getAttribute('aria-pressed'), 'true');
+      await trafficToggle.click();
+      assert.equal(await trafficToggle.getAttribute('aria-pressed'), 'false');
+      await trafficToggle.click();
+      assert.equal(await trafficToggle.getAttribute('aria-pressed'), 'true');
       const overlap = await page.locator('.gm-control-stack').evaluate(element => {
         if (!element.checkVisibility()) return false;
         const controls = element.getBoundingClientRect();
