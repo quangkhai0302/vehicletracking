@@ -22,3 +22,10 @@ Migration `V7__create_route_revisions_and_notifications.sql` tạo `trip_route_r
 ## Security/compatibility
 
 HERE secret chỉ backend. Các field mới trong ETA/snapshot là additive; frontend cũ được normalization về mảng rỗng khi backend chưa nâng cấp.
+
+## UI copy — 06/10/2026 (AC7)
+
+- Reroute unavailable: “Chưa tìm được tuyến thay thế phù hợp hoặc nhanh hơn tuyến hiện tại.”
+- Road closure: “Phát hiện đường bị đóng hoặc bị chặn.”
+- Producer dùng nội dung trung tính; response mapping chuẩn hóa đúng hai chuỗi legacy đã được producer cũ lưu. Không sửa entity lịch sử, không xóa cảnh báo, không lọc tùy ý lý do khác. Null reasonDetail của revision vẫn là null.
+- Notification DTO chung áp dụng cho list/read/dashboard; revision DTO dùng cùng chuẩn hóa. Giữ nguyên HTTP, JSON fields, enum, timing và thuật toán reroute.

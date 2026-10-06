@@ -1,6 +1,7 @@
 package com.quangkhai.vehicletracking_backend.reroute.dto;
 
 import com.quangkhai.vehicletracking_backend.reroute.entity.*;
+import com.quangkhai.vehicletracking_backend.reroute.RerouteMessages;
 import java.time.Instant;
 import java.math.BigDecimal;
 import java.util.List;
@@ -13,7 +14,7 @@ public record RouteRevisionResponse(long id, long tripId, long sourceRouteId, in
                                     List<RevisionStop> stops, List<RevisionSection> sections) {
     public static RouteRevisionResponse from(TripRouteRevisionEntity item) {
         return new RouteRevisionResponse(item.getId(), item.getTrip().getId(), item.getSourceRoute().getId(),
-                item.getRevisionNumber(), item.getStatus(), item.getReasonCode(), item.getReasonDetail(),
+                item.getRevisionNumber(), item.getStatus(), item.getReasonCode(), RerouteMessages.forDisplay(item.getReasonDetail()),
                 item.getTriggerIncidentId(), item.getSeverity(), item.getBaselineRemainingSeconds(),
                 item.getRevisedRemainingSeconds(), item.getCreatedAt(), item.getActivatedAt(), item.getSupersededAt(),
                 item.getStops().stream().map(RevisionStop::from).toList(),

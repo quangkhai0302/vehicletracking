@@ -97,6 +97,7 @@ try {
     await page.getByRole('link', { name: 'Lịch chạy', exact: true }).click(); await count(page.locator('.driver-schedule-card'), 3);
     await page.goBack(); await page.locator('.driver-trip-card').first().waitFor();
     assert.equal(requests.slice(start).every(request => request.path.startsWith('/auth/') || request.path.startsWith('/driver/')), true);
+    await page.locator('.driver-account-trigger').click();
     await page.getByRole('button', { name: 'Đăng xuất', exact: true }).click(); await page.waitForURL('**/login');
   });
 

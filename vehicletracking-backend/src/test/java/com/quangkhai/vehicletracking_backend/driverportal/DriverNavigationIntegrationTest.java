@@ -90,6 +90,9 @@ class DriverNavigationIntegrationTest {
     @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @Autowired OperationsSnapshotService snapshots;
     @Autowired TripRouteGeometryQueryService routeQuery;
+    @Autowired com.quangkhai.vehicletracking_backend.reroute.service.RouteComparisonService comparisons;
+    @Autowired com.quangkhai.vehicletracking_backend.reroute.service.RerouteEvaluationService reroutes;
+    @Autowired com.quangkhai.vehicletracking_backend.telemetry.service.TelemetryService telemetry;
     @MockitoBean Clock operationsClock;
     @MockitoBean RoutingProvider routing;
     static final AtomicInteger IDS = new AtomicInteger();
@@ -234,6 +237,15 @@ class DriverNavigationIntegrationTest {
         assertThat(changed.stops()).extracting(s -> s.sequenceNumber()).containsExactly(1, 2, 3);
         // Reload outside the write transaction to prove JSONB guidance is durable.
         assertThat(navigation.navigation(trip.principal(), trip.id()).guidance()).isEqualTo(changed.guidance());
+        // Read outside the apply transaction: the immutable JSONB before/after pair must survive JPA reload.
+        var comparison = comparisons.find(trip.id(), changed.routeRevisionId());
+        assertThat(comparison.status()).isEqualTo("AVAILABLE");
+        assertThat(comparison.before().durationSeconds()).isEqualTo(42);
+        assertThat(comparison.before().encodedPolylines()).isNotEqualTo(comparison.after().encodedPolylines());
+        var comparisonOrigin = com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline
+                .decode(comparison.after().encodedPolylines().getFirst()).getFirst();
+        assertThat(comparisonOrigin.latitude()).isCloseTo(changed.position().latitude(), within(.00001));
+        assertThat(comparisonOrigin.longitude()).isCloseTo(changed.position().longitude(), within(.00001));
         navigation.apply(trip.principal(), trip.id(), preview.token(), 0);
         assertThat(revisions.countByTripId(trip.id())).isEqualTo(1);
         assertThat(notifications.findAllByTripIdOrderByCreatedAtDescIdDesc(trip.id())).hasSize(1);
@@ -250,6 +262,95 @@ class DriverNavigationIntegrationTest {
         }
         assertThat(revisions.countByTripId(trip.id())).isEqualTo(1);
         assertThat(notifications.findAllByTripIdOrderByCreatedAtDescIdDesc(trip.id())).hasSize(1);
+    }
+    @Test void comparisonKeepsFirstChangeFrozenAfterSecondDriverChangeAndReplay() {
+        var trip=create(); navigation.start(trip.principal(),trip.id());
+        var firstPreview=navigation.options(trip.principal(),trip.id());
+        time.updateAndGet(t -> t.plusSeconds(2)); simulator.tick(trip.id());
+        var first=navigation.apply(trip.principal(),trip.id(),firstPreview.token(),0);
+        var frozen=comparisons.find(trip.id(),first.routeRevisionId());
+        time.updateAndGet(t -> t.plusSeconds(2)); simulator.tick(trip.id());
+        var secondPreview=navigation.options(trip.principal(),trip.id());
+        var second=navigation.apply(trip.principal(),trip.id(),secondPreview.token(),0);
+        var secondPair=comparisons.find(trip.id(),second.routeRevisionId());
+        assertThat(secondPair.status()).isEqualTo("AVAILABLE");
+        assertThat(revisions.findById(second.routeRevisionId()).orElseThrow().getComparisonSnapshot().previousRevisionId())
+                .isEqualTo(first.routeRevisionId());
+        assertThat(comparisons.find(trip.id(),first.routeRevisionId())).isEqualTo(frozen);
+        // Completion/reset changes the current attempt and route, while historical geometry stays fixed.
+        simulator.speed(trip.id(),10);
+        for (int i=0;i<10 && trips.findById(trip.id()).trip().status()==TripStatus.IN_PROGRESS;i++) {
+            time.updateAndGet(t -> t.plusSeconds(1)); simulator.tick(trip.id());
+        }
+        assertThat(trips.findById(trip.id()).trip().status()).isEqualTo(TripStatus.COMPLETED);
+        assertThat(simulator.reset(trip.id()).attemptNumber()).isEqualTo(2);
+        assertThat(comparisons.find(trip.id(),first.routeRevisionId())).isEqualTo(frozen);
+        assertThat(comparisons.find(trip.id(),second.routeRevisionId())).isEqualTo(secondPair);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans={false,true})
+    void automaticReroutePersistsEventPairForGpsAndSimulator(boolean simulated) {
+        var trip=create();
+        if (simulated) {
+            navigation.start(trip.principal(),trip.id());
+            time.updateAndGet(t -> t.plusSeconds(2)); simulator.tick(trip.id());
+        } else {
+            trips.start(trip.id());
+            time.updateAndGet(t -> t.plusSeconds(1));
+            telemetry.ingestGps(new com.quangkhai.vehicletracking_backend.telemetry.dto.TelemetryRequest(
+                    UUID.randomUUID(),trip.detail().trip().vehicleId(),trip.id(),time.get(),10.77,106.70,0d,45d,5d,
+                    com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.GPS));
+            time.updateAndGet(t -> t.plusSeconds(2));
+            telemetry.ingestGps(new com.quangkhai.vehicletracking_backend.telemetry.dto.TelemetryRequest(
+                    UUID.randomUUID(),trip.detail().trip().vehicleId(),trip.id(),time.get(),10.7705,106.7005,30d,45d,5d,
+                    com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.GPS));
+        }
+        when(routing.calculate(anyList())).thenAnswer(call -> {
+            List<RoutingWaypoint> waypoints=call.getArgument(0);
+            var origin=waypoints.getFirst();
+            var sections=new ArrayList<CalculatedSection>();
+            for(int i=1;i<waypoints.size();i++) {
+                var target=waypoints.get(i);
+                sections.add(new CalculatedSection(i,i+1,SimulationFixtures.encode(new double[][]{
+                        {origin.latitude().doubleValue(),origin.longitude().doubleValue()},
+                        {10.7703,106.702},{target.latitude().doubleValue(),target.longitude().doubleValue()}}),400,30,30));
+                origin=target;
+            }
+            return new CalculatedRoute(time.get(),sections);
+        });
+        for (int observation=0;observation<2;observation++) {
+            time.updateAndGet(t -> t.plusSeconds(1));
+            reroutes.evaluate(trip.id(),new com.quangkhai.vehicletracking_backend.traffic.eta.TripEtaResponse(
+                    trip.id(),trip.detail().trip().routeId(),time.get(),com.quangkhai.vehicletracking_backend.traffic.TrafficSource.HERE_LIVE,
+                    com.quangkhai.vehicletracking_backend.traffic.TrafficStatus.BLOCKED,time.get(),time.get(),2,100,1000,List.of(),List.of(),null));
+        }
+        var revision=revisions.findAllByTripIdOrderByRevisionNumberDesc(trip.id()).getFirst();
+        var comparison=comparisons.find(trip.id(),revision.getId());
+        assertThat(comparison.status()).isEqualTo("AVAILABLE");
+        assertThat(comparison.before().durationSeconds()).isEqualTo(1000);
+        assertThat(comparison.after().durationSeconds()).isEqualTo(64);
+        assertThat(comparison.before().encodedPolylines()).isNotEqualTo(comparison.after().encodedPolylines());
+        assertThat(snapshots.snapshot().notifications()).filteredOn(n -> n.tripId()==trip.id() && n.type()==NotificationType.REROUTE_CREATED)
+                .singleElement().satisfies(n -> assertThat(n.revisionId()).isEqualTo(revision.getId()));
+        if (simulated) {
+            // A proposal that has not reached a simulator tick is not the effective before path.
+            assertThat(revision.getSimulationStartElapsed()).isNull();
+            time.updateAndGet(t -> t.plusSeconds(301));
+            for (int observation=0;observation<2;observation++) {
+                time.updateAndGet(t -> t.plusSeconds(1));
+                reroutes.evaluate(trip.id(),new com.quangkhai.vehicletracking_backend.traffic.eta.TripEtaResponse(
+                        trip.id(),trip.detail().trip().routeId(),time.get(),com.quangkhai.vehicletracking_backend.traffic.TrafficSource.HERE_LIVE,
+                        com.quangkhai.vehicletracking_backend.traffic.TrafficStatus.BLOCKED,time.get(),time.get(),2,100,1000,List.of(),
+                        List.of(new com.quangkhai.vehicletracking_backend.traffic.eta.TripEtaResponse.AffectedSegment(
+                                1,2,"INCIDENT","second-comparison",10,"closure")),null));
+            }
+            var second=revisions.findAllByTripIdOrderByRevisionNumberDesc(trip.id()).getFirst();
+            assertThat(second.getId()).isNotEqualTo(revision.getId());
+            assertThat(second.getComparisonSnapshot().previousRevisionId()).isNull();
+            assertThat(comparisons.find(trip.id(),second.getId()).before()).isEqualTo(comparison.before());
+            assertThat(comparisons.find(trip.id(),revision.getId())).isEqualTo(comparison);
+        }
     }
     @Test void expiredUnknownOrOldPreviewKeepsOriginalRoute() {
         var trip = create(); navigation.start(trip.principal(), trip.id());

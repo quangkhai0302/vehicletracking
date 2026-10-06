@@ -268,9 +268,13 @@ test('driver redirects from admin URLs, fetches only assigned resources, keeps b
     '#100',
     '1',
   ]);
+  const notificationBell = wrapper.get('.driver-portal-header .driver-account-trigger').element;
+  const notificationCalls = calls('/api/v1/driver/dispatch/inbox?limit=50').length;
   await wrapper.get('a[href="/driver/schedules"]').trigger('click');
   await flushPromises();
   expect(wrapper.get('.driver-schedule-card').text()).toContain('Hàng tuần · 08:00');
+  expect(wrapper.get('.driver-portal-header .driver-account-trigger').element).toBe(notificationBell);
+  expect(calls('/api/v1/driver/dispatch/inbox?limit=50')).toHaveLength(notificationCalls);
   router.back();
   await flushPromises();
   expect(wrapper.findAll('.driver-trip-card')).toHaveLength(2);
@@ -327,7 +331,8 @@ test('driver API problem uses toast and remains retryable; logout clears role ac
   await wrapper.get('[aria-label="Tải lại chuyến được phân công"]').trigger('click');
   await flushPromises();
   expect(wrapper.findAll('.driver-trip-card')).toHaveLength(2);
-  await wrapper.findAll('.driver-portal-account button').find(button => button.text() === 'Đăng xuất')!.trigger('click');
+  await wrapper.get('.driver-account-trigger').trigger('click');
+  document.querySelector<HTMLButtonElement>('.driver-account-signout')!.click();
   await flushPromises();
   expect(router.currentRoute.value.path).toBe('/login');
   expect(auth.user).toBeNull();
@@ -339,7 +344,9 @@ test('driver API problem uses toast and remains retryable; logout clears role ac
 test('driver header opens voluntary self-change without requesting more business data', async () => {
   const { wrapper, router, auth } = await open('/driver/today');
   const previousRequests = calls('/api/v1/driver/trips').length;
-  await wrapper.findAll('.driver-portal-account button').find(button => button.text() === 'Đổi mật khẩu')!.trigger('click');
+  await wrapper.get('.driver-account-trigger').trigger('click');
+  const passwordButton = Array.from(document.querySelectorAll<HTMLButtonElement>('.driver-account-actions button')).find(button => button.textContent === 'Đổi mật khẩu');
+  passwordButton!.click();
   await flushPromises();
   expect(router.currentRoute.value.path).toBe('/driver/change-password');
   expect(wrapper.get('h1').text()).toBe('Đổi mật khẩu');

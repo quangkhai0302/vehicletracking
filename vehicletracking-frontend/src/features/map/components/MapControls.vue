@@ -19,6 +19,7 @@ defineProps<{
   trafficMessage: string;
   trafficCanRetry: boolean;
   onRetryTraffic: () => void;
+  historical?: boolean;
 }>();
 const details = shallowRef<HTMLDetailsElement | null>(null);
 const themes = [
@@ -139,6 +140,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', pointerDown));
     </div>
   </div>
   <div
+    v-if="!historical"
     :class="`gm-traffic-floating-pill ${theme === 'google-dark' ? 'dark' : 'light'}`"
     role="region"
     aria-label="Thông tin giao thông"

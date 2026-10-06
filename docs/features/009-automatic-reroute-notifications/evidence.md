@@ -37,3 +37,19 @@ Chưa chạy full integration với PostgreSQL/Docker và chưa gọi live HERE 
 - `TelemetryService` đăng ký trigger reroute ở `afterCommit`; `RerouteEvaluationService#evaluateCurrent` chạy trong `REQUIRES_NEW`. Vì vậy lỗi HERE/reroute không thể đánh dấu transaction ghi telemetry của simulator là rollback-only.
 - `SimulationService` không gọi evaluator lần thứ hai trong cùng transaction tick; scheduler vẫn giữ trạng thái `FAILED` cho lỗi lifecycle/geometry thực sự và chỉ ghi loại exception trong log, không ghi chi tiết có thể chứa URL/provider credential.
 - Backend compile và bộ test tập trung 27 test liên quan route/traffic/ETA/geometry đã chạy pass sau thay đổi; integration simulator cần PostgreSQL/Testcontainers khả dụng để xác minh runtime.
+
+## Bugfix UI copy — 06/10/2026 (AC7, Verified)
+
+Theo yêu cầu trực tiếp, thông báo reroute không khả dụng/đường đóng dùng lý do nghiệp vụ không nêu tên nhà cung cấp. Lượt này chỉ sửa backend và tài liệu feature009; giữ nguyên working tree frontend từ lượt menu tài khoản trước. Chưa commit/push.
+
+Evidence source (dưới `vehicletracking-backend/src/main/java/com/quangkhai/vehicletracking_backend/`):
+
+- `reroute/RerouteMessages.java:UNAVAILABLE/ROAD_CLOSED/forDisplay`: hai chuỗi trung tính và mapping đúng hai nội dung legacy; lý do khác/null được giữ.
+- `reroute/service/RerouteEvaluationService.java:buildRevision/createUnavailable`: bản ghi mới dùng copy trung tính.
+- `reroute/dto/NotificationResponse.java:from`: chuẩn hóa khi trả notification, kể cả lịch sử; dùng chung cho list/read/dashboard. `RouteRevisionResponse.java:from` chuẩn hóa reasonDetail của revision. Không cập nhật/xóa entity lịch sử hoặc migration.
+- `vehicletracking-frontend/src/pages/AlertsManagementPage.vue:alertDetail` hiển thị reason của API cho reroute; không sửa frontend trong lượt này.
+- `vehicletracking-backend/src/test/java/com/quangkhai/vehicletracking_backend/reroute/NotificationServiceTest.java:legacyRerouteMessagesAreNeutralInResponsesWithoutChangingStoredHistory/otherNotificationDetailsAndMissingRevisionReasonsArePreserved`: legacy notification/revision dùng copy mới nhưng entity giữ nội dung cũ; không thay lý do khác hoặc null.
+
+Lệnh chạy thực tế trong backend: `JAVA_HOME=/home/khainq/.sdkman/candidates/java/26.0.1-amzn bash ./mvnw -Dtest=NotificationServiceTest,RerouteFingerprintTest,ReroutePolicyTest,RerouteSimulationIntegrationTest test` — exit **0**, **13 tests**, 0 failures/errors/skipped. Bao gồm 4 integration tests với PostgreSQL 17 Testcontainers; provider dùng fixture, không gọi nhà cung cấp thật hoặc ghi dữ liệu development. Lượt compile đầu có lỗi khai báo method test tạm thời; đã sửa trước lượt cuối pass. Log `/tmp/vehicletracking-reroute-message-tests.log`. `git diff --check` exit0.
+
+Rà soát source: thuật toán/enum/HTTP/DTO field/schema giữ nguyên; chỉ copy và mapping hiển thị hai bản tin cũ thay đổi. Backend mới cần được chạy/triển khai để UI đọc response mới. Chưa chạy lại full Maven suite, frontend checks hoặc browser/deploy vì frontend không đổi và targeted tests đã kiểm chứng mapping + reroute integration liên quan. Không đọc `.env` hoặc secret.

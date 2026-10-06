@@ -8,6 +8,8 @@ import * as fleetApi from '@/features/fleet/api/fleet';
 import * as etaApi from '@/features/fleet/api/eta';
 import type { OperationsSnapshot, SimulationRun } from '@/features/tracking/types/operations';
 import type { TripDetail } from '@/features/fleet/types/fleet';
+import * as comparisonApi from '@/features/reroute/api/comparison';
+import { encode } from './fixtures/driverNavigation';
 import { notifyError } from '@/shared/notifications/toast';
 vi.mock('@/features/tracking/api/operations', () => ({
   fetchOperations: vi.fn(),
@@ -151,6 +153,60 @@ function mockLiveControlsEta() {
     baselineRemainingSeconds: 840, totalRemainingSeconds: 840, stops: [], affectedSegments: [], warning: null,
   }));
 }
+
+test('historical comparison suppresses the live route and camera until exit, keeping the same map and SSE', async () => {
+  const { detail, liveSnapshot } = liveControlsFixture();
+  detail.route.sections = [{ sectionSequence: 1, destinationStopSequence: 2,
+    encodedPolyline: encode([[10.78, 106.71], [10.88, 106.81]]), distanceMeters: 10000,
+    travelDurationSeconds: 900, baseTravelDurationSeconds: 900, instructions: [] }];
+  let send: ((value: OperationsSnapshot) => void) | undefined;
+  vi.mocked(operations.fetchOperations).mockResolvedValue(liveSnapshot);
+  vi.mocked(operations.subscribeOperations).mockImplementation(callback => { send = callback; callback(liveSnapshot); return vi.fn(); });
+  vi.spyOn(fleetApi, 'fetchTrip').mockResolvedValue(detail);
+  vi.spyOn(fleetApi, 'fetchTripRoute').mockResolvedValue(detail.route);
+  mockLiveControlsEta();
+  const history = vi.spyOn(comparisonApi, 'fetchRouteComparison').mockResolvedValue({
+    tripId: 42, revisionId: 11, revisionNumber: 1, createdAt: snapshot.serverTime, reason: 'Đổi đường',
+    status: 'AVAILABLE', message: null, attemptNumber: 1, anchor: { latitude: 10.78, longitude: 106.71 },
+    before: { encodedPolylines: [encode([[10.78, 106.71], [10.78, 106.72]])], distanceMeters: 1100, durationSeconds: 300 },
+    after: { encodedPolylines: [encode([[10.78, 106.71], [10.785, 106.715], [10.78, 106.72]])], distanceMeters: 1400, durationSeconds: 240 },
+  });
+  const camera = vi.spyOn(L.Map.prototype, 'setView'), remove = vi.spyOn(L.Map.prototype, 'remove');
+  const close = vi.fn();
+  const wrapper = mount(MapComponent, { props: { initialTripId: 42, initialRevisionId: 11, onComparisonClose: close },
+    global: { stubs: { RouterLink: true } }, attachTo: document.body });
+  unmounts.push(() => wrapper.unmount());
+  await flushPromises();
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  const canvas = wrapper.get('#main-map').element;
+  expect(wrapper.find('.route-comparison-panel').exists()).toBe(true);
+  expect(wrapper.find('.route-inspection-hit').exists()).toBe(false);
+  expect(wrapper.find('.live-vehicle-marker').exists()).toBe(false);
+  expect(wrapper.find('.panel-launchers').exists()).toBe(false);
+  expect(wrapper.find('.gm-traffic-floating-pill').exists()).toBe(false);
+  expect(wrapper.get('.context-drawer').attributes('hidden')).toBeDefined();
+  expect(wrapper.findAll('.route-comparison-before').length).toBeGreaterThan(0);
+  const cameraCalls = camera.mock.calls.length;
+  const paths = wrapper.findAll('.route-comparison-path').map(item => item.attributes('d'));
+  send?.({ ...liveSnapshot, serverTime: '2026-10-07T00:00:00Z', positions: liveSnapshot.positions.map(point => ({ ...point, latitude: 11, longitude: 107 })) });
+  await flushPromises();
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  expect(camera).toHaveBeenCalledTimes(cameraCalls);
+  expect(history).toHaveBeenCalledTimes(1);
+  expect(wrapper.findAll('.route-comparison-path').map(item => item.attributes('d'))).toEqual(paths);
+  await wrapper.get('.route-comparison-close').trigger('click');
+  expect(close).toHaveBeenCalledTimes(1);
+  await wrapper.setProps({ initialRevisionId: null }); await flushPromises();
+  expect(wrapper.find('.route-comparison-path').exists()).toBe(false);
+  expect(wrapper.find('.route-comparison-anchor').exists()).toBe(false);
+  await vi.waitFor(() => expect(wrapper.find('.route-inspection-hit').exists()).toBe(true));
+  expect(wrapper.find('.live-vehicle-marker').exists()).toBe(true);
+  expect(wrapper.find('.gm-traffic-floating-pill').exists()).toBe(true);
+  expect(wrapper.get('#main-map').element).toBe(canvas);
+  expect(operations.subscribeOperations).toHaveBeenCalledTimes(1);
+  expect(remove).not.toHaveBeenCalled();
+  expect(operations.controlSimulation).not.toHaveBeenCalled();
+});
 
 test.each([false, true])(
   'live monitoring switches stops/controls for the same running trip without new map, SSE or commands (compact: %s)',

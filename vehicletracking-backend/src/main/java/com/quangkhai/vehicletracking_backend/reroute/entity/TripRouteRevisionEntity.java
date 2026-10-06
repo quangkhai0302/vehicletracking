@@ -6,6 +6,8 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -63,6 +65,15 @@ public class TripRouteRevisionEntity {
 
     @Column(name = "superseded_at")
     private Instant supersededAt;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "comparison_snapshot", columnDefinition = "jsonb")
+    private RouteComparisonSnapshot comparisonSnapshot;
+
+    public void captureComparison(RouteComparisonSnapshot snapshot) {
+        if (comparisonSnapshot != null) throw new IllegalStateException("Comparison is already captured");
+        comparisonSnapshot = java.util.Objects.requireNonNull(snapshot);
+    }
 
     @Column(name="simulation_start_elapsed") private Double simulationStartElapsed;
     @Column(name="simulation_attempt_number") private Integer simulationAttemptNumber;

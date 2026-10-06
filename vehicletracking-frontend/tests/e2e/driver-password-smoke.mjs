@@ -92,6 +92,7 @@ try {
     await page.getByLabel('Mật khẩu', { exact: true }).fill('Personal8Pass');
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.waitForURL('**/driver/today');
+    await page.locator('.driver-account-trigger').click();
     await page.getByRole('button', { name: 'Đổi mật khẩu', exact: true }).waitFor();
     const portalSize = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth }));
     assert.ok(portalSize.scroll <= portalSize.viewport + 1, `Portal header overflow at ${width}px`);

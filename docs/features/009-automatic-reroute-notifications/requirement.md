@@ -22,3 +22,7 @@ Out of scope: thay thế route snapshot gốc, điều phối tài xế thật, 
 ## Phụ thuộc
 
 HERE Routing/Traffic được cấu hình ở backend; migration Flyway V7 phải được áp dụng. Không đưa API key vào frontend.
+
+## Bổ sung UI copy — 06/10/2026
+
+Người dùng yêu cầu trực tiếp bỏ tên nhà cung cấp khỏi thông báo không tạo được tuyến thay thế. AC7: các thông báo reroute mới và hai nội dung legacy đã lưu hiển thị lý do nghiệp vụ bằng tiếng Việt, không nêu nhà cung cấp; giữ nguyên loại/mức cảnh báo, ETA, trạng thái đọc, trigger và lịch sử. Phạm vi là cảnh báo và lý do revision của luồng tự động đổi tuyến; không thay đổi tích hợp, cấu hình, attribution bản đồ hoặc contract fields.

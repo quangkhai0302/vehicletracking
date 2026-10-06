@@ -72,8 +72,8 @@ class ScheduledAutoStartRetirementMigrationIntegrationTest {
                 select ready_driver_id,ready_vehicle_id,ready_attempt_number,ready_assignment_revision,ready_at,created_at,start_mode
                 from vehicle_tracking.trip_dispatches where trip_id=?
                 """, readyTrip);
-        var latest = flyway(null);
-        assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
+        var retirement = flyway("34");
+        assertThat(retirement.migrate().migrationsExecuted).isEqualTo(1);
         assertThat(jdbc.queryForList("select * from vehicle_tracking.trips order by id")).isEqualTo(tripsBefore);
         assertThat(jdbc.queryForMap("""
                 select ready_driver_id,ready_vehicle_id,ready_attempt_number,ready_assignment_revision,ready_at,created_at,start_mode
@@ -89,7 +89,7 @@ class ScheduledAutoStartRetirementMigrationIntegrationTest {
         long retainedTrip = readyTrip;
         assertThatThrownBy(() -> jdbc.update("update vehicle_tracking.trip_dispatches set state='READY',next_action_at=now() where trip_id=?", retainedTrip))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThat(latest.migrate().migrationsExecuted).isZero();
+        assertThat(retirement.migrate().migrationsExecuted).isZero();
     }
 
     private Flyway flyway(String target) {

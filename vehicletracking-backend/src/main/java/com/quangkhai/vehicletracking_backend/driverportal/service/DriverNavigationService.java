@@ -172,6 +172,13 @@ public class DriverNavigationService {
         var revision = new TripRouteRevisionEntity(trip, trip.getRoute(), revisions.countByTripId(tripId) + 1,
                 RerouteReasonCode.DRIVER_CHOICE, reason, null, NotificationSeverity.MAJOR,
                 Math.round(plan.motion().duration() - run.getElapsedSeconds()), duration, now);
+        try {
+            revision.captureComparison(com.quangkhai.vehicletracking_backend.reroute.service.RouteComparisonGeometry.simulation(
+                    trip.getAttemptNumber(), plan.revisionId(), plan.motion(), run.getElapsedSeconds(), sections,
+                    revision.getBaselineRemainingSeconds(), duration));
+        } catch (IllegalArgumentException ignored) {
+            // Historical comparison must not prevent a validated replacement from being applied.
+        }
         revisions.findTopByTripIdAndStatusOrderByRevisionNumberDesc(tripId, RouteRevisionStatus.ACTIVE)
                 .ifPresent(active -> { active.supersede(now); revisions.saveAndFlush(active); });
         for (var section : sections) revision.addSection(new TripRouteRevisionSectionEntity(section.sectionSequence(),

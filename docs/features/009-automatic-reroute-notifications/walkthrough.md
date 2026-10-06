@@ -16,3 +16,9 @@ Sau khi dừng backend đang chạy bằng Ctrl+C, chạy lại `bash ./mvnw spr
 3. Muốn nghỉ rồi chạy tiếp: **Tạm dừng → Tiếp tục**. **Dừng & hủy chuyến** kết thúc chuyến, không phải pause.
 4. Phiên FAILED/STOPPED/COMPLETED: **Chạy lại → Tạo chuyến chạy lại → Bắt đầu**. Hệ thống chọn chuyến thay thế; lịch sử cũ vẫn còn. Nếu thao tác trên chuyến cũ đã có replacement thì API trả lại replacement đó; chọn Chạy lại trên replacement khi cần một lượt tiếp theo.
 5. Các sự kiện kẹt xe/tai nạn/công trường giả lập chưa được triển khai. Traffic và ETA đang dùng dữ liệu nhà cung cấp hoặc tuyến lưu theo trạng thái hiển thị.
+
+## Hiển thị thông báo trung tính — 06/10/2026
+
+Sau khi triển khai backend mới, cảnh báo không tìm được tuyến thay thế dùng nội dung tiếng Việt không nêu nhà cung cấp hoặc thuật ngữ ETA. Cảnh báo đường đóng cũng dùng lý do nghiệp vụ. Các bản tin legacy được chuẩn hóa khi chuyển entity thành DTO, nên không cần sửa/xóa dữ liệu lịch sử hoặc migration. Page cảnh báo tiếp tục hiển thị reason từ API như hiện có.
+
+Code: `RerouteMessages`, `RerouteEvaluationService:buildRevision/createUnavailable`, `NotificationResponse:from`, `RouteRevisionResponse:from`. Kết quả kiểm tra và giới hạn ở evidence.md.

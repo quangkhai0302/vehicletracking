@@ -1,0 +1,195 @@
+.route-comparison-panel {
+  position: absolute;
+  z-index: 700;
+  left: 16px;
+  top: 16px;
+  width: 360px;
+  max-height: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d3e1ee;
+  border-radius: 16px;
+  background: #fff;
+  color: #172c43;
+  box-shadow: 0 8px 32px #132c4526;
+  overflow: hidden;
+}
+.route-comparison-heading {
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid #e5edf4;
+}
+.route-comparison-heading > span {
+  color: #0086bd;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  font-weight: 800;
+}
+.route-comparison-panel .route-comparison-heading h2 {
+  color: #172c43;
+  font-size: 19px;
+  margin: 7px 0;
+  line-height: 1.3;
+}
+.route-comparison-heading p {
+  margin: 0;
+  color: #637991;
+  font-size: 12px;
+}
+.route-comparison-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  min-height: 0;
+  font-size: 13px;
+}
+.route-comparison-body time {
+  font-size: 12px;
+  color: #647b93;
+}
+.route-comparison-reason {
+  margin: 10px 0 16px;
+  line-height: 1.5;
+}
+.route-comparison-modes {
+  display: flex;
+  border-radius: 9px;
+  padding: 3px;
+  background: #f0f5f9;
+  gap: 2px;
+}
+.route-comparison-panel button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  font: inherit;
+}
+.route-comparison-panel button:focus-visible {
+  outline: 2px solid #007fbd;
+  outline-offset: 2px;
+}
+.route-comparison-panel button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.route-comparison-modes button {
+  flex: 1;
+  padding: 8px 3px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #435f7a;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.route-comparison-modes button[aria-pressed='true'] {
+  background: #fff;
+  color: #007db1;
+  box-shadow: 0 1px 4px #213c5b1a;
+  font-weight: 700;
+}
+.route-comparison-legend {
+  display: flex;
+  gap: 14px;
+  margin: 15px 0;
+  color: #526b82;
+  font-size: 11px;
+}
+.route-comparison-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.route-comparison-legend i {
+  width: 20px;
+  border-top: 3px solid #007fbd;
+}
+.route-comparison-legend .before {
+  border-top: 3px dashed #c56814;
+}
+.route-comparison-legend .common {
+  border-color: #8895a5;
+}
+.route-comparison-metrics {
+  display: flex;
+  gap: 10px;
+}
+.route-comparison-metrics > div {
+  flex: 1;
+  background: #f5f8fb;
+  border: 1px solid #e1eaf3;
+  border-radius: 9px;
+  padding: 12px;
+}
+.route-comparison-metrics span,
+.route-comparison-metrics small {
+  display: block;
+  font-size: 11px;
+  color: #536d86;
+}
+.route-comparison-metrics strong {
+  display: block;
+  margin: 6px 0;
+  font-size: 20px;
+}
+.route-comparison-note {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #667c93;
+}
+.route-comparison-fit,
+.route-comparison-warning button {
+  background: #fff;
+  color: #14628b;
+  border: 1px solid #c7ddea;
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+.route-comparison-warning {
+  color: #7d501b;
+  background: #fff7e9;
+  padding: 10px;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+.route-comparison-close {
+  flex-shrink: 0;
+  border: 0;
+  border-top: 1px solid #e0eaf2;
+  background: #eff8fd;
+  color: #006b9c;
+  padding: 15px;
+  font-weight: 700 !important;
+}
+@media (max-width: 899px), (max-height: 650px) {
+  .route-comparison-panel {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 12px;
+    width: auto;
+    max-height: 48%;
+  }
+  .route-comparison-heading {
+    padding: 12px 16px 8px;
+  }
+  .route-comparison-heading h2 {
+    font-size: 16px;
+  }
+  .route-comparison-body {
+    padding: 12px 16px;
+  }
+  .route-comparison-close {
+    padding: 12px;
+  }
+}
+@media (max-height: 480px) {
+  .route-comparison-panel {
+    left: 12px;
+    right: auto;
+    top: 12px;
+    bottom: 12px;
+    width: 320px;
+    max-height: calc(100% - 24px);
+  }
+}

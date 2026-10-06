@@ -55,6 +55,7 @@ import TrackingVehicleCard from '@/features/tracking/components/TrackingVehicleC
 import AlertStream from '@/features/tracking/components/AlertStream.vue';
 import ConfirmStationDelete from '@/features/stations/components/ConfirmStationDelete.vue';
 import TrafficLayer from '@/features/traffic/components/TrafficLayer.vue';
+import RouteRevisionComparison from '@/features/reroute/components/RouteRevisionComparison.vue';
 const RouteInspectionLayer = defineAsyncComponent(
   () => import('@/features/routes/components/RouteInspectionLayer.vue'),
 );
@@ -68,16 +69,25 @@ const props = withDefaults(
   defineProps<{
     initialWorkspace?: WorkspaceMode;
     initialTripId?: number | null;
+    initialRevisionId?: number | null;
+    onComparisonClose?: () => void;
     embedded?: boolean;
     onWorkspaceChange?: (workspace: WorkspaceMode) => void;
   }>(),
-  { initialWorkspace: 'tracking', initialTripId: null, embedded: false },
+  { initialWorkspace: 'tracking', initialTripId: null, initialRevisionId: null, embedded: false },
 );
 const rootRef = shallowRef<HTMLElement | null>(null),
   mapContainerRef = shallowRef<HTMLDivElement | null>(null),
   mapInstanceRef = shallowRef<L.Map | null>(null);
 const workspace = ref<WorkspaceMode>(props.initialWorkspace),
   compact = useCompactLayout();
+const comparisonActive = computed(
+  () =>
+    workspace.value === 'tracking' &&
+    props.initialTripId !== null &&
+    props.initialRevisionId !== null,
+);
+const comparisonRef = shallowRef<{ fit: () => void } | null>(null);
 const activePanel = ref<'context' | 'simulator' | 'alerts' | null>('context'),
   drawerOpen = ref(props.initialWorkspace !== 'tracking'),
   sheetExpanded = ref(false);
@@ -93,6 +103,13 @@ const showStations = ref(true),
   showTraffic = ref(true),
   draftStops = shallowRef<RouteDraftStop[]>([]),
   selectedDraftStopId = ref<string | null>(null);
+watch(
+  comparisonActive,
+  (active) => {
+    if (active) showRoutes.value = true;
+  },
+  { immediate: true },
+);
 watch(
   () => props.initialWorkspace,
   (mode) => {
@@ -194,6 +211,7 @@ const {
 } = stationWorkspace;
 const contextVisible = computed(
   () =>
+    !comparisonActive.value &&
     drawerOpen.value &&
     (workspace.value !== 'tracking' || selectedVehicleId.value !== null) &&
     !(pickingLocation.value && workspace.value === 'stations') &&
@@ -424,11 +442,13 @@ const vehicleRoute = useSelectedVehicleRoute(
   () => `${selectedRun.value?.attemptNumber ?? 1}:${selectedRun.value?.routeRevisionId ?? 0}`,
 );
 const plannedRoute = computed(() =>
-  workspace.value === 'routes'
-    ? editorRoute.value
-    : workspace.value === 'stations'
-      ? null
-      : vehicleRoute.value,
+  comparisonActive.value
+    ? null
+    : workspace.value === 'routes'
+      ? editorRoute.value
+      : workspace.value === 'stations'
+        ? null
+        : vehicleRoute.value,
 );
 const selectedSimulationRoutes = computed(() =>
   simulationFleet.routes.filter((item) => item.trip.id === selectedTripId.value),
@@ -472,8 +492,16 @@ const selectVehicleTrip = (vehicleId: number, tripId: number) => {
   activePanel.value = workspace.value === 'simulation' ? 'simulator' : 'context';
 };
 watch(
-  [() => props.initialTripId, () => live.snapshot, () => simulator.busy],
-  ([id, snapshot, busy]) => {
+  [() => props.initialTripId, () => live.snapshot, () => simulator.busy, comparisonActive],
+  ([id, snapshot, busy, comparison]) => {
+    if (comparison) {
+      followingVehicle.value = false;
+      alertsOpen.value = false;
+      drawerOpen.value = false;
+      activePanel.value = null;
+      initialTripApplied = null;
+      return;
+    }
     if (id === null) {
       initialTripApplied = null;
       return;
@@ -502,7 +530,7 @@ useVehicleMarkers(() => ({
   now: live.now,
   motionPaths: motionPaths.value,
   plannedPositions: markerAnchors.value,
-  visible: true,
+  visible: !comparisonActive.value,
   selectedId: selectedVehicleId.value,
   groupSelection: workspace.value === 'simulation',
   following: followingVehicle.value,
@@ -649,6 +677,10 @@ const focusDraftStop = (id: string) => {
   if (station) focusLocation([station.latitude, station.longitude], 16);
 };
 const handleFit = () => {
+  if (comparisonActive.value) {
+    comparisonRef.value?.fit();
+    return;
+  }
   if (workspace.value === 'simulation' && fleetPoints.value.length) {
     fitSimulationFleet();
     return;
@@ -728,6 +760,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     :data-sheet-expanded="sheetExpanded"
     :data-drawer-open="contextVisible"
     :data-alerts-open="alertsOpen"
+    :data-comparison="comparisonActive"
   >
     <div
       id="main-map"
@@ -739,7 +772,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
     <TrafficLayer
       :map="mapInstanceRef"
       :map-ready="mapReady"
-      :visible="showTraffic"
+      :visible="showTraffic && !comparisonActive"
       :incidents="traffic.incidents"
     />
     <template v-if="workspace === 'simulation'"
@@ -768,10 +801,22 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       "
       :traffic-enabled="showTraffic"
     />
+    <RouteRevisionComparison
+      v-if="comparisonActive && initialTripId && initialRevisionId"
+      ref="comparisonRef"
+      :map="mapInstanceRef"
+      :map-ready="mapReady"
+      :trip-id="initialTripId"
+      :revision-id="initialRevisionId"
+      :visible="showRoutes"
+      :on-fit="fitBounds"
+      :on-close="() => onComparisonClose?.()"
+    />
     <div
       class="live-follow glass-panel"
       data-map-edge="top"
       :hidden="
+        comparisonActive ||
         (!selectedVehicle && !selectedWaitingVehicle && !selectedPlannedVehicle) ||
         (workspace === 'tracking' && contextVisible && !!selectedPlannedVehicle && !selectedVehicle)
       "
@@ -1152,6 +1197,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       </div>
     </aside>
     <div
+      v-if="!comparisonActive"
       class="panel-launchers"
       data-map-edge="bottom"
       aria-label="Mở bảng công cụ"
@@ -1266,6 +1312,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       <span />
     </div>
     <MapControls
+      :historical="comparisonActive"
       :theme="theme"
       :on-theme-change="
         (value) => {
@@ -1277,6 +1324,7 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
       :on-zoom-out="() => mapInstanceRef?.zoomOut()"
       :on-fit="handleFit"
       :can-fit="
+        comparisonActive ||
         (workspace === 'simulation' && fleetPoints.length > 0) ||
         (showStations && stations.length > 0) ||
         (showRoutes && (plannedRoute !== null || draftStops.length > 0))
@@ -1323,6 +1371,10 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
   white-space: nowrap;
 }
 @media (max-width: 899px), (max-height: 650px) {
+  .map-first[data-comparison='true'] :deep(.gm-control-stack) {
+    bottom: calc(48% + 24px);
+    right: 12px;
+  }
   .map-first:is([data-workspace='tracking'], [data-workspace='simulation']) .context-drawer {
     z-index: 1210;
   }
@@ -1333,6 +1385,11 @@ const setDraftStops = (stops: RouteDraftStop[]) => {
   /* A visible station sheet must stay above map controls, including its save action. */
   .context-drawer.station-form-open {
     z-index: 1060;
+  }
+}
+@media (max-height: 480px) {
+  .map-first[data-comparison='true'] :deep(.gm-control-stack) {
+    bottom: 24px;
   }
 }
 </style>

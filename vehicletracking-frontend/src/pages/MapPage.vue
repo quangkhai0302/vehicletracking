@@ -24,8 +24,24 @@ const requestedTripId = computed(() => {
     props.workspace === 'tracking'
       ? Number(Array.isArray(route.query.tripId) ? route.query.tripId[0] : route.query.tripId)
       : NaN;
-  return Number.isInteger(value) && value > 0 ? value : null;
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
 });
+const requestedRevisionId = computed(() => {
+  const value =
+    requestedWorkspace.value === 'tracking' && requestedTripId.value
+      ? Number(
+          Array.isArray(route.query.revisionId)
+            ? route.query.revisionId[0]
+            : route.query.revisionId,
+        )
+      : NaN;
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+});
+const closeComparison = () => {
+  const query = { ...route.query };
+  delete query.revisionId;
+  void router.replace({ path: '/operations', query });
+};
 const changeWorkspace = (mode: WorkspaceMode) => {
   if (mode === 'routes' && route.path !== '/routes') void router.push('/routes');
   else if (mode === 'stations' && route.path !== '/stations') void router.push('/stations');
@@ -50,6 +66,8 @@ const changeWorkspace = (mode: WorkspaceMode) => {
       embedded
       :initial-workspace="requestedWorkspace"
       :initial-trip-id="requestedTripId"
+      :initial-revision-id="requestedRevisionId"
+      :on-comparison-close="closeComparison"
       :on-workspace-change="changeWorkspace"
     />
   </div>

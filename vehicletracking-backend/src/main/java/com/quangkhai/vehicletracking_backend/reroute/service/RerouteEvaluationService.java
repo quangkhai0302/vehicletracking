@@ -2,6 +2,7 @@ package com.quangkhai.vehicletracking_backend.reroute.service;
 
 import com.quangkhai.vehicletracking_backend.checkin.repository.TripStopVisitRepository;
 import com.quangkhai.vehicletracking_backend.config.RerouteProperties;
+import com.quangkhai.vehicletracking_backend.reroute.RerouteMessages;
 import com.quangkhai.vehicletracking_backend.route.provider.*;
 import com.quangkhai.vehicletracking_backend.reroute.entity.*;
 import com.quangkhai.vehicletracking_backend.reroute.repository.*;
@@ -145,19 +146,11 @@ public class RerouteEvaluationService {
         long revisedSeconds = route.sections().stream().mapToLong(section -> section.travelDurationSeconds()).sum()
                 + remaining.stream().mapToLong(stop -> stop.getDwellDurationSeconds()).sum();
         if (!closure && revisedSeconds >= currentEta.totalRemainingSeconds()) return null;
-        String detail = closure ? "Phát hiện đường bị đóng/chặn từ HERE Traffic" : "Độ trễ giao thông vượt ngưỡng, đã chọn tuyến nhanh hơn";
+        String detail = closure ? RerouteMessages.ROAD_CLOSED : "Độ trễ giao thông vượt ngưỡng, đã chọn tuyến nhanh hơn";
         NotificationSeverity severity = closure ? NotificationSeverity.CRITICAL : NotificationSeverity.MAJOR;
         TripRouteRevisionEntity revision = new TripRouteRevisionEntity(trip, trip.getRoute(), revisions.countByTripId(trip.getId()) + 1,
                 closure ? RerouteReasonCode.ROAD_CLOSURE : RerouteReasonCode.TRAFFIC_DELAY, detail,
                 incidentId(currentEta), severity, currentEta.baselineRemainingSeconds(), revisedSeconds, now);
-        revisions.findTopByTripIdAndStatusOrderByRevisionNumberDesc(trip.getId(), RouteRevisionStatus.ACTIVE)
-                .ifPresent(active -> {
-                    active.supersede(now);
-                    // The database enforces one ACTIVE revision per trip.
-                    // Flush the supersede before inserting the replacement so
-                    // the partial unique index is never violated by flush order.
-                    revisions.saveAndFlush(active);
-                });
         Instant cursor = now;
         Map<Integer, TripStopEntity> byOriginal = remaining.stream().collect(Collectors.toMap(stop -> stop.getSequenceNumber(), s -> s));
         for (int local = 2; local <= waypoints.size(); local++) {
@@ -184,6 +177,24 @@ public class RerouteEvaluationService {
         if (revision.getStops().size() != remaining.size()) {
             throw new IllegalStateException("Routing provider omitted a remaining stop");
         }
+        var prior = revisions.findTopByTripIdAndStatusOrderByRevisionNumberDesc(trip.getId(), RouteRevisionStatus.ACTIVE).orElse(null);
+        try {
+            var after = RouteComparisonService.sections(revision);
+            if (position.getSource() == com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR && position.getSimulatedAt() != null) {
+                var plan = geometry.resolve(trip);
+                double elapsed = Duration.between(trip.simulationOriginAt(), position.getSimulatedAt()).toNanos() / 1_000_000_000d;
+                revision.captureComparison(RouteComparisonGeometry.simulation(trip.getAttemptNumber(), plan.revisionId(), plan.motion(), elapsed,
+                        after, currentEta.totalRemainingSeconds(), revisedSeconds));
+            } else {
+                revision.captureComparison(RouteComparisonGeometry.gps(trip.getAttemptNumber(), prior == null ? null : prior.getId(),
+                        geometry.routeForTracking(trip).sections(), after, position.getLatitude(), position.getLongitude(),
+                        currentEta.totalRemainingSeconds(), revisedSeconds));
+            }
+        } catch (IllegalArgumentException ignored) { /* A missing comparison must not suppress an otherwise valid reroute. */ }
+        if (prior != null) {
+            prior.supersede(now);
+            revisions.saveAndFlush(prior);
+        }
         return revision;
     }
 
@@ -192,7 +203,7 @@ public class RerouteEvaluationService {
         if (notifications.findByDedupeKey(key).isPresent()) return;
         notifications.save(new TripNotificationEntity(trip, null, NotificationType.REROUTE_UNAVAILABLE,
                 currentEta.status() == com.quangkhai.vehicletracking_backend.traffic.TrafficStatus.BLOCKED ? NotificationSeverity.CRITICAL : NotificationSeverity.MAJOR,
-                "Không thể tạo tuyến thay thế", "HERE Routing không trả về tuyến khả dụng hoặc tuyến mới không cải thiện ETA.",
+                "Không thể tạo tuyến thay thế", RerouteMessages.UNAVAILABLE,
                 incidentId(currentEta), affectedStops(currentEta), currentEta.baselineRemainingSeconds(), null, key, now));
     }
 

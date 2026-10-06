@@ -19,6 +19,7 @@ import {
   markNotificationRead,
 } from '@/features/reports/api/notifications';
 import type { NotificationItem } from '@/features/reports/types/notifications';
+import { notificationMonitoringLink } from '@/features/reroute/utils/notificationLink';
 import PageHeading from '@/shared/components/PageHeading.vue';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
 import { notifySuccess } from '@/shared/notifications/toast';
@@ -299,7 +300,7 @@ async function remove() {
             <p>{{ item.vehiclePlateNumber }} · Chuyến #{{ item.tripId }}</p>
             <strong>{{ alertDetail(item) }}</strong>
             <div class="alerts-management-actions">
-              <RouterLink :to="`/operations?tripId=${item.tripId}`">Mở giám sát</RouterLink
+              <RouterLink :to="notificationMonitoringLink(item)">Mở giám sát</RouterLink
               ><button
                 v-if="!item.readAt"
                 :disabled="busyId !== null"

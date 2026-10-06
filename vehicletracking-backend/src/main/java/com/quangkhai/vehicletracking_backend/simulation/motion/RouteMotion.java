@@ -148,6 +148,31 @@ public final class RouteMotion {
         return result;
     }
 
+    /** Remaining geometry from the exact motion frame, without the travelled prefix. */
+    public List<RouteDetailResponse.RouteSectionResponse> remainingSections(double elapsed) {
+        var frame = at(elapsed);
+        if (elapsed < 0 || frame.dwelling() || frame.finished()) throw invalid();
+        var result = new ArrayList<RouteDetailResponse.RouteSectionResponse>();
+        for (var leg : legs) {
+            if (leg.end() <= elapsed) continue;
+            List<Point> points = leg.points();
+            if (leg.start() < elapsed) {
+                double travelled = leg.length() * (elapsed - leg.start()) / (leg.end() - leg.start());
+                var remaining = new ArrayList<Point>();
+                remaining.add(pointAt(leg, elapsed));
+                for (int i = 1; i < points.size(); i++) if (leg.distances()[i] > travelled) remaining.add(points.get(i));
+                points = remaining;
+            }
+            if (points.size() < 2) continue;
+            long length = Math.round(distances(points)[points.size() - 1]);
+            long seconds = Math.max(0, Math.round(leg.end() - Math.max(elapsed, leg.start())));
+            result.add(new RouteDetailResponse.RouteSectionResponse(result.size() + 1, leg.destination(),
+                    FlexiblePolyline.encode(points), length, seconds, seconds));
+        }
+        if (result.isEmpty()) throw invalid();
+        return List.copyOf(result);
+    }
+
     public RouteDetailResponse snapshot() {
         List<RouteDetailResponse.RouteSectionResponse> sections=new ArrayList<>();
         for(var leg:legs) sections.add(new RouteDetailResponse.RouteSectionResponse(sections.size()+1,leg.destination(),

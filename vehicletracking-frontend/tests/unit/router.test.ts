@@ -22,9 +22,9 @@ vi.mock('@/features/auth/api/auth', () => ({ changePassword: vi.fn(), fetchCurre
 const lifecycle = vi.hoisted(() => ({ mounted: vi.fn(), unmounted: vi.fn() }));
 vi.mock('@/features/map/components/MapComponent.vue', async () => {
   const { defineComponent, h, onMounted, onUnmounted } = await import('vue');
-  return { __esModule: true, default: defineComponent({ name: 'MapFixture', props: ['initialWorkspace', 'initialTripId', 'onWorkspaceChange'], setup(props) {
+  return { __esModule: true, default: defineComponent({ name: 'MapFixture', props: ['initialWorkspace', 'initialTripId', 'initialRevisionId', 'onComparisonClose', 'onWorkspaceChange'], setup(props) {
     onMounted(lifecycle.mounted); onUnmounted(lifecycle.unmounted);
-    return () => h('div', { 'data-workspace': props.initialWorkspace, 'data-trip': props.initialTripId }, [h('button', { onClick: () => props.onWorkspaceChange('simulation') }, 'Simulate')]);
+    return () => h('div', { 'data-workspace': props.initialWorkspace, 'data-trip': props.initialTripId, 'data-revision': props.initialRevisionId }, [h('button', { onClick: () => props.onWorkspaceChange('simulation') }, 'Simulate'), h('button', { 'data-close-comparison': true, onClick: () => props.onComparisonClose() }, 'Exit comparison')]);
   } }) };
 });
 vi.mock('@/features/fleet/components/FleetWorkspace.vue', async () => {
@@ -318,4 +318,25 @@ test('opening a trip simulator from management carries its exact trip into the s
   expect(router.currentRoute.value.fullPath).toBe('/operations?mode=simulation&tripId=42');
   expect(wrapper.get('[data-workspace]').attributes('data-trip')).toBe('42');
   expect(wrapper.get('[data-workspace]').attributes('data-workspace')).toBe('simulation');
+});
+
+
+test('revision history links parse safe IDs and exit preserves the trip without remounting the map', async () => {
+  const router = createApplicationRouter(createMemoryHistory()), auth = createAuthState();
+  cleanups.push(installAuthGuards(router, auth));
+  await router.push('/operations?tripId=7&revisionId=11&revisionId=12');
+  const wrapper = mount(App, { global: { plugins: [router], provide: { [authKey as symbol]: auth } } });
+  cleanups.push(() => wrapper.unmount()); await flushPromises();
+  const map = () => wrapper.get('[data-workspace]');
+  expect(map().attributes('data-revision')).toBe('11');
+  await router.push('/operations?tripId=7&revisionId=12'); await flushPromises();
+  expect(map().attributes('data-revision')).toBe('12');
+  await map().get('[data-close-comparison]').trigger('click'); await flushPromises();
+  expect(router.currentRoute.value.fullPath).toBe('/operations?tripId=7');
+  expect(map().attributes('data-revision')).toBeUndefined();
+  expect(lifecycle.mounted).toHaveBeenCalledTimes(1);
+  for (const query of ['tripId=7&revisionId=bad', 'tripId=7&revisionId=-1', 'tripId=7&revisionId=9007199254740993', 'tripId=9007199254740993&revisionId=11', 'tripId=7&revisionId=11&mode=simulation']) {
+    await router.push(`/operations?${query}`); await flushPromises();
+    expect(map().attributes('data-revision')).toBeUndefined();
+  }
 });
