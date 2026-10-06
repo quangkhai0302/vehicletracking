@@ -28,6 +28,7 @@ public class TripStopVisitEntity {
     @Column(name = "evidence_fraction", nullable = false) private double evidenceFraction;
     @Column(nullable = false) private double latitude;
     @Column(nullable = false) private double longitude;
+    @Column(name = "employee_boarding_count") private Integer employeeBoardingCount;
 
     public TripStopVisitEntity(TripEntity trip, int stopSequence, TelemetrySource source,
             CheckInEvidenceKind evidenceKind, Instant actualArrivalAt, Instant simulatedArrivalAt,
@@ -39,4 +40,5 @@ public class TripStopVisitEntity {
         this.fromSample = fromSample; this.toSample = toSample; this.evidenceFraction = evidenceFraction;
         this.latitude = latitude; this.longitude = longitude;
     }
+    public void confirmEmployeeBoarding(int count) { this.employeeBoardingCount = count; }
 }

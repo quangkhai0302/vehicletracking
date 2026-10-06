@@ -13,6 +13,8 @@ import com.quangkhai.vehicletracking_backend.checkin.service.CheckInQueryService
 import com.quangkhai.vehicletracking_backend.station.dto.StationResponse;
 import com.quangkhai.vehicletracking_backend.station.repository.StationRepository;
 import com.quangkhai.vehicletracking_backend.simulation.motion.FlexiblePolyline;
+import com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentCreateRequest;
+import com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentResponse;
 import com.quangkhai.vehicletracking_backend.simulation.entity.*;
 import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository;
 import com.quangkhai.vehicletracking_backend.simulation.service.SimulationService;
@@ -58,6 +60,13 @@ public class DriverNavigationService {
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public DriverNavigationResponse navigation(UserAccountPrincipal principal, long tripId) {
         return describe(owned(principal, tripId, false));
+    }
+
+    @Transactional
+    public SimulationIncidentResponse reportIncident(UserAccountPrincipal principal, long tripId,
+                                                       SimulationIncidentCreateRequest request) {
+        var trip = owned(principal, tripId, false);
+        return simulation.reportIncident(tripId, trip.getDriver().getId(), request);
     }
 
     @Transactional

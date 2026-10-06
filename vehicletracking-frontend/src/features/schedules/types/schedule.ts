@@ -22,6 +22,7 @@ export interface TripSchedule {
   lastRunAt: string | null;
   lastRunStatus: ScheduleRunStatus | null;
   lastRunMessage: string | null;
+  expectedEmployeeBoardings?: Record<number, number>;
 }
 
 export interface TripScheduleInput {
@@ -36,4 +37,5 @@ export interface TripScheduleInput {
   timezone: string;
   effectiveFrom: string;
   effectiveUntil: string | null;
+  expectedEmployeeBoardings: Record<number, number>;
 }

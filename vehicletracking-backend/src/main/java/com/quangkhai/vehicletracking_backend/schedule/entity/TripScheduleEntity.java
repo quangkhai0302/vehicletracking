@@ -11,6 +11,8 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @Entity
 @Table(name = "trip_schedules", schema = "vehicle_tracking")
@@ -53,11 +55,24 @@ public class TripScheduleEntity {
     private String executionKind = "REAL";
     @Column(name = "turnaround_configured", nullable = false)
     private boolean turnaroundConfigured;
+    @ElementCollection
+    @CollectionTable(name = "trip_schedule_stop_boardings", schema = "vehicle_tracking",
+            joinColumns = @JoinColumn(name = "schedule_id"))
+    @MapKeyColumn(name = "stop_sequence")
+    @Column(name = "expected_employee_boarding_count", nullable = false)
+    private Map<Integer, Integer> expectedEmployeeBoardings = new HashMap<>();
 
     public TripScheduleEntity(String name, RouteEntity route, VehicleEntity vehicle, DriverEntity driver,
             ScheduleFrequency frequency, LocalDate scheduledDate, short weekdaysMask, LocalTime departureTime,
             String timezone, LocalDate effectiveFrom, LocalDate effectiveUntil) {
         update(name, route, vehicle, driver, frequency, scheduledDate, weekdaysMask, departureTime, timezone, effectiveFrom, effectiveUntil);
+    }
+
+    public TripScheduleEntity(String name, RouteEntity route, VehicleEntity vehicle, DriverEntity driver,
+            ScheduleFrequency frequency, LocalDate scheduledDate, short weekdaysMask, LocalTime departureTime,
+            String timezone, LocalDate effectiveFrom, LocalDate effectiveUntil, Map<Integer, Integer> boardings) {
+        this(name, route, vehicle, driver, frequency, scheduledDate, weekdaysMask, departureTime, timezone, effectiveFrom, effectiveUntil);
+        updateExpectedEmployeeBoardings(boardings);
     }
 
     @PrePersist void initializeTimestamps() { createdAt = Instant.now(); updatedAt = createdAt; }
@@ -85,6 +100,11 @@ public class TripScheduleEntity {
     }
     public void disable() {
         if (enabled) { enabled = false; updatedAt = Instant.now(); }
+    }
+    public void updateExpectedEmployeeBoardings(Map<Integer, Integer> boardings) {
+        expectedEmployeeBoardings.clear();
+        if (boardings != null) expectedEmployeeBoardings.putAll(boardings);
+        updatedAt = Instant.now();
     }
     public void recordSuccess(Instant at) { lastRunAt = at; lastRunStatus = ScheduleRunStatus.SUCCESS; lastRunMessage = null; updatedAt = Instant.now(); }
     public void recordFailure(Instant at, String message) {

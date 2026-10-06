@@ -26,14 +26,19 @@ public class TripStopEntity {
     @Column(name = "dwell_duration_seconds", nullable = false) private Integer dwellDurationSeconds;
     @Column(name = "arrival_offset_seconds", nullable = false) private Long arrivalOffsetSeconds;
     @Column(name = "departure_offset_seconds", nullable = false) private Long departureOffsetSeconds;
+    @Column(name = "expected_employee_boarding_count") private Integer expectedEmployeeBoardingCount;
     @Column(name = "planned_arrival_at", nullable = false) private Instant plannedArrivalAt;
     @Column(name = "planned_departure_at", nullable = false) private Instant plannedDepartureAt;
 
     public TripStopEntity(RouteStopResponse stop, int radius, Instant departure) {
+        this(stop, radius, departure, null);
+    }
+    public TripStopEntity(RouteStopResponse stop, int radius, Instant departure, Integer expectedEmployeeBoardingCount) {
         stationId = stop.stationId(); sequenceNumber = stop.sequenceNumber();
         stationName = stop.stationName(); latitude = stop.latitude(); longitude = stop.longitude();
         checkinRadiusMeters = radius; dwellDurationSeconds = stop.dwellDurationSeconds();
         arrivalOffsetSeconds = stop.arrivalOffsetSeconds(); departureOffsetSeconds = stop.departureOffsetSeconds();
+        this.expectedEmployeeBoardingCount = expectedEmployeeBoardingCount;
         plannedArrivalAt = departure.plusSeconds(arrivalOffsetSeconds);
         plannedDepartureAt = departure.plusSeconds(departureOffsetSeconds);
     }

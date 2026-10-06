@@ -98,7 +98,8 @@ public class TripService {
             departure.plusSeconds(route.getEstimatedTripDurationSeconds());
             for (int i = 0; i < detail.stops().size(); i++) {
                 trip.addStop(new TripStopEntity(detail.stops().get(i),
-                        route.getStops().get(i).getStation().getCheckinRadiusMeters(), departure));
+                        route.getStops().get(i).getStation().getCheckinRadiusMeters(), departure,
+                        schedule == null ? null : schedule.getExpectedEmployeeBoardings().get(detail.stops().get(i).sequenceNumber())));
             }
         } catch (DateTimeException | ArithmeticException ex) {
             throw new ResponseStatusException(BAD_REQUEST, "Thời gian lịch trình vượt phạm vi hỗ trợ.");

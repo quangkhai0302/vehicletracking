@@ -11,22 +11,22 @@ public record TripSummaryResponse(Long id, Long vehicleId, String vehiclePlateNu
         String routeName, TripStatus status, Instant scheduledDepartureAt, Instant plannedEndAt,
         Instant startedAt, Instant endedAt, Instant createdAt, int attemptNumber, VehicleType vehicleType,
         DriverSnapshotResponse driver, String cancellationReason, TripDispatchMode dispatchMode,
-        Long scheduleId, String scheduleName, AssignmentRequestSummary assignmentRequest) {
+        Long scheduleId, String scheduleName, AssignmentRequestSummary assignmentRequest, Integer seatCapacity) {
     public TripSummaryResponse(Long id, Long vehicleId, String plate, Long routeId, String routeName, TripStatus status,
             Instant scheduled, Instant planned, Instant started, Instant ended, Instant created) {
         this(id,vehicleId,plate,routeId,routeName,status,scheduled,planned,started,ended,created,1,VehicleType.CAR,null,null,
-                TripDispatchMode.ON_DEMAND,null,null,null);
+                TripDispatchMode.ON_DEMAND,null,null,null,null);
     }
     public TripSummaryResponse(Long id, Long vehicleId, String plate, Long routeId, String routeName, TripStatus status,
             Instant scheduled, Instant planned, Instant started, Instant ended, Instant created, int attemptNumber) {
         this(id,vehicleId,plate,routeId,routeName,status,scheduled,planned,started,ended,created,attemptNumber,VehicleType.CAR,null,null,
-                TripDispatchMode.ON_DEMAND,null,null,null);
+                TripDispatchMode.ON_DEMAND,null,null,null,null);
     }
     public TripSummaryResponse(Long id, Long vehicleId, String plate, Long routeId, String routeName, TripStatus status,
             Instant scheduled, Instant planned, Instant started, Instant ended, Instant created, int attemptNumber,
             VehicleType vehicleType) {
         this(id,vehicleId,plate,routeId,routeName,status,scheduled,planned,started,ended,created,attemptNumber,vehicleType,null,null,
-                TripDispatchMode.ON_DEMAND,null,null,null);
+                TripDispatchMode.ON_DEMAND,null,null,null,null);
     }
     public static TripSummaryResponse from(TripEntity trip) {
         return from(trip, null);
@@ -41,7 +41,8 @@ public record TripSummaryResponse(Long id, Long vehicleId, String vehiclePlateNu
                         trip.getDriverLicenseNumberSnapshot()), trip.getCancellationReason(),
                 trip.getSchedule() == null ? TripDispatchMode.ON_DEMAND : TripDispatchMode.FIXED_SCHEDULE,
                 trip.getSchedule() == null ? null : trip.getSchedule().getId(),
-                trip.getSchedule() == null ? null : trip.getSchedule().getName(), assignmentRequest);
+                trip.getSchedule() == null ? null : trip.getSchedule().getName(), assignmentRequest,
+                trip.getVehicle().getSeatCapacity());
     }
 
     private static Instant plannedEndAt(TripEntity trip) {

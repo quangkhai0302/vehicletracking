@@ -13,13 +13,17 @@ public record VehicleUpsertRequest(
     String name,
     @Size(max = 255, message = "Mô tả tối đa 255 ký tự")
     String description,
-    VehicleType vehicleType
+    VehicleType vehicleType,
+    @Min(value = 1, message = "Sức chứa ghế phải lớn hơn 0") Integer seatCapacity
 ) {
     public VehicleUpsertRequest {
         vehicleType = vehicleType == null ? VehicleType.CAR : vehicleType;
     }
 
     public VehicleUpsertRequest(String plateNumber, String name, String description) {
-        this(plateNumber, name, description, VehicleType.CAR);
+        this(plateNumber, name, description, VehicleType.CAR, null);
+    }
+    public VehicleUpsertRequest(String plateNumber, String name, String description, VehicleType vehicleType) {
+        this(plateNumber, name, description, vehicleType, null);
     }
 }

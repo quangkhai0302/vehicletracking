@@ -59,6 +59,10 @@ class OperationsIntegrationTest {
     @Autowired com.quangkhai.vehicletracking_backend.simulation.repository.SimulationAttemptRepository simulationAttempts;
     @Autowired com.quangkhai.vehicletracking_backend.reroute.service.OffRouteEvaluationService offRoutes;
     @Autowired com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository notifications;
+    @Autowired com.quangkhai.vehicletracking_backend.reroute.service.NotificationService notificationService;
+    @Autowired com.quangkhai.vehicletracking_backend.simulation.repository.SimulationIncidentRepository incidents;
+    @Autowired com.quangkhai.vehicletracking_backend.simulation.service.SimulationIncidentService incidentService;
+    @Autowired com.quangkhai.vehicletracking_backend.driverportal.service.DriverNavigationService driverNavigation;
     @MockitoBean Clock operationsClock;
     final AtomicReference<Instant> time=new AtomicReference<>();
     static final AtomicInteger ids=new AtomicInteger();
@@ -118,6 +122,62 @@ class OperationsIntegrationTest {
         assertThat(next.attemptCount()).isEqualTo(1); assertThat(next.totalVirtualSeconds()).isEqualTo(84);
         assertThat(next.onTimeRatePercent()).isEqualTo(0); assertThat(next.lateAttemptCount()).isEqualTo(1);
         assertThat(next.items()).singleElement().satisfies(item -> assertThat(item.attemptNumber()).isEqualTo(2));
+    }
+
+    @Test void reportingIncidentPausesAtSimulatedFrameAndKeepsLifecycleAcrossReplay() {
+        var created = create();
+        long tripId = created.trip().id();
+        simulator.play(tripId);
+        seconds(7);
+        var request = new com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentCreateRequest(
+                1, com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentType.VEHICLE_BREAKDOWN,
+                com.quangkhai.vehicletracking_backend.reroute.entity.NotificationSeverity.MAJOR,
+                "Dừng kiểm tra động cơ", UUID.randomUUID());
+        var driverPrincipal = mock(com.quangkhai.vehicletracking_backend.auth.config.SecurityConfig.UserAccountPrincipal.class);
+        when(driverPrincipal.driverId()).thenReturn(created.trip().driver().id());
+        var result = driverNavigation.reportIncident(driverPrincipal, tripId, request);
+        assertThat(result.status()).isEqualTo(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentStatus.OPEN);
+        assertThat(result.simulation().status()).isEqualTo(SimulationStatus.PAUSED);
+        assertThat(result.latitude()).isBetween(10.76, 10.78);
+        assertThat(result.longitude()).isBetween(106.69, 106.71);
+        assertThat(runs.findByTripId(tripId).orElseThrow().getStatus()).isEqualTo(SimulationStatus.PAUSED);
+
+        var notification = notifications.findAllByTripIdOrderByCreatedAtDescIdDesc(tripId).stream()
+                .filter(item -> item.getType() == com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType.SIMULATION_INCIDENT)
+                .findFirst().orElseThrow();
+        assertThat(notification.getSimulationIncident().getId()).isEqualTo(result.id());
+        assertThat(result.reportedByDriverId()).isEqualTo(created.trip().driver().id());
+        assertThat(result.reportedByDriverName()).isEqualTo(created.trip().driver().fullName());
+        assertThat(notificationService.recent(false)).filteredOn(item -> item.tripId() == tripId)
+                .filteredOn(item -> item.type() == com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType.SIMULATION_INCIDENT)
+                .singleElement().satisfies(item -> assertThat(item.simulationIncidentReportedByDriver())
+                        .isEqualTo(created.trip().driver().fullName()));
+        assertThat(notification.getSource()).isEqualTo(com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR);
+        var duplicate = driverNavigation.reportIncident(driverPrincipal, tripId, request);
+        assertThat(duplicate.id()).isEqualTo(result.id());
+        assertThat(incidents.count()).isEqualTo(1);
+        var otherDriver = mock(com.quangkhai.vehicletracking_backend.auth.config.SecurityConfig.UserAccountPrincipal.class);
+        when(otherDriver.driverId()).thenReturn(created.trip().driver().id() + 1);
+        assertThatThrownBy(() -> driverNavigation.reportIncident(otherDriver, tripId, request))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        ex -> assertThat(ex.getStatusCode().value()).isEqualTo(404));
+        conflict(() -> driverNavigation.reportIncident(driverPrincipal, tripId,
+                new com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentCreateRequest(
+                        1, com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentType.OTHER,
+                        com.quangkhai.vehicletracking_backend.reroute.entity.NotificationSeverity.MAJOR,
+                        null, UUID.randomUUID())));
+
+        var acknowledged = incidentService.acknowledge(result.id());
+        assertThat(acknowledged.status()).isEqualTo(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentStatus.ACKNOWLEDGED);
+        var resolved = incidentService.resolve(result.id());
+        assertThat(resolved.status()).isEqualTo(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentStatus.RESOLVED);
+        simulator.reset(tripId);
+        assertThat(incidents.findById(result.id()).orElseThrow().getAttemptNumber()).isEqualTo(1);
+        conflict(() -> driverNavigation.reportIncident(driverPrincipal, tripId,
+                new com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentCreateRequest(
+                        1, com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentType.OTHER,
+                        com.quangkhai.vehicletracking_backend.reroute.entity.NotificationSeverity.MAJOR,
+                        null, UUID.randomUUID())));
     }
 
     @Test void offRouteWaitsAtUnvisitedStopWithVirtualClockAndRestoresWithoutFakeVisitsOrFailure() {

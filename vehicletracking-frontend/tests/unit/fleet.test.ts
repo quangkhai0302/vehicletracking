@@ -57,6 +57,7 @@ const vehicle: FleetVehicle = {
   plateNumber: '51B12345',
   description: null,
   vehicleType: 'CAR',
+  seatCapacity: 20,
   active: true,
   driver,
   createdAt: stamp,
@@ -335,6 +336,7 @@ test('new vehicle never triggers a follow-up driver assignment', async () => {
       name: vehicle.name,
       description: null,
       vehicleType: 'CAR',
+      seatCapacity: 20,
       driverId: 1,
     }),
   ).toBe(true);
@@ -356,6 +358,7 @@ test('vehicle assignment partial failure refreshes committed vehicle state when 
       name: vehicle.name,
       description: null,
       vehicleType: 'CAR',
+      seatCapacity: 20,
       driverId: null,
     }, vehicle.id),
   ).toBe(false);
@@ -713,9 +716,10 @@ test('vehicle form preserves raw plate contract while trimming name/description'
   expect(wrapper.find('select').exists()).toBe(false);
   await wrapper.get('input[name=plateNumber]').setValue('51b-123.45');
   await wrapper.get('input[name=name]').setValue(' Car ');
+  await wrapper.get('input[name=seatCapacity]').setValue('20');
   await wrapper.get('form').trigger('submit');
   expect(onSave).toHaveBeenCalledWith(
-    { plateNumber: '51b-123.45', name: 'Car', description: null, vehicleType: 'CAR', driverId: null },
+    { plateNumber: '51b-123.45', name: 'Car', description: null, vehicleType: 'CAR', seatCapacity: 20, driverId: null },
     undefined,
   );
   await wrapper.setProps({ busy: true });

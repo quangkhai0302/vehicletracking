@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import static org.springframework.http.HttpStatus.*;
 
@@ -46,7 +47,7 @@ public class TripScheduleService {
         ScheduleValues values = validate(input);
         TripScheduleEntity result = schedules.save(new TripScheduleEntity(values.name(), values.route(), values.vehicle(), values.driver(),
                 input.frequency(), values.scheduledDate(), values.weekdaysMask(), input.departureTime(), values.timezone(),
-                values.effectiveFrom(), values.effectiveUntil()));
+                values.effectiveFrom(), values.effectiveUntil(), values.boardings()));
         return response(result, now());
     }
     @Transactional
@@ -56,6 +57,7 @@ public class TripScheduleService {
         ScheduleValues values = validate(input);
         schedule.update(values.name(), values.route(), values.vehicle(), values.driver(), input.frequency(), values.scheduledDate(),
                 values.weekdaysMask(), input.departureTime(), values.timezone(), values.effectiveFrom(), values.effectiveUntil());
+        schedule.updateExpectedEmployeeBoardings(values.boardings());
         return response(schedule, now());
     }
     @Transactional
@@ -119,11 +121,26 @@ public class TripScheduleService {
         if (!route.isActive()) throw new ResponseStatusException(CONFLICT, "Tuyến đã ngừng sử dụng.");
         if (route.getStops().size() < 2 || route.getStops().stream().anyMatch(stop -> !stop.getStation().isActive()))
             throw new ResponseStatusException(CONFLICT, "Tuyến cần tối thiểu hai trạm đang hoạt động.");
+        Map<Integer, Integer> boardings = input.expectedEmployeeBoardings() == null ? Map.of() : Map.copyOf(input.expectedEmployeeBoardings());
+        int finalSequence = route.getStops().stream().mapToInt(stop -> stop.getSequenceNumber()).max().orElseThrow();
+        int cumulative = 0;
+        for (var stop : route.getStops()) {
+            Integer count = boardings.get(stop.getSequenceNumber());
+            if (count != null && count < 0) throw new ResponseStatusException(BAD_REQUEST, "Số người dự kiến không được âm.");
+            if (stop.getSequenceNumber() == finalSequence && count != null && count != 0)
+                throw new ResponseStatusException(BAD_REQUEST, "Điểm đến cuối không nhận người lên xe.");
+            if (stop.getSequenceNumber() != finalSequence) cumulative = Math.addExact(cumulative, count == null ? 0 : count);
+        }
+        if (vehicle.getSeatCapacity() != null && cumulative > vehicle.getSeatCapacity())
+            throw new ResponseStatusException(CONFLICT, "Số người dự kiến vượt quá sức chứa của xe.");
+        if (boardings.keySet().stream().anyMatch(sequence -> route.getStops().stream().noneMatch(stop -> stop.getSequenceNumber().equals(sequence))))
+            throw new ResponseStatusException(BAD_REQUEST, "Cấu hình số người có trạm không thuộc tuyến.");
         String name = input.name() == null || input.name().isBlank() ? null : input.name().trim();
         return new ScheduleValues(name, route, vehicle, driver, input.scheduledDate(), mask, timezone,
-                input.effectiveFrom(), input.effectiveUntil());
+                input.effectiveFrom(), input.effectiveUntil(), boardings);
     }
     private Instant now() { return operationsClock.instant(); }
     private record ScheduleValues(String name, RouteEntity route, VehicleEntity vehicle, DriverEntity driver,
-            LocalDate scheduledDate, short weekdaysMask, String timezone, LocalDate effectiveFrom, LocalDate effectiveUntil) {}
+            LocalDate scheduledDate, short weekdaysMask, String timezone, LocalDate effectiveFrom, LocalDate effectiveUntil,
+            Map<Integer, Integer> boardings) {}
 }

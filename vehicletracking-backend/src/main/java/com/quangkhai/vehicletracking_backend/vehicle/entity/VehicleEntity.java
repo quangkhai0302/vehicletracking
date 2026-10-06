@@ -26,6 +26,8 @@ public class VehicleEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "vehicle_type", nullable = false, length = 20)
     private VehicleType vehicleType = VehicleType.CAR;
+    @Column(name = "seat_capacity")
+    private Integer seatCapacity;
     @Column(nullable = false)
     private boolean active = true;
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -42,6 +44,10 @@ public class VehicleEntity {
         this.description = description;
         this.vehicleType = vehicleType == null ? VehicleType.CAR : vehicleType;
     }
+    public VehicleEntity(String plateNumber, String name, String description, VehicleType vehicleType, Integer seatCapacity) {
+        this(plateNumber, name, description, vehicleType);
+        this.seatCapacity = seatCapacity;
+    }
     @PrePersist
     void initializeTimestamps() { createdAt = Instant.now(); updatedAt = createdAt; }
     public void updateDetails(String plateNumber, String name, String description) {
@@ -50,6 +56,10 @@ public class VehicleEntity {
     public void updateDetails(String plateNumber, String name, String description, VehicleType vehicleType) {
         this.plateNumber = plateNumber; this.name = name; this.description = description;
         this.vehicleType = vehicleType == null ? VehicleType.CAR : vehicleType;
+        updatedAt = Instant.now();
+    }
+    public void updateSeatCapacity(Integer seatCapacity) {
+        this.seatCapacity = seatCapacity;
         updatedAt = Instant.now();
     }
     public void deactivate() { active = false; updatedAt = Instant.now(); }

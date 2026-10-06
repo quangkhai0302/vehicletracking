@@ -36,7 +36,7 @@ const count = computed(() =>
 );
 const headers = computed(() =>
   props.tab === 'vehicles'
-    ? ['Phương tiện', 'Loại xe', 'Tài xế phụ trách', 'Trạng thái', 'Thao tác']
+    ? ['Phương tiện', 'Loại xe', 'Số ghế', 'Trạng thái', 'Thao tác']
     : props.tab === 'drivers'
       ? ['Tài xế', 'Giấy phép lái xe', 'Phương tiện', 'Trạng thái', 'Thao tác']
       : ['Chuyến đi / Tuyến', 'Phân công', 'Hình thức / thời gian', 'Trạng thái', 'Thao tác'],
@@ -95,15 +95,9 @@ const assignedVehicle = (id: number) =>
               </div>
             </td>
             <td data-label="Loại xe">{{ vehicleTypeLabel(vehicle.vehicleType) }}</td>
-            <td data-label="Tài xế phụ trách">
-              <template v-if="vehicle.driver?.fullName != null">{{
-                vehicle.driver.fullName
-              }}</template
-              ><span
-                v-else
-                class="business-unassigned"
-                >Chưa phân công</span
-              >
+            <td data-label="Số ghế">
+              <template v-if="vehicle.seatCapacity != null">{{ vehicle.seatCapacity }} ghế</template
+              ><span v-else class="business-unassigned">Chưa cấu hình</span>
             </td>
             <td data-label="Trạng thái">
               <span :class="`business-status ${vehicle.active ? 'success' : 'neutral'}`"

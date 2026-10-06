@@ -13,6 +13,7 @@ const props = defineProps<{
 const plateNumber = ref(props.vehicle?.plateNumber ?? ''),
   name = ref(props.vehicle?.name ?? ''),
   description = ref(props.vehicle?.description ?? '');
+const seatCapacity = ref(props.vehicle?.seatCapacity == null ? '' : String(props.vehicle.seatCapacity));
 const vehicleType = ref<VehicleType>(props.vehicle?.vehicleType ?? 'CAR'),
   driverId = ref(props.vehicle?.driver ? String(props.vehicle.driver.id) : ''),
   confirm = ref(false);
@@ -21,12 +22,14 @@ const dirty = computed(
     plateNumber.value !== (props.vehicle?.plateNumber ?? '') ||
     name.value !== (props.vehicle?.name ?? '') ||
     description.value !== (props.vehicle?.description ?? '') ||
+    seatCapacity.value !== (props.vehicle?.seatCapacity == null ? '' : String(props.vehicle.seatCapacity)) ||
     vehicleType.value !== (props.vehicle?.vehicleType ?? 'CAR') ||
     (props.vehicle !== null &&
       driverId.value !== (props.vehicle.driver ? String(props.vehicle.driver.id) : '')),
 );
 const normalized = computed(() => plateNumber.value.toUpperCase().replace(/[\s.-]/g, ''));
-const valid = computed(() => !!name.value.trim() && /^[A-Z0-9]{1,20}$/.test(normalized.value));
+const valid = computed(() => !!name.value.trim() && /^[A-Z0-9]{1,20}$/.test(normalized.value)
+  && /^\d+$/.test(seatCapacity.value) && Number(seatCapacity.value) > 0);
 function close() {
   if (dirty.value) confirm.value = true;
   else props.onClose();
@@ -39,6 +42,7 @@ function submit() {
         name: name.value.trim(),
         description: description.value.trim() || null,
         vehicleType: vehicleType.value,
+        seatCapacity: Number(seatCapacity.value),
         driverId: props.vehicle && driverId.value ? Number(driverId.value) : null,
       },
       props.vehicle?.id,
@@ -111,6 +115,17 @@ function submit() {
             maxlength="100"
             required
             placeholder="Ví dụ: Xe buýt 01"
+        /></label>
+        <label
+          >Số ghế hành khách *<input
+            v-model="seatCapacity"
+            name="seatCapacity"
+            type="number"
+            min="1"
+            step="1"
+            required
+            inputmode="numeric"
+            placeholder="Ví dụ: 40"
         /></label>
         <label v-if="vehicle"
           >Tài xế mặc định<select v-model="driverId">

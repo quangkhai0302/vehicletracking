@@ -1,5 +1,6 @@
 import type { TripDetail, TripStatus, TripSummary } from '@/features/fleet/types/fleet';
 import type { TripSchedule } from '@/features/schedules/types/schedule';
+import type { StopVisit } from '@/features/fleet/types/checkin';
 import { appFetch } from '@/shared/api/http';
 import type { DriverNavigationSnapshot, DriverRouteOptions } from '@/features/fleet/types/driverNavigation';
 
@@ -31,6 +32,10 @@ export const fetchDriverNavigation = (id: number, signal?: AbortSignal) =>
   request<DriverNavigationSnapshot>(`/driver/trips/${id}/navigation`, { signal });
 export const startDriverTrip = (id: number, signal?: AbortSignal) =>
   request<DriverNavigationSnapshot>(`/driver/trips/${id}/start`, { method: 'POST', signal });
+export const confirmDriverBoardingCount = (id: number, sequence: number, employeeBoardingCount: number, signal?: AbortSignal) =>
+  request<StopVisit>(`/driver/trips/${id}/check-ins/${sequence}/boarding-count`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeBoardingCount }), signal,
+  });
 export const fetchDriverRouteOptions = (id: number, signal?: AbortSignal) =>
   request<DriverRouteOptions>(`/driver/trips/${id}/route-options`, { method: 'POST', signal });
 export const applyDriverRouteOption = (id: number, token: string, optionIndex: number, signal?: AbortSignal) =>

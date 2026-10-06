@@ -120,6 +120,15 @@ class OperationsHttpIntegrationTest {
         assertThat(get("/trips/"+id+"/check-ins?attemptNumber=1").statusCode()).isEqualTo(200);
         assertThat(get("/telemetry/history?tripId="+id+"&attemptNumber=1").statusCode()).isEqualTo(200);
     }
+
+    @Test void adminSimulationApiDoesNotExposeIncidentReporting() throws Exception {
+        var trip = fixture();
+        long tripId = trip.trip().id();
+        String body = json.writeValueAsString(Map.of(
+                "attemptNumber", 1, "type", "VEHICLE_BREAKDOWN", "severity", "CRITICAL",
+                "detail", "Kiểm tra xe", "idempotencyKey", UUID.randomUUID().toString()));
+        assertThat(post("/trips/" + tripId + "/simulation/incidents", body).statusCode()).isEqualTo(404);
+    }
     private InputStream connect(String lastId) throws Exception {
         var builder=HttpRequest.newBuilder(URI.create(base()+"/telemetry/stream")).header("Origin","http://127.0.0.1:5173");
         if(lastId!=null) builder.header("Last-Event-ID",lastId);

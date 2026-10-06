@@ -2,12 +2,14 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { effectScope, nextTick, ref } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 import * as api from '@/features/fleet/api/driverPortal';
+import * as incidentApi from '@/features/simulation/api/incidents';
 import { useDriverNavigation } from '@/features/fleet/composables/useDriverNavigation';
 import DriverNavigation from '@/features/fleet/components/DriverNavigation.vue';
 import type { DriverNavigationSnapshot } from '@/features/fleet/types/driverNavigation';
 import { driverOptions, driverSnapshot, stamp } from './fixtures/driverNavigation';
 
 vi.mock('@/features/fleet/api/driverPortal', () => ({ fetchDriverNavigation: vi.fn(), startDriverTrip: vi.fn(), fetchDriverRouteOptions: vi.fn(), applyDriverRouteOption: vi.fn() }));
+vi.mock('@/features/simulation/api/incidents', () => ({ reportDriverSimulationIncident: vi.fn() }));
 vi.mock('@/shared/composables/useErrorToast', () => ({ useErrorToast: vi.fn() }));
 const scopes: ReturnType<typeof effectScope>[] = [];
 const unmounts: (() => void)[] = [];
@@ -26,6 +28,14 @@ beforeEach(() => {
   vi.mocked(api.startDriverTrip).mockResolvedValue(driverSnapshot('IN_PROGRESS'));
   vi.mocked(api.fetchDriverRouteOptions).mockResolvedValue(driverOptions());
   vi.mocked(api.applyDriverRouteOption).mockResolvedValue(driverSnapshot('IN_PROGRESS', 17));
+  const incidentSnapshot = driverSnapshot('IN_PROGRESS');
+  incidentSnapshot.simulation!.status = 'PAUSED';
+  vi.mocked(incidentApi.reportDriverSimulationIncident).mockResolvedValue({
+    id: 1, tripId: 7, vehicleId: 1, vehiclePlateNumber: '51B-12345', reportedByDriverId: 9,
+    reportedByDriverName: 'Tài xế thử nghiệm', attemptNumber: 1, type: 'VEHICLE_BREAKDOWN', severity: 'MAJOR',
+    status: 'OPEN', detail: null, latitude: 10.77, longitude: 106.7, simulatedElapsedSeconds: 5,
+    createdAt: stamp, acknowledgedAt: null, resolvedAt: null, simulation: incidentSnapshot.simulation,
+  });
 });
 afterEach(() => { unmounts.splice(0).forEach(fn => fn()); scopes.splice(0).forEach(s => s.stop()); vi.clearAllTimers(); vi.useRealTimers(); });
 
@@ -67,6 +77,21 @@ test('does not resume an admin-paused run or request routes for it', async () =>
   vi.mocked(api.fetchDriverNavigation).mockResolvedValue(paused);
   const { state } = setup(); await flushPromises(); await state.start(); await state.loadOptions();
   expect(state.canChange).toBe(false); expect(api.startDriverTrip).not.toHaveBeenCalled(); expect(api.fetchDriverRouteOptions).not.toHaveBeenCalled();
+});
+test('driver reports an incident on the assigned active trip with a stable idempotency key', async () => {
+  const paused = driverSnapshot('IN_PROGRESS'); paused.simulation!.status = 'PAUSED';
+  vi.mocked(api.fetchDriverNavigation).mockResolvedValue(driverSnapshot('IN_PROGRESS'));
+  const { state } = setup(); await flushPromises();
+  vi.mocked(api.fetchDriverNavigation).mockResolvedValue(paused);
+  const report = {
+    type: 'VEHICLE_BREAKDOWN' as const, severity: 'MAJOR' as const, detail: 'Xe bị hỏng',
+    idempotencyKey: 'same-request-on-retry',
+  };
+  expect(await state.reportIncident(report)).toBe(true);
+  expect(incidentApi.reportDriverSimulationIncident).toHaveBeenCalledWith(7, expect.objectContaining({
+    ...report, attemptNumber: 1,
+  }), expect.any(AbortSignal));
+  expect(state.snapshot?.simulation?.status).toBe('PAUSED');
 });
 test('preview is local until explicit confirmation and then adopts the shared revision', async () => {
   vi.mocked(api.fetchDriverNavigation).mockResolvedValue(driverSnapshot('IN_PROGRESS'));
@@ -128,6 +153,7 @@ test.each(['ON_DEMAND', 'FIXED_SCHEDULE'] as const)('driver map supports %s manu
   vi.mocked(api.fetchDriverNavigation).mockResolvedValue(snapshot);
   const wrapper = component(); await flushPromises();
   expect(wrapper.text()).toContain('Bắt đầu chuyến'); expect(wrapper.text()).toContain('Mô phỏng');
+  expect(wrapper.find('.driver-incident-report-button').exists()).toBe(false);
   expect(wrapper.findComponent({ name: 'DriverNavigationMap' }).props('snapshot').route).toEqual(driverSnapshot().route);
   const stopLabels = wrapper.findAll('.driver-trip-stop-state').map(el => el.text());
   expect(stopLabels).toEqual(['Trạm đầu', 'Trạm cuối']);
@@ -159,6 +185,7 @@ test('shows scoped speed, progress, station ETA and actual check-in counts', asy
   data.simulation!.frame!.progressPercent = 42; data.simulation!.frame!.nextStopEtaSeconds = 75;
   vi.mocked(api.fetchDriverNavigation).mockResolvedValue(data);
   const wrapper = component(); await flushPromises();
+  expect(wrapper.find('.driver-incident-report-button').exists()).toBe(true);
   expect(wrapper.text()).toContain('20 km/h'); expect(wrapper.text()).toContain('1p 15s');
   expect(wrapper.find('[role="progressbar"]').attributes('aria-valuenow')).toBe('42');
   expect(wrapper.text()).toContain('0/2 trạm đã check-in');

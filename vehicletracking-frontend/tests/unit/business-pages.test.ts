@@ -64,6 +64,7 @@ const vehicle: FleetVehicle = {
   name: 'Fixture car',
   description: null,
   vehicleType: 'CAR',
+  seatCapacity: 40,
   active: true,
   driver,
   createdAt: stamp,
@@ -92,6 +93,8 @@ const report: OperationalReportDetail = {
   summary: { from: '2026-09-01', to: '2026-09-23', generatedAt: stamp, tripCount: 142, completedTripCount: 124, totalDistanceMeters: 1000, totalRunningSeconds: 3600, onTimeRatePercent: 95, lateTripCount: 3, offRouteEventCount: 2, overspeedEventCount: 0, speedLimitKmh: 80 },
   vehicles: [], drivers: [], lateStops: [], incidents: [], employeePassengerDataAvailable: false,
   employeePassengerDataNote: 'Chưa có dữ liệu',
+  employeeOccupancy: { completedTripCount: 0, tripsWithCompleteBoardingData: 0, tripsMissingBoardingData: 0, tripsMissingSeatCapacity: 0, totalBoardings: 0, averageBoardingsPerTrip: null, averageOnboard: null, seatUtilizationPercent: null },
+  employeeOccupancyByVehicle: [],
 };
 const account: UserAccount = {
   id: 2,
@@ -123,6 +126,7 @@ const schedule: TripSchedule = {
   lastRunAt: null,
   lastRunStatus: null,
   lastRunMessage: null,
+  expectedEmployeeBoardings: {},
 };
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -177,14 +181,14 @@ test('reports keep numeric filters, abort stale loads and do not replace a newer
   await flushPromises();
   const old = deferred<OperationalReportDetail>();
   vi.mocked(fetchOperationalReportDetail).mockReturnValueOnce(old.promise);
-  await wrapper.findAll('select')[0].setValue('1');
+  await wrapper.findAll('select')[1].setValue('1');
   expect(fetchOperationalReportDetail).toHaveBeenLastCalledWith(
     expect.objectContaining({ vehicleId: 1 }),
     expect.any(AbortSignal),
   );
   const signal = vi.mocked(fetchOperationalReportDetail).mock.calls[1][1]!;
   vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce({ ...report, summary: { ...report.summary, tripCount: 9 } });
-  await wrapper.findAll('select')[1].setValue('2');
+  await wrapper.findAll('select')[2].setValue('2');
   await flushPromises();
   expect(signal.aborted).toBe(true);
   old.resolve({ ...report, summary: { ...report.summary, tripCount: 999 } });
@@ -199,9 +203,55 @@ test('reports keep numeric filters, abort stale loads and do not replace a newer
   expect(lastSignal.aborted).toBe(true);
 });
 
+test('late stop filters are independent and combine search, station, and minimum delay', async () => {
+  const lateStops = [
+    { tripId: 7, routeName: 'Tuyến Bình Minh', vehiclePlateNumber: '51B12345', driverName: 'Nguyễn Văn A', stationName: 'Trạm A', stopSequence: 2, plannedArrivalAt: stamp, actualArrivalAt: stamp, delaySeconds: 600 },
+    { tripId: 8, routeName: 'Tuyến Chiều Tối', vehiclePlateNumber: '51B67890', driverName: 'Trần Văn B', stationName: 'Trạm B', stopSequence: 3, plannedArrivalAt: stamp, actualArrivalAt: stamp, delaySeconds: 2100 },
+  ];
+  vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce({ ...report, lateStops });
+  const wrapper = mount(ReportsPage);
+  cleanups.push(() => wrapper.unmount());
+  await flushPromises();
+  const section = wrapper.get('[aria-label="Các lần trễ trạm"]');
+  expect(section.text()).toContain('Hiển thị 2 / 2 lần trễ trạm');
+  await section.get('input[type="search"]').setValue('51B67890');
+  await section.findAll('select')[0].setValue('Trạm B');
+  await section.findAll('select')[1].setValue('51B67890');
+  await section.findAll('select')[2].setValue('Trần Văn B');
+  await section.findAll('select')[3].setValue('30');
+  expect(section.text()).toContain('Hiển thị 1 / 2 lần trễ trạm');
+  expect(section.text()).toContain('Tuyến Chiều Tối');
+  expect(section.text()).not.toContain('Tuyến Bình Minh');
+  expect(fetchOperationalReportDetail).toHaveBeenCalledTimes(1);
+  await section.get('button').trigger('click');
+  expect(section.text()).toContain('Hiển thị 2 / 2 lần trễ trạm');
+});
+
+test('occupancy report explains how its metrics and table columns are calculated', async () => {
+  vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce({
+    ...report,
+    employeeOccupancyByVehicle: [{
+      vehicleId: 1, plateNumber: vehicle.plateNumber, vehicleName: vehicle.name, seatCapacity: 40,
+      completedTripCount: 1, tripsWithCompleteBoardingData: 1, tripsMissingBoardingData: 0,
+      totalBoardings: 12, averageBoardingsPerTrip: 12, averageOnboard: 8, seatUtilizationPercent: 20,
+    }],
+  });
+  const wrapper = mount(ReportsPage);
+  cleanups.push(() => wrapper.unmount());
+  await flushPromises();
+  const occupancy = wrapper.get('[aria-label="Thống kê người trên xe"]');
+  expect(occupancy.get('.occupancy-method-note').text()).toContain('không phải số người duy nhất');
+  expect(occupancy.get('.reports-occupancy-metrics').text()).toContain('Người trên xe TB');
+  expect(occupancy.text()).not.toContain('Đã xác nhận số người');
+  expect(occupancy.text()).toContain('Ghế lấp đầy TB');
+  expect(occupancy.findAll('thead th').map((header) => header.text())).not.toContain('Lượt người được chở');
+});
+
 test('reports reject incomplete dates without HTTP and can reset/retry an API failure', async () => {
   const wrapper = mount(ReportsPage);
   cleanups.push(() => wrapper.unmount());
+  await flushPromises();
+  await wrapper.get('select[aria-label="Kỳ báo cáo"]').setValue('CUSTOM');
   await flushPromises();
   await wrapper.findAll('input[type=date]')[0].setValue('');
   await flushPromises();
@@ -213,7 +263,7 @@ test('reports reject incomplete dates without HTTP and can reset/retry an API fa
   expect(notifyError).toHaveBeenCalledWith('Fixture unavailable');
   await wrapper.get('.reports-refresh').trigger('click');
   await flushPromises();
-  expect(wrapper.findAll('.report-table-card')).toHaveLength(4);
+  expect(wrapper.findAll('.report-table-card')).toHaveLength(5);
 });
 
 test('user creation only selects an available driver and shows generated credentials', async () => {
@@ -384,6 +434,7 @@ test('schedule form validates weekdays and sends ONCE payload without weekly mas
     timezone: 'Asia/Ho_Chi_Minh',
     effectiveFrom: '2026-09-23',
     effectiveUntil: null,
+    expectedEmployeeBoardings: {},
   });
   await wrapper.get('dialog').trigger('cancel');
   expect(wrapper.find('dialog').exists()).toBe(true);

@@ -1,6 +1,8 @@
 import { computed, reactive, ref, shallowRef, toValue, watch, type MaybeRefOrGetter } from 'vue';
-import { applyDriverRouteOption, fetchDriverNavigation, fetchDriverRouteOptions, startDriverTrip } from '@/features/fleet/api/driverPortal';
+import { applyDriverRouteOption, confirmDriverBoardingCount, fetchDriverNavigation, fetchDriverRouteOptions, startDriverTrip } from '@/features/fleet/api/driverPortal';
 import type { DriverNavigationSnapshot, DriverRouteOptions } from '@/features/fleet/types/driverNavigation';
+import { reportDriverSimulationIncident, type SimulationIncidentType } from '@/features/simulation/api/incidents';
+import type { NotificationSeverity } from '@/features/reports/types/notifications';
 
 export function useDriverNavigation(tripId: MaybeRefOrGetter<number>) {
   const snapshot = shallowRef<DriverNavigationSnapshot | null>(null);
@@ -88,10 +90,55 @@ export function useDriverNavigation(tripId: MaybeRefOrGetter<number>) {
       if (alive && version === generation) { busy.value = false; action = null; void refresh(); }
     }
   }
+  async function confirmBoarding(sequence: number, count: number) {
+    if (!alive || busy.value || !connected.value) return false;
+    busy.value = true; actionError.value = null;
+    const id = toValue(tripId), controller = new AbortController(); action = controller;
+    try {
+      await confirmDriverBoardingCount(id, sequence, count, controller.signal);
+      if (alive && snapshot.value?.trip.id === id) void refresh();
+      return true;
+    } catch (reason) {
+      if (alive) actionError.value = message(reason);
+      return false;
+    } finally {
+      if (alive) { busy.value = false; action = null; }
+    }
+  }
+  async function reportIncident(input: {
+    type: SimulationIncidentType;
+    severity: NotificationSeverity;
+    detail: string;
+    idempotencyKey: string;
+  }) {
+    const current = snapshot.value, id = toValue(tripId);
+    const run = current?.simulation;
+    if (!alive || !current || current.trip.status !== 'IN_PROGRESS' || !run ||
+      (run.status !== 'RUNNING' && run.status !== 'PAUSED') || busy.value || !connected.value)
+      return false;
+    busy.value = true; actionError.value = null; generation++; read?.abort(); clearTimeout(poll);
+    const version = generation, controller = new AbortController(); action = controller;
+    try {
+      const result = await reportDriverSimulationIncident(id, {
+        ...input,
+        attemptNumber: run.attemptNumber ?? current.trip.attemptNumber ?? 1,
+      }, controller.signal);
+      if (!alive || version !== generation || controller.signal.aborted) return true;
+      if (result.attemptNumber === current.trip.attemptNumber)
+        snapshot.value = { ...current, simulation: result.simulation ?? current.simulation };
+      return true;
+    } catch (reason) {
+      if (alive && version === generation && !controller.signal.aborted) actionError.value = message(reason);
+      return false;
+    } finally {
+      if (alive && version === generation) { busy.value = false; action = null; void refresh(); }
+    }
+  }
   return reactive({ snapshot, options, selectedIndex, loading, busy, now, connected, canChange, optionsExpired,
     error: computed(() => actionError.value ?? readError.value),
     selectedOption: computed(() => options.value?.options.find(o => o.optionIndex === selectedIndex.value) ?? null),
     start: () => mutate('start'), loadOptions: () => mutate('options'), apply: () => mutate('apply'),
     cancelOptions: clearOptions, retry: () => { attempt.value++; },
+    confirmBoarding, reportIncident,
   });
 }

@@ -407,6 +407,44 @@ test('admin bell filters, single read and read-all preserve HTTP payload and dup
   }
 });
 
+test('admin bell opens simulation incident monitoring and persists acknowledge and resolve actions', async () => {
+  user = admin;
+  const incidentNotice: NotificationItem = {
+    ...alert,
+    type: 'SIMULATION_INCIDENT',
+    title: 'Xe gặp sự cố',
+    reason: 'Xe gặp sự cố: Đã dừng kiểm tra',
+    simulationIncidentId: 77,
+    simulationIncidentStatus: 'OPEN',
+    simulationIncidentType: 'VEHICLE_BREAKDOWN',
+    simulationIncidentDetail: 'Đã dừng kiểm tra động cơ',
+    simulationIncidentLatitude: 10.77,
+    simulationIncidentLongitude: 106.7,
+    simulationIncidentElapsedSeconds: 120,
+  };
+  handlers.set('GET /api/v1/notifications?unreadOnly=false', () => json([incidentNotice]));
+  handlers.set('POST /api/v1/simulation-incidents/77/acknowledge', () => json({ status: 'ACKNOWLEDGED' }));
+  handlers.set('POST /api/v1/simulation-incidents/77/resolve', () => json({ status: 'RESOLVED' }));
+  const { router } = await open('/alerts');
+  const panel = notificationPanel();
+  await panel.findAll('.admin-notification-filters select')[0].setValue('INCIDENT');
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
+  expect(panel.text()).toContain('Vị trí mô phỏng 10.77000, 106.70000');
+  expect(panel.text()).toContain('Đã dừng kiểm tra động cơ');
+  expect(panel.get('.admin-notification-actions a').attributes('href')).toBe('/operations?tripId=100');
+  await panel.get('.admin-notification-actions').findAll('button').find(button => button.text().includes('Tiếp nhận'))!.trigger('click');
+  await flushPromises();
+  expect(calls('/api/v1/simulation-incidents/77/acknowledge', 'POST')).toHaveLength(1);
+  expect(panel.get('.admin-notification-incident-meta').text()).toContain('Đã tiếp nhận');
+  await panel.get('.admin-notification-actions').findAll('button').find(button => button.text().includes('Đã xử lý'))!.trigger('click');
+  await flushPromises();
+  expect(calls('/api/v1/simulation-incidents/77/resolve', 'POST')).toHaveLength(1);
+  expect(panel.get('.admin-notification-incident-meta').text()).toContain('Đã xử lý');
+  await panel.get('.admin-notification-actions a').trigger('click');
+  await flushPromises();
+  expect(router.currentRoute.value.query).toEqual({ tripId: '100' });
+});
+
 test('stale notification polls cannot undo a confirmed read or dismissal', async () => {
   user = admin;
   const staleRead = deferred<Response>();

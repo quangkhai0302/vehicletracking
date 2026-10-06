@@ -548,6 +548,13 @@
   min-height: 0;
   flex: 1;
 }
+.schedule-boarding-defaults { display:flex; flex-direction:column; gap:9px; padding:14px; border:1px solid #dbe5f0; border-radius:12px; background:#f8fafc; }
+.schedule-boarding-defaults > div:first-child p { margin:4px 0 2px; color:#64748b; font-size:12px; line-height:1.5; }
+.schedule-boarding-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(130px,190px); align-items:center; gap:10px; padding:8px 0; border-top:1px solid #e2e8f0; }
+.schedule-boarding-row > span { display:flex; flex-direction:column; gap:3px; font-size:12px; font-weight:650; }
+.schedule-boarding-row small { color:#64748b; font-size:10px; font-weight:500; }
+.schedule-boarding-row input { width:100%; min-height:40px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; }
+.schedule-boarding-destination { color:#64748b; font-size:12px; text-align:right; }
 
 .schedule-form-content {
   flex: 1;

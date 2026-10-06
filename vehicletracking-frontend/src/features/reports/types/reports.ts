@@ -72,6 +72,33 @@ export interface OperationalReportDetail {
   incidents: OperationalReportIncidentRow[];
   employeePassengerDataAvailable: boolean;
   employeePassengerDataNote: string;
+  employeeOccupancy: EmployeeOccupancySummary;
+  employeeOccupancyByVehicle: EmployeeOccupancyVehicleRow[];
+}
+
+export interface EmployeeOccupancySummary {
+  completedTripCount: number;
+  tripsWithCompleteBoardingData: number;
+  tripsMissingBoardingData: number;
+  tripsMissingSeatCapacity: number;
+  totalBoardings: number;
+  averageBoardingsPerTrip: number | null;
+  averageOnboard: number | null;
+  seatUtilizationPercent: number | null;
+}
+
+export interface EmployeeOccupancyVehicleRow {
+  vehicleId: number | null;
+  plateNumber: string | null;
+  vehicleName: string | null;
+  seatCapacity: number | null;
+  completedTripCount: number;
+  tripsWithCompleteBoardingData: number;
+  tripsMissingBoardingData: number;
+  totalBoardings: number;
+  averageBoardingsPerTrip: number | null;
+  averageOnboard: number | null;
+  seatUtilizationPercent: number | null;
 }
 
 export type SimulationReportMetric = 'ALL' | 'COMPLETED' | 'ON_TIME' | 'LATE' | 'OFF_ROUTE';

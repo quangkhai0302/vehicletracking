@@ -34,7 +34,7 @@ public class VehicleService {
     public VehicleResponse create(VehicleUpsertRequest input) {
         String plate = normalizePlate(input.plateNumber());
         ensureUnique(plate, -1L);
-        VehicleEntity vehicle = new VehicleEntity(plate, input.name().trim(), normalizeDescription(input.description()), input.vehicleType());
+        VehicleEntity vehicle = new VehicleEntity(plate, input.name().trim(), normalizeDescription(input.description()), input.vehicleType(), input.seatCapacity());
         return persist(vehicle);
     }
     @Transactional
@@ -44,6 +44,7 @@ public class VehicleService {
         String plate = normalizePlate(input.plateNumber());
         ensureUnique(plate, id);
         vehicle.updateDetails(plate, input.name().trim(), normalizeDescription(input.description()), input.vehicleType());
+        vehicle.updateSeatCapacity(input.seatCapacity());
         return persist(vehicle);
     }
     @Transactional

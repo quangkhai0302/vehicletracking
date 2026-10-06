@@ -6,8 +6,8 @@ import java.util.List;
 
 /**
  * Operational report with the aggregate and the breakdowns used by the
- * reports screen. Employee/passenger counts are nullable until a manifest
- * source is introduced into the domain model.
+ * reports screen. Passenger counts are based on driver-confirmed boardings
+ * recorded at each pickup stop during the current completed simulation attempt.
  */
 public record OperationalReportDetailResponse(
         LocalDate from,
@@ -19,5 +19,7 @@ public record OperationalReportDetailResponse(
         List<OperationalReportLateStop> lateStops,
         List<OperationalReportIncidentRow> incidents,
         boolean employeePassengerDataAvailable,
-        String employeePassengerDataNote) {
+        String employeePassengerDataNote,
+        EmployeeOccupancySummary employeeOccupancy,
+        List<EmployeeOccupancyVehicleRow> employeeOccupancyByVehicle) {
 }

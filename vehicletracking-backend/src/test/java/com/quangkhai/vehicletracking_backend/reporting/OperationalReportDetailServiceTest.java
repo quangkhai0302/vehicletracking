@@ -52,7 +52,7 @@ class OperationalReportDetailServiceTest {
                 1, 1, 1000, 600, 0, 1, 0, 0, 80);
         when(operationalReports.operations(summary.from(), summary.to(), null, null)).thenReturn(summary);
         when(clock.instant()).thenReturn(Instant.parse("2026-09-21T12:00:00Z"));
-        when(trips.findAllForOperationalReport(Instant.parse("2026-09-21T00:00:00Z"), Instant.parse("2026-09-22T00:00:00Z"), null, null))
+        when(trips.findAllForOperationalReport(Instant.parse("2026-09-20T17:00:00Z"), Instant.parse("2026-09-21T17:00:00Z"), null, null))
                 .thenReturn(List.of(trip));
         when(trip.getId()).thenReturn(7L);
         when(trip.getVehicle()).thenReturn(vehicle);
@@ -75,9 +75,9 @@ class OperationalReportDetailServiceTest {
         when(visit.getStopSequence()).thenReturn(1);
         when(visit.getActualArrivalAt()).thenReturn(departure.plusSeconds(420));
         when(visits.findAllByTripIdInOrderByTripIdAscStopSequenceAsc(List.of(7L))).thenReturn(List.of(visit));
-        when(notifications.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-21T00:00:00Z"),
-                Instant.parse("2026-09-22T00:00:00Z"))).thenReturn(List.of());
-        when(telemetry.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-22T00:00:00Z"),
+        when(notifications.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-20T17:00:00Z"),
+                Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of());
+        when(telemetry.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-21T17:00:00Z"),
                 com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.GPS)).thenReturn(List.of());
 
         var result = new OperationalReportDetailService(operationalReports, trips, visits, notifications,
@@ -93,4 +93,78 @@ class OperationalReportDetailServiceTest {
         assertThat(result.lateStops()).singleElement().extracting(row -> row.routeName()).isEqualTo("Tuyến thử nghiệm");
         assertThat(result.employeePassengerDataAvailable()).isFalse();
     }
+
+    @Test
+    void calculatesWeightedOccupancyAndSeatUtilizationFromConfirmedPickupCounts() {
+        ReportingProperties properties = new ReportingProperties();
+        Instant departure = Instant.parse("2026-09-21T08:00:00Z");
+        OperationalReportResponse summary = new OperationalReportResponse(
+                LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 21), departure,
+                1, 1, 1000, 900, 0, 0, 0, 0, 80);
+        when(operationalReports.operations(summary.from(), summary.to(), null, null)).thenReturn(summary);
+        when(clock.instant()).thenReturn(departure.plusSeconds(1200));
+        when(trips.findAllForOperationalReport(Instant.parse("2026-09-20T17:00:00Z"),
+                Instant.parse("2026-09-21T17:00:00Z"), null, null)).thenReturn(List.of(trip));
+        when(trip.getId()).thenReturn(7L);
+        when(trip.getVehicle()).thenReturn(vehicle);
+        when(vehicle.getId()).thenReturn(2L);
+        when(vehicle.getName()).thenReturn("Xe 7");
+        when(vehicle.getSeatCapacity()).thenReturn(10);
+        when(trip.getVehiclePlateSnapshot()).thenReturn("51A-00007");
+        when(trip.getDriverNameSnapshot()).thenReturn("Nguyễn Văn A");
+        when(trip.getDriver()).thenReturn(null);
+        when(trip.getSchedule()).thenReturn(null);
+        when(trip.getStatus()).thenReturn(TripStatus.COMPLETED);
+        when(trip.getScheduledDepartureAt()).thenReturn(departure);
+        when(stop.getSequenceNumber()).thenReturn(1);
+        when(stop.getArrivalOffsetSeconds()).thenReturn(0L);
+        TripStopEntity secondStop = stopAtSecondPickup();
+        TripStopEntity endStop = finalStop();
+        when(trip.getStops()).thenReturn(List.of(stop, secondStop, endStop));
+        when(secondStop.getSequenceNumber()).thenReturn(2);
+        when(secondStop.getArrivalOffsetSeconds()).thenReturn(360L);
+        when(endStop.getSequenceNumber()).thenReturn(3);
+        when(endStop.getArrivalOffsetSeconds()).thenReturn(1020L);
+
+        TripStopVisitEntity firstVisit = org.mockito.Mockito.mock(TripStopVisitEntity.class);
+        TripStopVisitEntity secondVisit = org.mockito.Mockito.mock(TripStopVisitEntity.class);
+        TripStopVisitEntity finalVisit = org.mockito.Mockito.mock(TripStopVisitEntity.class);
+        when(firstVisit.getTrip()).thenReturn(trip);
+        when(firstVisit.getStopSequence()).thenReturn(1);
+        when(firstVisit.getActualArrivalAt()).thenReturn(departure);
+        when(firstVisit.getSimulatedArrivalAt()).thenReturn(departure);
+        when(firstVisit.getEmployeeBoardingCount()).thenReturn(2);
+        when(secondVisit.getTrip()).thenReturn(trip);
+        when(secondVisit.getStopSequence()).thenReturn(2);
+        when(secondVisit.getActualArrivalAt()).thenReturn(departure.plusSeconds(360));
+        when(secondVisit.getSimulatedArrivalAt()).thenReturn(departure.plusSeconds(300));
+        when(secondVisit.getEmployeeBoardingCount()).thenReturn(3);
+        when(finalVisit.getTrip()).thenReturn(trip);
+        when(finalVisit.getStopSequence()).thenReturn(3);
+        when(finalVisit.getActualArrivalAt()).thenReturn(departure.plusSeconds(1020));
+        when(finalVisit.getSimulatedArrivalAt()).thenReturn(departure.plusSeconds(900));
+        when(visits.findAllByTripIdInOrderByTripIdAscStopSequenceAsc(List.of(7L)))
+                .thenReturn(List.of(firstVisit, secondVisit, finalVisit));
+        when(notifications.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-20T17:00:00Z"),
+                Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of());
+        when(telemetry.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-21T17:00:00Z"),
+                com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.GPS)).thenReturn(List.of());
+
+        var result = new OperationalReportDetailService(operationalReports, trips, visits, notifications,
+                telemetry, properties, clock).detail(summary.from(), summary.to(), null, null);
+
+        assertThat(result.employeeOccupancy().totalBoardings()).isEqualTo(5);
+        assertThat(result.employeeOccupancy().averageBoardingsPerTrip()).isEqualTo(5d);
+        assertThat(result.employeeOccupancy().averageOnboard()).isEqualTo(4d);
+        assertThat(result.employeeOccupancy().seatUtilizationPercent()).isEqualTo(40d);
+        assertThat(result.employeeOccupancy().tripsWithCompleteBoardingData()).isEqualTo(1);
+        assertThat(result.employeeOccupancyByVehicle()).singleElement().satisfies(row -> {
+            assertThat(row.seatCapacity()).isEqualTo(10);
+            assertThat(row.totalBoardings()).isEqualTo(5);
+            assertThat(row.seatUtilizationPercent()).isEqualTo(40d);
+        });
+    }
+
+    private TripStopEntity stopAtSecondPickup() { return org.mockito.Mockito.mock(TripStopEntity.class); }
+    private TripStopEntity finalStop() { return org.mockito.Mockito.mock(TripStopEntity.class); }
 }

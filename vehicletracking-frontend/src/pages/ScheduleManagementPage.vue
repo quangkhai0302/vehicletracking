@@ -28,6 +28,8 @@ import AppSelect from '@/shared/components/AppSelect.vue';
 import AppDatePicker from '@/shared/components/AppDatePicker.vue';
 import ScheduleConfirm from '@/features/schedules/components/ScheduleConfirm.vue';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
+import { fetchRouteById } from '@/features/routes/api/routes';
+import type { RouteStop } from '@/features/routes/types/route';
 import { notifyError, notifySuccess } from '@/shared/notifications/toast';
 import '@/features/schedules/styles/schedule-management.css';
 interface ScheduleData {
@@ -61,6 +63,7 @@ const blankForm = (): FormState => ({
   timezone: 'Asia/Ho_Chi_Minh',
   effectiveFrom: new Date().toLocaleDateString('en-CA'),
   effectiveUntil: null,
+  expectedEmployeeBoardings: {},
 });
 const dateTime = (value: string | null, timezone: string) =>
   value
@@ -85,6 +88,7 @@ const editorOpen = ref(false),
   form = ref<FormState>(blankForm()),
   formError = ref<string | null>(null),
   saving = ref(false);
+const routeStops = shallowRef<RouteStop[]>([]), boardingDraft = ref<Record<number, string>>({});
 const pendingToggle = shallowRef<TripSchedule | null>(null),
   toggleError = ref<string | null>(null),
   toggling = ref(false);
@@ -119,6 +123,17 @@ watch(
   },
   { immediate: true },
 );
+watch(() => form.value.routeId, async (routeId) => {
+  routeStops.value = []; boardingDraft.value = {};
+  if (!routeId) return;
+  try {
+    const route = await fetchRouteById(routeId);
+    routeStops.value = route.stops;
+    boardingDraft.value = Object.fromEntries(route.stops
+      .filter((stop) => stop.role !== 'END')
+      .map((stop) => [stop.sequenceNumber, String(form.value.expectedEmployeeBoardings[stop.sequenceNumber] ?? '')]));
+  } catch { routeStops.value = []; }
+});
 const schedules = computed(() =>
   (data.value?.schedules ?? []).filter(
     (schedule) =>
@@ -172,10 +187,13 @@ const driverSelectOptions = computed(() => [
 ]);
 function openCreate() {
   form.value = blankForm();
+  boardingDraft.value = {};
   formError.value = null;
   editorOpen.value = true;
 }
 function openEdit(s: TripSchedule) {
+  boardingDraft.value = Object.fromEntries(Object.entries(s.expectedEmployeeBoardings ?? {})
+    .map(([sequence, count]) => [Number(sequence), String(count)]));
   form.value = {
     id: s.id,
     name: s.name ?? '',
@@ -189,6 +207,7 @@ function openEdit(s: TripSchedule) {
     timezone: s.timezone,
     effectiveFrom: s.effectiveFrom,
     effectiveUntil: s.effectiveUntil,
+    expectedEmployeeBoardings: { ...(s.expectedEmployeeBoardings ?? {}) },
   };
   formError.value = null;
   editorOpen.value = true;
@@ -233,6 +252,9 @@ async function save() {
     timezone: f.timezone.trim(),
     effectiveFrom: f.effectiveFrom,
     effectiveUntil: f.effectiveUntil || null,
+    expectedEmployeeBoardings: Object.fromEntries(Object.entries(boardingDraft.value)
+      .filter(([, value]) => value !== '')
+      .map(([sequence, value]) => [sequence, Number(value)])),
   };
   try {
     const saved = f.id ? await updateSchedule(f.id, input) : await createSchedule(input);
@@ -629,6 +651,14 @@ async function toggle() {
               />
             </label>
           </div>
+          <section v-if="routeStops.length" class="schedule-boarding-defaults" aria-label="Số người dự kiến lên xe">
+            <div><strong>Số người dự kiến lên xe</strong><p>Điền số dự kiến để tài xế xác nhận khi mô phỏng xe đến từng điểm đón. Để trống nếu muốn nhập tại trạm.</p></div>
+            <label v-for="stop in routeStops" :key="stop.sequenceNumber" class="schedule-boarding-row">
+              <span>{{ stop.sequenceNumber }}. {{ stop.stationName }}<small v-if="stop.role === 'END'">Điểm đến chung · không đón người</small></span>
+              <input v-if="stop.role !== 'END'" v-model="boardingDraft[stop.sequenceNumber]" type="number" min="0" step="1" inputmode="numeric" :aria-label="`Số người lên tại ${stop.stationName}`" placeholder="Nhập số dự kiến" />
+              <span v-else class="schedule-boarding-destination">Trường học</span>
+            </label>
+          </section>
         </div>
         <footer class="schedule-editor-footer">
           <button

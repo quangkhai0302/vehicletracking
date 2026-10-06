@@ -29,6 +29,7 @@ export interface FleetVehicle {
   name: string;
   description: string | null;
   vehicleType: VehicleType;
+  seatCapacity?: number | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -39,6 +40,7 @@ export interface VehicleInput {
   name: string;
   description: string | null;
   vehicleType: VehicleType;
+  seatCapacity: number;
   driverId: number | null;
 }
 export type TripStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
@@ -78,6 +80,7 @@ export interface TripSummary {
   dispatchMode: TripDispatchMode;
   scheduleId: number | null;
   scheduleName: string | null;
+  seatCapacity?: number | null;
   driver?: DriverSummary | null;
   assignmentRequest?: TripAssignmentRequestSummary | null;
 }
@@ -93,6 +96,7 @@ export interface TripStop {
   departureOffsetSeconds: number;
   plannedArrivalAt: string;
   plannedDepartureAt: string;
+  expectedEmployeeBoardingCount?: number | null;
 }
 export interface TripDetail {
   trip: TripSummary;

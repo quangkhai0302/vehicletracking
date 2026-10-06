@@ -1,13 +1,21 @@
 export type NotificationType =
   | 'REROUTE_CREATED' | 'REROUTE_UNAVAILABLE' | 'OFF_ROUTE_DETECTED' | 'DRIVER_ROUTE_CHANGED'
   | 'DISPATCH_ATTENTION' | 'DRIVER_UNAVAILABLE' | 'DISPATCH_REASSIGNED' | 'TRIP_AUTO_STARTED'
-  | 'DIRECT_ASSIGNMENT_DECLINED';
+  | 'DIRECT_ASSIGNMENT_DECLINED' | 'SIMULATION_INCIDENT';
 export type NotificationSeverity = 'CRITICAL' | 'MAJOR';
 export interface NotificationItem {
   id: number; tripId: number; vehicleId: number; vehiclePlateNumber: string; revisionId: number | null; type: NotificationType; severity: NotificationSeverity;
   title: string; reason: string; incidentId: string | null; affectedStopSequences: string;
   baselineEtaSeconds: number | null; revisedEtaSeconds: number | null; createdAt: string; readAt: string | null;
   measuredDistanceMeters?: number | null; thresholdDistanceMeters?: number | null; breachDurationSeconds?: number | null;
+  simulationIncidentId?: number | null;
+  simulationIncidentStatus?: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | null;
+  simulationIncidentType?: 'VEHICLE_BREAKDOWN' | 'EMERGENCY_STOP' | 'ROAD_BLOCKED' | 'OTHER' | null;
+  simulationIncidentReportedByDriver?: string | null;
+  simulationIncidentDetail?: string | null;
+  simulationIncidentLatitude?: number | null;
+  simulationIncidentLongitude?: number | null;
+  simulationIncidentElapsedSeconds?: number | null;
 }
 export interface RouteRevisionStop {
   originalStopSequence: number; sequenceNumber: number; stationId: number; stationName: string;

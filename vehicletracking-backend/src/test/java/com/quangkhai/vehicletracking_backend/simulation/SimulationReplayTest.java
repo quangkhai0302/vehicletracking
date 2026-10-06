@@ -4,6 +4,7 @@ import com.quangkhai.vehicletracking_backend.checkin.entity.TripCheckInStateEnti
 import com.quangkhai.vehicletracking_backend.checkin.repository.TripCheckInStateRepository;
 import com.quangkhai.vehicletracking_backend.reroute.entity.*;
 import com.quangkhai.vehicletracking_backend.reroute.repository.*;
+import com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository;
 import com.quangkhai.vehicletracking_backend.simulation.entity.*;
 import com.quangkhai.vehicletracking_backend.simulation.repository.*;
 import com.quangkhai.vehicletracking_backend.simulation.service.SimulationService;
@@ -42,6 +43,8 @@ class SimulationReplayTest {
     TripCheckInStateRepository checkpoints=mock(TripCheckInStateRepository.class);
     TripTrafficAlertStateRepository alerts=mock(TripTrafficAlertStateRepository.class);
     TripRouteRevisionRepository revisions=mock(TripRouteRevisionRepository.class);
+    SimulationIncidentRepository incidents=mock(SimulationIncidentRepository.class);
+    TripNotificationRepository notifications=mock(TripNotificationRepository.class);
     SimulationService service;
     TripEntity trip;
     SimulationRunEntity run;
@@ -64,7 +67,7 @@ class SimulationReplayTest {
         when(eta.cachedSimulationRate(eq(5L),anyDouble())).thenReturn(1d);
         service=new SimulationService(runs,trips,vehicles,tripService,telemetry,samples,positions,Clock.fixed(now,ZoneOffset.UTC),eta,
             attempts,checkpoints,alerts,revisions,new com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService(revisions),
-            mock(com.quangkhai.vehicletracking_backend.reroute.service.OffRouteEvaluationService.class));
+            mock(com.quangkhai.vehicletracking_backend.reroute.service.OffRouteEvaluationService.class),incidents,notifications);
     }
 
     @Test void realtimeSnapshotDoesNotCalculateTrafficOrCallProvider() {

@@ -4,6 +4,8 @@ import {
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  acknowledgeIncident,
+  resolveIncident,
 } from '../api/notifications';
 import type { NotificationItem } from '../types/notifications';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
@@ -17,7 +19,7 @@ export function useAdminNotifications() {
     loading = ref(true),
     error = ref<string | null>(null),
     attempt = ref(0);
-  const typeFilter = ref<'ALL' | 'REROUTE' | 'DISPATCH'>('ALL'),
+  const typeFilter = ref<'ALL' | 'REROUTE' | 'DISPATCH' | 'INCIDENT'>('ALL'),
     severityFilter = ref<'ALL' | 'CRITICAL' | 'MAJOR'>('ALL');
   const busyId = ref<number | null>(null),
     confirmDelete = shallowRef<NotificationItem | null>(null),
@@ -80,7 +82,9 @@ export function useAdminNotifications() {
             item.type === 'DISPATCH_REASSIGNED' ||
             item.type === 'TRIP_AUTO_STARTED' ||
             item.type === 'DIRECT_ASSIGNMENT_DECLINED'
-          : item.type === 'REROUTE_CREATED' ||
+          : typeFilter.value === 'INCIDENT'
+            ? item.type === 'SIMULATION_INCIDENT'
+            : item.type === 'REROUTE_CREATED' ||
             item.type === 'REROUTE_UNAVAILABLE' ||
             item.type === 'DRIVER_ROUTE_CHANGED');
       return (
@@ -149,6 +153,27 @@ export function useAdminNotifications() {
       if (!disposed) busyId.value = null;
     }
   }
+  async function updateIncident(item: NotificationItem, action: 'acknowledge' | 'resolve') {
+    const incidentId = item.simulationIncidentId;
+    if (incidentId == null || busyId.value !== null) return;
+    busyId.value = item.id;
+    error.value = null;
+    try {
+      const response = action === 'acknowledge'
+        ? await acknowledgeIncident(incidentId)
+        : await resolveIncident(incidentId);
+      if (!disposed) {
+        items.value = items.value.map((row) => row.id === item.id
+          ? { ...row, simulationIncidentStatus: response.status }
+          : row);
+        notifySuccess(action === 'acknowledge' ? 'Đã tiếp nhận sự cố.' : 'Đã đánh dấu sự cố đã xử lý.');
+      }
+    } catch (reason) {
+      if (!disposed) error.value = reason instanceof Error ? reason.message : 'Không thể cập nhật sự cố.';
+    } finally {
+      if (!disposed) busyId.value = null;
+    }
+  }
   return {
     items,
     filtered,
@@ -164,5 +189,7 @@ export function useAdminNotifications() {
     read,
     readAll,
     remove,
+    acknowledge: (item: NotificationItem) => updateIncident(item, 'acknowledge'),
+    resolve: (item: NotificationItem) => updateIncident(item, 'resolve'),
   };
 }

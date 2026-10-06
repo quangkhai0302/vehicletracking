@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Collection;
+import java.util.Optional;
 
 public interface TripStopVisitRepository extends JpaRepository<TripStopVisitEntity, Long> {
     @Query("select v from TripStopVisitEntity v where v.trip.id = :tripId and v.attemptNumber = v.trip.attemptNumber order by v.stopSequence")
@@ -14,4 +15,5 @@ public interface TripStopVisitRepository extends JpaRepository<TripStopVisitEnti
     @Query("select (count(v) > 0) from TripStopVisitEntity v where v.trip.id = :tripId and v.stopSequence = :stopSequence and v.attemptNumber = v.trip.attemptNumber")
     boolean existsByTripIdAndStopSequence(long tripId, int stopSequence);
     List<TripStopVisitEntity> findAllByTripIdAndAttemptNumberOrderByStopSequenceAsc(long tripId, int attemptNumber);
+    Optional<TripStopVisitEntity> findByTripIdAndAttemptNumberAndStopSequence(long tripId, int attemptNumber, int stopSequence);
 }

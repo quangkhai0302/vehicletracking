@@ -3,6 +3,7 @@ package com.quangkhai.vehicletracking_backend.reroute.entity;
 import java.time.Instant;
 
 import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -35,6 +36,10 @@ public class TripNotificationEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "revision_id")
     private TripRouteRevisionEntity revision;
+
+    @jakarta.persistence.OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "simulation_incident_id", unique = true)
+    private SimulationIncidentEntity simulationIncident;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
@@ -126,5 +131,11 @@ public class TripNotificationEntity {
 
     public void dismiss(Instant now) {
         this.dismissedAt = now;
+    }
+
+    public void attachSimulationIncident(SimulationIncidentEntity incident) {
+        this.simulationIncident = incident;
+        this.attemptNumber = incident.getAttemptNumber();
+        this.source = com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.SIMULATOR;
     }
 }

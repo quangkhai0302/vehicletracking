@@ -9,5 +9,5 @@ public record OperationalReportDriverRow(
         long lateTripCount,
         long lateStopCount,
         long incidentCount,
-        Integer employeePassengerCount) {
+        Long employeePassengerCount) {
 }

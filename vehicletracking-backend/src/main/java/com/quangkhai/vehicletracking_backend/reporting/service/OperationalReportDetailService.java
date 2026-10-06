@@ -9,6 +9,8 @@ import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportInci
 import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportLateStop;
 import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportResponse;
 import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportVehicleRow;
+import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancySummary;
+import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancyVehicleRow;
 import com.quangkhai.vehicletracking_backend.reroute.entity.TripNotificationEntity;
 import com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository;
@@ -27,7 +29,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -38,10 +40,11 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class OperationalReportDetailService {
+    private static final ZoneId REPORTING_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String OVER_SPEED = "OVERSPEED";
     private static final String INCIDENT_SEVERITY = "MAJOR";
     private static final String EMPLOYEE_DATA_NOTE =
-            "Chưa có dữ liệu số nhân viên/hành khách vì chuyến chưa lưu danh sách người đi xe.";
+            "Chưa có xác nhận số người lên tại các điểm đón của chuyến đã hoàn tất.";
 
     private final OperationalReportService operationalReports;
     private final TripRepository trips;
@@ -56,8 +59,8 @@ public class OperationalReportDetailService {
                                                    Long vehicleId, Long driverId) {
         OperationalReportResponse summary = operationalReports.operations(requestedFrom, requestedTo,
                 vehicleId, driverId);
-        Instant from = summary.from().atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant toExclusive = summary.to().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant from = summary.from().atStartOfDay(REPORTING_ZONE).toInstant();
+        Instant toExclusive = summary.to().plusDays(1).atStartOfDay(REPORTING_ZONE).toInstant();
         Instant now = operationsClock.instant();
         List<TripEntity> matchingTrips = trips.findAllForOperationalReport(from, toExclusive, vehicleId, driverId);
         List<Long> tripIds = matchingTrips.stream().map(TripEntity::getId).toList();
@@ -65,6 +68,11 @@ public class OperationalReportDetailService {
         List<TripStopVisitEntity> matchingVisits = tripIds.isEmpty()
                 ? List.of()
                 : visits.findAllByTripIdInOrderByTripIdAscStopSequenceAsc(tripIds);
+        Map<Long, Map<Integer, TripStopVisitEntity>> visitsByTrip = new HashMap<>();
+        for (TripStopVisitEntity visit : matchingVisits) {
+            visitsByTrip.computeIfAbsent(visit.getTrip().getId(), ignored -> new HashMap<>())
+                    .put(visit.getStopSequence(), visit);
+        }
         List<TripNotificationEntity> matchingNotifications = tripIds.isEmpty()
                 ? List.of()
                 : notifications.findAllForOperationalReport(tripIds, from, toExclusive);
@@ -108,6 +116,9 @@ public class OperationalReportDetailService {
 
         Map<VehicleKey, MutableVehicle> vehicles = new LinkedHashMap<>();
         Map<DriverKey, MutableDriver> drivers = new LinkedHashMap<>();
+        MutableOccupancy occupancy = new MutableOccupancy();
+        Map<Long, MutableOccupancy> occupancyByVehicle = new LinkedHashMap<>();
+        Map<Long, Long> confirmedBoardingsByTrip = new HashMap<>();
         for (TripEntity trip : matchingTrips) {
             boolean late = isLate(trip, now);
             long lateStopCount = lateStopsByTrip.getOrDefault(trip.getId(), 0L);
@@ -121,18 +132,66 @@ public class OperationalReportDetailService {
                     driverName(trip));
             drivers.computeIfAbsent(driverKey, ignored -> new MutableDriver(driverKey))
                     .add(trip, late, lateStopCount, incidentCount);
+            if (trip.getStatus() == TripStatus.COMPLETED) {
+                OccupancyTrip counts = occupancyFor(trip, visitsByTrip.getOrDefault(trip.getId(), Map.of()));
+                occupancy.addCompleted(counts, trip.getVehicle().getSeatCapacity());
+                occupancyByVehicle.computeIfAbsent(trip.getVehicle().getId(), ignored -> new MutableOccupancy())
+                        .addCompleted(counts, trip.getVehicle().getSeatCapacity());
+                if (counts.complete()) confirmedBoardingsByTrip.put(trip.getId(), counts.boardings());
+            }
         }
 
         return new OperationalReportDetailResponse(summary.from(), summary.to(), summary.generatedAt(), summary,
-                vehicles.values().stream().map(MutableVehicle::toRow).toList(),
-                drivers.values().stream().map(MutableDriver::toRow).toList(),
+                vehicles.values().stream().map(row -> row.toRow(confirmedBoardingsByTrip)).toList(),
+                drivers.values().stream().map(row -> row.toRow(confirmedBoardingsByTrip)).toList(),
                 lateStops,
                 incidentGroups.entrySet().stream()
                         .map(entry -> new OperationalReportIncidentRow(entry.getKey().type(), entry.getKey().severity(),
                                 entry.getValue()))
                         .toList(),
-                false,
-                EMPLOYEE_DATA_NOTE);
+                occupancy.completedTripsWithBoardings > 0,
+                occupancy.completedTripsWithBoardings > 0 ? "Số liệu dựa trên số người tài xế xác nhận tại các điểm đón trong mô phỏng." : EMPLOYEE_DATA_NOTE,
+                occupancy.summary(),
+                vehicles.values().stream().map(row -> {
+                    MutableOccupancy passengerStats = occupancyByVehicle.getOrDefault(row.key.id(), new MutableOccupancy());
+                    return passengerStats.toVehicleRow(row.key.id(), row.key.plate(), row.key.name(),
+                            matchingTrips.stream().filter(t -> t.getVehicle().getId().equals(row.key.id()))
+                                    .map(t -> t.getVehicle().getSeatCapacity()).filter(java.util.Objects::nonNull)
+                                    .findFirst().orElse(null));
+                }).toList());
+    }
+
+    private OccupancyTrip occupancyFor(TripEntity trip, Map<Integer, TripStopVisitEntity> visitsBySequence) {
+        List<TripStopEntity> stops = trip.getStops() == null ? List.of() : trip.getStops().stream()
+                .sorted(Comparator.comparingInt(TripStopEntity::getSequenceNumber)).toList();
+        if (stops.size() < 2) return new OccupancyTrip(false, 0, 0, 0);
+        long boardings = 0;
+        long passengerSeconds = 0;
+        long segmentSeconds = 0;
+        for (int i = 0; i < stops.size() - 1; i++) {
+            TripStopEntity stop = stops.get(i);
+            TripStopVisitEntity visit = visitsBySequence.get(stop.getSequenceNumber());
+            TripStopVisitEntity nextVisit = visitsBySequence.get(stops.get(i + 1).getSequenceNumber());
+            if (visit == null || visit.getEmployeeBoardingCount() == null || nextVisit == null) {
+                return new OccupancyTrip(false, 0, 0, 0);
+            }
+            Instant segmentStart = occupancyTimestamp(visit);
+            Instant segmentEnd = occupancyTimestamp(nextVisit);
+            if (segmentStart == null || segmentEnd == null || !segmentEnd.isAfter(segmentStart))
+                return new OccupancyTrip(false, 0, 0, 0);
+            boardings += visit.getEmployeeBoardingCount();
+            long seconds = Duration.between(segmentStart, segmentEnd).toSeconds();
+            if (seconds <= 0) return new OccupancyTrip(false, 0, 0, 0);
+            segmentSeconds += seconds;
+            passengerSeconds += (boardings * seconds);
+        }
+        if (segmentSeconds == 0)
+            return new OccupancyTrip(false, 0, 0, 0);
+        return new OccupancyTrip(true, boardings, passengerSeconds, segmentSeconds);
+    }
+
+    private Instant occupancyTimestamp(TripStopVisitEntity visit) {
+        return visit.getSimulatedArrivalAt() != null ? visit.getSimulatedArrivalAt() : visit.getActualArrivalAt();
     }
 
     private boolean isIncident(NotificationType type) {
@@ -203,6 +262,54 @@ public class OperationalReportDetailService {
     private record IncidentKey(String type, String severity) { }
     private record VehicleKey(Long id, String plate, String name) { }
     private record DriverKey(Long id, String name) { }
+    private record OccupancyTrip(boolean complete, long boardings, long passengerSeconds, long segmentSeconds) { }
+
+    private static final class MutableOccupancy {
+        private long completedTrips;
+        private long completedTripsWithBoardings;
+        private long completedTripsMissingCapacity;
+        private long totalBoardings;
+        private long passengerSeconds;
+        private long segmentSeconds;
+        private long passengerSecondsWithCapacity;
+        private long seatSeconds;
+
+        private void addCompleted(OccupancyTrip trip, Integer capacity) {
+            completedTrips++;
+            if (capacity == null) completedTripsMissingCapacity++;
+            if (!trip.complete()) return;
+            completedTripsWithBoardings++;
+            totalBoardings += trip.boardings();
+            passengerSeconds += trip.passengerSeconds();
+            segmentSeconds += trip.segmentSeconds();
+            if (capacity != null) {
+                passengerSecondsWithCapacity += trip.passengerSeconds();
+                seatSeconds += (long) capacity * trip.segmentSeconds();
+            }
+        }
+
+        private EmployeeOccupancySummary summary() {
+            Double averageBoardings = completedTripsWithBoardings == 0 ? null
+                    : (double) totalBoardings / completedTripsWithBoardings;
+            Double averageOnboard = segmentSeconds == 0 ? null : (double) passengerSeconds / segmentSeconds;
+            Double utilization = seatSeconds == 0 ? null
+                    : 100d * passengerSecondsWithCapacity / seatSeconds;
+            return new EmployeeOccupancySummary(completedTrips, completedTripsWithBoardings,
+                    completedTrips - completedTripsWithBoardings, completedTripsMissingCapacity,
+                    totalBoardings, averageBoardings, averageOnboard, utilization);
+        }
+
+        private EmployeeOccupancyVehicleRow toVehicleRow(Long vehicleId, String plate, String name, Integer capacity) {
+            Double averageBoardings = completedTripsWithBoardings == 0 ? null
+                    : (double) totalBoardings / completedTripsWithBoardings;
+            Double averageOnboard = segmentSeconds == 0 ? null : (double) passengerSeconds / segmentSeconds;
+            Double utilization = seatSeconds == 0 ? null
+                    : 100d * passengerSecondsWithCapacity / seatSeconds;
+            return new EmployeeOccupancyVehicleRow(vehicleId, plate, name, capacity, completedTrips,
+                    completedTripsWithBoardings, completedTrips - completedTripsWithBoardings,
+                    totalBoardings, averageBoardings, averageOnboard, utilization);
+        }
+    }
 
     private static final class MutableVehicle {
         private final VehicleKey key;
@@ -211,18 +318,22 @@ public class OperationalReportDetailService {
         private long late;
         private long lateStops;
         private long incidents;
+        private final List<Long> completedTripIds = new ArrayList<>();
 
         private MutableVehicle(VehicleKey key) { this.key = key; }
         private void add(TripEntity trip, boolean isLate, long lateStopCount, long incidentCount) {
             trips++;
-            if (trip.getStatus() == TripStatus.COMPLETED) completed++;
+            if (trip.getStatus() == TripStatus.COMPLETED) { completed++; completedTripIds.add(trip.getId()); }
             if (isLate) late++;
             lateStops += lateStopCount;
             incidents += incidentCount;
         }
-        private OperationalReportVehicleRow toRow() {
+        private OperationalReportVehicleRow toRow(Map<Long, Long> boardingsByTrip) {
+            Long passengers = completedTripIds.stream().filter(boardingsByTrip::containsKey)
+                    .mapToLong(boardingsByTrip::get).sum();
+            if (completedTripIds.stream().noneMatch(boardingsByTrip::containsKey)) passengers = null;
             return new OperationalReportVehicleRow(key.id(), key.plate(), key.name(), trips, completed, late,
-                    lateStops, incidents, null);
+                    lateStops, incidents, passengers);
         }
     }
 
@@ -233,18 +344,22 @@ public class OperationalReportDetailService {
         private long late;
         private long lateStops;
         private long incidents;
+        private final List<Long> completedTripIds = new ArrayList<>();
 
         private MutableDriver(DriverKey key) { this.key = key; }
         private void add(TripEntity trip, boolean isLate, long lateStopCount, long incidentCount) {
             trips++;
-            if (trip.getStatus() == TripStatus.COMPLETED) completed++;
+            if (trip.getStatus() == TripStatus.COMPLETED) { completed++; completedTripIds.add(trip.getId()); }
             if (isLate) late++;
             lateStops += lateStopCount;
             incidents += incidentCount;
         }
-        private OperationalReportDriverRow toRow() {
+        private OperationalReportDriverRow toRow(Map<Long, Long> boardingsByTrip) {
+            Long passengers = completedTripIds.stream().filter(boardingsByTrip::containsKey)
+                    .mapToLong(boardingsByTrip::get).sum();
+            if (completedTripIds.stream().noneMatch(boardingsByTrip::containsKey)) passengers = null;
             return new OperationalReportDriverRow(key.id(), key.name(), trips, completed, late,
-                    lateStops, incidents, null);
+                    lateStops, incidents, passengers);
         }
     }
 }

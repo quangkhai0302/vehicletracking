@@ -11,12 +11,12 @@ public record TripDetailResponse(TripSummaryResponse trip, List<Stop> stops, Rou
     public record Stop(int sequenceNumber, Long stationId, String stationName, BigDecimal latitude,
             BigDecimal longitude, int checkinRadiusMeters, int dwellDurationSeconds,
             long arrivalOffsetSeconds, long departureOffsetSeconds,
-            Instant plannedArrivalAt, Instant plannedDepartureAt) {
+            Instant plannedArrivalAt, Instant plannedDepartureAt, Integer expectedEmployeeBoardingCount) {
         static Stop from(TripStopEntity stop) {
             return new Stop(stop.getSequenceNumber(), stop.getStationId(), stop.getStationName(),
                     stop.getLatitude(), stop.getLongitude(), stop.getCheckinRadiusMeters(), stop.getDwellDurationSeconds(),
                     stop.getArrivalOffsetSeconds(), stop.getDepartureOffsetSeconds(),
-                    stop.getPlannedArrivalAt(), stop.getPlannedDepartureAt());
+                    stop.getPlannedArrivalAt(), stop.getPlannedDepartureAt(), stop.getExpectedEmployeeBoardingCount());
         }
     }
     public static TripDetailResponse from(TripEntity trip) {

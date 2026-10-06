@@ -335,6 +335,7 @@ test('simulator panel exposes scenarios and virtual time independently of playba
     retry: vi.fn(),
     command: vi.fn().mockResolvedValue(true),
     setScenario,
+    reportIncident: vi.fn().mockResolvedValue(true),
   });
   const wrapper = mount(SimulatorPanel, {
     props: {
@@ -367,6 +368,53 @@ test('simulator panel exposes scenarios and virtual time independently of playba
   expect(wrapper.get('.simulation-journey-time strong').text()).toBe('—');
 });
 
+test('admin simulator does not expose incident reporting', async () => {
+  const activeTrip: TripSummary = { ...trip, status: 'IN_PROGRESS', startedAt: stamp };
+  const simulator: ReturnType<typeof useSimulator> = reactive({
+    tripId: activeTrip.id,
+    trip: activeTrip,
+    detail: { trip: activeTrip, route, stops: [start] },
+    run: {
+      id: 44,
+      tripId: activeTrip.id,
+      attemptNumber: 1,
+      status: 'RUNNING',
+      multiplier: 1,
+      elapsedSeconds: 20,
+      durationSeconds: 600,
+      virtualElapsedSeconds: 20,
+      scenario: 'NORMAL',
+      simulatedAt: stamp,
+      updatedAt: stamp,
+      errorMessage: null,
+      replacementTripId: null,
+      frame: null,
+    },
+    loading: false,
+    busy: false,
+    error: null,
+    select: vi.fn(),
+    retry: vi.fn(),
+    command: vi.fn().mockResolvedValue(true),
+    setScenario: vi.fn().mockResolvedValue(true),
+  });
+  const wrapper = mount(SimulatorPanel, {
+    props: {
+      simulator,
+      snapshot: { ...snapshot, trips: [activeTrip] },
+      connection: 'live',
+      connectionError: null,
+      onReconnect: vi.fn(),
+      onShowRoute: vi.fn(),
+      now: Date.parse(stamp),
+      showTripSelector: false,
+    },
+  });
+  expect(wrapper.find('.simulation-incident-trigger').exists()).toBe(false);
+  expect(wrapper.find('.simulation-incident-dialog').exists()).toBe(false);
+  wrapper.unmount();
+});
+
 test('simulator panel keeps GPS exclusion, connection gating and speed command payload', async () => {
   const command = vi.fn().mockResolvedValue(true);
   const simulator: ReturnType<typeof useSimulator> = reactive({
@@ -381,6 +429,7 @@ test('simulator panel keeps GPS exclusion, connection gating and speed command p
     retry: vi.fn(),
     command,
     setScenario: vi.fn().mockResolvedValue(true),
+    reportIncident: vi.fn().mockResolvedValue(true),
   });
   const wrapper = mount(SimulatorPanel, {
     props: {
@@ -488,6 +537,7 @@ test('simulator panel shows check-in progress from the current attempt and opens
     retry: vi.fn(),
     command: vi.fn().mockResolvedValue(true),
     setScenario: vi.fn().mockResolvedValue(true),
+    reportIncident: vi.fn().mockResolvedValue(true),
   });
   const replaySnapshot: OperationsSnapshot = {
     ...snapshot,
@@ -609,6 +659,7 @@ test('simulator panel displays Trạm đầu and Trạm cuối for first and las
     retry: vi.fn(),
     command: vi.fn().mockResolvedValue(true),
     setScenario: vi.fn().mockResolvedValue(true),
+    reportIncident: vi.fn().mockResolvedValue(true),
   });
   const scheduledSnapshot: OperationsSnapshot = {
     ...snapshot,

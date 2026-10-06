@@ -8,6 +8,7 @@ export const formatDateTime = (value: string) =>
     timeZone: 'Asia/Ho_Chi_Minh',
   }).format(new Date(value));
 export function alertDetail(item: NotificationItem) {
+  if (item.type === 'SIMULATION_INCIDENT') return item.simulationIncidentDetail || item.reason;
   if (item.type !== 'OFF_ROUTE_DETECTED') return item.reason;
   const distance = formatDistance(item.measuredDistanceMeters),
     threshold = formatDistance(item.thresholdDistanceMeters);

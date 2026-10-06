@@ -50,17 +50,17 @@ class OperationalReportServiceTest {
         TripEntity overdue = trip(3L, route, TripStatus.IN_PROGRESS,
                 "2026-09-21T11:00:00Z", null, "2026-09-21T11:00:00Z");
         when(trips.findAllForOperationalReport(
-                Instant.parse("2026-09-21T00:00:00Z"), Instant.parse("2026-09-22T00:00:00Z"), null, null))
+                Instant.parse("2026-09-20T17:00:00Z"), Instant.parse("2026-09-21T17:00:00Z"), null, null))
                 .thenReturn(List.of(onTime, late, overdue));
         when(notifications.countForOperationalReport(
                 List.of(1L, 2L, 3L),
                 com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType.OFF_ROUTE_DETECTED,
-                Instant.parse("2026-09-21T00:00:00Z"), Instant.parse("2026-09-22T00:00:00Z"), null, null))
+                Instant.parse("2026-09-20T17:00:00Z"), Instant.parse("2026-09-21T17:00:00Z"), null, null))
                 .thenReturn(2L);
         List<TelemetrySampleEntity> samples = List.of(sample(1L, 1, 70), sample(1L, 1, 90), sample(1L, 1, 95),
                 sample(1L, 1, 70), sample(2L, 1, 81));
         when(telemetry.findAllForOperationalReport(
-                List.of(1L, 2L, 3L), Instant.parse("2026-09-22T00:00:00Z"),
+                List.of(1L, 2L, 3L), Instant.parse("2026-09-21T17:00:00Z"),
                 com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.GPS))
                 .thenReturn(samples);
 
@@ -95,7 +95,7 @@ class OperationalReportServiceTest {
         when(finalStop.getArrivalOffsetSeconds()).thenReturn(3_600L);
         when(trip.getStops()).thenReturn(List.of(finalStop));
         when(trips.findAllForOperationalReport(
-                Instant.parse("2026-09-21T00:00:00Z"), Instant.parse("2026-09-22T00:00:00Z"), null, null))
+                Instant.parse("2026-09-20T17:00:00Z"), Instant.parse("2026-09-21T17:00:00Z"), null, null))
                 .thenReturn(List.of(trip));
 
         var result = service.operations(LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 21), null, null);
@@ -109,8 +109,8 @@ class OperationalReportServiceTest {
         ReportingProperties properties = new ReportingProperties();
         OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock);
         Instant now = Instant.parse("2026-09-21T12:00:00Z");
-        Instant from = Instant.parse("2026-09-21T00:00:00Z");
-        Instant toExclusive = Instant.parse("2026-09-22T00:00:00Z");
+        Instant from = Instant.parse("2026-09-20T17:00:00Z");
+        Instant toExclusive = Instant.parse("2026-09-21T17:00:00Z");
         TripEntity onDemandTrip = org.mockito.Mockito.mock(TripEntity.class);
         when(clock.instant()).thenReturn(now);
         when(route.getTotalDistanceMeters()).thenReturn(10_000L);
@@ -148,8 +148,8 @@ class OperationalReportServiceTest {
         ReportingProperties properties = new ReportingProperties();
         properties.setDefaultSpeedLimitKmh(80);
         OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock);
-        Instant from = Instant.parse("2026-09-21T00:00:00Z");
-        Instant toExclusive = Instant.parse("2026-09-22T00:00:00Z");
+        Instant from = Instant.parse("2026-09-20T17:00:00Z");
+        Instant toExclusive = Instant.parse("2026-09-21T17:00:00Z");
         when(clock.instant()).thenReturn(Instant.parse("2026-09-21T12:00:00Z"));
         TripEntity trip = trip(4L, route, TripStatus.COMPLETED,
                 "2026-09-21T01:00:00Z", "2026-09-21T02:00:00Z", "2026-09-21T01:00:00Z");

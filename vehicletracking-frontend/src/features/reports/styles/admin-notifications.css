@@ -237,6 +237,16 @@
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+.admin-notification-incident-meta {
+  margin: 7px 0 0;
+  color: #75899d;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.admin-notification-incident-meta span {
+  color: #9a5a14;
+  font-weight: 700;
+}
 .admin-notification-actions {
   display: flex;
   flex-wrap: wrap;

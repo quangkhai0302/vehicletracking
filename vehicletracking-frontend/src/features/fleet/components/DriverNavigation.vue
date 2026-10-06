@@ -13,10 +13,12 @@ import {
   Gauge,
   Clock3,
   ChevronDown,
+  AlertTriangle,
 } from '@lucide/vue';
 import { RouterLink } from 'vue-router';
 import { useDriverNavigation } from '@/features/fleet/composables/useDriverNavigation';
 import DriverNavigationMap from './DriverNavigationMap.vue';
+import SimulationIncidentDialog from '@/features/simulation/components/SimulationIncidentDialog.vue';
 import { TRIP_STATUS_LABELS, vehicleTypeLabel } from '@/features/fleet/types/fleet';
 import {
   driverNavigationPresentation,
@@ -32,6 +34,22 @@ import '@/features/fleet/styles/driver-navigation.css';
 const props = defineProps<{ tripId: number }>();
 const navigation = useDriverNavigation(toRef(props, 'tripId'));
 useErrorToast(() => navigation.error);
+const incidentDialog = ref(false);
+const incidentIdempotencyKey = ref('');
+const canReportIncident = computed(() => {
+  const snapshot = navigation.snapshot;
+  const run = snapshot?.simulation;
+  return !!snapshot && snapshot.trip.status === 'IN_PROGRESS' &&
+    (run?.status === 'RUNNING' || run?.status === 'PAUSED') &&
+    navigation.connected && !navigation.busy;
+});
+function openIncidentDialog() {
+  incidentIdempotencyKey.value = crypto.randomUUID();
+  incidentDialog.value = true;
+}
+async function submitIncident(input: { type: 'VEHICLE_BREAKDOWN' | 'EMERGENCY_STOP' | 'ROAD_BLOCKED' | 'OTHER'; severity: 'MAJOR' | 'CRITICAL'; detail: string }) {
+  return navigation.reportIncident({ ...input, idempotencyKey: incidentIdempotencyKey.value });
+}
 const mapView = ref<InstanceType<typeof DriverNavigationMap> | null>(null);
 const navigationView = ref<HTMLElement | null>(null);
 const tripDetails = ref<HTMLElement | null>(null);
@@ -74,6 +92,32 @@ const hasInstructions = computed(() =>
 );
 const distance = (meters: number) =>
   meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
+const boardingCount = ref('');
+const onboardCount = computed(() => (navigation.snapshot?.checkIns.visits ?? [])
+  .reduce((total, visit) => total + (visit.employeeBoardingCount ?? 0), 0));
+const afterBoardingCount = computed(() => /^\d+$/.test(boardingCount.value)
+  ? onboardCount.value + Number(boardingCount.value) : null);
+const exceedsCapacity = computed(() => {
+  const capacity = navigation.snapshot?.trip.seatCapacity;
+  return capacity != null && afterBoardingCount.value != null && afterBoardingCount.value > capacity;
+});
+const boardingVisit = computed(() => {
+  const snapshot = navigation.snapshot;
+  if (!snapshot || snapshot.trip.status !== 'IN_PROGRESS') return null;
+  const terminal = Math.max(...snapshot.stops.map((stop) => stop.sequenceNumber));
+  return snapshot.checkIns.visits.find((visit) => visit.stopSequence < terminal && visit.employeeBoardingCount == null) ?? null;
+});
+watch(() => `${boardingVisit.value?.attemptNumber ?? ''}:${boardingVisit.value?.stopSequence ?? ''}`,
+  () => {
+    const visit = boardingVisit.value;
+    const stop = visit && navigation.snapshot?.stops.find((item) => item.sequenceNumber === visit.stopSequence);
+    boardingCount.value = stop?.expectedEmployeeBoardingCount == null ? '' : String(stop.expectedEmployeeBoardingCount);
+  }, { immediate: true });
+async function saveBoardingCount() {
+  const visit = boardingVisit.value;
+  if (!visit || !/^\d+$/.test(boardingCount.value) || exceedsCapacity.value) return;
+  await navigation.confirmBoarding(visit.stopSequence, Number(boardingCount.value));
+}
 </script>
 
 <template>
@@ -230,6 +274,14 @@ const distance = (meters: number) =>
             Tuyến này chưa có chỉ dẫn rẽ từng bước. Bản đồ vẫn hiển thị lộ trình chính thức.
           </p>
         </div>
+        <button
+          v-if="canReportIncident"
+          class="driver-incident-report-button"
+          type="button"
+          @click="openIncidentDialog"
+        >
+          <AlertTriangle :size="17" /> Báo cáo sự cố
+        </button>
         <p
           v-if="navigation.error"
           class="driver-navigation-error"
@@ -237,6 +289,22 @@ const distance = (meters: number) =>
         >
           {{ navigation.error }}
         </p>
+        <form v-if="boardingVisit" class="driver-boarding-confirm" @submit.prevent="saveBoardingCount">
+          <span class="driver-boarding-eyebrow">ĐÃ ĐẾN ĐIỂM ĐÓN</span>
+          <strong>{{ navigation.snapshot?.stops.find((stop) => stop.sequenceNumber === boardingVisit?.stopSequence)?.stationName }}</strong>
+          <p>Nhập số người lên xe tại điểm này. Hành khách sẽ xuống tại điểm đến cuối.</p>
+          <p class="driver-boarding-capacity" role="status">
+            Đang trên xe: {{ onboardCount }}<template v-if="navigation.snapshot.trip.seatCapacity != null"> / {{ navigation.snapshot.trip.seatCapacity }} ghế</template>
+            <template v-if="afterBoardingCount != null"> · Sau khi đón: {{ afterBoardingCount }}</template>
+          </p>
+          <label>Số người lên xe
+            <input v-model="boardingCount" type="number" min="0" step="1" inputmode="numeric" required />
+          </label>
+          <p v-if="exceedsCapacity" class="driver-boarding-error" role="alert">Số người vượt quá số ghế còn trống.</p>
+          <button class="driver-navigation-primary" type="submit" :disabled="navigation.busy || !navigation.connected || !/^\d+$/.test(boardingCount) || exceedsCapacity">
+            {{ navigation.busy ? 'Đang lưu…' : 'Xác nhận số người' }}
+          </button>
+        </form>
         <button
           v-if="navigation.snapshot.trip.status === 'SCHEDULED'"
           class="driver-navigation-primary"
@@ -379,5 +447,12 @@ const distance = (meters: number) =>
         </p>
       </aside>
     </div>
+    <SimulationIncidentDialog
+      v-if="incidentDialog"
+      :busy="navigation.busy"
+      :error="navigation.error"
+      :on-submit="submitIncident"
+      :on-close="() => { incidentDialog = false }"
+    />
   </main>
 </template>

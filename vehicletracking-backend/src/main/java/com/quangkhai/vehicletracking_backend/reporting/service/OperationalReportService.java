@@ -20,13 +20,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class OperationalReportService {
+    private static final ZoneId REPORTING_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private final TripRepository trips;
     private final TelemetryRepository telemetry;
     private final TripNotificationRepository notifications;
@@ -40,8 +41,8 @@ public class OperationalReportService {
         LocalDate from = requestedFrom == null ? to.minusDays(29) : requestedFrom;
         validate(from, to, vehicleId, driverId);
 
-        Instant fromInstant = from.atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant toExclusive = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant fromInstant = from.atStartOfDay(REPORTING_ZONE).toInstant();
+        Instant toExclusive = to.plusDays(1).atStartOfDay(REPORTING_ZONE).toInstant();
         Instant now = operationsClock.instant();
         List<TripEntity> matchingTrips = trips.findAllForOperationalReport(fromInstant, toExclusive, vehicleId, driverId);
 
@@ -88,7 +89,7 @@ public class OperationalReportService {
     }
 
     private LocalDate today() {
-        return operationsClock.instant().atZone(ZoneOffset.UTC).toLocalDate();
+        return operationsClock.instant().atZone(REPORTING_ZONE).toLocalDate();
     }
 
     private void validate(LocalDate from, LocalDate to, Long vehicleId, Long driverId) {

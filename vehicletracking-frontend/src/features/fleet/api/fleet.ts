@@ -49,6 +49,7 @@ const vehicleDetails = (input: VehicleInput) => ({
   name: input.name,
   description: input.description,
   vehicleType: input.vehicleType,
+  seatCapacity: input.seatCapacity,
 });
 export const createVehicle = (input: VehicleInput) =>
   request<FleetVehicle>('/vehicles', {

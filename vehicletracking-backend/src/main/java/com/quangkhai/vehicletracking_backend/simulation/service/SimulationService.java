@@ -17,18 +17,27 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.quangkhai.vehicletracking_backend.checkin.repository.TripCheckInStateRepository;
 import com.quangkhai.vehicletracking_backend.reroute.entity.RouteRevisionStatus;
+import com.quangkhai.vehicletracking_backend.reroute.entity.NotificationSeverity;
+import com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType;
+import com.quangkhai.vehicletracking_backend.reroute.entity.TripNotificationEntity;
+import com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripRouteRevisionRepository;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripTrafficAlertStateRepository;
 import com.quangkhai.vehicletracking_backend.simulation.dto.SimulationAttemptResponse;
+import com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentCreateRequest;
+import com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentResponse;
 import com.quangkhai.vehicletracking_backend.simulation.dto.SimulationResponse;
 import com.quangkhai.vehicletracking_backend.simulation.dto.SimulationTrafficMetadata;
 import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationAttemptEntity;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentEntity;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentStatus;
 import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationAttemptMetadata;
 import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationRunEntity;
 import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationScenario;
 import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationStatus;
 import com.quangkhai.vehicletracking_backend.simulation.motion.RouteMotion;
 import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationAttemptRepository;
+import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationIncidentRepository;
 import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository;
 import com.quangkhai.vehicletracking_backend.telemetry.dto.TelemetryRequest;
 import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource;
@@ -64,6 +73,58 @@ public class SimulationService {
     private final TripRouteRevisionRepository revisions;
     private final com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry;
     private final com.quangkhai.vehicletracking_backend.reroute.service.OffRouteEvaluationService offRoutes;
+    private final SimulationIncidentRepository incidents;
+    private final TripNotificationRepository notifications;
+
+    @Transactional
+    public SimulationIncidentResponse reportIncident(long tripId, long reporterDriverId,
+                                                       SimulationIncidentCreateRequest request) {
+        var trip = lockTrip(tripId);
+        if (trip.getDriver() == null || trip.getDriver().getId() != reporterDriverId)
+            throw new ResponseStatusException(NOT_FOUND, "Không tìm thấy chuyến được phân công.");
+        var prior = incidents.findByIdempotencyKey(request.idempotencyKey()).orElse(null);
+        if (prior != null) {
+            if (prior.getTrip().getId() != tripId
+                    || prior.getReportedByDriver() == null
+                    || prior.getReportedByDriver().getId() != reporterDriverId)
+                throw conflict("Khóa yêu cầu đã được dùng cho sự cố khác.");
+            var currentRun = runs.findByTripId(tripId).orElse(null);
+            var simulation = currentRun != null && trip.getAttemptNumber() == prior.getAttemptNumber()
+                    ? describe(trip, currentRun) : null;
+            return SimulationIncidentResponse.from(prior, simulation);
+        }
+        var run = requireRun(tripId);
+        if (request.attemptNumber() != trip.getAttemptNumber()) throw conflict("Lượt chạy đã thay đổi. Hãy tải lại mô phỏng.");
+        if (samples.existsByTripIdAndSource(tripId, TelemetrySource.GPS)) throw conflict("Chuyến đã nhận GPS; không thể ghi nhận sự cố mô phỏng.");
+        if (trip.getStatus() != TripStatus.IN_PROGRESS
+                || (run.getStatus() != SimulationStatus.RUNNING && run.getStatus() != SimulationStatus.PAUSED))
+            throw conflict("Chỉ có thể ghi nhận sự cố cho chuyến mô phỏng đang hoạt động.");
+        if (incidents.existsByTripIdAndAttemptNumberAndStatusIn(tripId, trip.getAttemptNumber(),
+                List.of(SimulationIncidentStatus.OPEN, SimulationIncidentStatus.ACKNOWLEDGED)))
+            throw conflict("Chuyến đang có sự cố chưa được xử lý.");
+
+        var now = now();
+        advance(trip, run, now);
+        if (run.getStatus() == SimulationStatus.COMPLETED || trip.getStatus() != TripStatus.IN_PROGRESS)
+            throw conflict("Chuyến đã kết thúc trước khi ghi nhận sự cố.");
+        var frame = scenarioFrame(run, motion(trip).at(run.getElapsedSeconds()));
+        var incident = incidents.saveAndFlush(new SimulationIncidentEntity(trip, trip.getDriver(), trip.getAttemptNumber(),
+                request.type(), request.severity(), request.detail(), frame.latitude(), frame.longitude(),
+                run.getElapsedSeconds(), request.idempotencyKey(), now));
+        run.changeStatus(SimulationStatus.PAUSED, now);
+
+        String title = request.type().label();
+        String detail = incident.getDetail();
+        String reason = detail == null ? title : (title + ": " + detail);
+        if (reason.length() > 255) reason = reason.substring(0, 255);
+        var notification = new TripNotificationEntity(trip, null, NotificationType.SIMULATION_INCIDENT,
+                request.severity(), title, reason, request.idempotencyKey().toString(), "", null, null,
+                "simulation-incident:" + request.idempotencyKey(), now);
+        notification.attachSimulationIncident(incident);
+        notifications.save(notification);
+        emit(trip, run, true);
+        return SimulationIncidentResponse.from(incident, describe(trip, run));
+    }
 
     @Transactional
     public SimulationResponse play(long tripId) {

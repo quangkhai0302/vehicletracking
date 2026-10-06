@@ -6,6 +6,9 @@ import com.quangkhai.vehicletracking_backend.driverportal.dto.DriverScheduleResp
 import com.quangkhai.vehicletracking_backend.trip.dto.TripDetailResponse;
 import com.quangkhai.vehicletracking_backend.trip.dto.TripSummaryResponse;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
+import com.quangkhai.vehicletracking_backend.checkin.dto.EmployeeBoardingCountRequest;
+import com.quangkhai.vehicletracking_backend.checkin.dto.StopVisitResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,5 +40,12 @@ public class DriverPortalController {
     @GetMapping("/schedules")
     public List<DriverScheduleResponse> schedules(@AuthenticationPrincipal UserAccountPrincipal principal) {
         return service.schedules(principal);
+    }
+
+    @PostMapping("/trips/{id}/check-ins/{sequence}/boarding-count")
+    public StopVisitResponse confirmBoardingCount(@AuthenticationPrincipal UserAccountPrincipal principal,
+            @PathVariable long id, @PathVariable int sequence,
+            @Valid @RequestBody EmployeeBoardingCountRequest request) {
+        return service.confirmBoardingCount(principal, id, sequence, request.employeeBoardingCount());
     }
 }

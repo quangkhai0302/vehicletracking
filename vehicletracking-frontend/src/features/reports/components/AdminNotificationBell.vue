@@ -33,6 +33,8 @@ const {
   read,
   readAll,
   remove,
+  acknowledge,
+  resolve,
 } = useAdminNotifications();
 const trigger = shallowRef<HTMLButtonElement | null>(null),
   panel = shallowRef<HTMLElement | null>(null);
@@ -201,6 +203,7 @@ watch(
             <option value="ALL">Tất cả</option>
             <option value="REROUTE">Đổi tuyến</option>
             <option value="DISPATCH">Điều phối</option>
+            <option value="INCIDENT">Sự cố mô phỏng</option>
           </select></label
         >
         <label
@@ -278,11 +281,30 @@ watch(
             {{ item.vehiclePlateNumber }} · Chuyến #{{ item.tripId }}
           </p>
           <p class="admin-notification-detail">{{ alertDetail(item) }}</p>
+          <p v-if="item.type === 'SIMULATION_INCIDENT'" class="admin-notification-incident-meta">
+            <span>{{ item.simulationIncidentStatus === 'RESOLVED' ? 'Đã xử lý' : item.simulationIncidentStatus === 'ACKNOWLEDGED' ? 'Đã tiếp nhận' : 'Mới' }}</span>
+            <span>Người báo: {{ item.simulationIncidentReportedByDriver ?? 'Không ghi nhận (sự cố cũ)' }}</span>
+            <template v-if="item.simulationIncidentLatitude != null && item.simulationIncidentLongitude != null">
+              · Vị trí mô phỏng {{ item.simulationIncidentLatitude.toFixed(5) }}, {{ item.simulationIncidentLongitude.toFixed(5) }}
+            </template>
+          </p>
           <div class="admin-notification-actions">
             <RouterLink
               :to="notificationMonitoringLink(item)"
               >Mở giám sát</RouterLink
             >
+            <button
+              v-if="item.type === 'SIMULATION_INCIDENT' && item.simulationIncidentStatus === 'OPEN'"
+              type="button"
+              :disabled="busyId !== null"
+              @click="acknowledge(item)"
+            >Tiếp nhận</button>
+            <button
+              v-if="item.type === 'SIMULATION_INCIDENT' && item.simulationIncidentStatus !== 'RESOLVED'"
+              type="button"
+              :disabled="busyId !== null"
+              @click="resolve(item)"
+            >Đã xử lý</button>
             <button
               v-if="!item.readAt"
               type="button"
