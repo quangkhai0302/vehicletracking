@@ -1871,6 +1871,30 @@ fieldset {
   color: #38bdf8;
   background: rgba(56, 189, 248, 0.12);
 }
+.alert-pagination,
+.alert-pagination > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.alert-pagination {
+  margin-top: 9px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+.alert-pagination button {
+  padding: 5px 8px;
+  color: #cbd5e1;
+  background: rgba(18, 28, 46, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.alert-pagination button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 
 /* Panel Launchers (Bottom-Left) */
 .panel-launchers {

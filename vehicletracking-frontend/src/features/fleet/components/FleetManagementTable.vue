@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ArrowUpRight, CarFront, Edit3, SearchX, Trash2, UserRound } from '@lucide/vue';
 import {
   TRIP_STATUS_LABELS,
@@ -9,6 +9,7 @@ import {
   type TripSummary,
 } from '@/features/fleet/types/fleet';
 import type { FleetTab } from '@/features/fleet/composables/useFleetWorkspace';
+import PaginationControls from '@/shared/components/PaginationControls.vue';
 import {
   displayTripTime,
   tripDispatchLabel,
@@ -34,6 +35,14 @@ const count = computed(() =>
       ? props.drivers.length
       : props.trips.length,
 );
+const page = ref(1);
+const pageSize = 10;
+const pageCount = computed(() => Math.max(1, Math.ceil(count.value / pageSize)));
+const pageVehicles = computed(() => props.vehicles.slice((page.value - 1) * pageSize, page.value * pageSize));
+const pageDrivers = computed(() => props.drivers.slice((page.value - 1) * pageSize, page.value * pageSize));
+const pageTrips = computed(() => props.trips.slice((page.value - 1) * pageSize, page.value * pageSize));
+watch(() => props.tab, () => (page.value = 1));
+watch(pageCount, (total) => { if (page.value > total) page.value = total; });
 const headers = computed(() =>
   props.tab === 'vehicles'
     ? ['Phương tiện', 'Loại xe', 'Số ghế', 'Trạng thái', 'Thao tác']
@@ -81,7 +90,7 @@ const assignedVehicle = (id: number) =>
       <tbody>
         <template v-if="tab === 'vehicles'"
           ><tr
-            v-for="vehicle in vehicles"
+            v-for="vehicle in pageVehicles"
             :key="vehicle.id"
             :class="{ 'is-inactive': !vehicle.active }"
           >
@@ -132,7 +141,7 @@ const assignedVehicle = (id: number) =>
         ></template>
         <template v-if="tab === 'drivers'"
           ><tr
-            v-for="driver in drivers"
+            v-for="driver in pageDrivers"
             :key="driver.id"
             :class="{ 'is-inactive': !driver.active }"
           >
@@ -186,7 +195,7 @@ const assignedVehicle = (id: number) =>
         >
         <template v-if="tab === 'trips'"
           ><tr
-            v-for="trip in trips"
+            v-for="trip in pageTrips"
             :key="trip.id"
             :class="['trip-row', trip.status.toLowerCase()]"
           >
@@ -237,9 +246,12 @@ const assignedVehicle = (id: number) =>
         ></template>
       </tbody>
     </table>
-    <div class="management-table-footer">
-      Hiển thị {{ count }}
-      {{ tab === 'vehicles' ? 'phương tiện' : tab === 'drivers' ? 'tài xế' : 'chuyến đi' }}
-    </div>
+    <PaginationControls
+      v-model:page="page"
+      :page-count="pageCount"
+      :total="count"
+      :page-size="pageSize"
+      :label="tab === 'vehicles' ? 'phương tiện' : tab === 'drivers' ? 'tài xế' : 'chuyến đi'"
+    />
   </div>
 </template>

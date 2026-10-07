@@ -27,6 +27,8 @@ public class TripEntity {
     private RouteEntity route;
     @Column(name = "vehicle_plate_snapshot", nullable = false, length = 20)
     private String vehiclePlateSnapshot;
+    @Column(name = "seat_capacity_snapshot")
+    private Integer seatCapacitySnapshot;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "driver_id")
     private DriverEntity driver;
@@ -75,7 +77,11 @@ public class TripEntity {
     }
     @PrePersist void initializeTimestamp() { createdAt = Instant.now(); }
     public void addStop(TripStopEntity stop) { stops.add(stop); stop.assignTo(this); }
-    public void start(Instant now) { status = TripStatus.IN_PROGRESS; startedAt = now; }
+    public void start(Instant now) {
+        status = TripStatus.IN_PROGRESS;
+        startedAt = now;
+        seatCapacitySnapshot = vehicle.getSeatCapacity();
+    }
     public void complete(Instant now) { status = TripStatus.COMPLETED; endedAt = now; }
     public void cancel(Instant now) { cancel(now, "Hủy chuyến theo yêu cầu điều phối."); }
     public void cancel(Instant now, String reason) {
@@ -86,6 +92,7 @@ public class TripEntity {
     public void replay(Instant departure) {
         attemptNumber = Math.incrementExact(attemptNumber);
         status = TripStatus.SCHEDULED; startedAt = null; endedAt = null; cancellationReason = null;
+        seatCapacitySnapshot = null;
         if (schedule == null) reschedule(departure);
     }
     public void reschedule(Instant departure) {

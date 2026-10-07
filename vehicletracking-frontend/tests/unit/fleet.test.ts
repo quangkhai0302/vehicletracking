@@ -604,6 +604,13 @@ test('admin sees a pending direct assignment separately from an assigned driver'
   expect(wrapper.text()).toContain('Đã gửi yêu cầu lúc');
   expect(wrapper.text()).toContain('Hủy yêu cầu');
   expect(wrapper.text()).not.toContain('Tài xế phụ trách\n        Chưa phân công');
+  await wrapper.setProps({ detail: {
+    ...pending,
+    trip: { ...pending.trip, driver, assignmentRequest: pending.trip.assignmentRequest },
+  } });
+  expect(wrapper.text()).toContain(driver.fullName);
+  expect(wrapper.text()).not.toContain('Đã gửi yêu cầu lúc');
+  expect(wrapper.text()).not.toContain('Tài xế phải chấp nhận trước');
   wrapper.unmount();
 });
 

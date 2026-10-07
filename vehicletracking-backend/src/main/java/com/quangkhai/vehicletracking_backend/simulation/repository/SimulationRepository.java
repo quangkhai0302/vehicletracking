@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationRunEntity;
 import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationStatus;
 public interface SimulationRepository extends JpaRepository<SimulationRunEntity,Long> {
+    List<SimulationRunEntity> findAllByTripIdIn(java.util.Collection<Long> tripIds);
     Optional<SimulationRunEntity> findByTripId(long tripId);
     boolean existsByTripId(long tripId);
     List<SimulationRunEntity> findByStatusIn(Collection<SimulationStatus> statuses);

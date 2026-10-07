@@ -26,6 +26,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     } catch { /* Keep fallback for non-JSON errors. */ }
     throw new DispatchApiError(response.status, code, detail);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -45,3 +46,5 @@ export const fetchDispatchInbox = (signal?: AbortSignal) =>
   request<DriverDispatchInboxItem[]>('/driver/dispatch/inbox?limit=50', { signal });
 export const readDispatchInboxItem = (id: number) =>
   request<DriverDispatchInboxItem>(`/driver/dispatch/inbox/${id}/read`, { method: 'POST' });
+export const deleteDispatchInboxItem = (id: number) =>
+  request<void>(`/driver/dispatch/inbox/${id}`, { method: 'DELETE' });

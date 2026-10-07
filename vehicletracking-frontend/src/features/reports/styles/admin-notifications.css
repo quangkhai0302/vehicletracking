@@ -170,6 +170,33 @@
   padding: 12px;
   scrollbar-width: thin;
 }
+.admin-notification-pagination {
+  position: sticky;
+  bottom: -12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px -12px -12px;
+  padding: 10px 12px;
+  color: #70869c;
+  background: #fff;
+  border-top: 1px solid #e4ecf4;
+  font-size: 11px;
+}
+.admin-notification-pagination div,
+.admin-notification-pagination button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-notification-pagination button {
+  padding: 5px 8px;
+  color: #17688c;
+  background: #f4faff;
+  border: 1px solid #d3e7f4;
+  border-radius: 6px;
+}
 .admin-notification-card {
   padding: 13px;
   margin-bottom: 9px;

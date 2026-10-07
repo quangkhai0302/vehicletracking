@@ -91,7 +91,7 @@ const report: OperationalReportDetail = {
   to: '2026-09-23',
   generatedAt: stamp,
   summary: { from: '2026-09-01', to: '2026-09-23', generatedAt: stamp, tripCount: 142, completedTripCount: 124, totalDistanceMeters: 1000, totalRunningSeconds: 3600, onTimeRatePercent: 95, lateTripCount: 3, offRouteEventCount: 2, overspeedEventCount: 0, speedLimitKmh: 80 },
-  vehicles: [], drivers: [], lateStops: [], incidents: [], employeePassengerDataAvailable: false,
+  vehicles: [], drivers: [], lateStops: [], incidents: [], incidentDetails: [], employeePassengerDataAvailable: false,
   employeePassengerDataNote: 'Chưa có dữ liệu',
   employeeOccupancy: { completedTripCount: 0, tripsWithCompleteBoardingData: 0, tripsMissingBoardingData: 0, tripsMissingSeatCapacity: 0, totalBoardings: 0, averageBoardingsPerTrip: null, averageOnboard: null, seatUtilizationPercent: null },
   employeeOccupancyByVehicle: [],
@@ -181,14 +181,14 @@ test('reports keep numeric filters, abort stale loads and do not replace a newer
   await flushPromises();
   const old = deferred<OperationalReportDetail>();
   vi.mocked(fetchOperationalReportDetail).mockReturnValueOnce(old.promise);
-  await wrapper.findAll('select')[1].setValue('1');
+  await wrapper.get('select[aria-label="Phương tiện báo cáo"]').setValue('1');
   expect(fetchOperationalReportDetail).toHaveBeenLastCalledWith(
     expect.objectContaining({ vehicleId: 1 }),
     expect.any(AbortSignal),
   );
   const signal = vi.mocked(fetchOperationalReportDetail).mock.calls[1][1]!;
   vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce({ ...report, summary: { ...report.summary, tripCount: 9 } });
-  await wrapper.findAll('select')[2].setValue('2');
+  await wrapper.get('select[aria-label="Tài xế báo cáo"]').setValue('2');
   await flushPromises();
   expect(signal.aborted).toBe(true);
   old.resolve({ ...report, summary: { ...report.summary, tripCount: 999 } });
@@ -227,7 +227,7 @@ test('late stop filters are independent and combine search, station, and minimum
   expect(section.text()).toContain('Hiển thị 2 / 2 lần trễ trạm');
 });
 
-test('occupancy report explains how its metrics and table columns are calculated', async () => {
+test('occupancy report shows the per-vehicle table without extra summaries', async () => {
   vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce({
     ...report,
     employeeOccupancyByVehicle: [{
@@ -240,10 +240,11 @@ test('occupancy report explains how its metrics and table columns are calculated
   cleanups.push(() => wrapper.unmount());
   await flushPromises();
   const occupancy = wrapper.get('[aria-label="Thống kê người trên xe"]');
-  expect(occupancy.get('.occupancy-method-note').text()).toContain('không phải số người duy nhất');
-  expect(occupancy.get('.reports-occupancy-metrics').text()).toContain('Người trên xe TB');
-  expect(occupancy.text()).not.toContain('Đã xác nhận số người');
-  expect(occupancy.text()).toContain('Ghế lấp đầy TB');
+  expect(occupancy.find('.reports-method-details').exists()).toBe(false);
+  expect(occupancy.find('.reports-occupancy-metrics').exists()).toBe(false);
+  expect(occupancy.find('.report-section-heading p').exists()).toBe(false);
+  expect(occupancy.get('.report-occupancy-table').text()).toContain('Tỷ lệ sử dụng ghế/chuyến');
+  expect(occupancy.get('.report-occupancy-table').text()).toContain('20%');
   expect(occupancy.findAll('thead th').map((header) => header.text())).not.toContain('Lượt người được chở');
 });
 

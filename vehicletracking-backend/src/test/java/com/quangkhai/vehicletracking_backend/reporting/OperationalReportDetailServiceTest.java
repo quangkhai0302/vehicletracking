@@ -55,16 +55,15 @@ class OperationalReportDetailServiceTest {
         when(trips.findAllForOperationalReport(Instant.parse("2026-09-20T17:00:00Z"), Instant.parse("2026-09-21T17:00:00Z"), null, null))
                 .thenReturn(List.of(trip));
         when(trip.getId()).thenReturn(7L);
+        when(trip.getStartedAt()).thenReturn(departure);
         when(trip.getVehicle()).thenReturn(vehicle);
         when(trip.getVehiclePlateSnapshot()).thenReturn("51A-00007");
         when(trip.getDriverNameSnapshot()).thenReturn("Nguyễn Văn A");
         when(trip.getDriver()).thenReturn(null);
         when(trip.getRoute()).thenReturn(route);
         when(route.getName()).thenReturn("Tuyến thử nghiệm");
-        when(trip.getSchedule()).thenReturn(schedule);
         when(trip.getStatus()).thenReturn(TripStatus.COMPLETED);
         when(trip.getScheduledDepartureAt()).thenReturn(departure);
-        when(trip.getEndedAt()).thenReturn(departure.plusSeconds(600));
         when(trip.getStops()).thenReturn(List.of(stop));
         when(vehicle.getId()).thenReturn(2L);
         when(vehicle.getName()).thenReturn("Xe 7");
@@ -77,8 +76,7 @@ class OperationalReportDetailServiceTest {
         when(visits.findAllByTripIdInOrderByTripIdAscStopSequenceAsc(List.of(7L))).thenReturn(List.of(visit));
         when(notifications.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-20T17:00:00Z"),
                 Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of());
-        when(telemetry.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-21T17:00:00Z"),
-                com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.GPS)).thenReturn(List.of());
+        when(telemetry.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of());
 
         var result = new OperationalReportDetailService(operationalReports, trips, visits, notifications,
                 telemetry, properties, clock).detail(summary.from(), summary.to(), null, null);
@@ -95,7 +93,7 @@ class OperationalReportDetailServiceTest {
     }
 
     @Test
-    void calculatesWeightedOccupancyAndSeatUtilizationFromConfirmedPickupCounts() {
+    void calculatesPerTripSeatUtilizationFromConfirmedPickupCounts() {
         ReportingProperties properties = new ReportingProperties();
         Instant departure = Instant.parse("2026-09-21T08:00:00Z");
         OperationalReportResponse summary = new OperationalReportResponse(
@@ -106,16 +104,16 @@ class OperationalReportDetailServiceTest {
         when(trips.findAllForOperationalReport(Instant.parse("2026-09-20T17:00:00Z"),
                 Instant.parse("2026-09-21T17:00:00Z"), null, null)).thenReturn(List.of(trip));
         when(trip.getId()).thenReturn(7L);
+        when(trip.getStartedAt()).thenReturn(departure);
         when(trip.getVehicle()).thenReturn(vehicle);
         when(vehicle.getId()).thenReturn(2L);
         when(vehicle.getName()).thenReturn("Xe 7");
         when(vehicle.getSeatCapacity()).thenReturn(10);
+        when(trip.getSeatCapacitySnapshot()).thenReturn(10);
         when(trip.getVehiclePlateSnapshot()).thenReturn("51A-00007");
         when(trip.getDriverNameSnapshot()).thenReturn("Nguyễn Văn A");
         when(trip.getDriver()).thenReturn(null);
-        when(trip.getSchedule()).thenReturn(null);
         when(trip.getStatus()).thenReturn(TripStatus.COMPLETED);
-        when(trip.getScheduledDepartureAt()).thenReturn(departure);
         when(stop.getSequenceNumber()).thenReturn(1);
         when(stop.getArrivalOffsetSeconds()).thenReturn(0L);
         TripStopEntity secondStop = stopAtSecondPickup();
@@ -147,21 +145,20 @@ class OperationalReportDetailServiceTest {
                 .thenReturn(List.of(firstVisit, secondVisit, finalVisit));
         when(notifications.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-20T17:00:00Z"),
                 Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of());
-        when(telemetry.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-21T17:00:00Z"),
-                com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.GPS)).thenReturn(List.of());
+        when(telemetry.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of());
 
         var result = new OperationalReportDetailService(operationalReports, trips, visits, notifications,
                 telemetry, properties, clock).detail(summary.from(), summary.to(), null, null);
 
         assertThat(result.employeeOccupancy().totalBoardings()).isEqualTo(5);
         assertThat(result.employeeOccupancy().averageBoardingsPerTrip()).isEqualTo(5d);
-        assertThat(result.employeeOccupancy().averageOnboard()).isEqualTo(4d);
-        assertThat(result.employeeOccupancy().seatUtilizationPercent()).isEqualTo(40d);
+        assertThat(result.employeeOccupancy().averageOnboard()).isNull();
+        assertThat(result.employeeOccupancy().seatUtilizationPercent()).isEqualTo(50d);
         assertThat(result.employeeOccupancy().tripsWithCompleteBoardingData()).isEqualTo(1);
         assertThat(result.employeeOccupancyByVehicle()).singleElement().satisfies(row -> {
             assertThat(row.seatCapacity()).isEqualTo(10);
             assertThat(row.totalBoardings()).isEqualTo(5);
-            assertThat(row.seatUtilizationPercent()).isEqualTo(40d);
+            assertThat(row.seatUtilizationPercent()).isEqualTo(50d);
         });
     }
 

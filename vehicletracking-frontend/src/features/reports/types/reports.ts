@@ -1,3 +1,5 @@
+import type { TripStatus } from '@/features/fleet/types/fleet';
+
 export interface OperationalReportFilters {
   from: string;
   to: string;
@@ -41,6 +43,17 @@ export interface OperationalReportDriverRow {
   lateStopCount: number;
   incidentCount: number;
   employeePassengerCount: number | null;
+  trips: OperationalReportDriverTrip[];
+}
+
+export interface OperationalReportDriverTrip {
+  tripId: number;
+  routeName: string | null;
+  vehiclePlateNumber: string | null;
+  scheduledDepartureAt: string;
+  startedAt: string;
+  endedAt: string | null;
+  status: TripStatus;
 }
 
 export interface OperationalReportLateStop {
@@ -61,6 +74,19 @@ export interface OperationalReportIncidentRow {
   count: number;
 }
 
+export interface OperationalReportIncidentDetail {
+  id: string;
+  tripId: number;
+  routeName: string | null;
+  vehiclePlateNumber: string | null;
+  driverName: string | null;
+  type: string;
+  severity: string;
+  occurredAt: string;
+  status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | 'RECORDED';
+  detail: string | null;
+}
+
 export interface OperationalReportDetail {
   from: string;
   to: string;
@@ -70,6 +96,7 @@ export interface OperationalReportDetail {
   drivers: OperationalReportDriverRow[];
   lateStops: OperationalReportLateStop[];
   incidents: OperationalReportIncidentRow[];
+  incidentDetails: OperationalReportIncidentDetail[];
   employeePassengerDataAvailable: boolean;
   employeePassengerDataNote: string;
   employeeOccupancy: EmployeeOccupancySummary;

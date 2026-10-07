@@ -269,7 +269,7 @@ function fallbackStopEta(stop: TripStop) {
               </span>
             </div>
           </div>
-          <p v-if="assignmentRequest?.status === 'PENDING'" class="trip-assignment-pending">
+          <p v-if="!trip.driver && assignmentRequest?.status === 'PENDING'" class="trip-assignment-pending">
             Đã gửi yêu cầu lúc {{ displayTripTime(assignmentRequest.requestedAt) }}. Tài xế phải
             chấp nhận trước khi chuyến được gán và có thể khởi hành.
           </p>

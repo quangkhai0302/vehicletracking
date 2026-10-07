@@ -34,6 +34,13 @@ const items = computed(() =>
     ),
 );
 const unread = computed(() => items.value.filter((item) => !item.readAt).length);
+const page = ref(1);
+const pageSize = 10;
+const pageCount = computed(() => Math.max(1, Math.ceil(items.value.length / pageSize)));
+const pageItems = computed(() => items.value.slice((page.value - 1) * pageSize, page.value * pageSize));
+watch(pageCount, (count) => {
+  if (page.value > count) page.value = count;
+});
 watch([unread, () => props.onUnreadCountChange], ([count, callback]) => callback?.(count), {
   immediate: true,
 });
@@ -118,7 +125,7 @@ const remove = async () => {
       class="alert-list"
     >
       <article
-        v-for="item in items.slice(0, 20)"
+        v-for="item in pageItems"
         :key="item.id"
         :class="`alert-item ${item.readAt ? 'read' : 'unread'}`"
       >
@@ -130,7 +137,7 @@ const remove = async () => {
             v-else-if="item.type === 'REROUTE_CREATED' || item.type === 'DRIVER_ROUTE_CHANGED'"
             :size="15"
           /><BellRing
-            v-else-if="item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED' || item.type === 'DIRECT_ASSIGNMENT_DECLINED'"
+            v-else-if="item.type.startsWith('DISPATCH_') || item.type === 'DRIVER_UNAVAILABLE' || item.type === 'TRIP_AUTO_STARTED' || item.type === 'DIRECT_ASSIGNMENT_ACCEPTED' || item.type === 'DIRECT_ASSIGNMENT_DECLINED'"
             :size="15"
           /><BellOff
             v-else
@@ -164,6 +171,17 @@ const remove = async () => {
         </button>
       </article>
     </div>
+    <nav
+      v-if="items.length > 0"
+      class="alert-pagination"
+      aria-label="Phân trang cảnh báo"
+    >
+      <span>Trang {{ page }} / {{ pageCount }}</span>
+      <div>
+        <button type="button" :disabled="page <= 1" @click="page--">Trước</button>
+        <button type="button" :disabled="page >= pageCount" @click="page++">Tiếp</button>
+      </div>
+    </nav>
     <div class="alert-legend">
       <span><Route :size="13" /> Đổi tuyến</span
       ><span><BellRing :size="13" /> Điều phối</span>

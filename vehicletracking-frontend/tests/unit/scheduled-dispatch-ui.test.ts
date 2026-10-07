@@ -23,6 +23,7 @@ vi.mock('@/features/dispatch/api/dispatch', () => ({
   declineDriverAssignmentRequest: vi.fn(),
   fetchDispatchInbox: vi.fn(),
   readDispatchInboxItem: vi.fn(),
+  deleteDispatchInboxItem: vi.fn(),
 }));
 const wrappers: VueWrapper[] = [];
 function render(dialogStub?: Component) {
@@ -37,8 +38,7 @@ function render(dialogStub?: Component) {
   return wrapper;
 }
 async function openNotifications(wrapper: VueWrapper) {
-  await wrapper.get('.driver-account-trigger').trigger('click');
-  await wrapper.get('.driver-account-notifications').trigger('click');
+  await wrapper.get('.driver-notification-trigger').trigger('click');
   await flushPromises();
 }
 const pending = {
@@ -69,6 +69,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(api.fetchDriverAssignmentRequests).mockResolvedValue([]);
   vi.mocked(api.fetchDispatchInbox).mockResolvedValue([]);
+  vi.mocked(api.deleteDispatchInboxItem).mockResolvedValue(undefined);
 });
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
@@ -76,10 +77,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-test('account menu groups notifications, password and logout without remounting the inbox', async () => {
+test('notifications and account actions open from separate header buttons', async () => {
   const wrapper = render();
   await flushPromises();
-  expect(wrapper.findAll('button')).toHaveLength(1);
+  expect(wrapper.findAll('button')).toHaveLength(2);
   expect(wrapper.get('.driver-account-trigger').attributes('aria-label')).toContain(
     'Tài khoản Nguyễn Văn D',
   );
@@ -87,13 +88,14 @@ test('account menu groups notifications, password and logout without remounting 
   expect(wrapper.get('.driver-account-identity').text()).toBe('Nguyễn Văn D · Tài xế');
   expect(wrapper.get('.driver-account-actions').text()).toContain('Đổi mật khẩu');
   expect(wrapper.get('.driver-account-actions').text()).toContain('Đăng xuất');
-  await wrapper.get('.driver-account-notifications').trigger('click');
+  expect(wrapper.get('.driver-account-actions').text()).not.toContain('Thông báo');
+  await wrapper.get('[aria-label="Đóng tài khoản"]').trigger('click');
+  await wrapper.get('.driver-notification-trigger').trigger('click');
   expect(wrapper.get('[role="dialog"] h2').text()).toBe('Thông báo');
-  await wrapper.get('[aria-label="Quay lại tài khoản"]').trigger('click');
-  await flushPromises();
-  expect(document.activeElement).toBe(wrapper.get('.driver-account-notifications').element);
   expect(api.fetchDispatchInbox).toHaveBeenCalledTimes(1);
   expect(api.fetchDriverAssignmentRequests).toHaveBeenCalledTimes(1);
+  await wrapper.get('[aria-label="Đóng thông báo"]').trigger('click');
+  await wrapper.get('.driver-account-trigger').trigger('click');
   await wrapper
     .findAll('.driver-account-actions button')
     .find((button) => button.text() === 'Đổi mật khẩu')!
@@ -107,14 +109,14 @@ test('account menu groups notifications, password and logout without remounting 
   expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
 });
 
-test('notifications stay collapsed until the account notification entry opens the empty inbox', async () => {
+test('notifications stay collapsed until the separate bell opens the empty inbox', async () => {
   const wrapper = render();
   await flushPromises();
   expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   expect(wrapper.find('.driver-notifications-badge').exists()).toBe(false);
-  expect(wrapper.get('.driver-account-trigger').attributes('aria-expanded')).toBe('false');
+  expect(wrapper.get('.driver-notification-trigger').attributes('aria-expanded')).toBe('false');
   await openNotifications(wrapper);
-  expect(wrapper.get('.driver-account-trigger').attributes('aria-expanded')).toBe('true');
+  expect(wrapper.get('.driver-notification-trigger').attributes('aria-expanded')).toBe('true');
   expect(wrapper.text()).toContain('Chưa có thông báo hoặc yêu cầu nhận chuyến mới.');
   expect(wrapper.text()).toContain('Hộp công việc');
   expect(wrapper.text()).not.toContain('dự phòng');
@@ -203,13 +205,37 @@ test('inbox remains usable when fetching direct requests fails', async () => {
   ]);
   const wrapper = render();
   await flushPromises();
-  expect(wrapper.get('.driver-account-trigger').classes()).toContain('has-error');
+  expect(wrapper.get('.driver-notification-trigger').classes()).toContain('has-error');
   await openNotifications(wrapper);
   expect(wrapper.text()).toContain('Yêu cầu nhận chuyến #7');
   expect(wrapper.get('[role="alert"]').text()).toContain('Không thể tải yêu cầu nhận chuyến.');
   await wrapper.get('.driver-dispatch-inbox button').trigger('click');
   await flushPromises();
   expect(api.readDispatchInboxItem).toHaveBeenCalledWith(5);
+});
+
+test('driver inbox paginates notices and confirms deletion', async () => {
+  vi.mocked(api.fetchDispatchInbox).mockResolvedValue(
+    Array.from({ length: 11 }, (_, index) => ({
+      ...notice,
+      id: index + 1,
+      title: `Thông báo ${index + 1}`,
+    })),
+  );
+  const wrapper = render(dialogStub);
+  await flushPromises();
+  await openNotifications(wrapper);
+
+  expect(wrapper.findAll('.driver-dispatch-inbox li')).toHaveLength(10);
+  expect(wrapper.get('.driver-inbox-pagination').text()).toContain('Trang 1 / 2');
+  await wrapper.get('.driver-inbox-pagination button:last-child').trigger('click');
+  expect(wrapper.findAll('.driver-dispatch-inbox li')).toHaveLength(1);
+  expect(wrapper.text()).toContain('Thông báo 11');
+  await wrapper.get('.driver-dispatch-inbox .driver-inbox-delete').trigger('click');
+  expect(wrapper.get('.assignment-confirm .danger-action').text()).toBe('Xác nhận xóa');
+  await wrapper.get('.assignment-confirm .danger-action').trigger('click');
+  await flushPromises();
+  expect(api.deleteDispatchInboxItem).toHaveBeenCalledWith(11);
 });
 
 test('workspace has no scheduled ready controls and cleans up polling and requests', async () => {
@@ -281,7 +307,7 @@ test('panel handles keyboard, internal clicks and outside focus without stealing
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   await nextTick();
   expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
-  expect(document.activeElement).toBe(wrapper.get('.driver-account-trigger').element);
+  expect(document.activeElement).toBe(wrapper.get('.driver-notification-trigger').element);
   await openNotifications(wrapper);
   const outside = document.createElement('button');
   document.body.append(outside);

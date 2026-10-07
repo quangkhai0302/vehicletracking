@@ -13,12 +13,13 @@ public interface DriverDispatchInboxRepository extends JpaRepository<DriverDispa
     @Query("""
             select i from DriverDispatchInboxEntity i
             where i.recipientDriverId = :driverId
+              and i.dismissedAt is null
               and (i.kind in :kinds or (i.kind = :unassignedKind and exists
                    (select t.id from TripEntity t where t.id = i.tripId and t.schedule is null)))
             order by i.createdAt desc, i.id desc
             """)
     List<DriverDispatchInboxEntity> findAssignmentInbox(long driverId, List<DriverInboxKind> kinds,
                                                        DriverInboxKind unassignedKind, Pageable page);
-    Optional<DriverDispatchInboxEntity> findByIdAndRecipientDriverId(long id, long driverId);
+    Optional<DriverDispatchInboxEntity> findByIdAndRecipientDriverIdAndDismissedAtIsNull(long id, long driverId);
     boolean existsByDedupeKey(String dedupeKey);
 }

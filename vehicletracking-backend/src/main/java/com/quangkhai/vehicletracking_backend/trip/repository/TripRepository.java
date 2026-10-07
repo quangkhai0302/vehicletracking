@@ -10,11 +10,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface TripRepository extends JpaRepository<TripEntity, Long> {
-    @EntityGraph(attributePaths = {"route", "stops", "schedule"})
+    @EntityGraph(attributePaths = {"route", "stops", "schedule", "vehicle", "driver"})
     @Query("""
             select distinct t from TripEntity t
             where t.scheduledDepartureAt >= :from
               and t.scheduledDepartureAt < :toExclusive
+              and t.startedAt is not null
               and (:vehicleId is null or t.vehicle.id = :vehicleId)
               and (:driverId is null or t.driver.id = :driverId)
             order by t.scheduledDepartureAt asc, t.id asc

@@ -302,6 +302,15 @@ export function operationalReportFixture(params = new URLSearchParams(), empty =
       lateStopCount: index === 0 ? 2 : 0,
       incidentCount: index === 0 ? 1 : 0,
       employeePassengerCount: null,
+      trips: Array.from({ length: 4 }, (_, tripIndex) => ({
+        tripId: 100 + index * 10 + tripIndex,
+        routeName: routes[tripIndex % routes.length].name,
+        vehiclePlateNumber: vehicles[index].plateNumber,
+        scheduledDepartureAt: stamp,
+        startedAt: stamp,
+        endedAt: tripIndex < (index === 0 ? 3 : 2) ? '2026-09-22T02:00:00Z' : null,
+        status: tripIndex < (index === 0 ? 3 : 2) ? 'COMPLETED' : 'IN_PROGRESS',
+      })),
     })),
     lateStops: empty ? [] : [{
       tripId: 100,
@@ -316,7 +325,10 @@ export function operationalReportFixture(params = new URLSearchParams(), empty =
     }],
     incidents: empty ? [] : [{ type: 'OFF_ROUTE_DETECTED', severity: 'CRITICAL', count: 1 }, { type: 'OVERSPEED', severity: 'MAJOR', count: 1 }],
     employeePassengerDataAvailable: false,
-    employeePassengerDataNote: 'Chưa có dữ liệu số nhân viên/hành khách vì chuyến chưa lưu danh sách người đi xe.',
+    employeePassengerDataNote: 'Số người do tài xế xác nhận tại các trạm đón.',
+    employeeOccupancy: { completedTripCount: empty ? 0 : 8, tripsWithCompleteBoardingData: empty ? 0 : 7, tripsMissingBoardingData: empty ? 0 : 1, tripsMissingSeatCapacity: empty ? 0 : 1, totalBoardings: empty ? 0 : 35, averageBoardingsPerTrip: empty ? null : 5, averageOnboard: null, seatUtilizationPercent: empty ? null : 50 },
+    employeeOccupancyByVehicle: empty ? [] : [{ vehicleId: vehicles[0].id, plateNumber: vehicles[0].plateNumber, vehicleName: vehicles[0].name, seatCapacity: 10, completedTripCount: 3, tripsWithCompleteBoardingData: 3, tripsMissingBoardingData: 0, totalBoardings: 15, averageBoardingsPerTrip: 5, averageOnboard: null, seatUtilizationPercent: 50 }],
+    incidentDetails: empty ? [] : [{ id: 'notification-1', tripId: 100, routeName: routes[0].name, vehiclePlateNumber: vehicles[0].plateNumber, driverName: drivers[0].fullName, type: 'OFF_ROUTE_DETECTED', severity: 'CRITICAL', occurredAt: stamp, status: 'RECORDED', detail: 'Xe đi lệch tuyến.' }, { id: 'speed-1', tripId: 100, routeName: routes[0].name, vehiclePlateNumber: vehicles[0].plateNumber, driverName: drivers[0].fullName, type: 'OVERSPEED', severity: 'MAJOR', occurredAt: stamp, status: 'RECORDED', detail: 'Vượt giới hạn tốc độ.' }],
   };
 }
 

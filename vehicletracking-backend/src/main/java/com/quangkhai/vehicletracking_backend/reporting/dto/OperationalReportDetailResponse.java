@@ -21,5 +21,6 @@ public record OperationalReportDetailResponse(
         boolean employeePassengerDataAvailable,
         String employeePassengerDataNote,
         EmployeeOccupancySummary employeeOccupancy,
-        List<EmployeeOccupancyVehicleRow> employeeOccupancyByVehicle) {
+        List<EmployeeOccupancyVehicleRow> employeeOccupancyByVehicle,
+        List<OperationalReportIncidentDetail> incidentDetails) {
 }

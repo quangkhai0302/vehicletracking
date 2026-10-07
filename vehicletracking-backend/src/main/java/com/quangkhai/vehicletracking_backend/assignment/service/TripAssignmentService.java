@@ -141,6 +141,10 @@ public class TripAssignmentService {
         request.accept(now);
         sendInbox(driverId, trip.getId(), requestId, DriverInboxKind.DIRECT_ASSIGNMENT_ACCEPTED,
                 "Đã nhận chuyến", "Bạn đã nhận chuyến được điều phối.", "assignment:" + requestId + ":accepted");
+        notifications.save(new TripNotificationEntity(trip, null, NotificationType.DIRECT_ASSIGNMENT_ACCEPTED,
+                NotificationSeverity.MAJOR, "Tài xế đã nhận chuyến",
+                driver.getFullName() + " đã xác nhận nhận chuyến được điều phối.",
+                null, "", null, null, "assignment:" + requestId + ":accepted-admin", now));
         trips.flush();
         return AssignmentActionResponse.from(request);
     }

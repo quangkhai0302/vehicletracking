@@ -1,0 +1,55 @@
+.report-workspace .report-driver-trips-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 5px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: #087fa7;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.report-workspace .report-driver-trips-button:hover { text-decoration: underline; }
+.business-ui .business-side-panel.driver-report-trips {
+  width: min(780px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: min(860px, calc(100dvh - 32px));
+}
+.driver-report-trips-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.driver-report-trips-heading > div { min-width: 0; }
+.driver-report-trips-heading p { margin: 0 0 8px; color: #0784ad; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; }
+.driver-report-trips-heading h2 { margin: 0 0 9px; color: #18334b; font-size: 21px; overflow-wrap: anywhere; }
+.driver-report-trips-heading span { font-size: 12px; color: #60758b; }
+.driver-report-trips-heading button { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; border: 1px solid #dce7f0; border-radius: 8px; color: #536b80; background: #f7fafc; cursor: pointer; }
+.driver-report-trips-scope { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 24px; border-bottom: 1px solid #e0e8f0; background: #f8fbfd; flex-shrink: 0; }
+.driver-report-trips-scope > span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #3a617a; }
+.driver-report-trips-scope small { color: #60758b; font-size: 11px; }
+.driver-report-trips-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 24px; }
+.driver-report-trip-list { display: grid; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.driver-report-trip { padding: 16px; border: 1px solid #dfe8f1; border-radius: 10px; background: #fff; }
+.driver-report-trip-heading { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.driver-report-trip-heading > div { min-width: 0; }
+.driver-report-trip-heading h3 { margin: 0; color: #18334b; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.driver-report-trip-heading p { margin: 5px 0 0; color: #60758b; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.driver-report-trip-status { padding: 4px 8px; border-radius: 6px; background: #edf4fa; color: #41627c; font-size: 11px; white-space: nowrap; }
+.driver-report-trip-status.is-completed { background: #e9f9f2; color: #087b54; }
+.driver-report-trip-status.is-in_progress { background: #e9f6fe; color: #087fa7; }
+.driver-report-trip-status.is-cancelled { background: #fff0f2; color: #ac3d50; }
+.driver-report-trip-times { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid #edf1f6; }
+.driver-report-trip-times dt { color: #728499; font-size: 11px; }
+.driver-report-trip-times dd { margin: 5px 0 0; color: #35516a; font-size: 12px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.driver-report-trips .pagination-controls { flex-shrink: 0; padding: 14px 24px; }
+.driver-report-trips-empty { margin: 16px 0; color: #60758b; font-size: 13px; line-height: 1.7; }
+@media (max-width: 520px) {
+  .business-ui .business-side-panel.driver-report-trips { width: calc(100vw - 20px); max-width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
+  .business-ui .driver-report-trips .driver-report-trips-heading { padding: 18px 16px; }
+  .driver-report-trips-heading h2 { font-size: 18px; }
+  .driver-report-trips-scope, .driver-report-trips-body, .driver-report-trips .pagination-controls { padding: 14px 16px; }
+  .driver-report-trip { padding: 13px; }
+  .driver-report-trip-heading { flex-direction: column; gap: 8px; }
+  .driver-report-trip-times { grid-template-columns: 1fr; gap: 9px; }
+  .driver-report-trip-times > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .driver-report-trip-times dd { margin: 0; text-align: right; }
+}

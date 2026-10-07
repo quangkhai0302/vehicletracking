@@ -1,0 +1,7 @@
+ALTER TABLE vehicle_tracking.trip_notifications DROP CONSTRAINT chk_trip_notification_type;
+ALTER TABLE vehicle_tracking.trip_notifications ADD CONSTRAINT chk_trip_notification_type
+    CHECK (type IN (
+        'REROUTE_CREATED', 'REROUTE_UNAVAILABLE', 'OFF_ROUTE_DETECTED', 'DRIVER_ROUTE_CHANGED',
+        'DISPATCH_ATTENTION', 'DRIVER_UNAVAILABLE', 'DISPATCH_REASSIGNED', 'TRIP_AUTO_STARTED',
+        'DIRECT_ASSIGNMENT_ACCEPTED', 'DIRECT_ASSIGNMENT_DECLINED', 'SIMULATION_INCIDENT'
+    ));

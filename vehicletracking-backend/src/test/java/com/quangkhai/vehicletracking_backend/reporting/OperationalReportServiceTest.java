@@ -32,12 +32,13 @@ class OperationalReportServiceTest {
     @Mock TripNotificationRepository notifications;
     @Mock RouteEntity route;
     @Mock Clock clock;
+    @Mock com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository simulations;
 
     @Test
     void aggregatesTripRuntimeOnTimeLateOffRouteAndOverspeedEvents() {
         ReportingProperties properties = new ReportingProperties();
         properties.setDefaultSpeedLimitKmh(80);
-        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock);
+        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock, simulations);
         Instant now = Instant.parse("2026-09-21T13:00:00Z");
         when(clock.instant()).thenReturn(now);
         when(route.getTotalDistanceMeters()).thenReturn(12_000L);
@@ -57,11 +58,12 @@ class OperationalReportServiceTest {
                 com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType.OFF_ROUTE_DETECTED,
                 Instant.parse("2026-09-20T17:00:00Z"), Instant.parse("2026-09-21T17:00:00Z"), null, null))
                 .thenReturn(2L);
+        when(onTime.getAttemptNumber()).thenReturn(1);
+        when(late.getAttemptNumber()).thenReturn(1);
         List<TelemetrySampleEntity> samples = List.of(sample(1L, 1, 70), sample(1L, 1, 90), sample(1L, 1, 95),
                 sample(1L, 1, 70), sample(2L, 1, 81));
         when(telemetry.findAllForOperationalReport(
-                List.of(1L, 2L, 3L), Instant.parse("2026-09-21T17:00:00Z"),
-                com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.GPS))
+                List.of(1L, 2L, 3L), Instant.parse("2026-09-21T17:00:00Z")))
                 .thenReturn(samples);
 
         var result = service.operations(LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 21), null, null);
@@ -79,7 +81,7 @@ class OperationalReportServiceTest {
     @Test
     void usesOriginalStopOffsetWhenLiveEtaWasUpdated() {
         ReportingProperties properties = new ReportingProperties();
-        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock);
+        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock, simulations);
         Instant now = Instant.parse("2026-09-21T12:00:00Z");
         when(clock.instant()).thenReturn(now);
         when(route.getTotalDistanceMeters()).thenReturn(10_000L);
@@ -107,7 +109,7 @@ class OperationalReportServiceTest {
     @Test
     void excludesOnDemandTripsFromPunctualityAndLateMetrics() {
         ReportingProperties properties = new ReportingProperties();
-        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock);
+        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock, simulations);
         Instant now = Instant.parse("2026-09-21T12:00:00Z");
         Instant from = Instant.parse("2026-09-20T17:00:00Z");
         Instant toExclusive = Instant.parse("2026-09-21T17:00:00Z");
@@ -133,7 +135,7 @@ class OperationalReportServiceTest {
     @Test
     void rejectsInvalidDateAndFilterRange() {
         ReportingProperties properties = new ReportingProperties();
-        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock);
+        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock, simulations);
 
         assertThatThrownBy(() -> service.operations(LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 1), null, null))
                 .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
@@ -147,20 +149,20 @@ class OperationalReportServiceTest {
     void doesNotCountCarryInOverspeedAsNewEpisodeAtReportBoundary() {
         ReportingProperties properties = new ReportingProperties();
         properties.setDefaultSpeedLimitKmh(80);
-        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock);
+        OperationalReportService service = new OperationalReportService(trips, telemetry, notifications, properties, clock, simulations);
         Instant from = Instant.parse("2026-09-20T17:00:00Z");
         Instant toExclusive = Instant.parse("2026-09-21T17:00:00Z");
         when(clock.instant()).thenReturn(Instant.parse("2026-09-21T12:00:00Z"));
         TripEntity trip = trip(4L, route, TripStatus.COMPLETED,
                 "2026-09-21T01:00:00Z", "2026-09-21T02:00:00Z", "2026-09-21T01:00:00Z");
         when(trips.findAllForOperationalReport(from, toExclusive, null, null)).thenReturn(List.of(trip));
+        when(trip.getAttemptNumber()).thenReturn(1);
         List<TelemetrySampleEntity> samples = List.of(
                 sample(4L, 1, 90, from.minusSeconds(1)),
                 sample(4L, 1, 95, from.plusSeconds(1)),
                 sample(4L, 1, 70, from.plusSeconds(2)),
                 sample(4L, 1, 90, from.plusSeconds(3)));
-        when(telemetry.findAllForOperationalReport(List.of(4L), toExclusive,
-                com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource.GPS))
+        when(telemetry.findAllForOperationalReport(List.of(4L), toExclusive))
                 .thenReturn(samples);
 
         var result = service.operations(LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 21), null, null);

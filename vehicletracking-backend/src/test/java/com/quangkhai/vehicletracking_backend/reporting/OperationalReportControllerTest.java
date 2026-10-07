@@ -3,6 +3,9 @@ package com.quangkhai.vehicletracking_backend.reporting;
 import com.quangkhai.vehicletracking_backend.reporting.controller.OperationalReportController;
 import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportResponse;
 import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancySummary;
+import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportDriverRow;
+import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportDriverTrip;
+import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
 import com.quangkhai.vehicletracking_backend.reporting.service.OperationalReportService;
 import com.quangkhai.vehicletracking_backend.reporting.service.OperationalReportDetailService;
 import org.junit.jupiter.api.Test;
@@ -53,9 +56,12 @@ class OperationalReportControllerTest {
         when(detailService.detail(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 21), null, null))
                 .thenReturn(new com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportDetailResponse(
                         summary.from(), summary.to(), summary.generatedAt(), summary,
-                        List.of(), List.of(), List.of(), List.of(), false,
+                        List.of(), List.of(new OperationalReportDriverRow(3L, "Tài xế A", 1, 0, 0, 0, 0, null,
+                                List.of(new OperationalReportDriverTrip(7L, "Tuyến trường học", "51B12345",
+                                        summary.generatedAt(), summary.generatedAt(), null, TripStatus.IN_PROGRESS)))),
+                        List.of(), List.of(), false,
                         "Chưa có xác nhận số người lên tại các điểm đón của chuyến đã hoàn tất.",
-                        new EmployeeOccupancySummary(1, 0, 1, 1, 0, null, null, null), List.of()));
+                        new EmployeeOccupancySummary(1, 0, 1, 1, 0, null, null, null), List.of(), List.of()));
 
         mvc.perform(get("/api/v1/reports/operations/detail")
                         .param("from", "2026-09-01")
@@ -63,6 +69,12 @@ class OperationalReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summary.tripCount").value(2))
                 .andExpect(jsonPath("$.vehicles").isArray())
+                .andExpect(jsonPath("$.drivers[0].trips[0].tripId").value(7))
+                .andExpect(jsonPath("$.drivers[0].trips[0].routeName").value("Tuyến trường học"))
+                .andExpect(jsonPath("$.drivers[0].trips[0].vehiclePlateNumber").value("51B12345"))
+                .andExpect(jsonPath("$.drivers[0].trips[0].startedAt").value("2026-09-21T08:00:00Z"))
+                .andExpect(jsonPath("$.drivers[0].trips[0].endedAt").isEmpty())
+                .andExpect(jsonPath("$.drivers[0].trips[0].status").value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.employeePassengerDataAvailable").value(false))
                 .andExpect(jsonPath("$.employeeOccupancy.tripsMissingBoardingData").value(1));
     }

@@ -275,12 +275,12 @@ test('driver redirects from admin URLs, fetches only assigned resources, keeps b
     '#100',
     '1',
   ]);
-  const notificationBell = wrapper.get('.driver-portal-header .driver-account-trigger').element;
+  const notificationBell = wrapper.get('.driver-portal-header .driver-notification-trigger').element;
   const notificationCalls = calls('/api/v1/driver/dispatch/inbox?limit=50').length;
   await wrapper.get('a[href="/driver/schedules"]').trigger('click');
   await flushPromises();
   expect(wrapper.get('.driver-schedule-card').text()).toContain('Hàng tuần · 08:00');
-  expect(wrapper.get('.driver-portal-header .driver-account-trigger').element).toBe(notificationBell);
+  expect(wrapper.get('.driver-portal-header .driver-notification-trigger').element).toBe(notificationBell);
   expect(calls('/api/v1/driver/dispatch/inbox?limit=50')).toHaveLength(notificationCalls);
   router.back();
   await flushPromises();
@@ -405,6 +405,38 @@ test('admin bell filters, single read and read-all preserve HTTP payload and dup
     expect(request.options.body).toBeUndefined();
     expect(new Headers(request.options.headers).get('X-XSRF-TOKEN')).toBe('fixture-csrf');
   }
+});
+
+test('admin dispatch filter includes driver acceptance notifications', async () => {
+  user = admin;
+  const acceptedNotice: NotificationItem = {
+    ...alert,
+    type: 'DIRECT_ASSIGNMENT_ACCEPTED',
+    title: 'Tài xế đã nhận chuyến',
+    reason: 'Nguyễn Văn A đã xác nhận nhận chuyến được điều phối.',
+  };
+  handlers.set('GET /api/v1/notifications?unreadOnly=false', () => json([acceptedNotice]));
+  await open('/alerts');
+  const panel = notificationPanel();
+  await panel.findAll('.admin-notification-filters select')[0].setValue('DISPATCH');
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
+  expect(panel.get('.admin-notification-card').text()).toContain('Tài xế đã nhận chuyến');
+  expect(panel.get('.admin-notification-detail').text()).toContain('Nguyễn Văn A');
+});
+
+test('admin notification bell paginates its notification list', async () => {
+  user = admin;
+  handlers.set(
+    'GET /api/v1/notifications?unreadOnly=false',
+    () => json(Array.from({ length: 11 }, (_, index) => ({ ...alert, id: index + 1, title: `Cảnh báo ${index + 1}` }))),
+  );
+  await open('/alerts');
+  const panel = notificationPanel();
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(10);
+  expect(panel.get('.admin-notification-pagination').text()).toContain('Trang 1 / 2');
+  await panel.get('.admin-notification-pagination button:last-child').trigger('click');
+  expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
+  expect(panel.text()).toContain('Cảnh báo 11');
 });
 
 test('admin bell opens simulation incident monitoring and persists acknowledge and resolve actions', async () => {
@@ -647,7 +679,8 @@ test('dashboard opens the shared bell, caps a long response at fifty and preserv
   expect(openButton).toBeDefined();
   await openButton!.trigger('click');
   await flushPromises();
-  expect(notificationPanel().findAll('.admin-notification-card')).toHaveLength(50);
+  expect(notificationPanel().findAll('.admin-notification-card')).toHaveLength(10);
+  expect(notificationPanel().get('.admin-notification-pagination').text()).toContain('Trang 1 / 5');
   expect(wrapper.get('.admin-notification-badge').text()).toBe('50');
   expect(calls('/api/v1/notifications?unreadOnly=false')).toHaveLength(sourceRequests);
   await router.push('/dashboard?view=summary&notifications=open');
@@ -693,5 +726,21 @@ test('operations alert stream describes simulator notification categories', () =
   expect(wrapper.get('.alert-legend').text()).toContain('Đổi tuyến');
   expect(wrapper.get('.alert-legend').text()).toContain('Điều phối');
   expect(wrapper.get('.alert-legend').text()).not.toContain('Lệch tuyến');
+  wrapper.unmount();
+});
+
+test('operations alert stream paginates and keeps delete actions on every page', async () => {
+  const notifications = Array.from({ length: 21 }, (_, index) => ({
+    ...alert,
+    id: index + 1,
+    title: `Cảnh báo ${index + 1}`,
+  }));
+  const wrapper = mount(AlertStream, { props: { notifications } });
+  expect(wrapper.findAll('.alert-item')).toHaveLength(10);
+  expect(wrapper.get('.alert-pagination').text()).toContain('Trang 1 / 3');
+  await wrapper.get('.alert-pagination button:last-child').trigger('click');
+  expect(wrapper.findAll('.alert-item')).toHaveLength(10);
+  expect(wrapper.text()).toContain('Cảnh báo 11');
+  expect(wrapper.findAll('[aria-label="Xóa thông báo"]')).toHaveLength(10);
   wrapper.unmount();
 });

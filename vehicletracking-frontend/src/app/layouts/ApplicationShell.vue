@@ -25,6 +25,7 @@ import { useDriverRouteNotifications } from '@/features/tracking/composables/use
 import './application-shell.css';
 import AdminNotificationBell from '@/features/reports/components/AdminNotificationBell.vue';
 import { adminNotificationMenuKey } from '@/features/reports/composables/adminNotificationMenu';
+import { useAdminAssignmentNotifications } from '@/features/reports/composables/useAdminAssignmentNotifications';
 const location = useRoute(),
   router = useRouter(),
   auth = useAuth();
@@ -49,6 +50,7 @@ watch(notificationsOpen, (open) => {
 const live = useLiveOperations();
 provide(liveOperationsKey, live);
 useDriverRouteNotifications(() => live.snapshot);
+useAdminAssignmentNotifications(() => auth.user?.role === 'ADMIN' ? live.snapshot : null);
 const route = computed(() => findRoute(location.path));
 const navigationOpen = ref(false),
   mapNavigationExpanded = ref(false);
@@ -199,7 +201,10 @@ const activePath = (item: NavigationItem) => matchesNavigationItem(item, locatio
           <h1>{{ route.title }}</h1>
         </div>
         <div class="business-topbar-actions">
-          <AdminNotificationBell v-model="notificationsOpen" />
+          <AdminNotificationBell
+            v-model="notificationsOpen"
+            :live-notifications="live.snapshot?.notifications ?? null"
+          />
           <div class="business-account">
             <div class="business-account-avatar"><UserRound :size="16" /></div>
             <div class="business-account-copy">

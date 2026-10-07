@@ -32,10 +32,17 @@ public class DriverDispatchService {
 
     @Transactional
     public DriverInboxResponse markRead(UserAccountPrincipal principal, long inboxId) {
-        var item = inbox.findByIdAndRecipientDriverId(inboxId, driverId(principal))
+        var item = inbox.findByIdAndRecipientDriverIdAndDismissedAtIsNull(inboxId, driverId(principal))
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy thông báo."));
         item.markRead(operationsClock.instant());
         return DriverInboxResponse.from(item);
+    }
+
+    @Transactional
+    public void dismiss(UserAccountPrincipal principal, long inboxId) {
+        var item = inbox.findByIdAndRecipientDriverIdAndDismissedAtIsNull(inboxId, driverId(principal))
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy thông báo."));
+        item.dismiss(operationsClock.instant());
     }
 
     private long driverId(UserAccountPrincipal principal) {

@@ -4,9 +4,11 @@ import { useRoute, useRouter } from 'vue-router';
 import FleetWorkspace from '@/features/fleet/components/FleetWorkspace.vue';
 import type { FleetTab } from '@/features/fleet/composables/useFleetWorkspace';
 import { notifySuccess } from '@/shared/notifications/toast';
+import { useLiveOperations } from '@/features/tracking/composables/useLiveOperations';
 const props = defineProps<{ tab: FleetTab }>();
 const router = useRouter(),
   route = useRoute();
+const live = useLiveOperations();
 const initialVehicleFilter = computed(() => {
   const value = Number(
     Array.isArray(route.query.vehicleId) ? route.query.vehicleId[0] : route.query.vehicleId,
@@ -35,6 +37,7 @@ const simulateTrip = (tripId: number) => {
   <div class="business-page">
     <section class="business-surface business-management-surface">
       <FleetWorkspace
+        :live-snapshot="live.snapshot"
         :initial-tab="tab"
         :initial-vehicle-filter="initialVehicleFilter"
         :initial-route-id="initialRouteId"

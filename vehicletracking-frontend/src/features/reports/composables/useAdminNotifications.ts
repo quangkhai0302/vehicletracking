@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
+import { computed, onScopeDispose, ref, shallowRef, toValue, watch, type MaybeRefOrGetter } from 'vue';
 import {
   deleteNotification,
   fetchNotifications,
@@ -11,7 +11,9 @@ import type { NotificationItem } from '../types/notifications';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
 import { notifySuccess } from '@/shared/notifications/toast';
 
-export function useAdminNotifications() {
+export function useAdminNotifications(
+  liveNotifications?: MaybeRefOrGetter<NotificationItem[] | null>,
+) {
   const loadedOnce = ref(false);
   const confirmedReadAt = new Map<number, string>();
   const confirmedDeletedIds = new Set<number>();
@@ -30,6 +32,28 @@ export function useAdminNotifications() {
   onScopeDispose(() => {
     disposed = true;
   });
+  function replaceItems(next: NotificationItem[]) {
+    items.value = next
+      .slice(0, 50)
+      .filter((item) => !confirmedDeletedIds.has(item.id))
+      .map((item) => {
+        const readAt = confirmedReadAt.get(item.id);
+        return readAt && !item.readAt ? { ...item, readAt } : item;
+      });
+  }
+  if (liveNotifications) {
+    watch(
+      () => toValue(liveNotifications),
+      (next) => {
+        if (!next) return;
+        replaceItems(next);
+        error.value = null;
+        loading.value = false;
+        loadedOnce.value = true;
+      },
+      { immediate: true },
+    );
+  }
   watch(
     attempt,
     (_, _old, cleanup) => {
@@ -42,13 +66,7 @@ export function useAdminNotifications() {
         fetchNotifications(false, controller.signal)
           .then((next) => {
             if (!controller.signal.aborted) {
-              items.value = next
-                .slice(0, 50)
-                .filter((item) => !confirmedDeletedIds.has(item.id))
-                .map((item) => {
-                  const readAt = confirmedReadAt.get(item.id);
-                  return readAt && !item.readAt ? { ...item, readAt } : item;
-                });
+              replaceItems(next);
               error.value = null;
               loadedOnce.value = true;
             }
@@ -81,6 +99,7 @@ export function useAdminNotifications() {
             item.type === 'DRIVER_UNAVAILABLE' ||
             item.type === 'DISPATCH_REASSIGNED' ||
             item.type === 'TRIP_AUTO_STARTED' ||
+            item.type === 'DIRECT_ASSIGNMENT_ACCEPTED' ||
             item.type === 'DIRECT_ASSIGNMENT_DECLINED'
           : typeFilter.value === 'INCIDENT'
             ? item.type === 'SIMULATION_INCIDENT'

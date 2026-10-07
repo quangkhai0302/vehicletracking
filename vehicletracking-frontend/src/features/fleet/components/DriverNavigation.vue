@@ -340,7 +340,7 @@ async function saveBoardingCount() {
             Không có phương án khả dụng tại vị trí hiện tại.
           </p>
           <p v-else-if="navigation.options.options.length === 1">
-            HERE chỉ tìm được một phương án khả dụng.
+            Chỉ tìm được một phương án khả dụng.
           </p>
           <div class="driver-route-option-list">
             <label

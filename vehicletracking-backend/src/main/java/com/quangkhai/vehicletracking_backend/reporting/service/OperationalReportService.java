@@ -23,6 +23,11 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationRunEntity;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +38,7 @@ public class OperationalReportService {
     private final TripNotificationRepository notifications;
     private final ReportingProperties properties;
     private final Clock operationsClock;
+    private final SimulationRepository simulations;
 
     @Transactional(readOnly = true)
     public OperationalReportResponse operations(LocalDate requestedFrom, LocalDate requestedTo,
@@ -44,7 +50,9 @@ public class OperationalReportService {
         Instant fromInstant = from.atStartOfDay(REPORTING_ZONE).toInstant();
         Instant toExclusive = to.plusDays(1).atStartOfDay(REPORTING_ZONE).toInstant();
         Instant now = operationsClock.instant();
-        List<TripEntity> matchingTrips = trips.findAllForOperationalReport(fromInstant, toExclusive, vehicleId, driverId);
+        List<TripEntity> matchingTrips = trips.findAllForOperationalReport(fromInstant, toExclusive, vehicleId, driverId)
+                .stream().filter(trip -> trip.getStartedAt() != null).toList();
+        Set<Long> lateTrips = lateTripIds(matchingTrips, now);
 
         long totalDistanceMeters = matchingTrips.stream()
                 .map(trip -> trip.getRoute())
@@ -64,9 +72,9 @@ public class OperationalReportService {
         long onTimeTripCount = matchingTrips.stream()
                 .filter(trip -> trip.getSchedule() != null)
                 .filter(trip -> trip.getStatus() == TripStatus.COMPLETED)
-                .filter(trip -> trip.getEndedAt() != null && !trip.getEndedAt().isAfter(plannedEndAt(trip)))
+                .filter(trip -> trip.getEndedAt() != null && !lateTrips.contains(trip.getId()))
                 .count();
-        long lateTripCount = matchingTrips.stream().filter(trip -> isLate(trip, now)).count();
+        long lateTripCount = lateTrips.size();
         double onTimeRatePercent = scheduledCompletedTripCount == 0
                 ? 0d
                 : roundPercent((onTimeTripCount * 100d) / scheduledCompletedTripCount);
@@ -79,7 +87,9 @@ public class OperationalReportService {
         long overspeedEventCount = tripIds.isEmpty()
                 ? 0
                 : countOverspeedEvents(telemetry.findAllForOperationalReport(
-                        tripIds, toExclusive, TelemetrySource.GPS), fromInstant);
+                        tripIds, toExclusive).stream().filter(sample -> matchingTrips.stream()
+                                .anyMatch(trip -> trip.getId().equals(sample.getTripId())
+                                        && trip.getAttemptNumber() == sample.getAttemptNumber())).toList(), fromInstant);
 
         return new OperationalReportResponse(
                 from, to, now, matchingTrips.size(), completedTripCount,
@@ -117,12 +127,25 @@ public class OperationalReportService {
         return Duration.between(started, ended).toSeconds();
     }
 
-    private boolean isLate(TripEntity trip, Instant now) {
-        if (trip.getSchedule() == null) return false;
-        Instant plannedEnd = plannedEndAt(trip);
-        return trip.getStatus() == TripStatus.COMPLETED
-                ? trip.getEndedAt() != null && trip.getEndedAt().isAfter(plannedEnd)
-                : trip.getStatus() == TripStatus.IN_PROGRESS && plannedEnd.isBefore(now);
+    Set<Long> lateTripIds(List<TripEntity> matchingTrips, Instant now) {
+        if (matchingTrips.isEmpty()) return Set.of();
+        Map<Long, SimulationRunEntity> runs = simulations.findAllByTripIdIn(
+                matchingTrips.stream().map(TripEntity::getId).toList()).stream()
+                .collect(Collectors.toMap(SimulationRunEntity::getTripId, run -> run));
+        return matchingTrips.stream().filter(trip -> {
+            if (trip.getSchedule() == null
+                    || (trip.getStatus() != TripStatus.COMPLETED && trip.getStatus() != TripStatus.IN_PROGRESS))
+                return false;
+            SimulationRunEntity run = runs.get(trip.getId());
+            if (run != null && run.getVirtualElapsedSeconds() != null && run.getMetadata() != null
+                    && run.getMetadata().getPlannedDurationSeconds() != null) {
+                return run.getVirtualElapsedSeconds() > run.getMetadata().getPlannedDurationSeconds();
+            }
+            Instant plannedEnd = plannedEndAt(trip);
+            return trip.getStatus() == TripStatus.COMPLETED
+                    ? trip.getEndedAt() != null && trip.getEndedAt().isAfter(plannedEnd)
+                    : plannedEnd.isBefore(now);
+        }).map(TripEntity::getId).collect(Collectors.toSet());
     }
 
     private Instant plannedEndAt(TripEntity trip) {
@@ -154,13 +177,15 @@ public class OperationalReportService {
         long events = 0;
         Long currentTripId = null;
         int currentAttempt = -1;
+        TelemetrySource currentSource = null;
         boolean wasOverLimit = false;
         for (TelemetrySampleEntity sample : samples) {
             boolean sameAttempt = currentTripId != null && sample.getTripId().equals(currentTripId)
-                    && sample.getAttemptNumber() == currentAttempt;
+                    && sample.getAttemptNumber() == currentAttempt && sample.getSource() == currentSource;
             if (!sameAttempt) {
                 currentTripId = sample.getTripId();
                 currentAttempt = sample.getAttemptNumber();
+                currentSource = sample.getSource();
                 wasOverLimit = false;
             }
             boolean overLimit = sample.getSpeedKmh() > limit;

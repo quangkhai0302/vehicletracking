@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, shallowRef, useId, watch, type CSSProperties } from 'vue';
+import { computed, nextTick, ref, shallowRef, useId, watch, type CSSProperties } from 'vue';
 import {
   Bell,
   BellOff,
@@ -16,8 +16,10 @@ import FleetConfirmDialog from '@/features/fleet/components/FleetConfirmDialog.v
 import { notificationMonitoringLink } from '@/features/reroute/utils/notificationLink';
 import { useAdminNotifications } from '../composables/useAdminNotifications';
 import { alertDetail, formatDateTime } from '../utils/notificationPresentation';
+import type { NotificationItem } from '../types/notifications';
 import '../styles/admin-notifications.css';
 const open = defineModel<boolean>({ default: false });
+const props = defineProps<{ liveNotifications?: NotificationItem[] | null }>();
 const {
   items,
   filtered,
@@ -35,11 +37,19 @@ const {
   remove,
   acknowledge,
   resolve,
-} = useAdminNotifications();
+} = useAdminNotifications(() => props.liveNotifications ?? null);
 const trigger = shallowRef<HTMLButtonElement | null>(null),
   panel = shallowRef<HTMLElement | null>(null);
 const panelId = `admin-notifications-${useId()}`;
 const panelStyle = ref<CSSProperties>({});
+const page = ref(1);
+const pageSize = 10;
+const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize)));
+const pagedItems = computed(() => filtered.value.slice((page.value - 1) * pageSize, page.value * pageSize));
+watch([typeFilter, severityFilter], () => (page.value = 1));
+watch(pageCount, (count) => {
+  if (page.value > count) page.value = count;
+});
 function positionPanel() {
   if (!trigger.value) return;
   const anchor = trigger.value.getBoundingClientRect();
@@ -255,7 +265,7 @@ watch(
           </p>
         </div>
         <article
-          v-for="item in loading ? [] : filtered"
+          v-for="item in loading ? [] : pagedItems"
           :key="item.id"
           :class="['admin-notification-card', item.readAt ? 'read' : 'unread']"
         >
@@ -325,6 +335,17 @@ watch(
             </button>
           </div>
         </article>
+        <nav
+          v-if="!loading && !error && filtered.length > 0"
+          class="admin-notification-pagination"
+          aria-label="Phân trang thông báo"
+        >
+          <span>Trang {{ page }} / {{ pageCount }}</span>
+          <div>
+            <button type="button" :disabled="page <= 1" @click="page--">Trước</button>
+            <button type="button" :disabled="page >= pageCount" @click="page++">Tiếp</button>
+          </div>
+        </nav>
       </div>
     </section>
     <FleetConfirmDialog

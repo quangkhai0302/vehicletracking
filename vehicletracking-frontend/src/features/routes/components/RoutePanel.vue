@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Clock, MapPin, Milestone, Plus, RefreshCw, Route, Search } from '@lucide/vue';
 import type { RouteSummary } from '@/features/routes/types/route';
 import { formatDuration } from '@/shared/utils/format';
+import PaginationControls from '@/shared/components/PaginationControls.vue';
 const props = withDefaults(
   defineProps<{
     createDisabled?: boolean;
@@ -17,6 +18,8 @@ const props = withDefaults(
   { createDisabled: false },
 );
 const query = ref('');
+const page = ref(1);
+const pageSize = 10;
 const filteredRoutes = computed(() => {
   const normalized = query.value.trim().toLocaleLowerCase('vi');
   return normalized
@@ -27,6 +30,10 @@ const filteredRoutes = computed(() => {
       )
     : props.routes;
 });
+const pageCount = computed(() => Math.max(1, Math.ceil(filteredRoutes.value.length / pageSize)));
+const pageRoutes = computed(() => filteredRoutes.value.slice((page.value - 1) * pageSize, page.value * pageSize));
+watch(query, () => (page.value = 1));
+watch(pageCount, (count) => { if (page.value > count) page.value = count; });
 const selectKey = (event: KeyboardEvent, route: RouteSummary) => {
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
@@ -117,7 +124,7 @@ const selectKey = (event: KeyboardEvent, route: RouteSummary) => {
       </div>
       <template v-if="!loading && !error"
         ><article
-          v-for="route in filteredRoutes"
+          v-for="route in pageRoutes"
           :key="route.id"
           :class="`route-card ${route.id === selectedRouteId ? 'selected' : ''}`"
           :tabindex="0"
@@ -150,6 +157,7 @@ const selectKey = (event: KeyboardEvent, route: RouteSummary) => {
           </div>
         </article></template
       >
+      <PaginationControls v-if="!loading && !error" v-model:page="page" :page-count="pageCount" :total="filteredRoutes.length" :page-size="pageSize" label="tuyến đường" />
     </div>
   </aside>
 </template>

@@ -45,6 +45,8 @@ import com.quangkhai.vehicletracking_backend.dispatch.service.DispatchAvailabili
 import com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity;
 import com.quangkhai.vehicletracking_backend.driver.repository.DriverRepository;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository;
+import com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType;
+import com.quangkhai.vehicletracking_backend.reroute.entity.TripNotificationEntity;
 import com.quangkhai.vehicletracking_backend.route.entity.RouteEntity;
 import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
@@ -152,6 +154,12 @@ class TripAssignmentServiceTest {
         verify(trips).flush();
         verify(inbox).save(argThat(item -> item.getKind() == DriverInboxKind.DIRECT_ASSIGNMENT_ACCEPTED
                 && item.getAssignmentRequestId().equals(request.getId())));
+        ArgumentCaptor<TripNotificationEntity> notification = ArgumentCaptor.forClass(TripNotificationEntity.class);
+        verify(notifications).save(notification.capture());
+        assertThat(notification.getValue().getType()).isEqualTo(NotificationType.DIRECT_ASSIGNMENT_ACCEPTED);
+        assertThat(notification.getValue().getTitle()).isEqualTo("Tài xế đã nhận chuyến");
+        assertThat(notification.getValue().getReason()).contains(driverA.getFullName());
+        assertThat(notification.getValue().getTrip()).isSameAs(trip);
     }
 
     @Test
@@ -177,7 +185,7 @@ class TripAssignmentServiceTest {
         assertThat(trip.getDriver()).isNull();
         assertThat(request.getStatus()).isEqualTo(TripAssignmentStatus.PENDING);
         verify(trips, never()).flush();
-        verifyNoInteractions(inbox);
+        verifyNoInteractions(inbox, notifications);
     }
 
     @Test

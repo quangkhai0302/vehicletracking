@@ -23,4 +23,10 @@ public class DriverDispatchController {
     public DriverInboxResponse markRead(@AuthenticationPrincipal UserAccountPrincipal principal, @PathVariable long id) {
         return service.markRead(principal, id);
     }
+    @DeleteMapping("/dispatch/inbox/{id}")
+    public org.springframework.http.ResponseEntity<Void> dismiss(@AuthenticationPrincipal UserAccountPrincipal principal,
+                                                                 @PathVariable long id) {
+        service.dismiss(principal, id);
+        return org.springframework.http.ResponseEntity.noContent().build();
+    }
 }

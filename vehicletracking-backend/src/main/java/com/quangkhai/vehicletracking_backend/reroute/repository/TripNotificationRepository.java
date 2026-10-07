@@ -32,6 +32,7 @@ public interface TripNotificationRepository extends JpaRepository<TripNotificati
             join n.trip t
             where t.id in :tripIds
               and n.type = :type
+              and (n.attemptNumber is null or n.attemptNumber = t.attemptNumber)
               and n.createdAt >= :from
               and n.createdAt < :toExclusive
               and (:vehicleId is null or t.vehicle.id = :vehicleId)
@@ -47,6 +48,8 @@ public interface TripNotificationRepository extends JpaRepository<TripNotificati
     @Query("""
             select n from TripNotificationEntity n
             join fetch n.trip t
+            left join fetch n.simulationIncident i
+            left join fetch i.reportedByDriver
             where t.id in :tripIds
               and n.createdAt >= :from
               and n.createdAt < :toExclusive

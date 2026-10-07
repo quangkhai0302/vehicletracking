@@ -16,6 +16,7 @@ import {
   X,
 } from '@lucide/vue';
 import PageHeading from '@/shared/components/PageHeading.vue';
+import PaginationControls from '@/shared/components/PaginationControls.vue';
 import SidePanel from '@/shared/components/SidePanel.vue';
 import RouteDeactivateConfirm from '@/features/routes/components/RouteDeactivateConfirm.vue';
 import RouteMapDetail from '@/features/routes/components/RouteMapDetail.vue';
@@ -46,6 +47,8 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const searchQuery = ref('');
 const sortBy = ref<'name_asc' | 'name_desc' | 'dist_asc' | 'dist_desc'>('name_asc');
+const routesPage = ref(1);
+const routesPageSize = 10;
 
 // Detail / View state
 const viewingRoute = ref<RouteDetail | null>(null);
@@ -122,6 +125,10 @@ const filteredRoutes = computed(() => {
 
   return list;
 });
+const routesPageCount = computed(() => Math.max(1, Math.ceil(filteredRoutes.value.length / routesPageSize)));
+const pagedRoutes = computed(() => filteredRoutes.value.slice((routesPage.value - 1) * routesPageSize, routesPage.value * routesPageSize));
+watch([searchQuery, sortBy], () => (routesPage.value = 1));
+watch(routesPageCount, (count) => { if (routesPage.value > count) routesPage.value = count; });
 
 function formatDuration(seconds: number) {
   const mins = Math.round(seconds / 60);
@@ -483,7 +490,7 @@ async function confirmDeactivate() {
             </thead>
             <tbody>
               <tr
-                v-for="rt in filteredRoutes"
+                v-for="rt in pagedRoutes"
                 :key="rt.id"
                 :class="{ 'is-inactive': rt.active === false }"
               >
@@ -553,9 +560,7 @@ async function confirmDeactivate() {
               </tr>
             </tbody>
           </table>
-          <footer class="management-table-footer">
-            Hiển thị {{ filteredRoutes.length }} / {{ routes.length }} tuyến đường
-          </footer>
+          <PaginationControls v-model:page="routesPage" :page-count="routesPageCount" :total="filteredRoutes.length" :page-size="routesPageSize" label="tuyến đường" />
         </div>
       </div>
     </section>

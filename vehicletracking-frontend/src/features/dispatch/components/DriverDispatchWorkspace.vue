@@ -7,16 +7,16 @@ import {
   ref,
   shallowRef,
   useId,
+  watch,
   type CSSProperties,
 } from 'vue';
 import {
-  ArrowLeft,
   Bell,
   ChevronDown,
-  ChevronRight,
   KeyRound,
   LogOut,
   RefreshCw,
+  Trash2,
   UserRound,
   X,
 } from '@lucide/vue';
@@ -26,6 +26,7 @@ import {
   fetchDispatchInbox,
   fetchDriverAssignmentRequests,
   readDispatchInboxItem,
+  deleteDispatchInboxItem,
   acceptDriverAssignmentRequest,
   declineDriverAssignmentRequest,
 } from '../api/dispatch';
@@ -40,17 +41,24 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const busy = ref<string | null>(null);
 const assignmentToDecline = ref<string | null>(null);
+const inboxItemToDelete = ref<DriverDispatchInboxItem | null>(null);
+const inboxPage = ref(1);
+const inboxPageSize = 10;
 const assignmentReason = ref('');
 const root = shallowRef<HTMLElement | null>(null);
-const trigger = shallowRef<HTMLButtonElement | null>(null);
+const accountTrigger = shallowRef<HTMLButtonElement | null>(null);
+const notificationTrigger = shallowRef<HTMLButtonElement | null>(null);
 const panel = shallowRef<HTMLElement | null>(null);
-const notificationEntry = shallowRef<HTMLButtonElement | null>(null);
 const open = ref(false);
-const notificationsOpen = ref(false);
+const panelMode = ref<'account' | 'notifications'>('account');
 const refreshing = ref(false);
 const panelStyle = ref<CSSProperties>({});
 const panelId = `driver-notifications-${useId()}`;
 const unread = computed(() => inbox.value.filter((item) => item.readAt === null));
+const inboxPageCount = computed(() => Math.max(1, Math.ceil(inbox.value.length / inboxPageSize)));
+const pagedInbox = computed(() =>
+  inbox.value.slice((inboxPage.value - 1) * inboxPageSize, inboxPage.value * inboxPageSize),
+);
 const attentionCount = computed(() => {
   const represented = new Set(
     unread.value
@@ -62,21 +70,25 @@ const attentionCount = computed(() => {
     assignmentRequests.value.filter((item) => !represented.has(item.requestId)).length
   );
 });
-const triggerLabel = computed(
-  () =>
-    `Tài khoản ${props.accountName}, thông báo: ${unread.value.length} chưa đọc, ${assignmentRequests.value.length} yêu cầu chờ phản hồi${error.value ? ', có lỗi tải thông báo' : ''}`,
+const notificationLabel = computed(() =>
+  `Thông báo: ${unread.value.length} chưa đọc, ${assignmentRequests.value.length} yêu cầu chờ phản hồi${error.value ? ', có lỗi tải thông báo' : ''}`,
 );
 let controller: AbortController | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 let disposed = false;
 
+watch(inboxPageCount, (count) => {
+  if (inboxPage.value > count) inboxPage.value = count;
+});
+
 function positionPanel() {
-  if (!trigger.value) return;
-  const anchor = trigger.value.getBoundingClientRect();
+  const trigger = panelMode.value === 'notifications' ? notificationTrigger.value : accountTrigger.value;
+  if (!trigger) return;
+  const anchor = trigger.getBoundingClientRect();
   const headerBottom =
-    trigger.value.closest('.driver-portal-header')?.getBoundingClientRect().bottom ?? anchor.bottom;
+    trigger.closest('.driver-portal-header')?.getBoundingClientRect().bottom ?? anchor.bottom;
   const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
-  const width = Math.min(notificationsOpen.value ? 420 : 320, viewportWidth - 24);
+  const width = Math.min(panelMode.value === 'notifications' ? 420 : 320, viewportWidth - 24);
   const top = Math.max(
     12,
     Math.min(Math.max(anchor.bottom, headerBottom) + 10, window.innerHeight - 140),
@@ -90,23 +102,21 @@ function positionPanel() {
 }
 function closePanel(restoreFocus = false) {
   open.value = false;
-  notificationsOpen.value = false;
-  if (restoreFocus) void nextTick(() => trigger.value?.focus());
+  if (restoreFocus) {
+    void nextTick(() => {
+      const trigger = panelMode.value === 'notifications' ? notificationTrigger.value : accountTrigger.value;
+      trigger?.focus();
+    });
+  }
 }
-async function togglePanel() {
-  if (open.value) return closePanel(true);
+async function togglePanel(mode: 'account' | 'notifications') {
+  const samePanelOpen = open.value && panelMode.value === mode;
+  if (samePanelOpen) return closePanel(true);
+  panelMode.value = mode;
   positionPanel();
   open.value = true;
   await nextTick();
   panel.value?.focus();
-}
-async function showNotifications(show: boolean) {
-  notificationsOpen.value = show;
-  await nextTick();
-  positionPanel();
-  await nextTick();
-  if (show) panel.value?.focus();
-  else notificationEntry.value?.focus();
 }
 function accountAction(action: 'passwordChange' | 'signOut') {
   closePanel();
@@ -221,6 +231,12 @@ function requestDecline(requestId: string) {
   assignmentToDecline.value = requestId;
   assignmentReason.value = '';
 }
+function confirmInboxDelete() {
+  const item = inboxItemToDelete.value;
+  if (!item) return;
+  inboxItemToDelete.value = null;
+  void mutate(`delete-inbox:${item.id}`, () => deleteDispatchInboxItem(item.id));
+}
 function confirmAssignmentDecline() {
   const requestId = assignmentToDecline.value;
   const reason = assignmentReason.value.trim();
@@ -239,40 +255,39 @@ function confirmAssignmentDecline() {
     class="driver-notifications"
   >
     <button
-      ref="trigger"
+      ref="notificationTrigger"
+      type="button"
+      class="driver-notification-trigger"
+      :class="{ 'has-error': error }"
+      :aria-label="notificationLabel"
+      :title="notificationLabel"
+      aria-haspopup="dialog"
+      :aria-expanded="open && panelMode === 'notifications'"
+      :aria-controls="panelId"
+      @click="togglePanel('notifications')"
+    >
+      <Bell :size="18" aria-hidden="true" />
+      <span
+        v-if="attentionCount || error"
+        class="driver-notifications-badge"
+        aria-hidden="true"
+      >{{ attentionCount ? (attentionCount > 99 ? '99+' : attentionCount) : '!' }}</span>
+    </button>
+    <button
+      ref="accountTrigger"
       type="button"
       class="driver-account-trigger"
-      :class="{ 'has-error': error }"
-      :aria-label="triggerLabel"
-      :title="triggerLabel"
+      :aria-label="`Tài khoản ${accountName}`"
+      :title="`Tài khoản ${accountName}`"
       aria-haspopup="dialog"
-      :aria-expanded="open"
+      :aria-expanded="open && panelMode === 'account'"
       :aria-controls="panelId"
-      @click="togglePanel"
+      @click="togglePanel('account')"
     >
-      <UserRound
-        :size="18"
-        aria-hidden="true"
-      />
+      <UserRound :size="18" aria-hidden="true" />
       <span class="driver-account-name">{{ accountName }}</span>
       <span class="driver-account-mobile-label">Tài khoản</span>
-      <ChevronDown
-        :size="15"
-        aria-hidden="true"
-      />
-      <span
-        v-if="attentionCount"
-        class="driver-notifications-badge"
-        aria-hidden="true"
-      >
-        {{ attentionCount > 99 ? '99+' : attentionCount }}
-      </span>
-      <span
-        v-else-if="error"
-        class="driver-notifications-badge"
-        aria-hidden="true"
-        >!</span
-      >
+      <ChevronDown :size="15" aria-hidden="true" />
     </button>
     <Teleport to="body">
       <section
@@ -287,18 +302,9 @@ function confirmAssignmentDecline() {
       >
         <div class="driver-dispatch-heading">
           <div class="driver-account-heading">
-            <button
-              v-if="notificationsOpen"
-              type="button"
-              class="driver-account-back"
-              aria-label="Quay lại tài khoản"
-              @click="showNotifications(false)"
-            >
-              <ArrowLeft :size="18" />
-            </button>
             <div>
-              <h2 :id="`${panelId}-title`">{{ notificationsOpen ? 'Thông báo' : 'Tài khoản' }}</h2>
-              <p v-if="notificationsOpen">
+              <h2 :id="`${panelId}-title`">{{ panelMode === 'notifications' ? 'Thông báo' : 'Tài khoản' }}</h2>
+              <p v-if="panelMode === 'notifications'">
                 {{ unread.length }} chưa đọc · {{ assignmentRequests.length }} yêu cầu chờ
               </p>
               <p
@@ -311,7 +317,7 @@ function confirmAssignmentDecline() {
           </div>
           <div class="driver-notifications-tools">
             <button
-              v-if="notificationsOpen"
+              v-if="panelMode === 'notifications'"
               type="button"
               :disabled="refreshing || !!busy"
               aria-label="Làm mới thông báo"
@@ -325,7 +331,7 @@ function confirmAssignmentDecline() {
             </button>
             <button
               type="button"
-              :aria-label="notificationsOpen ? 'Đóng thông báo' : 'Đóng tài khoản'"
+              :aria-label="panelMode === 'notifications' ? 'Đóng thông báo' : 'Đóng tài khoản'"
               @click="closePanel(true)"
             >
               <X :size="18" />
@@ -333,36 +339,9 @@ function confirmAssignmentDecline() {
           </div>
         </div>
         <div
-          v-if="!notificationsOpen"
+          v-if="panelMode === 'account'"
           class="driver-account-actions"
         >
-          <button
-            ref="notificationEntry"
-            type="button"
-            class="driver-account-notifications"
-            @click="showNotifications(true)"
-          >
-            <Bell
-              :size="19"
-              aria-hidden="true"
-            />
-            <span
-              ><strong>Thông báo</strong><small v-if="error">Có lỗi tải thông báo</small
-              ><small v-else
-                >{{ unread.length }} chưa đọc · {{ assignmentRequests.length }} yêu cầu chờ</small
-              ></span
-            >
-            <span
-              v-if="attentionCount || error"
-              class="driver-account-count"
-              :class="{ 'has-error': error }"
-              >{{ attentionCount ? (attentionCount > 99 ? '99+' : attentionCount) : '!' }}</span
-            >
-            <ChevronRight
-              :size="16"
-              aria-hidden="true"
-            />
-          </button>
           <button
             type="button"
             @click="accountAction('passwordChange')"
@@ -458,7 +437,7 @@ function confirmAssignmentDecline() {
             <p v-if="!inbox.length">Chưa có thông báo điều phối.</p>
             <ul v-else>
               <li
-                v-for="item in inbox"
+                v-for="item in pagedInbox"
                 :key="item.id"
                 :class="{ unread: !item.readAt }"
               >
@@ -475,9 +454,37 @@ function confirmAssignmentDecline() {
                 >
                   Đã đọc
                 </button>
+                <button
+                  type="button"
+                  class="driver-inbox-delete"
+                  :disabled="!!busy"
+                  @click="inboxItemToDelete = item"
+                >
+                  <Trash2 :size="13" />Xóa
+                </button>
               </li>
             </ul>
+            <nav
+              v-if="inbox.length > 0"
+              class="driver-inbox-pagination"
+              aria-label="Phân trang thông báo tài xế"
+            >
+              <span>Trang {{ inboxPage }} / {{ inboxPageCount }}</span>
+              <div>
+                <button type="button" :disabled="inboxPage <= 1" @click="inboxPage--">Trước</button>
+                <button type="button" :disabled="inboxPage >= inboxPageCount" @click="inboxPage++">Tiếp</button>
+              </div>
+            </nav>
           </div>
+          <FleetConfirmDialog
+            v-if="inboxItemToDelete"
+            title="Xóa thông báo?"
+            message="Thông báo này sẽ bị ẩn khỏi hộp công việc của bạn."
+            confirm-label="Xác nhận xóa"
+            :busy="!!busy"
+            :on-close="() => (inboxItemToDelete = null)"
+            :on-confirm="confirmInboxDelete"
+          />
           <FleetConfirmDialog
             v-if="assignmentToDecline !== null"
             title="Từ chối nhận chuyến?"

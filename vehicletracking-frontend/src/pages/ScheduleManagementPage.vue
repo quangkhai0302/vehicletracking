@@ -23,6 +23,7 @@ import type { Driver, FleetVehicle } from '@/features/fleet/types/fleet';
 import type { RouteSummary } from '@/features/routes/types/route';
 import type { TripSchedule, TripScheduleInput } from '@/features/schedules/types/schedule';
 import PageHeading from '@/shared/components/PageHeading.vue';
+import PaginationControls from '@/shared/components/PaginationControls.vue';
 import SidePanel from '@/shared/components/SidePanel.vue';
 import AppSelect from '@/shared/components/AppSelect.vue';
 import AppDatePicker from '@/shared/components/AppDatePicker.vue';
@@ -84,6 +85,8 @@ const data = shallowRef<ScheduleData | null>(null),
   attempt = ref(0);
 const routeFilter = ref(''),
   statusFilter = ref<'ALL' | 'ENABLED' | 'DISABLED'>('ALL');
+const schedulesPage = ref(1);
+const schedulesPageSize = 10;
 const editorOpen = ref(false),
   form = ref<FormState>(blankForm()),
   formError = ref<string | null>(null),
@@ -142,6 +145,10 @@ const schedules = computed(() =>
         (statusFilter.value === 'ENABLED' ? schedule.enabled : !schedule.enabled)),
   ),
 );
+const schedulesPageCount = computed(() => Math.max(1, Math.ceil(schedules.value.length / schedulesPageSize)));
+const pageSchedules = computed(() => schedules.value.slice((schedulesPage.value - 1) * schedulesPageSize, schedulesPage.value * schedulesPageSize));
+watch([routeFilter, statusFilter], () => (schedulesPage.value = 1));
+watch(schedulesPageCount, (count) => { if (schedulesPage.value > count) schedulesPage.value = count; });
 const metrics = computed(() => ({
   total: data.value?.schedules.length ?? 0,
   active: data.value?.schedules.filter((s) => s.enabled).length ?? 0,
@@ -408,7 +415,7 @@ async function toggle() {
         class="schedule-cards"
       >
         <article
-          v-for="schedule in schedules"
+          v-for="schedule in pageSchedules"
           :key="schedule.id"
           class="schedule-card"
           :data-enabled="schedule.enabled"
@@ -480,6 +487,7 @@ async function toggle() {
           <RouterLink to="/trips">Xem chuyến đi <ChevronRight :size="14" /></RouterLink>
         </article>
       </div>
+      <PaginationControls v-if="!loading" v-model:page="schedulesPage" :page-count="schedulesPageCount" :total="schedules.length" :page-size="schedulesPageSize" label="lịch chạy" />
     </section>
     <SidePanel
       v-if="editorOpen"

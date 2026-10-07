@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -86,5 +87,16 @@ class DriverDispatchControllerTest {
                 .cookie(new Cookie("XSRF-TOKEN", token)).header("X-XSRF-TOKEN", token))
                 .andExpect(status().isNotFound());
         verify(driverService).markRead(driver.principal(), 7);
+    }
+
+    @Test void deletingInboxItemNeedsCsrfAndUsesDriverScope() throws Exception {
+        var driver = session(UserRole.DRIVER);
+        mvc.perform(delete("/api/v1/driver/dispatch/inbox/7").session(driver.value()))
+                .andExpect(status().isForbidden());
+        String token = csrf();
+        mvc.perform(delete("/api/v1/driver/dispatch/inbox/7").session(driver.value())
+                .cookie(new Cookie("XSRF-TOKEN", token)).header("X-XSRF-TOKEN", token))
+                .andExpect(status().isNoContent());
+        verify(driverService).dismiss(driver.principal(), 7);
     }
 }

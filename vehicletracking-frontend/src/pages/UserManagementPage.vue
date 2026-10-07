@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onScopeDispose, reactive, ref, shallowRef } from 'vue';
+import { computed, onScopeDispose, reactive, ref, shallowRef, watch } from 'vue';
 import {
   CircleCheck,
   KeyRound,
@@ -23,12 +23,18 @@ import {
 import { fetchDrivers } from '@/features/fleet/api/fleet';
 import type { Driver } from '@/features/fleet/types/fleet';
 import PageHeading from '@/shared/components/PageHeading.vue';
+import PaginationControls from '@/shared/components/PaginationControls.vue';
 import SidePanel from '@/shared/components/SidePanel.vue';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
 import { notifySuccess } from '@/shared/notifications/toast';
 import '@/features/auth/styles/user-management.css';
 const accounts = shallowRef<UserAccount[]>([]),
   drivers = shallowRef<Driver[]>([]);
+const accountsPage = ref(1);
+const accountsPageSize = 10;
+const accountsPageCount = computed(() => Math.max(1, Math.ceil(accounts.value.length / accountsPageSize)));
+const pageAccounts = computed(() => accounts.value.slice((accountsPage.value - 1) * accountsPageSize, accountsPage.value * accountsPageSize));
+watch(accountsPageCount, (count) => { if (accountsPage.value > count) accountsPage.value = count; });
 const form = reactive({ driverId: '' });
 const issuedAccount = shallowRef<DriverAccountCreated | null>(null);
 const passwordResetForm = reactive({ password: '', confirmation: '' });
@@ -265,7 +271,7 @@ async function submitPasswordReset() {
             <span role="columnheader">Thao tác</span>
           </div>
           <article
-            v-for="account in accounts"
+            v-for="account in pageAccounts"
             :key="account.id"
             :class="['user-row', { 'is-locked': !account.active }]"
             :data-active="account.active"
@@ -369,6 +375,7 @@ async function submitPasswordReset() {
             </div>
           </article>
         </div>
+        <PaginationControls v-if="!loading" v-model:page="accountsPage" :page-count="accountsPageCount" :total="accounts.length" :page-size="accountsPageSize" label="tài khoản" />
       </section>
     </div>
     <SidePanel

@@ -23,6 +23,7 @@ public class DriverDispatchInboxEntity {
     @Column(name = "dedupe_key", nullable = false, length = 255) private String dedupeKey;
     @Column(name = "created_at", nullable = false) private Instant createdAt;
     @Column(name = "read_at") private Instant readAt;
+    @Column(name = "dismissed_at") private Instant dismissedAt;
 
     public DriverDispatchInboxEntity(long recipientDriverId, long tripId, UUID offerId, DriverInboxKind kind,
                                      String title, String detail, String dedupeKey, Instant now) {
@@ -43,4 +44,5 @@ public class DriverDispatchInboxEntity {
     }
 
     public void markRead(Instant now) { if (readAt == null) readAt = now; }
+    public void dismiss(Instant now) { if (dismissedAt == null) dismissedAt = now; }
 }
