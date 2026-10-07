@@ -20,8 +20,6 @@ export interface TelemetryPosition {
   source: 'GPS' | 'SIMULATOR';
 }
 export type SimulationStatus = 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'STOPPED' | 'FAILED';
-export type SimulationScenario =
-  'CURRENT_TRAFFIC' | 'NORMAL' | 'CONGESTION' | 'BLOCKED' | 'OFF_ROUTE';
 export interface SimulationFrame {
   latitude: number;
   longitude: number;
@@ -35,7 +33,6 @@ export interface SimulationFrame {
   finished: boolean;
 }
 export interface SimulationRun {
-  scenario?: SimulationScenario | null;
   virtualElapsedSeconds?: number | null;
   routeRevisionId?: number | null;
   attemptNumber?: number;

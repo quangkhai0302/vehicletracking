@@ -99,7 +99,7 @@ class OperationsIntegrationTest {
     @Test void reportsUseFrozenPerAttemptClockAndExcludePreparedReplayUntilFirstPlay() {
         var trip=create(); long id=trip.trip().id(), vehicleId=trip.trip().vehicleId();
         time.set(Instant.parse("2026-10-05T16:59:00Z"));
-        simulator.play(id); simulator.scenario(id,com.quangkhai.vehicletracking_backend.simulation.entity.SimulationScenario.NORMAL,1);
+        simulator.play(id);
         seconds(100); simulator.tick(id);
         var before=reports.report(LocalDate.of(2026,10,5),LocalDate.of(2026,10,5),vehicleId,null,
             com.quangkhai.vehicletracking_backend.reporting.dto.SimulationReportMetric.ALL,0,20);
@@ -115,12 +115,12 @@ class OperationsIntegrationTest {
             com.quangkhai.vehicletracking_backend.reporting.dto.SimulationReportMetric.ALL,0,20).attemptCount()).isEqualTo(1);
         var old=simulationAttempts.findAllByTripIdOrderByAttemptNumberDesc(id).getFirst();
         assertThat(old.getMetadata().getVehiclePlateNumber()).isEqualTo(trip.trip().vehiclePlateNumber());
-        simulator.play(id); simulator.scenario(id,com.quangkhai.vehicletracking_backend.simulation.entity.SimulationScenario.CONGESTION,2);
+        simulator.play(id);
         seconds(100); simulator.tick(id);
         var next=reports.report(LocalDate.of(2026,10,6),LocalDate.of(2026,10,6),vehicleId,null,
             com.quangkhai.vehicletracking_backend.reporting.dto.SimulationReportMetric.ALL,0,20);
-        assertThat(next.attemptCount()).isEqualTo(1); assertThat(next.totalVirtualSeconds()).isEqualTo(84);
-        assertThat(next.onTimeRatePercent()).isEqualTo(0); assertThat(next.lateAttemptCount()).isEqualTo(1);
+        assertThat(next.attemptCount()).isEqualTo(1); assertThat(next.totalVirtualSeconds()).isEqualTo(44);
+        assertThat(next.onTimeRatePercent()).isEqualTo(100); assertThat(next.lateAttemptCount()).isZero();
         assertThat(next.items()).singleElement().satisfies(item -> assertThat(item.attemptNumber()).isEqualTo(2));
     }
 
@@ -180,34 +180,6 @@ class OperationsIntegrationTest {
                         null, UUID.randomUUID())));
     }
 
-    @Test void offRouteWaitsAtUnvisitedStopWithVirtualClockAndRestoresWithoutFakeVisitsOrFailure() {
-        var trip=createAligned(); long id=trip.trip().id();
-        simulator.play(id); simulator.scenario(id,com.quangkhai.vehicletracking_backend.simulation.entity.SimulationScenario.OFF_ROUTE,1);
-        offRoutes.evaluateCurrent(id);
-        seconds(15); simulator.tick(id); offRoutes.evaluateCurrent(id);
-        seconds(5); simulator.tick(id);
-        assertThat(simulator.play(id).frame().speedKmh()).isZero();
-        assertThat(snapshots.snapshot().simulations()).filteredOn(s -> s.tripId()==id).singleElement()
-            .satisfies(s -> assertThat(s.frame().speedKmh()).isZero());
-        seconds(15); simulator.tick(id); offRoutes.evaluateCurrent(id);
-        var waiting=runs.findByTripId(id).orElseThrow();
-        assertThat(waiting.getElapsedSeconds()).isEqualTo(20); assertThat(waiting.getVirtualElapsedSeconds()).isEqualTo(35);
-        assertThat(simulator.play(id).frame().speedKmh()).isZero();
-        assertThat(snapshots.snapshot().simulations()).filteredOn(s -> s.tripId()==id).singleElement()
-            .satisfies(s -> assertThat(s.frame().speedKmh()).isZero());
-        assertThat(checkIns.find(id).visits()).hasSize(1);
-        assertThat(notifications.findAllByTripIdOrderByCreatedAtDescIdDesc(id)).filteredOn(n -> n.getType()==com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType.OFF_ROUTE_DETECTED)
-            .singleElement().satisfies(event -> {
-                assertThat(event.getSource()).isEqualTo(TelemetrySource.SIMULATOR);
-                assertThat(event.getAttemptNumber()).isEqualTo(1);
-            });
-        simulator.scenario(id,com.quangkhai.vehicletracking_backend.simulation.entity.SimulationScenario.NORMAL,1);
-        assertThat(checkIns.find(id).visits()).hasSize(2);
-        seconds(50); simulator.tick(id);
-        assertThat(runs.findByTripId(id).orElseThrow().getStatus()).isEqualTo(SimulationStatus.COMPLETED);
-        assertThat(runs.findByTripId(id).orElseThrow().getVirtualElapsedSeconds()).isEqualTo(59);
-        assertThat(checkIns.find(id).visits()).hasSize(3);
-    }
     @Test void gpsDeduplicationHistoryAndOldPacketsNeverRegressLatest() {
         var trip=create(); trips.start(trip.trip().id()); var event=UUID.randomUUID();
         var request=gps(trip,event,time.get(),10.77);

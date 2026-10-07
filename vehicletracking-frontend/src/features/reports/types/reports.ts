@@ -101,6 +101,9 @@ export interface OperationalReportDetail {
   employeePassengerDataNote: string;
   employeeOccupancy: EmployeeOccupancySummary;
   employeeOccupancyByVehicle: EmployeeOccupancyVehicleRow[];
+  employeeOccupancyByDay: EmployeeOccupancyDayRow[];
+  employeeOccupancyByStation: EmployeeOccupancyStationRow[];
+  employeeOccupancyTrips: EmployeeOccupancyTripRow[];
 }
 
 export interface EmployeeOccupancySummary {
@@ -126,6 +129,44 @@ export interface EmployeeOccupancyVehicleRow {
   averageBoardingsPerTrip: number | null;
   averageOnboard: number | null;
   seatUtilizationPercent: number | null;
+}
+
+export interface EmployeeOccupancyDayRow {
+  date: string;
+  completedTripCount: number;
+  confirmedTripCount: number;
+  totalBoardings: number;
+  averageBoardingsPerTrip: number | null;
+  seatUtilizationPercent: number | null;
+}
+
+export interface EmployeeOccupancyStationRow {
+  stationId: number | null;
+  stationName: string | null;
+  visitCount: number;
+  totalBoardings: number;
+  averageBoardingsPerVisit: number | null;
+}
+
+export interface EmployeeOccupancyStopRow {
+  stationId: number | null;
+  stationName: string | null;
+  stopSequence: number;
+  boardingCount: number | null;
+  onboardAfterStop: number | null;
+}
+
+export interface EmployeeOccupancyTripRow {
+  tripId: number;
+  routeName: string | null;
+  vehiclePlateNumber: string | null;
+  driverName: string | null;
+  serviceDate: string;
+  scheduledDepartureAt: string;
+  seatCapacity: number | null;
+  complete: boolean;
+  totalBoardings: number | null;
+  pickupStops: EmployeeOccupancyStopRow[];
 }
 
 export type SimulationReportMetric = 'ALL' | 'COMPLETED' | 'ON_TIME' | 'LATE' | 'OFF_ROUTE';

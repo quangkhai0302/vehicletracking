@@ -95,6 +95,7 @@ const report: OperationalReportDetail = {
   employeePassengerDataNote: 'Chưa có dữ liệu',
   employeeOccupancy: { completedTripCount: 0, tripsWithCompleteBoardingData: 0, tripsMissingBoardingData: 0, tripsMissingSeatCapacity: 0, totalBoardings: 0, averageBoardingsPerTrip: null, averageOnboard: null, seatUtilizationPercent: null },
   employeeOccupancyByVehicle: [],
+  employeeOccupancyByDay: [], employeeOccupancyByStation: [], employeeOccupancyTrips: [],
 };
 const account: UserAccount = {
   id: 2,

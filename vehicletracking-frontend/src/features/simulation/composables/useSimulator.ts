@@ -9,15 +9,13 @@ import {
   type MaybeRefOrGetter,
 } from 'vue';
 import { fetchTrip } from '@/features/fleet/api/fleet';
-import { controlSimulation, setSimulationScenario } from '@/features/tracking/api/operations';
+import { controlSimulation } from '@/features/tracking/api/operations';
 import type { TripDetail } from '@/features/fleet/types/fleet';
 import type {
   OperationsSnapshot,
   SimulationAction,
   SimulationRun,
-  SimulationScenario,
 } from '@/features/tracking/types/operations';
-import { SIMULATION_SCENARIOS } from '../utils/scenarios';
 
 export function useSimulator(
   snapshot: MaybeRefOrGetter<OperationsSnapshot | null>,
@@ -144,35 +142,6 @@ export function useSimulator(
       if (alive) busy.value = false;
     }
   };
-  const setScenario = async (scenario: SimulationScenario) => {
-    const id = tripId.value,
-      current = run.value;
-    if (
-      !id ||
-      !current ||
-      busy.value ||
-      (current.status !== 'RUNNING' && current.status !== 'PAUSED')
-    )
-      return false;
-    const number = current.attemptNumber ?? replayNumber.value;
-    busy.value = true;
-    error.value = null;
-    try {
-      const response = await setSimulationScenario(id, scenario, number);
-      if (!alive) return true;
-      if (tripId.value !== id || replayNumber.value !== number) return true;
-      localRun.value = response;
-      onToast(`Đã chọn tình huống: ${SIMULATION_SCENARIOS[scenario].label}.`);
-      return true;
-    } catch (reason) {
-      if (alive)
-        error.value =
-          reason instanceof Error ? reason.message : 'Không đổi được tình huống mô phỏng.';
-      return false;
-    } finally {
-      if (alive) busy.value = false;
-    }
-  };
   return reactive({
     tripId,
     trip,
@@ -184,6 +153,5 @@ export function useSimulator(
     select,
     retry,
     command,
-    setScenario,
   });
 }

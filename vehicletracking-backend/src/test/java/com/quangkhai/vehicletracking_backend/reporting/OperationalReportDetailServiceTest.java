@@ -27,6 +27,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class OperationalReportDetailServiceTest {
@@ -64,16 +65,26 @@ class OperationalReportDetailServiceTest {
         when(route.getName()).thenReturn("Tuyến thử nghiệm");
         when(trip.getStatus()).thenReturn(TripStatus.COMPLETED);
         when(trip.getScheduledDepartureAt()).thenReturn(departure);
-        when(trip.getStops()).thenReturn(List.of(stop));
+        TripStopEntity missingPickup = mock(TripStopEntity.class);
+        TripStopEntity terminal = mock(TripStopEntity.class);
+        TripStopVisitEntity terminalVisit = mock(TripStopVisitEntity.class);
+        when(trip.getStops()).thenReturn(List.of(stop, missingPickup, terminal));
         when(vehicle.getId()).thenReturn(2L);
         when(vehicle.getName()).thenReturn("Xe 7");
         when(stop.getSequenceNumber()).thenReturn(1);
         when(stop.getArrivalOffsetSeconds()).thenReturn(300L);
         when(stop.getStationName()).thenReturn("Bến Thành");
+        when(missingPickup.getSequenceNumber()).thenReturn(2);
+        when(missingPickup.getStationName()).thenReturn("Trạm chưa xác nhận");
+        when(terminal.getSequenceNumber()).thenReturn(3);
         when(visit.getTrip()).thenReturn(trip);
         when(visit.getStopSequence()).thenReturn(1);
         when(visit.getActualArrivalAt()).thenReturn(departure.plusSeconds(420));
-        when(visits.findAllByTripIdInOrderByTripIdAscStopSequenceAsc(List.of(7L))).thenReturn(List.of(visit));
+        when(visit.getEmployeeBoardingCount()).thenReturn(0);
+        when(terminalVisit.getTrip()).thenReturn(trip);
+        when(terminalVisit.getStopSequence()).thenReturn(3);
+        when(visits.findAllByTripIdInOrderByTripIdAscStopSequenceAsc(List.of(7L)))
+                .thenReturn(List.of(visit, terminalVisit));
         when(notifications.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-20T17:00:00Z"),
                 Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of());
         when(telemetry.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of());
@@ -90,6 +101,15 @@ class OperationalReportDetailServiceTest {
         assertThat(result.lateStops()).singleElement().satisfies(row -> assertThat(row.delaySeconds()).isEqualTo(120));
         assertThat(result.lateStops()).singleElement().extracting(row -> row.routeName()).isEqualTo("Tuyến thử nghiệm");
         assertThat(result.employeePassengerDataAvailable()).isFalse();
+        assertThat(result.employeeOccupancyByStation()).isEmpty();
+        assertThat(result.employeeOccupancyTrips()).singleElement().satisfies(row -> {
+            assertThat(row.complete()).isFalse();
+            assertThat(row.totalBoardings()).isNull();
+            assertThat(row.pickupStops()).extracting(stopRow -> stopRow.boardingCount())
+                    .containsExactly(0, null);
+            assertThat(row.pickupStops()).extracting(stopRow -> stopRow.onboardAfterStop())
+                    .containsExactly(0L, null);
+        });
     }
 
     @Test
@@ -114,12 +134,17 @@ class OperationalReportDetailServiceTest {
         when(trip.getDriverNameSnapshot()).thenReturn("Nguyễn Văn A");
         when(trip.getDriver()).thenReturn(null);
         when(trip.getStatus()).thenReturn(TripStatus.COMPLETED);
+        when(trip.getScheduledDepartureAt()).thenReturn(departure);
         when(stop.getSequenceNumber()).thenReturn(1);
+        when(stop.getStationId()).thenReturn(11L);
+        when(stop.getStationName()).thenReturn("Trạm A");
         when(stop.getArrivalOffsetSeconds()).thenReturn(0L);
         TripStopEntity secondStop = stopAtSecondPickup();
         TripStopEntity endStop = finalStop();
         when(trip.getStops()).thenReturn(List.of(stop, secondStop, endStop));
         when(secondStop.getSequenceNumber()).thenReturn(2);
+        when(secondStop.getStationId()).thenReturn(12L);
+        when(secondStop.getStationName()).thenReturn("Trạm B");
         when(secondStop.getArrivalOffsetSeconds()).thenReturn(360L);
         when(endStop.getSequenceNumber()).thenReturn(3);
         when(endStop.getArrivalOffsetSeconds()).thenReturn(1020L);
@@ -160,6 +185,89 @@ class OperationalReportDetailServiceTest {
             assertThat(row.totalBoardings()).isEqualTo(5);
             assertThat(row.seatUtilizationPercent()).isEqualTo(50d);
         });
+        assertThat(result.employeeOccupancyByDay()).singleElement().satisfies(row -> {
+            assertThat(row.date()).isEqualTo(LocalDate.of(2026, 9, 21));
+            assertThat(row.confirmedTripCount()).isEqualTo(1);
+            assertThat(row.totalBoardings()).isEqualTo(5);
+            assertThat(row.seatUtilizationPercent()).isEqualTo(50d);
+        });
+        assertThat(result.employeeOccupancyByStation()).extracting(row -> row.totalBoardings())
+                .containsExactly(3L, 2L);
+        assertThat(result.employeeOccupancyTrips()).singleElement().satisfies(row -> {
+            assertThat(row.complete()).isTrue();
+            assertThat(row.totalBoardings()).isEqualTo(5L);
+            assertThat(row.pickupStops()).extracting(stopRow -> stopRow.onboardAfterStop())
+                    .containsExactly(2L, 5L);
+        });
+    }
+
+    @Test
+    void groupsConfirmedPickupCountsByVietnameseServiceDayAndStationIncludingZero() {
+        Instant beforeMidnight = Instant.parse("2026-09-21T16:30:00Z");
+        Instant afterMidnight = Instant.parse("2026-09-21T17:30:00Z");
+        Instant now = Instant.parse("2026-09-22T12:00:00Z");
+        var summary = new OperationalReportResponse(LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 22),
+                now, 2, 2, 0, 0, 0, 0, 0, 0, 80);
+        TripEntity first = mock(TripEntity.class);
+        TripEntity second = mock(TripEntity.class);
+        when(operationalReports.operations(summary.from(), summary.to(), null, null)).thenReturn(summary);
+        when(clock.instant()).thenReturn(now);
+        when(trips.findAllForOperationalReport(Instant.parse("2026-09-20T17:00:00Z"),
+                Instant.parse("2026-09-22T17:00:00Z"), null, null)).thenReturn(List.of(first, second));
+        when(vehicle.getId()).thenReturn(5L);
+        when(vehicle.getSeatCapacity()).thenReturn(10);
+
+        List<TripStopVisitEntity> visitRows = new java.util.ArrayList<>();
+        TripEntity[] tripRows = {first, second};
+        Instant[] departures = {beforeMidnight, afterMidnight};
+        for (int index = 0; index < tripRows.length; index++) {
+            TripEntity current = tripRows[index];
+            TripStopEntity pickup = mock(TripStopEntity.class);
+            TripStopEntity terminal = mock(TripStopEntity.class);
+            TripStopVisitEntity boarding = mock(TripStopVisitEntity.class);
+            TripStopVisitEntity arrival = mock(TripStopVisitEntity.class);
+            when(current.getId()).thenReturn((long) index + 1);
+            when(current.getVehicle()).thenReturn(vehicle);
+            when(current.getStatus()).thenReturn(TripStatus.COMPLETED);
+            when(current.getScheduledDepartureAt()).thenReturn(departures[index]);
+            when(current.getStartedAt()).thenReturn(departures[index]);
+            when(current.getSeatCapacitySnapshot()).thenReturn(10);
+            when(current.getStops()).thenReturn(List.of(pickup, terminal));
+            when(pickup.getSequenceNumber()).thenReturn(1);
+            when(pickup.getStationId()).thenReturn(11L);
+            when(pickup.getStationName()).thenReturn("Trạm A");
+            when(terminal.getSequenceNumber()).thenReturn(2);
+            when(boarding.getTrip()).thenReturn(current);
+            when(boarding.getStopSequence()).thenReturn(1);
+            when(boarding.getEmployeeBoardingCount()).thenReturn(index == 0 ? 0 : 3);
+            when(arrival.getTrip()).thenReturn(current);
+            when(arrival.getStopSequence()).thenReturn(2);
+            visitRows.add(boarding);
+            visitRows.add(arrival);
+        }
+        when(visits.findAllByTripIdInOrderByTripIdAscStopSequenceAsc(List.of(1L, 2L)))
+                .thenReturn(visitRows);
+        when(notifications.findAllForOperationalReport(List.of(1L, 2L),
+                Instant.parse("2026-09-20T17:00:00Z"), Instant.parse("2026-09-22T17:00:00Z")))
+                .thenReturn(List.of());
+        when(telemetry.findAllForOperationalReport(List.of(1L, 2L),
+                Instant.parse("2026-09-22T17:00:00Z"))).thenReturn(List.of());
+
+        var result = new OperationalReportDetailService(operationalReports, trips, visits, notifications,
+                telemetry, new ReportingProperties(), clock).detail(summary.from(), summary.to(), null, null);
+
+        assertThat(result.employeeOccupancyByDay()).extracting(row -> row.date())
+                .containsExactly(LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 22));
+        assertThat(result.employeeOccupancyByDay()).extracting(row -> row.totalBoardings())
+                .containsExactly(0L, 3L);
+        assertThat(result.employeeOccupancyByStation()).singleElement().satisfies(row -> {
+            assertThat(row.stationId()).isEqualTo(11L);
+            assertThat(row.visitCount()).isEqualTo(2);
+            assertThat(row.totalBoardings()).isEqualTo(3);
+            assertThat(row.averageBoardingsPerVisit()).isEqualTo(1.5d);
+        });
+        assertThat(result.employeeOccupancyTrips()).extracting(row -> row.totalBoardings())
+                .containsExactly(3L, 0L);
     }
 
     private TripStopEntity stopAtSecondPickup() { return org.mockito.Mockito.mock(TripStopEntity.class); }

@@ -86,12 +86,9 @@ class OperationsHttpIntegrationTest {
         var play=post("/trips/"+id+"/simulation/play","{}");
         assertThat(play.statusCode()).isEqualTo(200);
         assertThat(json.readTree(play.body()).get("status").asString()).isEqualTo("RUNNING");
-        assertThat(json.readTree(play.body()).get("scenario").asString()).isEqualTo("CURRENT_TRAFFIC");
+        assertThat(json.readTree(play.body()).get("scenario")).isNull();
         assertThat(json.readTree(play.body()).get("virtualElapsedSeconds").asDouble()).isZero();
-        assertThat(post("/trips/"+id+"/simulation/scenario","{\"scenario\":\"BAD\",\"attemptNumber\":1}").statusCode()).isEqualTo(400);
-        assertThat(post("/trips/"+id+"/simulation/scenario","{\"scenario\":\"NORMAL\"}").statusCode()).isEqualTo(400);
-        assertThat(post("/trips/"+id+"/simulation/scenario","{\"scenario\":\"NORMAL\",\"attemptNumber\":2}").statusCode()).isEqualTo(409);
-        assertThat(post("/trips/"+id+"/simulation/scenario","{\"scenario\":\"NORMAL\",\"attemptNumber\":1}").statusCode()).isEqualTo(200);
+        assertThat(post("/trips/"+id+"/simulation/scenario","{\"scenario\":\"CURRENT_TRAFFIC\"}").statusCode()).isEqualTo(404);
         var report=get("/reports/simulation?vehicleId="+trip.trip().vehicleId());
         assertThat(report.statusCode()).isEqualTo(200);
         assertThat(json.readTree(report.body()).get("attemptCount").asLong()).isEqualTo(1);

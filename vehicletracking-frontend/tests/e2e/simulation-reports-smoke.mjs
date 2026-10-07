@@ -62,6 +62,18 @@ try {
           assert.equal(await page.locator('.reports-occupancy-metrics').count(), 0);
           assert.equal(await page.locator('.reports-method-details').count(), 0);
           assert.match(await page.locator('.report-seat-usage').first().innerText(), /50%/);
+          await page.locator('#report-panel-occupancy .report-occupancy-nav').getByRole('button', { name: 'Theo ngày' }).click();
+          assert.match(await page.locator('[aria-label="Bảng hành khách theo ngày"]').innerText(), /35/);
+          await page.locator('#report-panel-occupancy .report-occupancy-nav').getByRole('button', { name: 'Theo trạm' }).click();
+          assert.match(await page.locator('[aria-label="Bảng hành khách theo trạm"]').innerText(), /14/);
+          await page.locator('#report-panel-occupancy .report-occupancy-nav').getByRole('button', { name: 'Theo chuyến' }).click();
+          await page.locator('.report-occupancy-detail-button').first().click();
+          assert.match(await page.locator('dialog.employee-occupancy-trip').innerText(), /5/);
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Occupancy details must not overflow');
+          await page.screenshot({ path: `${output}/reports-occupancy-details-${width}.png`, fullPage: true });
+          await page.keyboard.press('Escape');
+          assert.equal(await page.locator('dialog.employee-occupancy-trip').count(), 0);
+          assert.equal(await page.locator('.report-occupancy-detail-button').first().evaluate((button) => document.activeElement === button), true, 'Focus returns to the trip opener');
         }
         if (id === 'drivers') {
           const beforeOpen = reportRequestCount;

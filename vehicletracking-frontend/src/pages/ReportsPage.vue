@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, shallowRef, watch } from 'vue';
 import { CalendarDays, ChevronDown, FileSpreadsheet, Info, RefreshCw, SlidersHorizontal } from '@lucide/vue';
-import type { Cell, Row, Sheet } from 'write-excel-file/browser';
 import { fetchDrivers, fetchFleetVehicles } from '@/features/fleet/api/fleet';
 import type { Driver, FleetVehicle } from '@/features/fleet/types/fleet';
-import { TRIP_STATUS_LABELS } from '@/features/fleet/types/fleet';
 import { fetchOperationalReportDetail } from '@/features/reports/api/reports';
+import { buildReportWorkbook } from '@/features/reports/utils/reportExcel';
+import { incidentLabel, severityLabel, statusLabel } from '@/features/reports/utils/reportLabels';
 import type {
   OperationalReportDetail,
   OperationalReportFilters,
@@ -16,6 +16,7 @@ import ReportOverview from '@/features/reports/components/ReportOverview.vue';
 import ReportSectionTabs from '@/features/reports/components/ReportSectionTabs.vue';
 import ReportResourceTable from '@/features/reports/components/ReportResourceTable.vue';
 import DriverReportTripsPanel from '@/features/reports/components/DriverReportTripsPanel.vue';
+import EmployeeOccupancyBreakdown from '@/features/reports/components/EmployeeOccupancyBreakdown.vue';
 import PageHeading from '@/shared/components/PageHeading.vue';
 import AppDatePicker from '@/shared/components/AppDatePicker.vue';
 import PaginationControls from '@/shared/components/PaginationControls.vue';
@@ -51,18 +52,6 @@ function timestamp(value: string | null) {
   if (!value) return 'Chưa có dữ liệu';
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(value));
 }
-const incidentLabels: Record<string, string> = {
-  OFF_ROUTE_DETECTED: 'Lệch tuyến', OVERSPEED: 'Vượt tốc độ',
-  VEHICLE_BREAKDOWN: 'Xe gặp sự cố', EMERGENCY_STOP: 'Dừng khẩn cấp',
-  ROAD_BLOCKED: 'Đường bị chặn', OTHER: 'Sự cố khác', SIMULATION_INCIDENT: 'Sự cố tài xế báo',
-};
-const severityLabels: Record<string, string> = { MAJOR: 'Nghiêm trọng', CRITICAL: 'Khẩn cấp' };
-const statusLabels: Record<string, string> = {
-  OPEN: 'Chưa xử lý', ACKNOWLEDGED: 'Đã tiếp nhận', RESOLVED: 'Đã xử lý', RECORDED: 'Đã ghi nhận',
-};
-const incidentLabel = (type: string) => incidentLabels[type] ?? 'Cảnh báo khác';
-const severityLabel = (severity: string) => severityLabels[severity] ?? 'Chưa xác định';
-const statusLabel = (status: string) => statusLabels[status] ?? 'Chưa xác định';
 const periodMode = ref<PeriodMode>('MONTH');
 const reportYear = ref(currentMonth().slice(0, 4));
 const reportMonth = ref(currentMonth().slice(5));
@@ -114,23 +103,20 @@ const lateStopRows = computed(() => {
   });
 });
 const reportPageSize = 10;
-const occupancyPage = ref(1), vehiclePage = ref(1), driverPage = ref(1), lateStopPage = ref(1), incidentPage = ref(1), incidentDetailPage = ref(1);
-const occupancyRows = computed(() => report.value?.employeeOccupancyByVehicle ?? []);
+const vehiclePage = ref(1), driverPage = ref(1), lateStopPage = ref(1), incidentPage = ref(1), incidentDetailPage = ref(1);
 const vehicleRows = computed(() => report.value?.vehicles ?? []);
 const driverRows = computed(() => report.value?.drivers ?? []);
 const incidentRows = computed(() => report.value?.incidents ?? []);
 const incidentDetailRows = computed(() => report.value?.incidentDetails ?? []);
 const pageCount = (total: number) => Math.max(1, Math.ceil(total / reportPageSize));
 const pageRows = <T,>(rows: T[], page: number) => rows.slice((page - 1) * reportPageSize, page * reportPageSize);
-const pageOccupancyRows = computed(() => pageRows(occupancyRows.value, occupancyPage.value));
 const pageVehicleRows = computed(() => pageRows(vehicleRows.value, vehiclePage.value));
 const pageDriverRows = computed(() => pageRows(driverRows.value, driverPage.value));
 const pageLateStopRows = computed(() => pageRows(lateStopRows.value, lateStopPage.value));
 const pageIncidentRows = computed(() => pageRows(incidentRows.value, incidentPage.value));
 const pageIncidentDetails = computed(() => pageRows(incidentDetailRows.value, incidentDetailPage.value));
 watch([lateStopSearch, lateStopStation, lateStopVehicle, lateStopDriver, lateStopMinimumMinutes], () => (lateStopPage.value = 1));
-watch(() => [occupancyRows.value.length, vehicleRows.value.length, driverRows.value.length, lateStopRows.value.length, incidentRows.value.length, incidentDetailRows.value.length], ([occupancy, vehiclesCount, driversCount, lateStops, incidents, details]) => {
-  occupancyPage.value = Math.min(occupancyPage.value, pageCount(occupancy));
+watch(() => [vehicleRows.value.length, driverRows.value.length, lateStopRows.value.length, incidentRows.value.length, incidentDetailRows.value.length], ([vehiclesCount, driversCount, lateStops, incidents, details]) => {
   vehiclePage.value = Math.min(vehiclePage.value, pageCount(vehiclesCount));
   driverPage.value = Math.min(driverPage.value, pageCount(driversCount));
   lateStopPage.value = Math.min(lateStopPage.value, pageCount(lateStops));
@@ -174,65 +160,20 @@ function idFilter(key: 'vehicleId' | 'driverId', event: Event) {
   const value = (event.target as HTMLSelectElement).value;
   applyFilters({ ...filters.value, [key]: value ? Number(value) : undefined });
 }
-type ExcelValue = string | number | null;
-type ExcelSheet = Sheet<File | Blob | ArrayBuffer>;
-function excelRow(values: ExcelValue[]): Row {
-  return values.map((value): Cell => typeof value === 'string' ? { value, type: String, format: '@' } : value);
-}
-function excelSheet(name: string, headings: string[], rows: ExcelValue[][], widths: number[]): ExcelSheet {
-  const header: Row = headings.map((value): Cell => ({ value, type: String, fontWeight: 'bold', textColor: '#18334B', backgroundColor: '#EAF3F9', wrap: true, height: 28 }));
-  return { sheet: name, data: [header, ...rows.map(excelRow)], columns: widths.map((width) => ({ width })), stickyRowsCount: 1, showGridLines: false };
-}
 async function exportReportExcel() {
   if (!report.value || exporting.value) return;
-  const r = report.value;
-  const scope = filters.value;
-  const vehicleName = (plate: string | null, name: string | null) => [plate, name].filter(Boolean).join(' · ') || 'Chưa có xe';
-  const sheets: ExcelSheet[] = [
-    excelSheet('Tổng quan', ['Nội dung', 'Giá trị'], [
-      ['Từ ngày', r.from], ['Đến ngày', r.to],
-      ['Phương tiện', scope.vehicleId ? selectedVehicle.value : 'Tất cả xe'],
-      ['Tài xế', scope.driverId ? selectedDriver.value : 'Tất cả tài xế'],
-      ['Chuyến đã thực hiện', r.summary.tripCount], ['Chuyến đã hoàn tất', r.summary.completedTripCount],
-      ['Chuyến quá thời gian dự kiến', r.summary.lateTripCount],
-      ['Sự cố / cảnh báo', r.incidents.reduce((sum, item) => sum + item.count, 0)],
-      ['Tổng lượt người được chở', r.employeeOccupancy.completedTripCount > 0 && r.employeeOccupancy.tripsWithCompleteBoardingData === 0 ? 'Chưa xác nhận' : r.employeeOccupancy.totalBoardings],
-      ['Người trung bình/chuyến', r.employeeOccupancy.averageBoardingsPerTrip ?? 'Chưa xác nhận'],
-      ['Tỷ lệ sử dụng ghế/chuyến (%)', r.employeeOccupancy.seatUtilizationPercent ?? 'Chưa tính được'],
-      ['Chuyến đã xác nhận số người tại tất cả trạm đón', r.employeeOccupancy.tripsWithCompleteBoardingData],
-      ['Chuyến còn thiếu xác nhận tại trạm đón', r.employeeOccupancy.tripsMissingBoardingData],
-      ['Chuyến chưa biết số ghế lúc khởi hành', r.employeeOccupancy.tripsMissingSeatCapacity],
-      ['Bộ lọc trễ trạm', `Tìm: ${lateStopSearch.value.trim() || 'Không lọc'}; Trạm: ${lateStopStation.value || 'Tất cả'}; Xe: ${lateStopVehicle.value || 'Tất cả'}; Tài xế: ${lateStopDriver.value || 'Tất cả'}; Trễ tối thiểu: ${lateStopMinimumMinutes.value} phút`],
-      ['Cách tính số người trung bình/chuyến', 'Tổng lượt người được chở tại các trạm đón / số chuyến hoàn tất đã xác nhận ở mọi trạm đón.'],
-      ['Cách tính tỷ lệ sử dụng ghế/chuyến', 'Tổng người được chở / tổng số ghế lúc khởi hành trên cùng các chuyến đã xác nhận số người và biết số ghế.'],
-      ['Ghi chú hành khách', r.employeePassengerDataNote],
-    ], [48, 110]),
-    excelSheet('Hành khách', ['Xe', 'Số ghế hiện tại', 'Người trung bình/chuyến', 'Tỷ lệ sử dụng ghế/chuyến (%)'],
-      r.employeeOccupancyByVehicle.map((row) => [vehicleName(row.plateNumber, row.vehicleName), row.seatCapacity ?? 'Chưa cấu hình', row.averageBoardingsPerTrip ?? 'Chưa xác nhận', row.seatUtilizationPercent ?? 'Chưa tính được']),
-      [34, 20, 28, 33]),
-    excelSheet('Theo xe', ['Xe', 'Chuyến đã thực hiện', 'Chuyến đã hoàn tất', 'Chuyến quá thời gian dự kiến', 'Số lần đến trạm trễ', 'Sự cố / cảnh báo', 'Số lượng nhân viên đi xe'],
-      r.vehicles.map((row) => [vehicleName(row.plateNumber, row.vehicleName), row.tripCount, row.completedTripCount, row.lateTripCount, row.lateStopCount, row.incidentCount, row.employeePassengerCount ?? 'Chưa xác nhận']),
-      [34, 22, 22, 29, 23, 22, 28]),
-    excelSheet('Theo tài xế', ['Tài xế', 'Chuyến đã thực hiện', 'Chuyến đã hoàn tất', 'Chuyến quá thời gian dự kiến', 'Số lần đến trạm trễ', 'Sự cố / cảnh báo', 'Số lượng nhân viên đi xe'],
-      r.drivers.map((row) => [row.driverName ?? 'Chưa phân công', row.tripCount, row.completedTripCount, row.lateTripCount, row.lateStopCount, row.incidentCount, row.employeePassengerCount ?? 'Chưa xác nhận']),
-      [32, 22, 22, 29, 23, 22, 28]),
-    excelSheet('Chuyến tài xế', ['Tài xế', 'Tên tuyến', 'Mã chuyến', 'Xe', 'Khởi hành dự kiến', 'Bắt đầu', 'Kết thúc / hủy', 'Trạng thái'],
-      r.drivers.flatMap((driver) => (driver.trips ?? []).map((trip) => [driver.driverName ?? 'Chưa phân công', trip.routeName ?? 'Chưa có tên tuyến', trip.tripId, trip.vehiclePlateNumber ?? 'Chưa có xe', timestamp(trip.scheduledDepartureAt), timestamp(trip.startedAt), timestamp(trip.endedAt), TRIP_STATUS_LABELS[trip.status]])),
-      [30, 36, 14, 20, 24, 24, 24, 20]),
-    excelSheet('Trễ trạm', ['Mã chuyến', 'Tên tuyến', 'Xe', 'Tài xế', 'Trạm', 'Thứ tự', 'Dự kiến', 'Thực tế', 'Trễ'],
-      lateStopRows.value.map((row) => [row.tripId, row.routeName ?? 'Chưa có tên tuyến', row.vehiclePlateNumber ?? 'Chưa có xe', row.driverName ?? 'Chưa phân công', row.stationName, row.stopSequence, timestamp(row.plannedArrivalAt), timestamp(row.actualArrivalAt), duration(row.delaySeconds)]),
-      [14, 36, 20, 30, 32, 12, 24, 24, 20]),
-    excelSheet('Sự cố', ['Loại', 'Mức độ', 'Số lần'],
-      r.incidents.map((row) => [incidentLabel(row.type), severityLabel(row.severity), row.count]), [32, 20, 14]),
-    excelSheet('Chi tiết sự cố', ['Tên tuyến', 'Mã chuyến', 'Xe', 'Tài xế', 'Loại', 'Thời điểm', 'Mức độ', 'Tình trạng', 'Ghi chú'],
-      (r.incidentDetails ?? []).map((row) => [row.routeName ?? 'Chưa có tên tuyến', row.tripId, row.vehiclePlateNumber ?? 'Chưa có xe', row.driverName ?? 'Chưa phân công', incidentLabel(row.type), timestamp(row.occurredAt), severityLabel(row.severity), statusLabel(row.status), row.detail ?? '']),
-      [36, 14, 20, 30, 28, 24, 20, 20, 60]),
-  ];
+  const currentReport = report.value;
   exporting.value = true;
   exportError.value = null;
   try {
+    const { sheets, options } = buildReportWorkbook(currentReport, {
+      vehicle: selectedVehicle.value,
+      driver: selectedDriver.value,
+      lateStops: lateStopRows.value,
+      lateStopFilterDescription: `Tìm: ${lateStopSearch.value.trim() || 'Không lọc'}; Trạm: ${lateStopStation.value || 'Tất cả'}; Xe: ${lateStopVehicle.value === '__NO_VEHICLE__' ? 'Chưa có xe' : lateStopVehicle.value || 'Tất cả'}; Tài xế: ${lateStopDriver.value === '__NO_DRIVER__' ? 'Chưa phân công' : lateStopDriver.value || 'Tất cả'}; Trễ tối thiểu: ${lateStopMinimumMinutes.value} phút`,
+    });
     const { default: writeExcelFile } = await import('write-excel-file/browser');
-    await writeExcelFile(sheets).toFile(`bao-cao-van-hanh-${r.from}-${r.to}.xlsx`);
+    await writeExcelFile(sheets, options).toFile(`bao-cao-van-hanh-${currentReport.from}-${currentReport.to}.xlsx`);
   } catch {
     exportError.value = 'Không thể tạo file Excel. Vui lòng thử lại.';
   } finally {
@@ -290,28 +231,7 @@ async function exportReportExcel() {
       <p class="report-mobile-hint report-table-hint">Vuốt thanh mục để chọn báo cáo; vuốt bảng để xem thêm cột.</p>
       <section v-show="activeSection === 'occupancy'" id="report-panel-occupancy" role="tabpanel" aria-labelledby="report-tab-occupancy" tabindex="0" class="business-surface report-table-card report-occupancy-card" aria-label="Thống kê người trên xe">
         <div class="report-section-heading"><h2>Hành khách và mức sử dụng ghế</h2></div>
-        <div v-if="!report.employeeOccupancyByVehicle.length" class="reports-empty">Chưa có chuyến đủ xác nhận số người để thống kê theo xe.</div>
-        <div v-else class="report-table-scroll" role="region" aria-label="Bảng chi tiết báo cáo" tabindex="0">
-          <table class="report-occupancy-table">
-            <thead>
-              <tr>
-                <th scope="col">Xe</th>
-                <th scope="col">Số ghế hiện tại</th>
-                <th scope="col">Người trung bình/chuyến</th>
-                <th scope="col">Tỷ lệ sử dụng ghế/chuyến</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in pageOccupancyRows" :key="row.vehicleId ?? row.plateNumber ?? row.vehicleName ?? 'vehicle'">
-                <td><strong>{{ row.plateNumber ?? 'Chưa có biển số' }}</strong><small>{{ row.vehicleName ?? 'Chưa có tên xe' }}</small></td>
-                <td>{{ row.seatCapacity == null ? 'Chưa cấu hình' : number(row.seatCapacity) }}</td>
-                <td>{{ row.averageBoardingsPerTrip == null ? 'Chưa xác nhận' : number(row.averageBoardingsPerTrip) }}</td>
-                <td><div class="report-seat-usage"><span>{{ row.seatUtilizationPercent == null ? 'Chưa tính được' : `${number(row.seatUtilizationPercent)}%` }}</span><span v-if="row.seatUtilizationPercent != null" class="report-seat-track" aria-hidden="true"><span :style="{ width: `${Math.max(0, Math.min(100, row.seatUtilizationPercent))}%` }" /></span></div></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <PaginationControls v-if="occupancyRows.length" v-model:page="occupancyPage" :page-count="pageCount(occupancyRows.length)" :total="occupancyRows.length" :page-size="reportPageSize" label="xe" />
+        <EmployeeOccupancyBreakdown :report="report" />
       </section>
       <section v-show="activeSection === 'vehicles'" id="report-panel-vehicles" role="tabpanel" aria-labelledby="report-tab-vehicles" tabindex="0" class="business-surface report-table-card" aria-label="Thống kê theo xe">
         <div class="report-section-heading"><div><h2>Thống kê theo xe <span class="report-section-count">{{ number(vehicleRows.length) }} xe</span></h2><p>Đối chiếu số chuyến, thời gian đến và số người được chở của từng xe.</p></div></div>

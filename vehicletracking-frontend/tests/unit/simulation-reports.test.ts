@@ -21,6 +21,7 @@ const data = (tripCount = 2): OperationalReportDetail => ({
   lateStops: [], incidents: [], incidentDetails: [], employeePassengerDataAvailable: false, employeePassengerDataNote: 'Chưa có dữ liệu',
   employeeOccupancy: { completedTripCount: 0, tripsWithCompleteBoardingData: 0, tripsMissingBoardingData: 0, tripsMissingSeatCapacity: 0, totalBoardings: 0, averageBoardingsPerTrip: null, averageOnboard: null, seatUtilizationPercent: null },
   employeeOccupancyByVehicle: [],
+  employeeOccupancyByDay: [], employeeOccupancyByStation: [], employeeOccupancyTrips: [],
 });
 let wrapper: VueWrapper | undefined;
 const originalDialogShow = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
@@ -258,7 +259,7 @@ test('incident details show the trip, vehicle, driver, time and actual resolutio
   expect(section.text()).not.toMatch(/CRITICAL|RESOLVED|VEHICLE_BREAKDOWN/);
 });
 
-test('occupancy tab keeps only the per-vehicle table even when report data is incomplete', async () => {
+test('occupancy tab starts with the per-vehicle table and keeps incomplete data out of the summary', async () => {
   const result = data();
   result.employeeOccupancy = { ...result.employeeOccupancy, completedTripCount: 1, tripsWithCompleteBoardingData: 1, totalBoardings: 5, averageBoardingsPerTrip: 5, seatUtilizationPercent: 50 };
   result.employeeOccupancyByVehicle = [{ vehicleId: 1, plateNumber: 'XE-1', vehicleName: 'Xe một', seatCapacity: 10, completedTripCount: 1, tripsWithCompleteBoardingData: 1, tripsMissingBoardingData: 0, totalBoardings: 5, averageBoardingsPerTrip: 5, averageOnboard: null, seatUtilizationPercent: 50 }];
@@ -279,6 +280,42 @@ test('occupancy tab keeps only the per-vehicle table even when report data is in
   expect(updatedSection.find('.reports-method-details').exists()).toBe(false);
   expect(updatedSection.text()).not.toContain('2 chuyến chưa xác nhận');
   expect(updatedSection.get('.report-occupancy-table').text()).toContain('50%');
+});
+
+test('occupancy views show daily and station totals plus each trip pickup and cumulative count', async () => {
+  const result = data();
+  result.employeeOccupancyByDay = [
+    { date: '2026-09-21', completedTripCount: 1, confirmedTripCount: 1, totalBoardings: 5, averageBoardingsPerTrip: 5, seatUtilizationPercent: 50 },
+    { date: '2026-09-22', completedTripCount: 1, confirmedTripCount: 0, totalBoardings: 0, averageBoardingsPerTrip: null, seatUtilizationPercent: null },
+  ];
+  result.employeeOccupancyByStation = [{ stationId: 11, stationName: 'Trạm A', visitCount: 1, totalBoardings: 2, averageBoardingsPerVisit: 2 }];
+  result.employeeOccupancyTrips = [
+    { tripId: 7, routeName: 'Tuyến trường học', vehiclePlateNumber: 'XE-1', driverName: 'Tài xế A', serviceDate: '2026-09-21', scheduledDepartureAt: '2026-09-21T01:00:00Z', seatCapacity: 10, complete: true, totalBoardings: 5,
+      pickupStops: [{ stationId: 11, stationName: 'Trạm A', stopSequence: 1, boardingCount: 2, onboardAfterStop: 2 }, { stationId: 12, stationName: 'Trạm B', stopSequence: 2, boardingCount: 3, onboardAfterStop: 5 }] },
+    { tripId: 8, routeName: 'Tuyến khác', vehiclePlateNumber: 'XE-1', driverName: 'Tài xế A', serviceDate: '2026-09-22', scheduledDepartureAt: '2026-09-22T01:00:00Z', seatCapacity: 10, complete: false, totalBoardings: null,
+      pickupStops: [{ stationId: 11, stationName: 'Trạm A', stopSequence: 1, boardingCount: 0, onboardAfterStop: 0 }, { stationId: 12, stationName: 'Trạm B', stopSequence: 2, boardingCount: null, onboardAfterStop: null }] },
+  ];
+  vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce(result);
+  const page = render();
+  await flushPromises();
+  const section = page.get('#report-panel-occupancy');
+  await section.findAll('.report-occupancy-nav button')[1]!.trigger('click');
+  expect(section.get('[aria-label="Bảng hành khách theo ngày"]').text()).toContain('21/09/2026');
+  expect(section.get('[aria-label="Bảng hành khách theo ngày"]').text()).toContain('Chưa xác nhận');
+  await section.findAll('.report-occupancy-nav button')[2]!.trigger('click');
+  expect(section.get('[aria-label="Bảng hành khách theo trạm"]').text()).toContain('Trạm A');
+  expect(section.get('[aria-label="Bảng hành khách theo trạm"]').text()).toContain('2');
+  await section.findAll('.report-occupancy-nav button')[3]!.trigger('click');
+  await section.findAll('.report-occupancy-detail-button')[0]!.trigger('click');
+  const stops = section.get('dialog.employee-occupancy-trip');
+  expect(stops.text()).toContain('Trạm A');
+  expect(stops.text()).toContain('Trạm B');
+  expect(stops.findAll('.employee-occupancy-stop-list li').map((row) => row.text())).toEqual(expect.arrayContaining([expect.stringContaining('2'), expect.stringContaining('5')]));
+  await stops.get('[aria-label="Đóng chi tiết trạm"]').trigger('click');
+  await section.findAll('.report-occupancy-detail-button')[1]!.trigger('click');
+  expect(section.get('dialog.employee-occupancy-trip').text()).toContain('Chưa rõ');
+  expect(section.get('dialog.employee-occupancy-trip').text()).toContain('0');
+  expect(vi.mocked(fetchOperationalReportDetail)).toHaveBeenCalledTimes(1);
 });
 
 test('seat usage distinguishes unknown seats from confirmed zero occupancy', async () => {
@@ -302,6 +339,9 @@ test('Excel exports separate sheets with all rows, Vietnamese labels and the ind
   result.incidents = [{ type: 'VEHICLE_BREAKDOWN', severity: 'CRITICAL', count: 11 }];
   result.incidentDetails = Array.from({ length: 11 }, (_, index) => ({ id: `incident-${index}`, tripId: index + 1, routeName: `Tuyến ${index + 1}`, vehiclePlateNumber: '51B12345', driverName: 'Nguyễn Văn A', type: 'VEHICLE_BREAKDOWN', severity: 'CRITICAL', occurredAt: result.generatedAt, status: 'RESOLVED', detail: `Sự cố ${index + 1}` }));
   result.lateStops = [{ tripId: 1, routeName: 'Tuyến cần xuất', vehiclePlateNumber: '51B12345', driverName: 'Nguyễn Văn A', stationName: 'Trạm trường học', stopSequence: 3, plannedArrivalAt: result.generatedAt, actualArrivalAt: result.generatedAt, delaySeconds: 1200 }, { tripId: 2, routeName: 'Tuyến bị lọc', vehiclePlateNumber: '51B67890', driverName: 'Nguyễn Văn B', stationName: 'Trạm khác', stopSequence: 2, plannedArrivalAt: result.generatedAt, actualArrivalAt: result.generatedAt, delaySeconds: 600 }];
+  result.employeeOccupancyByDay = [{ date: '2026-09-21', completedTripCount: 1, confirmedTripCount: 1, totalBoardings: 5, averageBoardingsPerTrip: 5, seatUtilizationPercent: 50 }];
+  result.employeeOccupancyByStation = [{ stationId: 11, stationName: 'Trạm A', visitCount: 1, totalBoardings: 5, averageBoardingsPerVisit: 5 }];
+  result.employeeOccupancyTrips = [{ tripId: 7, routeName: 'Tuyến trường học', vehiclePlateNumber: '51B12345', driverName: 'Nguyễn Văn A', serviceDate: '2026-09-21', scheduledDepartureAt: result.generatedAt, seatCapacity: 10, complete: true, totalBoardings: 5, pickupStops: [{ stationId: 11, stationName: 'Trạm A', stopSequence: 1, boardingCount: 5, onboardAfterStop: 5 }] }];
   vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce(result);
   const page = render();
   await flushPromises();
@@ -313,16 +353,20 @@ test('Excel exports separate sheets with all rows, Vietnamese labels and the ind
   await flushPromises();
   expect(toFile).toHaveBeenCalledWith('bao-cao-van-hanh-2026-09-08-2026-10-07.xlsx');
   const sheets = vi.mocked(writeExcelFile).mock.calls[0]![0] as unknown as Array<{ sheet: string; data: unknown[][] }>;
-  expect(sheets.map((sheet) => sheet.sheet)).toEqual(['Tổng quan', 'Hành khách', 'Theo xe', 'Theo tài xế', 'Chuyến tài xế', 'Trễ trạm', 'Sự cố', 'Chi tiết sự cố']);
+  expect(sheets.map((sheet) => sheet.sheet)).toEqual(['Tổng quan', 'Hành khách theo xe', 'Hành khách theo ngày', 'Hành khách theo trạm', 'Hành khách theo chuyến', 'Người lên từng trạm', 'Theo xe', 'Theo tài xế', 'Chuyến tài xế', 'Trễ trạm', 'Sự cố', 'Chi tiết sự cố']);
   const cellValue = (cell: unknown) => cell && typeof cell === 'object' && 'value' in cell ? (cell as { value: unknown }).value : cell;
   const values = (sheetName: string) => sheets.find((sheet) => sheet.sheet === sheetName)!.data.flat().map(cellValue);
   expect(values('Tổng quan')).toContain('Bộ lọc trễ trạm');
+  expect(values('Hành khách theo ngày')).toContain(5);
+  expect(values('Hành khách theo trạm')).toContain('Trạm A');
+  expect(values('Hành khách theo chuyến')).toContain('Tuyến trường học');
+  expect(values('Người lên từng trạm')).toContain(5);
   expect(values('Tổng quan')).toContain('Tìm: Tuyến cần xuất; Trạm: Tất cả; Xe: Tất cả; Tài xế: Tất cả; Trễ tối thiểu: 0 phút');
-  expect(sheets.find((sheet) => sheet.sheet === 'Trễ trạm')!.data).toHaveLength(2);
+  expect(sheets.find((sheet) => sheet.sheet === 'Trễ trạm')!.data.filter((row) => cellValue(row[0]) === 'Tuyến cần xuất')).toHaveLength(1);
   expect(values('Trễ trạm')).toContain('Tuyến cần xuất');
   expect(values('Trễ trạm')).not.toContain('Tuyến bị lọc');
   expect(values('Sự cố')).toContain('Khẩn cấp');
-  expect(sheets.find((sheet) => sheet.sheet === 'Chi tiết sự cố')!.data).toHaveLength(12);
+  expect(sheets.find((sheet) => sheet.sheet === 'Chi tiết sự cố')!.data.filter((row) => String(cellValue(row[8])).startsWith('Sự cố '))).toHaveLength(11);
   expect(values('Chi tiết sự cố')).toContain('Sự cố 11');
   expect(values('Chi tiết sự cố')).toContain('Đã xử lý');
   expect(values('Chuyến tài xế')).toContain('Tuyến đến trường 11');

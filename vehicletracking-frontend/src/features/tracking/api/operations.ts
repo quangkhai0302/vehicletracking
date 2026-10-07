@@ -2,7 +2,6 @@ import type {
   OperationsSnapshot,
   SimulationRun,
   SimulationAction,
-  SimulationScenario,
 } from '@/features/tracking/types/operations';
 import { appFetch } from '@/shared/api/http';
 const BASE = `${(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')}/api/v1`;
@@ -71,15 +70,4 @@ export const controlSimulation = (
     ...(action === 'speed'
       ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ multiplier }) }
       : {}),
-  });
-
-export const setSimulationScenario = (
-  tripId: number,
-  scenario: SimulationScenario,
-  attemptNumber: number,
-) =>
-  request<SimulationRun>(`/trips/${tripId}/simulation/scenario`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ scenario, attemptNumber }),
   });

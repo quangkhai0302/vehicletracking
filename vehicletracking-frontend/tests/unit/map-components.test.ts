@@ -306,8 +306,7 @@ test('inspection card teleports without wrapper, stays in viewport, and disposes
   expect(disconnect).toHaveBeenCalledTimes(1);
 });
 
-test('simulator panel exposes scenarios and virtual time independently of playback speed', async () => {
-  const setScenario = vi.fn().mockResolvedValue(true);
+test('simulator panel follows current traffic and shows virtual time independently of playback speed', async () => {
   const simulator: ReturnType<typeof useSimulator> = reactive({
     tripId: 1,
     trip,
@@ -321,7 +320,6 @@ test('simulator panel exposes scenarios and virtual time independently of playba
       elapsedSeconds: 60,
       durationSeconds: 600,
       virtualElapsedSeconds: 120,
-      scenario: 'BLOCKED',
       simulatedAt: stamp,
       updatedAt: stamp,
       errorMessage: null,
@@ -334,7 +332,6 @@ test('simulator panel exposes scenarios and virtual time independently of playba
     select: vi.fn(),
     retry: vi.fn(),
     command: vi.fn().mockResolvedValue(true),
-    setScenario,
     reportIncident: vi.fn().mockResolvedValue(true),
   });
   const wrapper = mount(SimulatorPanel, {
@@ -349,19 +346,9 @@ test('simulator panel exposes scenarios and virtual time independently of playba
     },
   });
   disposals.push(() => wrapper.unmount());
-  expect(wrapper.get('select[aria-label="Tình huống mô phỏng"]').findAll('option')).toHaveLength(5);
+  expect(wrapper.find('select[aria-label="Tình huống mô phỏng"]').exists()).toBe(false);
+  expect(wrapper.text()).toContain('Hành trình chạy theo dữ liệu giao thông hiện tại.');
   expect(wrapper.get('.simulation-journey-time strong').text()).toBe('2 phút');
-  expect(wrapper.get('.simulation-scenario').text()).toContain('Xe đứng chờ');
-  await wrapper.get('.simulation-scenario button').trigger('click');
-  expect(setScenario).toHaveBeenCalledWith('NORMAL');
-  await wrapper.get('select[aria-label="Tình huống mô phỏng"]').setValue('OFF_ROUTE');
-  expect(setScenario).toHaveBeenLastCalledWith('OFF_ROUTE');
-  simulator.busy = true;
-  await nextTick();
-  expect(wrapper.get('.simulation-scenario select').attributes('disabled')).toBeDefined();
-  simulator.busy = false;
-  await wrapper.setProps({ connection: 'reconnecting' });
-  expect(wrapper.get('.simulation-scenario select').attributes('disabled')).toBeDefined();
   if (simulator.run) simulator.run.virtualElapsedSeconds = null;
   await nextTick();
   expect(wrapper.get('.simulation-journey-time').text()).toContain('Lượt cũ chưa có đồng hồ');
@@ -383,7 +370,6 @@ test('admin simulator does not expose incident reporting', async () => {
       elapsedSeconds: 20,
       durationSeconds: 600,
       virtualElapsedSeconds: 20,
-      scenario: 'NORMAL',
       simulatedAt: stamp,
       updatedAt: stamp,
       errorMessage: null,
@@ -396,7 +382,6 @@ test('admin simulator does not expose incident reporting', async () => {
     select: vi.fn(),
     retry: vi.fn(),
     command: vi.fn().mockResolvedValue(true),
-    setScenario: vi.fn().mockResolvedValue(true),
   });
   const wrapper = mount(SimulatorPanel, {
     props: {
@@ -428,7 +413,6 @@ test('simulator panel keeps GPS exclusion, connection gating and speed command p
     select: vi.fn(),
     retry: vi.fn(),
     command,
-    setScenario: vi.fn().mockResolvedValue(true),
     reportIncident: vi.fn().mockResolvedValue(true),
   });
   const wrapper = mount(SimulatorPanel, {
@@ -536,7 +520,6 @@ test('simulator panel shows check-in progress from the current attempt and opens
     select: vi.fn(),
     retry: vi.fn(),
     command: vi.fn().mockResolvedValue(true),
-    setScenario: vi.fn().mockResolvedValue(true),
     reportIncident: vi.fn().mockResolvedValue(true),
   });
   const replaySnapshot: OperationsSnapshot = {
@@ -658,7 +641,6 @@ test('simulator panel displays Trạm đầu and Trạm cuối for first and las
     select: vi.fn(),
     retry: vi.fn(),
     command: vi.fn().mockResolvedValue(true),
-    setScenario: vi.fn().mockResolvedValue(true),
     reportIncident: vi.fn().mockResolvedValue(true),
   });
   const scheduledSnapshot: OperationsSnapshot = {

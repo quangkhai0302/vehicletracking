@@ -61,7 +61,8 @@ class OperationalReportControllerTest {
                                         summary.generatedAt(), summary.generatedAt(), null, TripStatus.IN_PROGRESS)))),
                         List.of(), List.of(), false,
                         "Chưa có xác nhận số người lên tại các điểm đón của chuyến đã hoàn tất.",
-                        new EmployeeOccupancySummary(1, 0, 1, 1, 0, null, null, null), List.of(), List.of()));
+                        new EmployeeOccupancySummary(1, 0, 1, 1, 0, null, null, null),
+                        List.of(), List.of(), List.of(), List.of(), List.of()));
 
         mvc.perform(get("/api/v1/reports/operations/detail")
                         .param("from", "2026-09-01")
@@ -76,6 +77,9 @@ class OperationalReportControllerTest {
                 .andExpect(jsonPath("$.drivers[0].trips[0].endedAt").isEmpty())
                 .andExpect(jsonPath("$.drivers[0].trips[0].status").value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.employeePassengerDataAvailable").value(false))
-                .andExpect(jsonPath("$.employeeOccupancy.tripsMissingBoardingData").value(1));
+                .andExpect(jsonPath("$.employeeOccupancy.tripsMissingBoardingData").value(1))
+                .andExpect(jsonPath("$.employeeOccupancyByDay").isArray())
+                .andExpect(jsonPath("$.employeeOccupancyByStation").isArray())
+                .andExpect(jsonPath("$.employeeOccupancyTrips").isArray());
     }
 }

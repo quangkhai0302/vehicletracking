@@ -24,7 +24,6 @@ vi.mock('@/features/tracking/api/operations', () => ({
   fetchOperations: vi.fn(),
   subscribeOperations: vi.fn(),
   controlSimulation: vi.fn(),
-  setSimulationScenario: vi.fn(),
 }));
 vi.mock('@/features/fleet/api/fleet', () => ({ fetchTrip: vi.fn(), fetchTripRoute: vi.fn() }));
 vi.mock('@/features/traffic/api/hereTraffic', () => ({
@@ -242,81 +241,6 @@ test('simulator ignores an in-flight command response after disposal', async () 
   expect(toast).not.toHaveBeenCalled();
   expect(state.run).toBeNull();
   expect(vi.mocked(fleet.fetchTrip).mock.calls[0][1]?.aborted).toBe(true);
-});
-
-test('scenario changes carry the selected attempt and lock duplicate commands until resolved', async () => {
-  const pending = deferred<SimulationRun>();
-  vi.mocked(operations.setSimulationScenario).mockReturnValue(pending.promise);
-  const live = shallowRef({ ...snapshot([trip(1, 3)]), simulations: [run(3)] });
-  const toast = vi.fn();
-  const state = scoped(() => useSimulator(live, toast));
-  state.select(1);
-  await flushPromises();
-  const change = state.setScenario('BLOCKED');
-  expect(operations.setSimulationScenario).toHaveBeenCalledWith(1, 'BLOCKED', 3);
-  expect(state.busy).toBe(true);
-  state.select(2);
-  expect(state.tripId).toBe(1);
-  expect(await state.setScenario('NORMAL')).toBe(false);
-  expect(await state.command('pause')).toBe(false);
-  pending.resolve({
-    ...run(3),
-    scenario: 'BLOCKED',
-    virtualElapsedSeconds: 120,
-    elapsedSeconds: 60,
-    updatedAt: '2026-09-22T01:00:10Z',
-  });
-  expect(await change).toBe(true);
-  expect(state.run?.scenario).toBe('BLOCKED');
-  expect(state.run?.virtualElapsedSeconds).toBe(120);
-  expect(state.run?.elapsedSeconds).toBe(60);
-  expect(state.busy).toBe(false);
-  expect(operations.setSimulationScenario).toHaveBeenCalledTimes(1);
-  expect(toast).toHaveBeenCalledTimes(1);
-});
-
-test('scenario failure preserves the old run and late success after disposal does not change state', async () => {
-  const live = shallowRef({
-    ...snapshot(),
-    simulations: [{ ...run(), scenario: 'NORMAL' as const }],
-  });
-  const toast = vi.fn();
-  const state = scoped(() => useSimulator(live, toast));
-  state.select(1);
-  await flushPromises();
-  vi.mocked(operations.setSimulationScenario).mockRejectedValueOnce(
-    new Error('Lượt chạy đã thay đổi.'),
-  );
-  expect(await state.setScenario('OFF_ROUTE')).toBe(false);
-  expect(state.error).toBe('Lượt chạy đã thay đổi.');
-  expect(state.run?.scenario).toBe('NORMAL');
-  expect(toast).not.toHaveBeenCalled();
-  const pending = deferred<SimulationRun>();
-  vi.mocked(operations.setSimulationScenario).mockReturnValueOnce(pending.promise);
-  const change = state.setScenario('CONGESTION');
-  scopes[scopes.length - 1].stop();
-  pending.resolve({ ...run(), scenario: 'CONGESTION', updatedAt: '2026-09-22T01:00:10Z' });
-  await change;
-  expect(state.run?.scenario).toBe('NORMAL');
-  expect(toast).not.toHaveBeenCalled();
-});
-
-test('an older attempt scenario response cannot replace the new live attempt', async () => {
-  const pending = deferred<SimulationRun>();
-  const live = shallowRef({ ...snapshot(), simulations: [run()] });
-  const toast = vi.fn();
-  const state = scoped(() => useSimulator(live, toast));
-  state.select(1);
-  await flushPromises();
-  vi.mocked(operations.setSimulationScenario).mockReturnValueOnce(pending.promise);
-  const change = state.setScenario('OFF_ROUTE');
-  live.value = { ...snapshot([trip(1, 2)]), simulations: [run(2)] };
-  pending.resolve({ ...run(), scenario: 'OFF_ROUTE', updatedAt: '2026-09-22T01:01:00Z' });
-  await change;
-  expect(state.run?.attemptNumber).toBe(2);
-  expect(state.run?.scenario).not.toBe('OFF_ROUTE');
-  expect(toast).not.toHaveBeenCalled();
-  expect(state.busy).toBe(false);
 });
 
 test('selected route hides immediately on revision/selection changes and aborts stale requests', async () => {

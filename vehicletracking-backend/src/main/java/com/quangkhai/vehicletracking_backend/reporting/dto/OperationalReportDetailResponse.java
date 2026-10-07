@@ -22,5 +22,8 @@ public record OperationalReportDetailResponse(
         String employeePassengerDataNote,
         EmployeeOccupancySummary employeeOccupancy,
         List<EmployeeOccupancyVehicleRow> employeeOccupancyByVehicle,
+        List<EmployeeOccupancyDayRow> employeeOccupancyByDay,
+        List<EmployeeOccupancyStationRow> employeeOccupancyByStation,
+        List<EmployeeOccupancyTripRow> employeeOccupancyTrips,
         List<OperationalReportIncidentDetail> incidentDetails) {
 }

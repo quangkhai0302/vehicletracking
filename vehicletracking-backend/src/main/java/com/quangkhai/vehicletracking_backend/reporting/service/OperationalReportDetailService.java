@@ -13,6 +13,10 @@ import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportResp
 import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportVehicleRow;
 import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancySummary;
 import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancyVehicleRow;
+import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancyDayRow;
+import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancyStationRow;
+import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancyStopRow;
+import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancyTripRow;
 import com.quangkhai.vehicletracking_backend.reroute.entity.TripNotificationEntity;
 import com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType;
 import com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository;
@@ -39,6 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 @Service
 @RequiredArgsConstructor
@@ -142,6 +147,9 @@ public class OperationalReportDetailService {
         Map<DriverKey, MutableDriver> drivers = new LinkedHashMap<>();
         MutableOccupancy occupancy = new MutableOccupancy();
         Map<Long, MutableOccupancy> occupancyByVehicle = new LinkedHashMap<>();
+        Map<LocalDate, MutableOccupancy> occupancyByDay = new TreeMap<>();
+        Map<Long, MutableStation> occupancyByStation = new LinkedHashMap<>();
+        List<EmployeeOccupancyTripRow> occupancyTrips = new ArrayList<>();
         Map<Long, Long> confirmedBoardingsByTrip = new HashMap<>();
         for (TripEntity trip : matchingTrips) {
             boolean late = lateTripIds.contains(trip.getId());
@@ -161,9 +169,25 @@ public class OperationalReportDetailService {
                 occupancy.addCompleted(counts, trip.getSeatCapacitySnapshot());
                 occupancyByVehicle.computeIfAbsent(trip.getVehicle().getId(), ignored -> new MutableOccupancy())
                         .addCompleted(counts, trip.getSeatCapacitySnapshot());
-                if (counts.complete()) confirmedBoardingsByTrip.put(trip.getId(), counts.boardings());
+                LocalDate serviceDate = trip.getScheduledDepartureAt().atZone(REPORTING_ZONE).toLocalDate();
+                occupancyByDay.computeIfAbsent(serviceDate, ignored -> new MutableOccupancy())
+                        .addCompleted(counts, trip.getSeatCapacitySnapshot());
+                occupancyTrips.add(new EmployeeOccupancyTripRow(trip.getId(), routeName(trip),
+                        trip.getVehiclePlateSnapshot(), driverName(trip), serviceDate,
+                        trip.getScheduledDepartureAt(), trip.getSeatCapacitySnapshot(), counts.complete(),
+                        counts.complete() ? counts.boardings() : null, counts.pickupStops()));
+                if (counts.complete()) {
+                    confirmedBoardingsByTrip.put(trip.getId(), counts.boardings());
+                    for (EmployeeOccupancyStopRow stop : counts.pickupStops()) {
+                        occupancyByStation.computeIfAbsent(stop.stationId(),
+                                        ignored -> new MutableStation(stop.stationId(), stop.stationName()))
+                                .add(stop.boardingCount());
+                    }
+                }
             }
         }
+        occupancyTrips.sort(Comparator.comparing(EmployeeOccupancyTripRow::scheduledDepartureAt).reversed()
+                .thenComparing(EmployeeOccupancyTripRow::tripId, Comparator.reverseOrder()));
 
         return new OperationalReportDetailResponse(summary.from(), summary.to(), summary.generatedAt(), summary,
                 vehicles.values().stream().map(row -> row.toRow(confirmedBoardingsByTrip)).toList(),
@@ -182,23 +206,37 @@ public class OperationalReportDetailService {
                             matchingTrips.stream().filter(t -> t.getVehicle().getId().equals(row.key.id()))
                                     .map(t -> t.getVehicle().getSeatCapacity()).filter(java.util.Objects::nonNull)
                                     .findFirst().orElse(null));
-                }).toList(), incidentDetails);
+                }).toList(),
+                occupancyByDay.entrySet().stream().map(entry -> entry.getValue().toDayRow(entry.getKey())).toList(),
+                occupancyByStation.values().stream().map(MutableStation::toRow)
+                        .sorted(Comparator.comparingLong(EmployeeOccupancyStationRow::totalBoardings).reversed()
+                                .thenComparing(EmployeeOccupancyStationRow::stationName,
+                                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))).toList(),
+                occupancyTrips, incidentDetails);
     }
 
     private OccupancyTrip occupancyFor(TripEntity trip, Map<Integer, TripStopVisitEntity> visitsBySequence) {
         List<TripStopEntity> stops = trip.getStops() == null ? List.of() : trip.getStops().stream()
                 .sorted(Comparator.comparingInt(TripStopEntity::getSequenceNumber)).toList();
-        if (stops.size() < 2) return new OccupancyTrip(false, 0);
-        long boardings = 0;
-        if (!visitsBySequence.containsKey(stops.getLast().getSequenceNumber()))
-            return new OccupancyTrip(false, 0);
+        if (stops.size() < 2) return new OccupancyTrip(false, 0, List.of());
+        List<EmployeeOccupancyStopRow> pickupStops = new ArrayList<>();
+        Long onboard = 0L;
+        boolean allConfirmed = true;
         for (int i = 0; i < stops.size() - 1; i++) {
-            TripStopVisitEntity visit = visitsBySequence.get(stops.get(i).getSequenceNumber());
-            if (visit == null || visit.getEmployeeBoardingCount() == null)
-                return new OccupancyTrip(false, 0);
-            boardings += visit.getEmployeeBoardingCount();
+            TripStopEntity stop = stops.get(i);
+            TripStopVisitEntity visit = visitsBySequence.get(stop.getSequenceNumber());
+            Integer boardingCount = visit == null ? null : visit.getEmployeeBoardingCount();
+            if (boardingCount == null) {
+                allConfirmed = false;
+                onboard = null;
+            } else if (onboard != null) {
+                onboard += boardingCount;
+            }
+            pickupStops.add(new EmployeeOccupancyStopRow(stop.getStationId(), stop.getStationName(),
+                    stop.getSequenceNumber(), boardingCount, onboard));
         }
-        return new OccupancyTrip(true, boardings);
+        boolean complete = allConfirmed && visitsBySequence.containsKey(stops.getLast().getSequenceNumber());
+        return new OccupancyTrip(complete, onboard == null ? 0 : onboard, pickupStops);
     }
 
     private String routeName(TripEntity trip) {
@@ -251,7 +289,26 @@ public class OperationalReportDetailService {
     private record IncidentKey(String type, String severity) { }
     private record VehicleKey(Long id, String plate, String name) { }
     private record DriverKey(Long id, String name) { }
-    private record OccupancyTrip(boolean complete, long boardings) { }
+    private record OccupancyTrip(boolean complete, long boardings, List<EmployeeOccupancyStopRow> pickupStops) { }
+
+    private static final class MutableStation {
+        private final Long stationId;
+        private final String stationName;
+        private long visits;
+        private long boardings;
+
+        private MutableStation(Long stationId, String stationName) {
+            this.stationId = stationId;
+            this.stationName = stationName;
+        }
+
+        private void add(int count) { visits++; boardings += count; }
+
+        private EmployeeOccupancyStationRow toRow() {
+            return new EmployeeOccupancyStationRow(stationId, stationName, visits, boardings,
+                    (double) boardings / visits);
+        }
+    }
 
     private static final class MutableOccupancy {
         private long completedTrips;
@@ -289,6 +346,14 @@ public class OperationalReportDetailService {
             return new EmployeeOccupancyVehicleRow(vehicleId, plate, name, capacity, completedTrips,
                     completedTripsWithBoardings, completedTrips - completedTripsWithBoardings,
                     totalBoardings, averageBoardings, null, utilization);
+        }
+
+        private EmployeeOccupancyDayRow toDayRow(LocalDate date) {
+            Double averageBoardings = completedTripsWithBoardings == 0 ? null
+                    : (double) totalBoardings / completedTripsWithBoardings;
+            Double utilization = seats == 0 ? null : 100d * boardingsWithCapacity / seats;
+            return new EmployeeOccupancyDayRow(date, completedTrips, completedTripsWithBoardings,
+                    totalBoardings, averageBoardings, utilization);
         }
     }
 

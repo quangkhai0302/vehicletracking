@@ -1,33 +1,63 @@
 package com.quangkhai.vehicletracking_backend.simulation;
 
-import com.quangkhai.vehicletracking_backend.checkin.entity.TripCheckInStateEntity;
-import com.quangkhai.vehicletracking_backend.checkin.repository.TripCheckInStateRepository;
-import com.quangkhai.vehicletracking_backend.reroute.entity.*;
-import com.quangkhai.vehicletracking_backend.reroute.repository.*;
-import com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository;
-import com.quangkhai.vehicletracking_backend.simulation.entity.*;
-import com.quangkhai.vehicletracking_backend.simulation.repository.*;
-import com.quangkhai.vehicletracking_backend.simulation.service.SimulationService;
-import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource;
-import com.quangkhai.vehicletracking_backend.telemetry.repository.*;
-import com.quangkhai.vehicletracking_backend.telemetry.service.TelemetryService;
-import com.quangkhai.vehicletracking_backend.traffic.eta.TrafficEtaService;
-import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
-import com.quangkhai.vehicletracking_backend.trip.entity.*;
-import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
-import com.quangkhai.vehicletracking_backend.trip.service.TripService;
-import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
-import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
-import org.junit.jupiter.api.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
-import java.time.*;
-import java.util.*;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
+
+import com.quangkhai.vehicletracking_backend.checkin.entity.TripCheckInStateEntity;
+import com.quangkhai.vehicletracking_backend.checkin.repository.TripCheckInStateRepository;
+import com.quangkhai.vehicletracking_backend.reroute.entity.RouteRevisionStatus;
+import com.quangkhai.vehicletracking_backend.reroute.entity.TripRouteRevisionEntity;
+import com.quangkhai.vehicletracking_backend.reroute.entity.TripTrafficAlertStateEntity;
+import com.quangkhai.vehicletracking_backend.reroute.repository.TripNotificationRepository;
+import com.quangkhai.vehicletracking_backend.reroute.repository.TripRouteRevisionRepository;
+import com.quangkhai.vehicletracking_backend.reroute.repository.TripTrafficAlertStateRepository;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationAttemptEntity;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationAttemptMetadata;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationRunEntity;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationScenario;
+import com.quangkhai.vehicletracking_backend.simulation.entity.SimulationStatus;
+import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationAttemptRepository;
+import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationIncidentRepository;
+import com.quangkhai.vehicletracking_backend.simulation.repository.SimulationRepository;
+import com.quangkhai.vehicletracking_backend.simulation.service.SimulationService;
+import com.quangkhai.vehicletracking_backend.telemetry.entity.TelemetrySource;
+import com.quangkhai.vehicletracking_backend.telemetry.repository.TelemetryRepository;
+import com.quangkhai.vehicletracking_backend.telemetry.repository.VehiclePositionRepository;
+import com.quangkhai.vehicletracking_backend.telemetry.service.TelemetryService;
+import com.quangkhai.vehicletracking_backend.traffic.eta.TrafficEtaService;
+import com.quangkhai.vehicletracking_backend.trip.TripFixtures;
+import com.quangkhai.vehicletracking_backend.trip.entity.TripEntity;
+import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
+import com.quangkhai.vehicletracking_backend.trip.repository.TripRepository;
+import com.quangkhai.vehicletracking_backend.trip.service.TripService;
+import com.quangkhai.vehicletracking_backend.vehicle.entity.VehicleEntity;
+import com.quangkhai.vehicletracking_backend.vehicle.repository.VehicleRepository;
 
 class SimulationReplayTest {
     final Instant now=Instant.parse("2026-09-15T02:00:00Z");
@@ -67,7 +97,7 @@ class SimulationReplayTest {
         when(eta.cachedSimulationRate(eq(5L),anyDouble())).thenReturn(1d);
         service=new SimulationService(runs,trips,vehicles,tripService,telemetry,samples,positions,Clock.fixed(now,ZoneOffset.UTC),eta,
             attempts,checkpoints,alerts,revisions,new com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService(revisions),
-            mock(com.quangkhai.vehicletracking_backend.reroute.service.OffRouteEvaluationService.class),incidents,notifications);
+            incidents,notifications);
     }
 
     @Test void realtimeSnapshotDoesNotCalculateTrafficOrCallProvider() {
@@ -144,10 +174,10 @@ class SimulationReplayTest {
         when(samples.existsByTripIdAndSource(5L,TelemetrySource.GPS)).thenReturn(true);
         rejects();
     }
-    private void knownRun(SimulationScenario scenario, int multiplier, long wallSeconds) {
+    private void knownRun(SimulationScenario legacyScenario, int multiplier, long wallSeconds) {
         run.replay(now.minusSeconds(wallSeconds));
         run.captureFirstPlay(SimulationAttemptMetadata.capture(trip,now.minusSeconds(wallSeconds),44,312));
-        run.changeScenario(scenario); run.changeMultiplier(multiplier,now.minusSeconds(wallSeconds));
+        run.changeScenario(legacyScenario); run.changeMultiplier(multiplier,now.minusSeconds(wallSeconds));
         run.changeStatus(SimulationStatus.RUNNING,now.minusSeconds(wallSeconds));
         doAnswer(call -> { trip.complete(now); return null; }).when(tripService).complete(5L);
     }
@@ -161,21 +191,22 @@ class SimulationReplayTest {
         assertThat(run.getMetadata().getPlannedDurationSeconds()).isEqualTo(44);
     }
 
-    @Test void congestionSlowsTravelButDoesNotDoubleStationDwell() {
+    @Test void legacyCongestionScenarioNoLongerChangesCurrentTrafficProgress() {
         knownRun(SimulationScenario.CONGESTION,5,20);
         service.tick(5L);
         assertThat(run.getStatus()).isEqualTo(SimulationStatus.COMPLETED);
-        assertThat(run.getVirtualElapsedSeconds()).isEqualTo(84);
+        assertThat(run.getVirtualElapsedSeconds()).isEqualTo(44);
         assertThat(run.getElapsedSeconds()).isEqualTo(44);
     }
 
-    @Test void blockedClockContinuesWhileProgressStaysStillAndPauseDoesNotAdvance() {
+    @Test void legacyBlockedScenarioNoLongerStopsTheVehicle() {
         knownRun(SimulationScenario.BLOCKED,5,10);
         service.pause(5L);
-        assertThat(run.getElapsedSeconds()).isZero();
-        assertThat(run.getVirtualElapsedSeconds()).isEqualTo(50);
+        assertThat(run.getElapsedSeconds()).isEqualTo(44);
+        assertThat(run.getVirtualElapsedSeconds()).isEqualTo(44);
+        assertThat(run.getStatus()).isEqualTo(SimulationStatus.COMPLETED);
         service.tick(5L);
-        assertThat(run.getVirtualElapsedSeconds()).isEqualTo(50);
+        assertThat(run.getVirtualElapsedSeconds()).isEqualTo(44);
     }
 
     @Test void resetSettlesRunningTimeAndArchivesFrozenBaselineBeforeNewAttempt() {
@@ -184,7 +215,7 @@ class SimulationReplayTest {
         service.reset(5L);
         var archive=ArgumentCaptor.forClass(SimulationAttemptEntity.class);
         verify(attempts).saveAndFlush(archive.capture());
-        assertThat(archive.getValue().getVirtualElapsedSeconds()).isEqualTo(100);
+        assertThat(archive.getValue().getVirtualElapsedSeconds()).isEqualTo(44);
         assertThat(archive.getValue().getMetadata().getVehiclePlateNumber()).isEqualTo("TEST123");
         assertThat(archive.getValue().getMetadata().getPlannedDurationSeconds()).isEqualTo(44);
         assertThat(run.getVirtualElapsedSeconds()).isNull();
@@ -192,7 +223,7 @@ class SimulationReplayTest {
         assertThat(run.getScenario()).isEqualTo(SimulationScenario.CURRENT_TRAFFIC);
     }
 
-    @Test void offRouteResponseSnapshotAndTelemetryUseSameOffsetPosition() {
+    @Test void legacyOffRouteScenarioUsesTheSavedRoutePosition() {
         knownRun(SimulationScenario.OFF_ROUTE,1,1);
         service.tick(5L);
         var request=ArgumentCaptor.forClass(com.quangkhai.vehicletracking_backend.telemetry.dto.TelemetryRequest.class);
@@ -205,15 +236,7 @@ class SimulationReplayTest {
             com.quangkhai.vehicletracking_backend.route.dto.RouteDetailResponse.from(trip.getRoute())).at(1);
         assertThat(com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing.distance(
             new com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing.Point(expected.latitude(),expected.longitude()),
-            new com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing.Point(response.frame().latitude(),response.frame().longitude()))).isGreaterThan(300);
-    }
-
-    @Test void staleScenarioDoesNotSettleOrChangeTheCurrentAttempt() {
-        knownRun(SimulationScenario.BLOCKED,10,10);
-        assertThatThrownBy(() -> service.scenario(5L,SimulationScenario.NORMAL,2)).isInstanceOf(ResponseStatusException.class);
-        assertThat(run.getVirtualElapsedSeconds()).isZero();
-        assertThat(run.getScenario()).isEqualTo(SimulationScenario.BLOCKED);
-        verifyNoInteractions(telemetry);
+            new com.quangkhai.vehicletracking_backend.checkin.geometry.GeofenceCrossing.Point(response.frame().latitude(),response.frame().longitude()))).isZero();
     }
     @Test void rejectsInactiveVehicleWithoutChangingState() {
         trip.getVehicle().deactivate(); rejects();

@@ -20,13 +20,11 @@ import type {
   OperationsSnapshot,
   SimulationStatus,
   StreamConnection,
-  SimulationScenario,
 } from '@/features/tracking/types/operations';
 import { SIMULATION_LABELS } from '@/features/tracking/types/operations';
 import { displayTripTime } from '@/features/fleet/utils/tripTime';
 import FleetConfirmDialog from '@/features/fleet/components/FleetConfirmDialog.vue';
 import '@/features/simulation/styles/simulator.css';
-import { SIMULATION_SCENARIOS } from '../utils/scenarios';
 
 const SimulationFleetList = defineAsyncComponent({
   loader: () => import('./SimulationFleetList.vue'),
@@ -184,26 +182,10 @@ const routeMovementLabel = computed(() => {
   if (!run.value) return 'Sẵn sàng tại trạm đầu';
   if (frame.value?.finished) return 'Đã hoàn tất lộ trình';
   if (run.value.status === 'PAUSED') return 'Đang tạm dừng';
-  if (run.value.scenario === 'BLOCKED') return 'Đường bị chặn · đang chờ';
-  if (run.value.scenario === 'OFF_ROUTE') return 'Đang mô phỏng lệch tuyến';
-  if (run.value.scenario === 'CONGESTION' && !frame.value?.dwelling) return 'Đang mô phỏng ùn tắc';
   if (frame.value?.dwelling) return 'Đang dừng tại trạm';
   return 'Đang di chuyển trên tuyến';
 });
 const speeds = [1, 5, 10] as const;
-const scenario = computed(() => run.value?.scenario ?? 'CURRENT_TRAFFIC');
-const canSetScenario = computed(
-  () =>
-    canControl.value &&
-    !usingGps.value &&
-    !!run.value &&
-    (run.value.status === 'RUNNING' || run.value.status === 'PAUSED'),
-);
-const changeScenario = (event: Event) => {
-  const value = (event.target as HTMLSelectElement).value;
-  if (canSetScenario.value && Object.prototype.hasOwnProperty.call(SIMULATION_SCENARIOS, value))
-    void props.simulator.setScenario(value as SimulationScenario);
-};
 
 const selectTrip = (event: Event) => {
   const value = (event.target as HTMLSelectElement).value;
@@ -405,7 +387,7 @@ const confirmCommand = () => {
         class="simulation-times"
       >
         <div class="simulation-journey-time">
-          <span>Thời gian hành trình mô phỏng</span>
+          <span>Thời gian hành trình</span>
           <strong>{{ formatDuration(run.virtualElapsedSeconds) }}</strong>
           <small>{{
             run.virtualElapsedSeconds == null
@@ -413,37 +395,9 @@ const confirmCommand = () => {
               : 'Tính cả thời gian chờ trên đường; không tính lúc tạm dừng.'
           }}</small>
         </div>
-        <div
-          v-if="!usingGps"
-          class="simulation-scenario"
-        >
-          <label>
-            <span>Tình huống mô phỏng</span>
-            <select
-              aria-label="Tình huống mô phỏng"
-              :value="scenario"
-              :disabled="!canSetScenario"
-              @change="changeScenario"
-            >
-              <option
-                v-for="(choice, key) in SIMULATION_SCENARIOS"
-                :key="key"
-                :value="key"
-              >
-                {{ choice.label }}
-              </option>
-            </select>
-          </label>
-          <p>{{ SIMULATION_SCENARIOS[scenario].description }}</p>
-          <button
-            v-if="scenario === 'BLOCKED'"
-            type="button"
-            :disabled="!canSetScenario"
-            @click="simulator.setScenario('NORMAL')"
-          >
-            Khôi phục đường để tiếp tục
-          </button>
-        </div>
+        <p v-if="!usingGps" class="simulation-traffic-note">
+          Hành trình chạy theo dữ liệu giao thông hiện tại.
+        </p>
         <div
           v-if="dwellTime"
           class="simulation-dwell-status"
