@@ -85,8 +85,22 @@ class OperationalReportDetailServiceTest {
         when(terminalVisit.getStopSequence()).thenReturn(3);
         when(visits.findAllByTripIdInOrderByTripIdAscStopSequenceAsc(List.of(7L)))
                 .thenReturn(List.of(visit, terminalVisit));
+        var incident = new com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentEntity(trip,
+                new com.quangkhai.vehicletracking_backend.driver.entity.DriverEntity("Tài xế báo sự cố", "0901234567", "LIC-REPORT"), 1,
+                com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentType.VEHICLE_BREAKDOWN,
+                com.quangkhai.vehicletracking_backend.reroute.entity.NotificationSeverity.MAJOR,
+                "Kiểm tra động cơ", 10.77, 106.7, 7, java.util.UUID.randomUUID(), departure);
+        incident.resolve(departure.plusSeconds(60), "Đã kiểm tra xong");
+        var reportNotice = mock(com.quangkhai.vehicletracking_backend.reroute.entity.TripNotificationEntity.class);
+        var resolvedNotice = mock(com.quangkhai.vehicletracking_backend.reroute.entity.TripNotificationEntity.class);
+        when(reportNotice.getTrip()).thenReturn(trip);
+        when(resolvedNotice.getTrip()).thenReturn(trip);
+        when(reportNotice.getType()).thenReturn(com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType.SIMULATION_INCIDENT);
+        when(resolvedNotice.getType()).thenReturn(com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType.SIMULATION_INCIDENT_RESOLVED);
+        when(reportNotice.getSimulationIncident()).thenReturn(incident);
+        when(resolvedNotice.getSimulationIncident()).thenReturn(incident);
         when(notifications.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-20T17:00:00Z"),
-                Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of());
+                Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of(reportNotice, resolvedNotice));
         when(telemetry.findAllForOperationalReport(List.of(7L), Instant.parse("2026-09-21T17:00:00Z"))).thenReturn(List.of());
 
         var result = new OperationalReportDetailService(operationalReports, trips, visits, notifications,
@@ -97,6 +111,8 @@ class OperationalReportDetailServiceTest {
             assertThat(row.lateStopCount()).isEqualTo(1);
             assertThat(row.employeePassengerCount()).isNull();
         });
+        assertThat(result.incidentDetails()).hasSize(1);
+        assertThat(result.incidents()).singleElement().satisfies(row -> assertThat(row.count()).isEqualTo(1));
         assertThat(result.drivers()).singleElement().extracting(row -> row.driverName()).isEqualTo("Nguyễn Văn A");
         assertThat(result.lateStops()).singleElement().satisfies(row -> assertThat(row.delaySeconds()).isEqualTo(120));
         assertThat(result.lateStops()).singleElement().extracting(row -> row.routeName()).isEqualTo("Tuyến thử nghiệm");

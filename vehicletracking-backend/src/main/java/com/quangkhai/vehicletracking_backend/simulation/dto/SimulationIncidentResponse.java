@@ -13,7 +13,7 @@ public record SimulationIncidentResponse(long id, long tripId, long vehicleId, S
                                          NotificationSeverity severity, SimulationIncidentStatus status,
                                          String detail, double latitude, double longitude,
                                          double simulatedElapsedSeconds, Instant createdAt,
-                                         Instant acknowledgedAt, Instant resolvedAt,
+                                         Instant acknowledgedAt, Instant resolvedAt, String resolutionNote, String locationLabel,
                                          SimulationResponse simulation) {
     public static SimulationIncidentResponse from(SimulationIncidentEntity incident,
                                                    SimulationResponse simulation) {
@@ -24,6 +24,6 @@ public record SimulationIncidentResponse(long id, long tripId, long vehicleId, S
                 incident.getAttemptNumber(), incident.getType(), incident.getSeverity(), incident.getStatus(),
                 incident.getDetail(), incident.getLatitude(), incident.getLongitude(),
                 incident.getSimulatedElapsedSeconds(), incident.getCreatedAt(), incident.getAcknowledgedAt(),
-                incident.getResolvedAt(), simulation);
+                incident.getResolvedAt(), incident.getResolutionNote(), incident.getLocationLabel(), simulation);
     }
 }

@@ -39,6 +39,8 @@ import static org.mockito.Mockito.*;
 @Testcontainers
 @SpringBootTest(properties={"here.routing.enabled=false","here.traffic.enabled=false","app.simulation.scheduling-enabled=false"})
 class OperationsIntegrationTest {
+    @MockitoBean com.quangkhai.vehicletracking_backend.station.service.StationGeocodingService geocoding;
+
     @Container @ServiceConnection static final PostgreSQLContainer<?> POSTGRES=new PostgreSQLContainer<>("postgres:17");
     @Autowired SimulationService simulator;
     @Autowired TelemetryService telemetry;
@@ -135,7 +137,9 @@ class OperationsIntegrationTest {
                 "Dừng kiểm tra động cơ", UUID.randomUUID());
         var driverPrincipal = mock(com.quangkhai.vehicletracking_backend.auth.config.SecurityConfig.UserAccountPrincipal.class);
         when(driverPrincipal.driverId()).thenReturn(created.trip().driver().id());
+        when(geocoding.reverseGeocode(any(), any())).thenReturn(new com.quangkhai.vehicletracking_backend.station.dto.StationAddressResponse("Đường Kinh Dương Vương, Bình Tân", 2d));
         var result = driverNavigation.reportIncident(driverPrincipal, tripId, request);
+        assertThat(result.locationLabel()).isEqualTo("Đường Kinh Dương Vương, Bình Tân");
         assertThat(result.status()).isEqualTo(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentStatus.OPEN);
         assertThat(result.simulation().status()).isEqualTo(SimulationStatus.PAUSED);
         assertThat(result.latitude()).isBetween(10.76, 10.78);
@@ -169,8 +173,16 @@ class OperationsIntegrationTest {
 
         var acknowledged = incidentService.acknowledge(result.id());
         assertThat(acknowledged.status()).isEqualTo(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentStatus.ACKNOWLEDGED);
-        var resolved = incidentService.resolve(result.id());
-        assertThat(resolved.status()).isEqualTo(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentStatus.RESOLVED);
+        var resolved = driverNavigation.resolveIncident(driverPrincipal, tripId, result.id(),
+                new com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentResolveRequest(1, "Đã kiểm tra động cơ"));
+        assertThat(resolved.activeIncidents()).isEmpty();
+        assertThat(resolved.simulation().status()).isEqualTo(SimulationStatus.RUNNING);
+        assertThat(incidents.findById(result.id()).orElseThrow().getStatus())
+                .isEqualTo(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentStatus.RESOLVED);
+        assertThat(notificationService.recent(false)).filteredOn(item -> item.tripId() == tripId)
+                .filteredOn(item -> item.simulationIncidentId() != null)
+                .allSatisfy(item -> assertThat(item.simulationIncidentLocationLabel()).isEqualTo("Đường Kinh Dương Vương, Bình Tân"));
+        org.mockito.Mockito.verify(geocoding, org.mockito.Mockito.times(1)).reverseGeocode(any(), any());
         simulator.reset(tripId);
         assertThat(incidents.findById(result.id()).orElseThrow().getAttemptNumber()).isEqualTo(1);
         conflict(() -> driverNavigation.reportIncident(driverPrincipal, tripId,

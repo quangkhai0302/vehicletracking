@@ -20,6 +20,9 @@ public interface SimulationIncidentRepository extends JpaRepository<SimulationIn
     boolean existsByTripIdAndAttemptNumberAndStatusIn(long tripId, int attemptNumber,
                                                        Collection<SimulationIncidentStatus> statuses);
 
+    java.util.List<SimulationIncidentEntity> findByTripIdAndAttemptNumberAndStatusInOrderByCreatedAtDesc(
+            long tripId, int attemptNumber, Collection<SimulationIncidentStatus> statuses);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from SimulationIncidentEntity i join fetch i.trip where i.id = :id")
     Optional<SimulationIncidentEntity> findLockedById(@Param("id") long id);

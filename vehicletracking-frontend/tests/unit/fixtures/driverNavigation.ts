@@ -27,7 +27,7 @@ export function driverSnapshot(status: TripStatus = 'SCHEDULED', revision: numbe
     departureOffsetSeconds: sequenceNumber === 1 ? 0 : 60, plannedArrivalAt: stamp, plannedDepartureAt: stamp }));
   const active = status !== 'SCHEDULED';
   return {
-    serverTime: stamp, routeRevisionId: revision,
+    activeIncidents: [], serverTime: stamp, routeRevisionId: revision,
     trip: { id, vehicleId: 1, vehiclePlateNumber: '51B-12345', vehicleType: 'CAR', routeId: 1, routeName: 'Tuyến thử nghiệm',
       scheduledDepartureAt: stamp, plannedEndAt: stamp, startedAt: active ? stamp : null, endedAt: null, createdAt: stamp,
       dispatchMode: 'ON_DEMAND', scheduleId: null, scheduleName: null, driver: null, status, attemptNumber: 1 },

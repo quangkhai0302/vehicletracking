@@ -5,6 +5,7 @@ import {
   BellOff,
   Check,
   CheckCheck,
+  CircleCheck,
   MapPinned,
   RefreshCw,
   Route,
@@ -36,7 +37,6 @@ const {
   readAll,
   remove,
   acknowledge,
-  resolve,
 } = useAdminNotifications(() => props.liveNotifications ?? null);
 const trigger = shallowRef<HTMLButtonElement | null>(null),
   panel = shallowRef<HTMLElement | null>(null);
@@ -45,7 +45,9 @@ const panelStyle = ref<CSSProperties>({});
 const page = ref(1);
 const pageSize = 10;
 const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize)));
-const pagedItems = computed(() => filtered.value.slice((page.value - 1) * pageSize, page.value * pageSize));
+const pagedItems = computed(() =>
+  filtered.value.slice((page.value - 1) * pageSize, page.value * pageSize),
+);
 watch([typeFilter, severityFilter], () => (page.value = 1));
 watch(pageCount, (count) => {
   if (page.value > count) page.value = count;
@@ -267,7 +269,15 @@ watch(
         <article
           v-for="item in loading ? [] : pagedItems"
           :key="item.id"
-          :class="['admin-notification-card', item.readAt ? 'read' : 'unread']"
+          :class="[
+            'admin-notification-card',
+            item.readAt ? 'read' : 'unread',
+            {
+              'is-incident':
+                item.type === 'SIMULATION_INCIDENT' || item.type === 'SIMULATION_INCIDENT_RESOLVED',
+              'is-resolved': item.type === 'SIMULATION_INCIDENT_RESOLVED',
+            },
+          ]"
         >
           <div class="admin-notification-card-heading">
             <span :class="['admin-notification-severity', item.severity.toLowerCase()]">{{
@@ -282,39 +292,89 @@ watch(
             /><Route
               v-else-if="item.type === 'REROUTE_CREATED' || item.type === 'DRIVER_ROUTE_CHANGED'"
               :size="15"
+            /><CircleCheck
+              v-else-if="item.type === 'SIMULATION_INCIDENT_RESOLVED'"
+              :size="17"
             /><Bell
               v-else
               :size="15"
             />{{ item.title }}
           </h3>
           <p class="admin-notification-trip">
-            {{ item.vehiclePlateNumber }} · Chuyến #{{ item.tripId }}
+            <strong>{{ item.vehiclePlateNumber }}</strong
+            ><span>Chuyến #{{ item.tripId }}</span>
           </p>
-          <p class="admin-notification-detail">{{ alertDetail(item) }}</p>
-          <p v-if="item.type === 'SIMULATION_INCIDENT'" class="admin-notification-incident-meta">
-            <span>{{ item.simulationIncidentStatus === 'RESOLVED' ? 'Đã xử lý' : item.simulationIncidentStatus === 'ACKNOWLEDGED' ? 'Đã tiếp nhận' : 'Mới' }}</span>
-            <span>Người báo: {{ item.simulationIncidentReportedByDriver ?? 'Không ghi nhận (sự cố cũ)' }}</span>
-            <template v-if="item.simulationIncidentLatitude != null && item.simulationIncidentLongitude != null">
-              · Vị trí mô phỏng {{ item.simulationIncidentLatitude.toFixed(5) }}, {{ item.simulationIncidentLongitude.toFixed(5) }}
-            </template>
+          <template
+            v-if="
+              item.type === 'SIMULATION_INCIDENT' || item.type === 'SIMULATION_INCIDENT_RESOLVED'
+            "
+          >
+            <div class="admin-notification-incident-meta">
+              <span
+                class="admin-incident-status"
+                :class="{ 'is-resolved': item.simulationIncidentStatus === 'RESOLVED' }"
+              >
+                {{
+                  item.simulationIncidentStatus === 'RESOLVED'
+                    ? 'Đã xử lý'
+                    : item.simulationIncidentStatus === 'ACKNOWLEDGED'
+                      ? 'Đã tiếp nhận'
+                      : 'Chờ tiếp nhận'
+                }}
+              </span>
+              <span class="admin-incident-reporter"
+                >Người báo:
+                <strong>{{
+                  item.simulationIncidentReportedByDriver ?? 'Chưa ghi nhận'
+                }}</strong></span
+              >
+            </div>
+            <dl class="admin-incident-content">
+              <div>
+                <dt>
+                  {{
+                    item.type === 'SIMULATION_INCIDENT_RESOLVED'
+                      ? 'Kết quả xử lý'
+                      : 'Nội dung sự cố'
+                  }}
+                </dt>
+                <dd>{{ alertDetail(item) }}</dd>
+              </div>
+              <div
+                v-if="item.simulationIncidentLocationLabel"
+                class="admin-incident-location"
+              >
+                <dt><MapPinned :size="14" />Vị trí sự cố:</dt>
+                <dd>{{ item.simulationIncidentLocationLabel }}</dd>
+              </div>
+              <div
+                v-if="
+                  item.simulationIncidentStatus === 'RESOLVED' &&
+                  item.simulationIncidentResolutionNote &&
+                  item.type !== 'SIMULATION_INCIDENT_RESOLVED'
+                "
+              >
+                <dt>Kết quả xử lý</dt>
+                <dd>{{ item.simulationIncidentResolutionNote }}</dd>
+              </div>
+            </dl>
+          </template>
+          <p
+            v-else
+            class="admin-notification-detail"
+          >
+            {{ alertDetail(item) }}
           </p>
           <div class="admin-notification-actions">
-            <RouterLink
-              :to="notificationMonitoringLink(item)"
-              >Mở giám sát</RouterLink
-            >
+            <RouterLink :to="notificationMonitoringLink(item)">Mở giám sát</RouterLink>
             <button
               v-if="item.type === 'SIMULATION_INCIDENT' && item.simulationIncidentStatus === 'OPEN'"
               type="button"
               :disabled="busyId !== null"
               @click="acknowledge(item)"
-            >Tiếp nhận</button>
-            <button
-              v-if="item.type === 'SIMULATION_INCIDENT' && item.simulationIncidentStatus !== 'RESOLVED'"
-              type="button"
-              :disabled="busyId !== null"
-              @click="resolve(item)"
-            >Đã xử lý</button>
+            >
+              Tiếp nhận
+            </button>
             <button
               v-if="!item.readAt"
               type="button"
@@ -342,8 +402,20 @@ watch(
         >
           <span>Trang {{ page }} / {{ pageCount }}</span>
           <div>
-            <button type="button" :disabled="page <= 1" @click="page--">Trước</button>
-            <button type="button" :disabled="page >= pageCount" @click="page++">Tiếp</button>
+            <button
+              type="button"
+              :disabled="page <= 1"
+              @click="page--"
+            >
+              Trước
+            </button>
+            <button
+              type="button"
+              :disabled="page >= pageCount"
+              @click="page++"
+            >
+              Tiếp
+            </button>
           </div>
         </nav>
       </div>

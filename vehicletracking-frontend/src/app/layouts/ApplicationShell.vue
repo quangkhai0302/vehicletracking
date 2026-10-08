@@ -25,6 +25,7 @@ import { useDriverRouteNotifications } from '@/features/tracking/composables/use
 import './application-shell.css';
 import AdminNotificationBell from '@/features/reports/components/AdminNotificationBell.vue';
 import { adminNotificationMenuKey } from '@/features/reports/composables/adminNotificationMenu';
+import { useAdminIncidentNotifications } from '@/features/reports/composables/useAdminIncidentNotifications';
 import { useAdminAssignmentNotifications } from '@/features/reports/composables/useAdminAssignmentNotifications';
 const location = useRoute(),
   router = useRouter(),
@@ -51,6 +52,7 @@ const live = useLiveOperations();
 provide(liveOperationsKey, live);
 useDriverRouteNotifications(() => live.snapshot);
 useAdminAssignmentNotifications(() => auth.user?.role === 'ADMIN' ? live.snapshot : null);
+useAdminIncidentNotifications(() => auth.user?.role === 'ADMIN' ? live.snapshot : null);
 const route = computed(() => findRoute(location.path));
 const navigationOpen = ref(false),
   mapNavigationExpanded = ref(false);

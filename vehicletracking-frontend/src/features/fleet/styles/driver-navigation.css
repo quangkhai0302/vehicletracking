@@ -181,3 +181,11 @@
   .driver-map-host .gm-traffic-pill-legend { gap:5px; }
   .driver-map-host .gm-legend-bar-gradient { width:40px; }
 }
+
+.driver-trip-controls, .driver-active-incident { display: grid; gap: 10px; }
+.driver-trip-control { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid #bdd7e6; border-radius: 10px; color: #006f99; background: #f0f9ff; font: inherit; font-weight: 600; cursor: pointer; }
+.driver-trip-control:disabled { opacity: .55; cursor: not-allowed; }
+.driver-active-incident { padding: 14px; border: 1px solid #f3cfaa; border-radius: 12px; background: #fff8ef; overflow-wrap: anywhere; }
+.driver-active-incident > strong { display: flex; align-items: center; gap: 8px; color: #9a4510; }
+.driver-active-incident > p, .driver-incident-pause-note { margin: 0; font-size: 13px; line-height: 1.5; }
+.driver-active-incident > small { color: #697b90; }

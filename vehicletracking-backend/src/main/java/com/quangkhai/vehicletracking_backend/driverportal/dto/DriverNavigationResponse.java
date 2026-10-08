@@ -14,4 +14,5 @@ import java.util.List;
 public record DriverNavigationResponse(Instant serverTime, TripSummaryResponse trip,
         List<TripDetailResponse.Stop> stops, RouteDetailResponse route, TelemetryResponse position,
         SimulationResponse simulation, Long routeRevisionId, Guidance guidance,
-        TripCheckInsResponse checkIns, List<StationResponse> stations) {}
+        TripCheckInsResponse checkIns, List<StationResponse> stations,
+        List<com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentResponse> activeIncidents) {}

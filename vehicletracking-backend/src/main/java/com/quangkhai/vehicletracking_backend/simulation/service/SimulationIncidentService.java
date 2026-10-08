@@ -32,13 +32,6 @@ public class SimulationIncidentService {
         return SimulationIncidentResponse.from(incident, null);
     }
 
-    @Transactional
-    public SimulationIncidentResponse resolve(long id) {
-        var incident = lock(id);
-        incident.resolve(now());
-        return SimulationIncidentResponse.from(incident, null);
-    }
-
     private SimulationIncidentEntity lock(long id) {
         return incidents.findLockedById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy sự cố."));

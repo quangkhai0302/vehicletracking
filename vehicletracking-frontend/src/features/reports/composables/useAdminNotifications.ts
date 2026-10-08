@@ -5,7 +5,6 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   acknowledgeIncident,
-  resolveIncident,
 } from '../api/notifications';
 import type { NotificationItem } from '../types/notifications';
 import { useErrorToast } from '@/shared/composables/useErrorToast';
@@ -102,7 +101,7 @@ export function useAdminNotifications(
             item.type === 'DIRECT_ASSIGNMENT_ACCEPTED' ||
             item.type === 'DIRECT_ASSIGNMENT_DECLINED'
           : typeFilter.value === 'INCIDENT'
-            ? item.type === 'SIMULATION_INCIDENT'
+            ? item.type === 'SIMULATION_INCIDENT' || item.type === 'SIMULATION_INCIDENT_RESOLVED'
             : item.type === 'REROUTE_CREATED' ||
             item.type === 'REROUTE_UNAVAILABLE' ||
             item.type === 'DRIVER_ROUTE_CHANGED');
@@ -172,20 +171,18 @@ export function useAdminNotifications(
       if (!disposed) busyId.value = null;
     }
   }
-  async function updateIncident(item: NotificationItem, action: 'acknowledge' | 'resolve') {
+  async function updateIncident(item: NotificationItem) {
     const incidentId = item.simulationIncidentId;
     if (incidentId == null || busyId.value !== null) return;
     busyId.value = item.id;
     error.value = null;
     try {
-      const response = action === 'acknowledge'
-        ? await acknowledgeIncident(incidentId)
-        : await resolveIncident(incidentId);
+      const response = await acknowledgeIncident(incidentId);
       if (!disposed) {
-        items.value = items.value.map((row) => row.id === item.id
+        items.value = items.value.map((row) => row.simulationIncidentId === incidentId
           ? { ...row, simulationIncidentStatus: response.status }
           : row);
-        notifySuccess(action === 'acknowledge' ? 'Đã tiếp nhận sự cố.' : 'Đã đánh dấu sự cố đã xử lý.');
+        notifySuccess('Đã tiếp nhận sự cố.');
       }
     } catch (reason) {
       if (!disposed) error.value = reason instanceof Error ? reason.message : 'Không thể cập nhật sự cố.';
@@ -208,7 +205,6 @@ export function useAdminNotifications(
     read,
     readAll,
     remove,
-    acknowledge: (item: NotificationItem) => updateIncident(item, 'acknowledge'),
-    resolve: (item: NotificationItem) => updateIncident(item, 'resolve'),
+    acknowledge: (item: NotificationItem) => updateIncident(item),
   };
 }

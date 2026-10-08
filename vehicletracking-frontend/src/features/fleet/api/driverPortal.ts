@@ -42,3 +42,12 @@ export const applyDriverRouteOption = (id: number, token: string, optionIndex: n
   request<DriverNavigationSnapshot>(`/driver/trips/${id}/route-options/${encodeURIComponent(token)}/apply`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ optionIndex }), signal,
   });
+
+export const pauseDriverTrip = (id: number, signal?: AbortSignal) =>
+  request<DriverNavigationSnapshot>(`/driver/trips/${id}/pause`, { method: 'POST', signal });
+export const resumeDriverTrip = (id: number, signal?: AbortSignal) =>
+  request<DriverNavigationSnapshot>(`/driver/trips/${id}/resume`, { method: 'POST', signal });
+export const resolveDriverIncident = (id: number, incidentId: number, attemptNumber: number, resolutionNote: string, signal?: AbortSignal) =>
+  request<DriverNavigationSnapshot>(`/driver/trips/${id}/simulation/incidents/${incidentId}/resolve`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attemptNumber, resolutionNote }), signal,
+  });

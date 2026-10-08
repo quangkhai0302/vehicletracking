@@ -451,4 +451,75 @@ class DriverNavigationIntegrationTest {
         conflict(() -> navigation.options(trip.principal(), trip.id()));
         assertThat(revisions.countByTripId(trip.id())).isZero();
     }
+    @Test void driverCanPauseAndResumeWithoutLosingProgress() {
+        var trip = create();
+        conflict(() -> navigation.pause(trip.principal(), trip.id()));
+        conflict(() -> navigation.resume(trip.principal(), trip.id()));
+        navigation.start(trip.principal(), trip.id());
+        time.updateAndGet(t -> t.plusSeconds(7));
+        var paused = navigation.pause(trip.principal(), trip.id());
+        double elapsed = paused.simulation().elapsedSeconds();
+        assertThat(paused.simulation().status()).isEqualTo(SimulationStatus.PAUSED);
+        time.updateAndGet(t -> t.plusSeconds(60));
+        var again = navigation.pause(trip.principal(), trip.id());
+        assertThat(again.simulation().elapsedSeconds()).isEqualTo(elapsed);
+        var resumed = navigation.resume(trip.principal(), trip.id());
+        assertThat(resumed.simulation().status()).isEqualTo(SimulationStatus.RUNNING);
+        assertThat(resumed.simulation().elapsedSeconds()).isEqualTo(elapsed);
+        assertThat(resumed.position().latitude()).isEqualTo(paused.position().latitude());
+        assertThat(resumed.checkIns().visits()).isEqualTo(paused.checkIns().visits());
+        var other = create().principal();
+        notFound(() -> navigation.pause(other, trip.id()));
+        notFound(() -> navigation.resume(other, trip.id()));
+    }
+
+    @Test void driverResolvesIncidentAndNotifiesAdminExactlyOnceThenResumes() {
+        var trip = create(); navigation.start(trip.principal(), trip.id());
+        time.updateAndGet(t -> t.plusSeconds(7));
+        var incident = navigation.reportIncident(trip.principal(), trip.id(), incidentRequest());
+        var paused = navigation.navigation(trip.principal(), trip.id());
+        assertThat(paused.activeIncidents()).singleElement().extracting(i -> i.id()).isEqualTo(incident.id());
+        conflict(() -> navigation.resume(trip.principal(), trip.id()));
+        conflict(() -> simulator.play(trip.id()));
+        notFound(() -> navigation.resolveIncident(create().principal(), trip.id(), incident.id(), resolutionRequest(1)));
+        var otherTrip = create(); navigation.start(otherTrip.principal(), otherTrip.id());
+        notFound(() -> navigation.resolveIncident(otherTrip.principal(), otherTrip.id(), incident.id(), resolutionRequest(1)));
+        conflict(() -> navigation.resolveIncident(trip.principal(), trip.id(), incident.id(), resolutionRequest(2)));
+        var resolved = navigation.resolveIncident(trip.principal(), trip.id(), incident.id(), resolutionRequest(1));
+        assertThat(resolved.activeIncidents()).isEmpty();
+        assertThat(resolved.simulation().status()).isEqualTo(SimulationStatus.RUNNING);
+        assertThat(resolved.simulation().elapsedSeconds()).isEqualTo(paused.simulation().elapsedSeconds());
+        assertThat(resolved.position().latitude()).isEqualTo(paused.position().latitude());
+        var notices = notifications.findAllByTripIdOrderByCreatedAtDescIdDesc(trip.id());
+        assertThat(notices).extracting(n -> n.getType()).containsExactlyInAnyOrder(
+            com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType.SIMULATION_INCIDENT,
+            com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType.SIMULATION_INCIDENT_RESOLVED);
+        var notice = notices.stream().filter(n -> n.getType() == com.quangkhai.vehicletracking_backend.reroute.entity.NotificationType.SIMULATION_INCIDENT_RESOLVED).findFirst().orElseThrow();
+        assertThat(notice.getReason()).isEqualTo("Đã kiểm tra, xe hoạt động bình thường");
+        navigation.pause(trip.principal(), trip.id());
+        var retry = navigation.resolveIncident(trip.principal(), trip.id(), incident.id(), resolutionRequest(1));
+        assertThat(retry.simulation().status()).isEqualTo(SimulationStatus.PAUSED);
+        assertThat(notifications.findAllByTripIdOrderByCreatedAtDescIdDesc(trip.id())).hasSize(2);
+    }
+
+    @Test void resolutionFailureRollsBackIncidentAndKeepsVehiclePaused() {
+        var trip = create(); navigation.start(trip.principal(), trip.id());
+        var incident = navigation.reportIncident(trip.principal(), trip.id(), incidentRequest());
+        doThrow(new IllegalStateException("Notification storage unavailable")).when(notifications).saveAndFlush(any(TripNotificationEntity.class));
+        assertThatThrownBy(() -> navigation.resolveIncident(trip.principal(), trip.id(), incident.id(), resolutionRequest(1)))
+            .isInstanceOf(IllegalStateException.class);
+        var snapshot = navigation.navigation(trip.principal(), trip.id());
+        assertThat(snapshot.activeIncidents()).hasSize(1);
+        assertThat(snapshot.simulation().status()).isEqualTo(SimulationStatus.PAUSED);
+    }
+
+    private com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentCreateRequest incidentRequest() {
+        return new com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentCreateRequest(1,
+            com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentType.VEHICLE_BREAKDOWN,
+            com.quangkhai.vehicletracking_backend.reroute.entity.NotificationSeverity.MAJOR, "Kiểm tra động cơ", UUID.randomUUID());
+    }
+    private com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentResolveRequest resolutionRequest(int attempt) {
+        return new com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentResolveRequest(attempt, "Đã kiểm tra, xe hoạt động bình thường");
+    }
+
 }

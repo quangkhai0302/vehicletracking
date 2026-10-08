@@ -73,6 +73,7 @@ public class SimulationService {
     private final com.quangkhai.vehicletracking_backend.reroute.service.TripRouteGeometryService geometry;
     private final SimulationIncidentRepository incidents;
     private final TripNotificationRepository notifications;
+    private final IncidentLocationService incidentLocations;
 
     @Transactional
     public SimulationIncidentResponse reportIncident(long tripId, long reporterDriverId,
@@ -106,9 +107,11 @@ public class SimulationService {
         if (run.getStatus() == SimulationStatus.COMPLETED || trip.getStatus() != TripStatus.IN_PROGRESS)
             throw conflict("Chuyến đã kết thúc trước khi ghi nhận sự cố.");
         var frame = motion(trip).at(run.getElapsedSeconds());
-        var incident = incidents.saveAndFlush(new SimulationIncidentEntity(trip, trip.getDriver(), trip.getAttemptNumber(),
+        var incident = new SimulationIncidentEntity(trip, trip.getDriver(), trip.getAttemptNumber(),
                 request.type(), request.severity(), request.detail(), frame.latitude(), frame.longitude(),
-                run.getElapsedSeconds(), request.idempotencyKey(), now));
+                run.getElapsedSeconds(), request.idempotencyKey(), now);
+        incident.captureLocation(incidentLocations.locate(trip, frame));
+        incidents.saveAndFlush(incident);
         run.changeStatus(SimulationStatus.PAUSED, now);
 
         String title = request.type().label();
@@ -125,8 +128,43 @@ public class SimulationService {
     }
 
     @Transactional
+    public SimulationResponse resolveIncident(long tripId, long driverId, long incidentId,
+            com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentResolveRequest request) {
+        var trip = lockTrip(tripId);
+        if (trip.getDriver() == null || trip.getDriver().getId() != driverId)
+            throw new ResponseStatusException(NOT_FOUND, "Không tìm thấy chuyến được phân công.");
+        var incident = incidents.findLockedById(incidentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy sự cố."));
+        if (incident.getTrip().getId() != tripId || incident.getReportedByDriver() == null
+                || incident.getReportedByDriver().getId() != driverId)
+            throw new ResponseStatusException(NOT_FOUND, "Không tìm thấy sự cố của chuyến được phân công.");
+        if (request.attemptNumber() != trip.getAttemptNumber() || incident.getAttemptNumber() != trip.getAttemptNumber())
+            throw conflict("Lượt chạy đã thay đổi. Hãy tải lại chuyến.");
+        var run = requireRun(tripId);
+        // Retries must not resume a later manual pause or duplicate the notification.
+        if (incident.getStatus() == SimulationIncidentStatus.RESOLVED) return describe(trip, run);
+        if (trip.getStatus() != TripStatus.IN_PROGRESS || run.getStatus() != SimulationStatus.PAUSED)
+            throw conflict("Chỉ xác nhận xử lý sự cố khi chuyến đang tạm dừng.");
+        incident.resolve(now(), request.resolutionNote());
+        incidents.saveAndFlush(incident);
+        String title = "Tài xế đã xử lý xong sự cố";
+        String reason = incident.getResolutionNote() == null ? "Sự cố đã được tài xế xử lý. Chuyến tiếp tục thực hiện."
+                : incident.getResolutionNote();
+        if (reason.length() > 255) reason = reason.substring(0, 255);
+        var notification = new TripNotificationEntity(trip, null, NotificationType.SIMULATION_INCIDENT_RESOLVED,
+            incident.getSeverity(), title, reason, null, "", null, null,
+            "simulation-incident-resolved:" + incidentId, now());
+        notification.attachSimulationIncident(incident);
+        notifications.saveAndFlush(notification);
+        return play(tripId);
+    }
+
+    @Transactional
     public SimulationResponse play(long tripId) {
         var trip=lockTrip(tripId);
+        if (incidents.existsByTripIdAndAttemptNumberAndStatusIn(tripId, trip.getAttemptNumber(),
+                List.of(SimulationIncidentStatus.OPEN, SimulationIncidentStatus.ACKNOWLEDGED)))
+            throw conflict("Tài xế cần xác nhận đã xử lý xong sự cố trước khi tiếp tục chuyến.");
         var run=runs.findByTripId(tripId).orElse(null);
         if (run != null && run.getScenario() != SimulationScenario.CURRENT_TRAFFIC)
             run.changeScenario(SimulationScenario.CURRENT_TRAFFIC);

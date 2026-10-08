@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Navigation,
   Play,
+  Pause,
   Route,
   RefreshCw,
   WifiOff,
@@ -19,6 +20,7 @@ import { RouterLink } from 'vue-router';
 import { useDriverNavigation } from '@/features/fleet/composables/useDriverNavigation';
 import DriverNavigationMap from './DriverNavigationMap.vue';
 import { createIncidentRequestKey } from '@/features/simulation/utils/incidentRequestKey';
+import IncidentResolutionDialog from '@/features/simulation/components/IncidentResolutionDialog.vue';
 import SimulationIncidentDialog from '@/features/simulation/components/SimulationIncidentDialog.vue';
 import { TRIP_STATUS_LABELS, vehicleTypeLabel } from '@/features/fleet/types/fleet';
 import {
@@ -36,13 +38,20 @@ const props = defineProps<{ tripId: number }>();
 const navigation = useDriverNavigation(toRef(props, 'tripId'));
 useErrorToast(() => navigation.error);
 const incidentDialog = ref(false);
+const resolvingIncidentId = ref<number | null>(null);
+const resolutionNote = ref('');
+async function finishIncident() {
+  if (resolvingIncidentId.value != null && await navigation.resolveIncident(resolvingIncidentId.value, resolutionNote.value)) {
+    resolvingIncidentId.value = null; resolutionNote.value = '';
+  }
+}
 const incidentIdempotencyKey = ref('');
 const canReportIncident = computed(() => {
   const snapshot = navigation.snapshot;
   const run = snapshot?.simulation;
   return !!snapshot && snapshot.trip.status === 'IN_PROGRESS' &&
     (run?.status === 'RUNNING' || run?.status === 'PAUSED') &&
-    navigation.connected && !navigation.busy;
+    navigation.connected && !navigation.busy && navigation.activeIncidents.length === 0;
 });
 function openIncidentDialog() {
   incidentIdempotencyKey.value = createIncidentRequestKey();
@@ -51,6 +60,10 @@ function openIncidentDialog() {
 async function submitIncident(input: { type: 'VEHICLE_BREAKDOWN' | 'EMERGENCY_STOP' | 'ROAD_BLOCKED' | 'OTHER'; severity: 'MAJOR' | 'CRITICAL'; detail: string }) {
   return navigation.reportIncident({ ...input, idempotencyKey: incidentIdempotencyKey.value });
 }
+watch(() => props.tripId, () => { resolvingIncidentId.value = null; incidentDialog.value = false; });
+watch(() => navigation.activeIncidents.map(item => item.id), ids => {
+  if (resolvingIncidentId.value != null && !ids.includes(resolvingIncidentId.value)) resolvingIncidentId.value = null;
+});
 const mapView = ref<InstanceType<typeof DriverNavigationMap> | null>(null);
 const navigationView = ref<HTMLElement | null>(null);
 const tripDetails = ref<HTMLElement | null>(null);
@@ -77,6 +90,7 @@ const nextStop = computed(() => info.value?.nextStop);
 const guidanceText = computed(() => {
   if (navigation.snapshot?.trip.status === 'COMPLETED') return 'Đã hoàn thành chuyến';
   if (navigation.snapshot?.trip.status === 'CANCELLED') return 'Chuyến đã bị hủy';
+  if (navigation.snapshot?.simulation?.status === 'PAUSED') return navigation.activeIncidents.length ? 'Đang tạm dừng để xử lý sự cố' : 'Chuyến đang tạm dừng';
   if (navigation.snapshot?.simulation?.frame?.dwelling)
     return `Dừng tại ${nextStop.value?.stationName ?? 'trạm'}`;
   const maneuver = navigation.snapshot?.guidance?.maneuver;
@@ -275,6 +289,21 @@ async function saveBoardingCount() {
             Tuyến này chưa có chỉ dẫn rẽ từng bước. Bản đồ vẫn hiển thị lộ trình chính thức.
           </p>
         </div>
+        <div v-if="navigation.snapshot.trip.status === 'IN_PROGRESS'" class="driver-trip-controls">
+          <button v-if="navigation.snapshot.simulation?.status === 'RUNNING'" class="driver-trip-control" type="button" :disabled="!navigation.canPause" @click="navigation.pause">
+            <Pause :size="17" /> Tạm dừng chuyến
+          </button>
+          <button v-else-if="navigation.snapshot.simulation?.status === 'PAUSED'" class="driver-trip-control" type="button" :disabled="!navigation.canResume" @click="navigation.resume">
+            <Play :size="17" /> Tiếp tục chuyến
+          </button>
+          <p v-if="navigation.activeIncidents.length" class="driver-incident-pause-note">Chuyến đang tạm dừng do sự cố. Xác nhận đã xử lý xong để tiếp tục.</p>
+        </div>
+        <section v-for="incident in navigation.activeIncidents" :key="incident.id" class="driver-active-incident" aria-label="Sự cố đang xử lý">
+          <strong><AlertTriangle :size="17" /> {{ incident.type === 'VEHICLE_BREAKDOWN' ? 'Xe gặp sự cố' : incident.type === 'EMERGENCY_STOP' ? 'Dừng khẩn cấp' : incident.type === 'ROAD_BLOCKED' ? 'Đường bị chặn' : 'Sự cố khác' }}</strong>
+          <p v-if="incident.detail">{{ incident.detail }}</p>
+          <small>{{ incident.status === 'ACKNOWLEDGED' ? 'Admin đã tiếp nhận' : 'Đã báo cho admin' }}</small>
+          <button type="button" class="driver-trip-control" :disabled="navigation.busy || !navigation.connected" @click="resolvingIncidentId = incident.id; resolutionNote = ''">Đã xử lý xong</button>
+        </section>
         <button
           v-if="canReportIncident"
           class="driver-incident-report-button"
@@ -448,6 +477,14 @@ async function saveBoardingCount() {
         </p>
       </aside>
     </div>
+    <IncidentResolutionDialog
+      v-if="resolvingIncidentId != null"
+      v-model="resolutionNote"
+      :busy="navigation.busy"
+      :error="navigation.error"
+      :on-submit="finishIncident"
+      :on-close="() => { resolvingIncidentId = null }"
+    />
     <SimulationIncidentDialog
       v-if="incidentDialog"
       :busy="navigation.busy"

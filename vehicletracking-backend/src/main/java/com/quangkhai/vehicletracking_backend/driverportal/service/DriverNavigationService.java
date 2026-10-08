@@ -51,6 +51,38 @@ public class DriverNavigationService {
     private final Clock operationsClock;
     private final CheckInQueryService checkIns;
     private final StationRepository stations;
+    private final com.quangkhai.vehicletracking_backend.simulation.repository.SimulationIncidentRepository incidents;
+
+    @Transactional
+    public DriverNavigationResponse pause(UserAccountPrincipal principal, long tripId) {
+        var trip = owned(principal, tripId, true);
+        requireActiveTrip(trip);
+        simulation.pause(tripId);
+        return describe(trip);
+    }
+
+    @Transactional
+    public DriverNavigationResponse resume(UserAccountPrincipal principal, long tripId) {
+        var trip = owned(principal, tripId, true);
+        requireActiveTrip(trip);
+        simulation.play(tripId);
+        return describe(trip);
+    }
+
+    @Transactional
+    public DriverNavigationResponse resolveIncident(UserAccountPrincipal principal, long tripId, long incidentId,
+            com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentResolveRequest request) {
+        var trip = owned(principal, tripId, true);
+        requireActiveTrip(trip);
+        simulation.resolveIncident(tripId, trip.getDriver().getId(), incidentId, request);
+        return describe(trip);
+    }
+
+    private void requireActiveTrip(TripEntity trip) {
+        if (trip.getStatus() != TripStatus.IN_PROGRESS) throw conflict("Chuyến không đang thực hiện.");
+        if (!trip.getDriver().isActive() || !trip.getVehicle().isActive())
+            throw conflict("Xe hoặc tài xế đã ngừng hoạt động.");
+    }
 
     private record Preview(long driverId, long tripId, int attempt, Long version, int nextStop,
                            Instant expiresAt, List<DriverRouteOptionsResponse.Option> options) {}
@@ -225,7 +257,11 @@ public class DriverNavigationService {
                 run == null ? null : simulation.describeSnapshot(trip, run), plan == null ? null : plan.revisionId(),
                 plan == null ? null : plan.motion().guidance(run.getElapsedSeconds()), checkIns.find(trip.getId()),
                 stations.findAllById(trip.getStops().stream().map(TripStopEntity::getStationId).distinct().toList())
-                        .stream().map(StationResponse::from).toList());
+                        .stream().map(StationResponse::from).toList(),
+                incidents.findByTripIdAndAttemptNumberAndStatusInOrderByCreatedAtDesc(trip.getId(), trip.getAttemptNumber(),
+                    List.of(com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentStatus.OPEN,
+                            com.quangkhai.vehicletracking_backend.simulation.entity.SimulationIncidentStatus.ACKNOWLEDGED))
+                    .stream().map(i -> SimulationIncidentResponse.from(i, null)).toList());
     }
 
     private TripEntity owned(UserAccountPrincipal principal, long tripId, boolean lock) {
@@ -241,7 +277,7 @@ public class DriverNavigationService {
     private SimulationRunEntity requireRunning(TripEntity trip) {
         var run = runs.findByTripId(trip.getId()).orElseThrow(() -> conflict("Chuyến chưa chạy mô phỏng."));
         if (trip.getStatus() != TripStatus.IN_PROGRESS || run.getStatus() != SimulationStatus.RUNNING)
-            throw conflict("Chỉ đổi đường khi chuyến đang mô phỏng. Phiên tạm dừng do admin điều khiển.");
+            throw conflict("Chỉ đổi đường khi chuyến đang chạy. Hãy tiếp tục chuyến trước khi đổi đường.");
         if (!trip.getDriver().isActive() || !trip.getVehicle().isActive()) throw conflict("Xe hoặc tài xế đã ngừng hoạt động.");
         var position = positions.findById(trip.getVehicle().getId()).map(p -> p.getSample()).orElse(null);
         if (position == null || !trip.getId().equals(position.getTripId()) || position.getAttemptNumber() != trip.getAttemptNumber()

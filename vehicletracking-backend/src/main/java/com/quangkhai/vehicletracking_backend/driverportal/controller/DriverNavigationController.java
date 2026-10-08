@@ -26,6 +26,20 @@ public class DriverNavigationController {
     public DriverNavigationResponse start(@AuthenticationPrincipal UserAccountPrincipal principal, @PathVariable long tripId) {
         return service.start(principal, tripId);
     }
+    @PostMapping("/pause")
+    public DriverNavigationResponse pause(@AuthenticationPrincipal UserAccountPrincipal principal, @PathVariable long tripId) {
+        return service.pause(principal, tripId);
+    }
+    @PostMapping("/resume")
+    public DriverNavigationResponse resume(@AuthenticationPrincipal UserAccountPrincipal principal, @PathVariable long tripId) {
+        return service.resume(principal, tripId);
+    }
+    @PostMapping("/simulation/incidents/{incidentId}/resolve")
+    public DriverNavigationResponse resolveIncident(@AuthenticationPrincipal UserAccountPrincipal principal,
+            @PathVariable long tripId, @PathVariable long incidentId,
+            @Valid @RequestBody com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentResolveRequest request) {
+        return service.resolveIncident(principal, tripId, incidentId, request);
+    }
     @PostMapping("/route-options")
     public DriverRouteOptionsResponse options(@AuthenticationPrincipal UserAccountPrincipal principal, @PathVariable long tripId) {
         return service.options(principal, tripId);

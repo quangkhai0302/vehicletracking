@@ -29,13 +29,14 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = {DriverNavigationController.class, AuthController.class}, properties = {
+@WebMvcTest(controllers = {DriverNavigationController.class, AuthController.class, com.quangkhai.vehicletracking_backend.simulation.controller.SimulationIncidentController.class}, properties = {
         "auth.security-enabled=true", "app.cors.allowed-origins=http://localhost:5173"})
 @EnableConfigurationProperties(CorsProperties.class)
 @Import({SecurityConfig.class, SessionAccountValidationFilter.class})
 class DriverNavigationControllerTest {
     @Autowired MockMvc mvc;
     @MockitoBean DriverNavigationService service;
+    @MockitoBean com.quangkhai.vehicletracking_backend.simulation.service.SimulationIncidentService incidents;
     @MockitoBean UserAccountRepository accounts;
     @MockitoBean UserAccountService userAccounts;
     @MockitoBean org.springframework.security.crypto.password.PasswordEncoder passwords;
@@ -57,7 +58,7 @@ class DriverNavigationControllerTest {
     }
     DriverNavigationResponse response() {
         return new DriverNavigationResponse(Instant.parse("2026-09-29T00:00:00Z"), null, List.of(), null, null, null, null, null,
-                new com.quangkhai.vehicletracking_backend.checkin.dto.TripCheckInsResponse(7, 0, 1, false, List.of()), List.of());
+                new com.quangkhai.vehicletracking_backend.checkin.dto.TripCheckInsResponse(7, 0, 1, false, List.of()), List.of(), List.of());
     }
 
     @Test void anonymousAndAdminCannotUseDriverNavigation() throws Exception {
@@ -110,4 +111,35 @@ class DriverNavigationControllerTest {
                 .andExpect(status().isOk());
         verify(service).apply(driver.principal(), 7, token, 1);
     }
+    @Test void driverPauseResumeAndResolutionRequireCsrfAndDelegatePrincipal() throws Exception {
+        var driver = session(UserRole.DRIVER); String csrf = csrf();
+        for (String action : List.of("pause", "resume")) {
+            mvc.perform(post("/api/v1/driver/trips/7/" + action).session(driver.value())).andExpect(status().isForbidden());
+            mvc.perform(post("/api/v1/driver/trips/7/" + action).session(driver.value())
+                .cookie(new Cookie("XSRF-TOKEN", csrf)).header("X-XSRF-TOKEN", csrf)).andExpect(status().isOk());
+        }
+        verify(service).pause(driver.principal(), 7);
+        verify(service).resume(driver.principal(), 7);
+        String path = "/api/v1/driver/trips/7/simulation/incidents/9/resolve";
+        String body = "{\"attemptNumber\":1,\"resolutionNote\":\"Đã sửa xong\"}";
+        mvc.perform(post(path).session(driver.value()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        mvc.perform(post(path).session(driver.value()).cookie(new Cookie("XSRF-TOKEN", csrf)).header("X-XSRF-TOKEN", csrf)
+            .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk());
+        verify(service).resolveIncident(eq(driver.principal()), eq(7L), eq(9L),
+            eq(new com.quangkhai.vehicletracking_backend.simulation.dto.SimulationIncidentResolveRequest(1, "Đã sửa xong")));
+        mvc.perform(post(path).session(driver.value()).cookie(new Cookie("XSRF-TOKEN", csrf)).header("X-XSRF-TOKEN", csrf)
+            .contentType(MediaType.APPLICATION_JSON).content("{\"attemptNumber\":0}")).andExpect(status().isBadRequest());
+        mvc.perform(post(path).session(driver.value()).cookie(new Cookie("XSRF-TOKEN", csrf)).header("X-XSRF-TOKEN", csrf)
+            .contentType(MediaType.APPLICATION_JSON).content("{\"attemptNumber\":1,\"resolutionNote\":\"" + "a".repeat(501) + "\"}")).andExpect(status().isBadRequest());
+    }
+    @Test void adminCannotControlDriverEndpointsOrResolveIncidents() throws Exception {
+        var admin = session(UserRole.ADMIN); String csrf = csrf();
+        for (String path : List.of("/api/v1/driver/trips/7/pause", "/api/v1/driver/trips/7/resume",
+                "/api/v1/driver/trips/7/simulation/incidents/9/resolve", "/api/v1/simulation-incidents/9/resolve")) {
+            mvc.perform(post(path).session(admin.value()).cookie(new Cookie("XSRF-TOKEN", csrf)).header("X-XSRF-TOKEN", csrf)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"attemptNumber\":1}")).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(service, incidents);
+    }
+
 }

@@ -26,11 +26,6 @@ export async function acknowledgeIncident(id: number): Promise<SimulationInciden
   if (!response.ok) throw new Error(`Không thể tiếp nhận sự cố (HTTP ${response.status}).`);
   return response.json() as Promise<SimulationIncidentResponse>;
 }
-export async function resolveIncident(id: number): Promise<SimulationIncidentResponse> {
-  const response = await appFetch(`${BASE}/simulation-incidents/${id}/resolve`, { method: 'POST' });
-  if (!response.ok) throw new Error(`Không thể xử lý sự cố (HTTP ${response.status}).`);
-  return response.json() as Promise<SimulationIncidentResponse>;
-}
 export async function fetchTripRevisions(tripId: number, signal?: AbortSignal): Promise<RouteRevision[]> {
   const response = await appFetch(`${BASE}/trips/${tripId}/revisions`, { signal });
   if (!response.ok) throw new Error(`Không thể tải phiên bản tuyến (HTTP ${response.status}).`);

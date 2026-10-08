@@ -23,6 +23,7 @@ public class SimulationIncidentController {
 
     @PostMapping("/{id}/resolve")
     public SimulationIncidentResponse resolve(@PathVariable long id) {
-        return incidents.resolve(id);
+        throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,
+                "Chỉ tài xế của chuyến được xác nhận đã xử lý xong sự cố.");
     }
 }

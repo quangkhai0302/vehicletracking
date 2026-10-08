@@ -37,8 +37,8 @@ public class TripNotificationEntity {
     @JoinColumn(name = "revision_id")
     private TripRouteRevisionEntity revision;
 
-    @jakarta.persistence.OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "simulation_incident_id", unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "simulation_incident_id")
     private SimulationIncidentEntity simulationIncident;
 
     @Enumerated(EnumType.STRING)

@@ -29,6 +29,8 @@ export interface SimulationIncidentResponse {
   createdAt: string;
   acknowledgedAt: string | null;
   resolvedAt: string | null;
+  locationLabel?: string | null;
+  resolutionNote: string | null;
   simulation: SimulationRun | null;
 }
 
@@ -49,18 +51,10 @@ export async function reportDriverSimulationIncident(
     body: JSON.stringify(input),
     signal,
   });
-  if (!response.ok) throw new Error(`Không thể ghi nhận sự cố (HTTP ${response.status}).`);
+  if (!response.ok) {
+    let message = `Không thể ghi nhận sự cố (HTTP ${response.status}).`;
+    try { const problem = await response.json() as { detail?: string }; message = problem.detail || message; } catch { /* Keep status fallback. */ }
+    throw new Error(message);
+  }
   return response.json() as Promise<SimulationIncidentResponse>;
 }
-
-async function updateIncident(
-  id: number,
-  action: 'acknowledge' | 'resolve',
-): Promise<SimulationIncidentResponse> {
-  const response = await appFetch(`${BASE}/simulation-incidents/${id}/${action}`, { method: 'POST' });
-  if (!response.ok) throw new Error(`Không thể cập nhật sự cố (HTTP ${response.status}).`);
-  return response.json() as Promise<SimulationIncidentResponse>;
-}
-
-export const acknowledgeSimulationIncident = (id: number) => updateIncident(id, 'acknowledge');
-export const resolveSimulationIncident = (id: number) => updateIncident(id, 'resolve');

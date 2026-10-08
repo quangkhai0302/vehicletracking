@@ -439,11 +439,12 @@ test('admin notification bell paginates its notification list', async () => {
   expect(panel.text()).toContain('Cảnh báo 11');
 });
 
-test('admin bell opens simulation incident monitoring and persists acknowledge and resolve actions', async () => {
+test('admin bell opens simulation incident monitoring and allows acknowledgement only and displays driver resolution', async () => {
   user = admin;
   const incidentNotice: NotificationItem = {
     ...alert,
     type: 'SIMULATION_INCIDENT',
+    simulationIncidentLocationLabel: 'Đường Kinh Dương Vương, Bình Tân, TP.HCM',
     title: 'Xe gặp sự cố',
     reason: 'Xe gặp sự cố: Đã dừng kiểm tra',
     simulationIncidentId: 77,
@@ -461,16 +462,24 @@ test('admin bell opens simulation incident monitoring and persists acknowledge a
   const panel = notificationPanel();
   await panel.findAll('.admin-notification-filters select')[0].setValue('INCIDENT');
   expect(panel.findAll('.admin-notification-card')).toHaveLength(1);
-  expect(panel.text()).toContain('Vị trí mô phỏng 10.77000, 106.70000');
+  expect(panel.get('.admin-incident-location dd').text()).toBe('Đường Kinh Dương Vương, Bình Tân, TP.HCM');
+  expect(panel.text()).not.toContain('10.77000');
+  expect(panel.text()).not.toContain('106.70000');
   expect(panel.text()).toContain('Đã dừng kiểm tra động cơ');
   expect(panel.get('.admin-notification-actions a').attributes('href')).toBe('/operations?tripId=100');
   await panel.get('.admin-notification-actions').findAll('button').find(button => button.text().includes('Tiếp nhận'))!.trigger('click');
   await flushPromises();
   expect(calls('/api/v1/simulation-incidents/77/acknowledge', 'POST')).toHaveLength(1);
   expect(panel.get('.admin-notification-incident-meta').text()).toContain('Đã tiếp nhận');
-  await panel.get('.admin-notification-actions').findAll('button').find(button => button.text().includes('Đã xử lý'))!.trigger('click');
-  await flushPromises();
-  expect(calls('/api/v1/simulation-incidents/77/resolve', 'POST')).toHaveLength(1);
+  expect(panel.get('.admin-notification-actions').text()).not.toContain('Đã xử lý');
+  expect(calls('/api/v1/simulation-incidents/77/resolve', 'POST')).toHaveLength(0);
+  handlers.set('GET /api/v1/notifications?unreadOnly=false', () => json([{ ...incidentNotice,
+    id: 78, type: 'SIMULATION_INCIDENT_RESOLVED', title: 'Tài xế đã xử lý xong sự cố', simulationIncidentStatus: 'RESOLVED',
+    simulationIncidentResolutionNote: 'Đã thay lốp xe, tiếp tục chuyến', reason: 'Đã xử lý xong',
+  }]));
+  await vi.advanceTimersByTimeAsync(15000); await flushPromises();
+  expect(panel.text()).toContain('Tài xế đã xử lý xong sự cố');
+  expect(panel.text()).toContain('Đã thay lốp xe, tiếp tục chuyến');
   expect(panel.get('.admin-notification-incident-meta').text()).toContain('Đã xử lý');
   await panel.get('.admin-notification-actions a').trigger('click');
   await flushPromises();

@@ -8,7 +8,7 @@ import DriverNavigation from '@/features/fleet/components/DriverNavigation.vue';
 import type { DriverNavigationSnapshot } from '@/features/fleet/types/driverNavigation';
 import { driverOptions, driverSnapshot, stamp } from './fixtures/driverNavigation';
 
-vi.mock('@/features/fleet/api/driverPortal', () => ({ fetchDriverNavigation: vi.fn(), startDriverTrip: vi.fn(), fetchDriverRouteOptions: vi.fn(), applyDriverRouteOption: vi.fn() }));
+vi.mock('@/features/fleet/api/driverPortal', () => ({ fetchDriverNavigation: vi.fn(), startDriverTrip: vi.fn(), pauseDriverTrip: vi.fn(), resumeDriverTrip: vi.fn(), resolveDriverIncident: vi.fn(), fetchDriverRouteOptions: vi.fn(), applyDriverRouteOption: vi.fn() }));
 vi.mock('@/features/simulation/api/incidents', () => ({ reportDriverSimulationIncident: vi.fn() }));
 vi.mock('@/shared/composables/useErrorToast', () => ({ useErrorToast: vi.fn() }));
 const scopes: ReturnType<typeof effectScope>[] = [];
@@ -34,7 +34,7 @@ beforeEach(() => {
     id: 1, tripId: 7, vehicleId: 1, vehiclePlateNumber: '51B-12345', reportedByDriverId: 9,
     reportedByDriverName: 'Tài xế thử nghiệm', attemptNumber: 1, type: 'VEHICLE_BREAKDOWN', severity: 'MAJOR',
     status: 'OPEN', detail: null, latitude: 10.77, longitude: 106.7, simulatedElapsedSeconds: 5,
-    createdAt: stamp, acknowledgedAt: null, resolvedAt: null, simulation: incidentSnapshot.simulation,
+    createdAt: stamp, acknowledgedAt: null, resolvedAt: null, resolutionNote: null, simulation: incidentSnapshot.simulation,
   });
 });
 afterEach(() => { unmounts.splice(0).forEach(fn => fn()); scopes.splice(0).forEach(s => s.stop()); vi.clearAllTimers(); vi.useRealTimers(); });
@@ -222,4 +222,57 @@ test('opens incident reporting without randomUUID and reuses the request key whe
     if (close) Object.defineProperty(HTMLDialogElement.prototype, 'close', close);
     else Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
   }
+});
+
+function pausedWithIncident() {
+  const snapshot = driverSnapshot('IN_PROGRESS'); snapshot.simulation!.status = 'PAUSED';
+  snapshot.activeIncidents = [{ id: 1, tripId: 7, vehicleId: 1, vehiclePlateNumber: '51B-12345', reportedByDriverId: 9,
+    reportedByDriverName: 'Tài xế', attemptNumber: 1, type: 'VEHICLE_BREAKDOWN', severity: 'MAJOR', status: 'OPEN',
+    detail: 'Xe cần kiểm tra', latitude: 10.77, longitude: 106.7, simulatedElapsedSeconds: 5,
+    createdAt: stamp, acknowledgedAt: null, resolvedAt: null, resolutionNote: null, simulation: snapshot.simulation }];
+  return snapshot;
+}
+test('driver pauses and resumes while discarding a late pre-pause poll and blocking duplicate actions', async () => {
+  vi.mocked(api.fetchDriverNavigation).mockResolvedValue(driverSnapshot('IN_PROGRESS'));
+  const { state } = setup(); await flushPromises();
+  const oldPoll = deferred(); vi.mocked(api.fetchDriverNavigation).mockReturnValueOnce(oldPoll.promise);
+  await vi.advanceTimersByTimeAsync(1000);
+  const pending = deferred(); vi.mocked(api.pauseDriverTrip).mockReturnValue(pending.promise);
+  const request = state.pause(); await state.pause();
+  expect(api.pauseDriverTrip).toHaveBeenCalledTimes(1);
+  const paused = driverSnapshot('IN_PROGRESS'); paused.simulation!.status = 'PAUSED';
+  vi.mocked(api.fetchDriverNavigation).mockResolvedValue(paused); pending.resolve(paused); await request;
+  oldPoll.resolve(driverSnapshot('IN_PROGRESS')); await flushPromises();
+  expect(state.snapshot?.simulation?.status).toBe('PAUSED'); expect(state.canResume).toBe(true);
+  vi.mocked(api.resumeDriverTrip).mockResolvedValue(driverSnapshot('IN_PROGRESS'));
+  vi.mocked(api.fetchDriverNavigation).mockResolvedValue(driverSnapshot('IN_PROGRESS'));
+  await state.resume(); await flushPromises();
+  expect(state.snapshot?.simulation?.status).toBe('RUNNING');
+});
+test('unresolved incident blocks manual resume; successful driver resolution adopts automatic resume', async () => {
+  const paused = pausedWithIncident(); vi.mocked(api.fetchDriverNavigation).mockResolvedValue(paused);
+  const { state } = setup(); await flushPromises(); await state.resume();
+  expect(state.canResume).toBe(false); expect(api.resumeDriverTrip).not.toHaveBeenCalled();
+  vi.mocked(api.resolveDriverIncident).mockRejectedValueOnce(new Error('Phiên đã thay đổi'));
+  expect(await state.resolveIncident(1, 'Đã sửa xe')).toBe(false); await flushPromises();
+  expect(state.activeIncidents).toHaveLength(1); expect(state.error).toContain('Phiên đã thay đổi');
+  const running = driverSnapshot('IN_PROGRESS'); running.activeIncidents = [];
+  vi.mocked(api.resolveDriverIncident).mockResolvedValue(running); vi.mocked(api.fetchDriverNavigation).mockResolvedValue(running);
+  expect(await state.resolveIncident(1, '  Đã sửa xe  ')).toBe(true); await flushPromises();
+  expect(api.resolveDriverIncident).toHaveBeenLastCalledWith(7, 1, 1, 'Đã sửa xe', expect.any(AbortSignal));
+  expect(state.activeIncidents).toHaveLength(0); expect(state.snapshot?.simulation?.status).toBe('RUNNING');
+});
+test('disconnect disables driver pause, resume and incident resolution', async () => {
+  vi.mocked(api.fetchDriverNavigation).mockResolvedValue(pausedWithIncident());
+  const { state } = setup(); await flushPromises(); vi.mocked(api.fetchDriverNavigation).mockRejectedValue(new Error('Mất mạng'));
+  await vi.advanceTimersByTimeAsync(1000); await state.pause(); await state.resume(); await state.resolveIncident(1, '');
+  expect(api.pauseDriverTrip).not.toHaveBeenCalled(); expect(api.resumeDriverTrip).not.toHaveBeenCalled(); expect(api.resolveDriverIncident).not.toHaveBeenCalled();
+});
+
+test('driver sees current incident resolution instead of a duplicate report form', async () => {
+  vi.mocked(api.fetchDriverNavigation).mockResolvedValue(pausedWithIncident());
+  const wrapper = component(); await flushPromises();
+  expect(wrapper.find('.driver-incident-report-button').exists()).toBe(false);
+  expect(wrapper.get('.driver-active-incident').text()).toContain('Đã xử lý xong');
+  expect(wrapper.get('.driver-trip-controls button').attributes('disabled')).toBeDefined();
 });

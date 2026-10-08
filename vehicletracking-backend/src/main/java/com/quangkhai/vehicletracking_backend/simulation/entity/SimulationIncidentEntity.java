@@ -78,6 +78,16 @@ public class SimulationIncidentEntity {
     @Column(name = "resolved_at")
     private Instant resolvedAt;
 
+    @Column(name = "resolution_note", length = 500)
+    private String resolutionNote;
+
+    @Column(name = "location_label", length = 500)
+    private String locationLabel;
+
+    public void captureLocation(String label) {
+        if (locationLabel == null) locationLabel = label;
+    }
+
     public SimulationIncidentEntity(TripEntity trip, DriverEntity reportedByDriver, int attemptNumber, SimulationIncidentType type,
                                     NotificationSeverity severity, String detail, double latitude,
                                     double longitude, double simulatedElapsedSeconds, UUID idempotencyKey,
@@ -100,6 +110,13 @@ public class SimulationIncidentEntity {
             status = SimulationIncidentStatus.ACKNOWLEDGED;
             acknowledgedAt = now;
         }
+    }
+
+    public void resolve(Instant now, String note) {
+        if (status != SimulationIncidentStatus.RESOLVED) {
+            resolutionNote = note == null || note.isBlank() ? null : note.trim();
+        }
+        resolve(now);
     }
 
     public void resolve(Instant now) {

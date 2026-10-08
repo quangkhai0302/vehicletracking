@@ -74,6 +74,23 @@ class SimulationIncidentMigrationIntegrationTest {
         jdbc.update("UPDATE vehicle_tracking.simulation_incidents SET status='RESOLVED', resolved_at=now() WHERE id=?", incident);
         assertThat(jdbc.queryForObject("SELECT status FROM vehicle_tracking.simulation_incidents WHERE id=?", String.class, incident))
                 .isEqualTo("RESOLVED");
+        flyway("44").migrate();
+        assertThat(jdbc.queryForObject("SELECT location_label FROM vehicle_tracking.simulation_incidents WHERE id=?", String.class, incident)).isNull();
+        jdbc.update("UPDATE vehicle_tracking.simulation_incidents SET location_label='Đường Kinh Dương Vương' WHERE id=?", incident);
+        assertThat(jdbc.queryForObject("SELECT location_label FROM vehicle_tracking.simulation_incidents WHERE id=?", String.class, incident)).isEqualTo("Đường Kinh Dương Vương");
+        assertThat(jdbc.queryForObject("SELECT resolution_note FROM vehicle_tracking.simulation_incidents WHERE id=?", String.class, incident)).isNull();
+        jdbc.update("UPDATE vehicle_tracking.simulation_incidents SET resolution_note='Đã kiểm tra xong' WHERE id=?", incident);
+        jdbc.update("""
+            INSERT INTO vehicle_tracking.trip_notifications(trip_id, type, severity, title, reason,
+                affected_stop_sequences, dedupe_key, created_at, simulation_incident_id)
+            VALUES (?, 'SIMULATION_INCIDENT_RESOLVED', 'MAJOR', 'Đã xử lý', 'Đã kiểm tra xong', '', 'resolve-test', now(), ?)
+            """, trip, incident);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM vehicle_tracking.trip_notifications WHERE simulation_incident_id=?", Integer.class, incident)).isEqualTo(2);
+        assertThatThrownBy(() -> jdbc.update("""
+            INSERT INTO vehicle_tracking.trip_notifications(trip_id, type, severity, title, reason,
+                affected_stop_sequences, dedupe_key, created_at, simulation_incident_id)
+            VALUES (?, 'SIMULATION_INCIDENT_RESOLVED', 'MAJOR', 'Đã xử lý', '', '', 'resolve-duplicate', now(), ?)
+            """, trip, incident)).isInstanceOf(DataAccessException.class);
     }
 
     private Flyway flyway(String target) {

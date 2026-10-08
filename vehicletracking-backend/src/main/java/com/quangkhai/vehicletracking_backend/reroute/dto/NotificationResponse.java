@@ -15,7 +15,7 @@ public record NotificationResponse(long id, long tripId, long vehicleId, String 
                                    String simulationIncidentReportedByDriver,
                                    String simulationIncidentDetail,
                                    Double simulationIncidentLatitude, Double simulationIncidentLongitude,
-                                   Double simulationIncidentElapsedSeconds) {
+                                   Double simulationIncidentElapsedSeconds, String simulationIncidentResolutionNote, Instant simulationIncidentResolvedAt, String simulationIncidentLocationLabel) {
     public static NotificationResponse from(TripNotificationEntity item) {
         SimulationIncidentEntity incident = item.getSimulationIncident();
         return new NotificationResponse(item.getId(), item.getTrip().getId(), item.getTrip().getVehicle().getId(), item.getTrip().getVehiclePlateSnapshot(),
@@ -30,6 +30,9 @@ public record NotificationResponse(long id, long tripId, long vehicleId, String 
                 incident == null ? null : incident.getDetail(),
                 incident == null ? null : incident.getLatitude(),
                 incident == null ? null : incident.getLongitude(),
-                incident == null ? null : incident.getSimulatedElapsedSeconds());
+                incident == null ? null : incident.getSimulatedElapsedSeconds(),
+                incident == null ? null : incident.getResolutionNote(),
+                incident == null ? null : incident.getResolvedAt(),
+                incident == null ? null : incident.getLocationLabel());
     }
 }

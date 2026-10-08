@@ -4,7 +4,10 @@ import type { SimulationRun, TelemetryPosition } from '@/features/tracking/types
 import type { TripCheckIns } from './checkin';
 import type { Station } from '@/features/stations/types/station';
 
+import type { SimulationIncidentResponse } from '@/features/simulation/api/incidents';
+
 export interface DriverNavigationSnapshot {
+  activeIncidents?: SimulationIncidentResponse[];
   serverTime: string;
   trip: TripSummary;
   stops: TripDetail['stops'];
