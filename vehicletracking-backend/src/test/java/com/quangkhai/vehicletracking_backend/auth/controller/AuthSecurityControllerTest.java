@@ -41,7 +41,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = AuthController.class, properties = {
+@WebMvcTest(controllers = {AuthController.class, com.quangkhai.vehicletracking_backend.traffic.controller.TrafficController.class}, properties = {
         "auth.security-enabled=true", "app.cors.allowed-origins=http://localhost:5173"})
 @EnableConfigurationProperties(CorsProperties.class)
 @Import({SecurityConfig.class, SessionAccountValidationFilter.class})
@@ -50,6 +50,37 @@ class AuthSecurityControllerTest {
     @MockitoBean UserAccountRepository accounts;
     @MockitoBean PasswordEncoder passwords;
     @MockitoBean UserAccountService userAccounts;
+    @MockitoBean com.quangkhai.vehicletracking_backend.traffic.service.TrafficQueryService traffic;
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "DRIVER"})
+    void trafficReadEndpointsAllowAdminAndDriver(String role) throws Exception {
+        for (String path : new String[]{"flow", "incidents"}) {
+            mvc.perform(get("/api/v1/traffic/" + path)
+                    .param("west", "106.6").param("south", "10.7").param("east", "106.8").param("north", "10.9")
+                    .session(trafficSession(role)))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    void trafficAccessStillRequiresAuthenticationAndKeepsOtherApisAdminOnly() throws Exception {
+        mvc.perform(get("/api/v1/traffic/flow")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/traffic/incidents")).andExpect(status().isUnauthorized());
+        for (String path : new String[]{"/api/v1/traffic/tiles/1/1/1", "/api/v1/reports/simulation"}) {
+            mvc.perform(get(path).session(trafficSession("DRIVER")))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    private MockHttpSession trafficSession(String role) {
+        var context = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                "fixture", "unused", java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role))));
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(org.springframework.security.web.context.HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+        return session;
+    }
 
     @Test
     void csrfEndpointBootstrapsSpaCookieAndUnauthenticatedSessionIsRejected() throws Exception {

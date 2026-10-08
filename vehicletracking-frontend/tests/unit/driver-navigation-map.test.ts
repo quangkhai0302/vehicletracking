@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import { fetchHereIncidents, fetchHereTrafficFlow } from '@/features/traffic/api/hereTraffic';
+vi.mock('@/features/traffic/api/hereTraffic', () => ({ fetchHereIncidents: vi.fn(), fetchHereTrafficFlow: vi.fn() }));
 import L from 'leaflet';
 import DriverNavigationMap from '@/features/fleet/components/DriverNavigationMap.vue';
 import { driverSnapshot } from './fixtures/driverNavigation';
@@ -11,6 +13,9 @@ const cleanups: (() => void)[] = [];
 beforeEach(() => {
   Object.defineProperty(L.Browser, 'svg', { ...svg, value: true });
   disconnect.mockClear(); observe.mockClear();
+  const envelope = { source: 'HERE_LIVE' as const, status: 'AVAILABLE' as const, observedAt: null, fetchedAt: '2026-10-08T00:00:00Z', ageSeconds: 0, warning: null, results: [] };
+  vi.mocked(fetchHereIncidents).mockReset().mockResolvedValue(envelope);
+  vi.mocked(fetchHereTrafficFlow).mockReset().mockResolvedValue(envelope);
   vi.stubGlobal('ResizeObserver', class { observe = observe; disconnect = disconnect; });
 });
 afterEach(() => { cleanups.splice(0).forEach(fn => fn()); Object.defineProperty(L.Browser, 'svg', svg); vi.unstubAllGlobals(); vi.restoreAllMocks(); document.body.replaceChildren(); });
@@ -108,4 +113,27 @@ test('unmount removes Leaflet map, observer and resize listener', () => {
   const { wrapper } = setup(); wrapper.unmount(); cleanups.pop();
   expect(remove).toHaveBeenCalledTimes(1); expect(disconnect).toHaveBeenCalledTimes(1);
   expect(cleanup).toHaveBeenCalledWith('resize', expect.any(Function));
+});
+
+test('traffic switch changes road tiles and incident visibility without changing the trip', async () => {
+  vi.mocked(fetchHereIncidents).mockResolvedValue({ source: 'HERE_LIVE', status: 'AVAILABLE', observedAt: null,
+    fetchedAt: '2026-10-08T00:00:00Z', ageSeconds: 0, warning: null,
+    results: [{ id: 'fixture', type: 'closure', description: 'Đường đang đóng', criticality: 'major', points: [], center: [10.77, 106.7] }] });
+  const setUrl = vi.spyOn(L.TileLayer.prototype, 'setUrl');
+  const { wrapper, data } = setup();
+  await nextTick(); await nextTick(); await nextTick();
+  const toggle = wrapper.get('button[aria-label="Giao thông theo thời gian thực"]');
+  expect(toggle.attributes('aria-pressed')).toBe('true');
+  expect(fetchHereIncidents).toHaveBeenCalledTimes(1);
+  expect(wrapper.find('.gm-traffic-incident-badge').exists()).toBe(true);
+  await toggle.trigger('click');
+  expect(toggle.attributes('aria-pressed')).toBe('false');
+  expect(setUrl).toHaveBeenLastCalledWith(expect.stringContaining('lyrs=m&'));
+  expect(wrapper.find('.gm-traffic-incident-badge').exists()).toBe(false);
+  await toggle.trigger('click');
+  await nextTick(); await nextTick();
+  expect(setUrl).toHaveBeenLastCalledWith(expect.stringContaining('lyrs=m,traffic&'));
+  expect(fetchHereIncidents).toHaveBeenCalledTimes(2);
+  expect(wrapper.findAll('.route-stop-map-marker')).toHaveLength(2);
+  expect(data.trip.status).toBe('IN_PROGRESS');
 });

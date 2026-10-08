@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onScopeDispose, ref, shallowRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import L from 'leaflet';
 import { LocateFixed, Route as RouteIcon } from '@lucide/vue';
 import { decodeFlexiblePolyline } from '@/features/map/utils/polyline';
@@ -14,6 +14,9 @@ import { makeMotionPath } from '@/features/fleet/utils/vehicleMotion';
 import type { RouteSection } from '@/features/routes/types/route';
 import type { DriverNavigationSnapshot } from '@/features/fleet/types/driverNavigation';
 import type { OperationsSnapshot } from '@/features/tracking/types/operations';
+import TrafficMapControl from '@/features/traffic/components/TrafficMapControl.vue';
+import TrafficLayer from '@/features/traffic/components/TrafficLayer.vue';
+import { useTraffic } from '@/features/traffic/composables/useTraffic';
 import 'leaflet/dist/leaflet.css';
 
 const props = defineProps<{
@@ -26,6 +29,25 @@ const host = ref<HTMLElement | null>(null),
   following = ref(false),
   error = ref<string | null>(null);
 const mapRef = shallowRef<L.Map | null>(null);
+const showTraffic = ref(true);
+const traffic = useTraffic(mapRef, showTraffic, () => mapRef.value !== null);
+const trafficStatus = computed(() => traffic.flow?.status ?? traffic.incidents?.status);
+const trafficMessage = computed(() =>
+  !showTraffic.value
+    ? 'Tạm tắt'
+    : traffic.loading
+      ? 'Đang tải giao thông…'
+      : (traffic.error ??
+        (trafficStatus.value === 'UNAVAILABLE'
+          ? 'Giao thông chưa khả dụng.'
+          : trafficStatus.value === 'STALE'
+            ? 'Đang dùng dữ liệu gần nhất.'
+            : 'Đang hiển thị giao thông hiện tại.')),
+);
+let tiles: L.TileLayer | null = null;
+const tileUrl = () =>
+  `https://{s}.google.com/vt/lyrs=${showTraffic.value ? 'm,traffic' : 'm'}&hl=vi&gl=VN&x={x}&y={y}&z={z}`;
+watch(showTraffic, () => tiles?.setUrl(tileUrl()));
 const info = computed(() => driverNavigationPresentation(props.snapshot));
 let observer: ResizeObserver | null = null;
 let routes: L.LayerGroup | null = null,
@@ -167,11 +189,11 @@ function drawStops() {
       className: 'operational-stop-label',
     });
     marker.bindPopup(createRouteStopPopup({ ...stop, role }, state, metadata), {
-        className: 'simulation-stop-info-popup',
-        maxWidth: 320,
-        offset: [0, -8],
-        autoPanPaddingTopLeft: [12, 105],
-        autoPanPaddingBottomRight: [12, 20],
+      className: 'simulation-stop-info-popup',
+      maxWidth: 320,
+      offset: [0, -8],
+      autoPanPaddingTopLeft: [12, 105],
+      autoPanPaddingBottomRight: [12, 20],
     });
     marker.on('popupopen', () => {
       following.value = false;
@@ -259,7 +281,7 @@ onMounted(() => {
   if (!host.value) return;
   const map = L.map(host.value, { zoomControl: false }).setView([10.7769, 106.7009], 14);
   map.createPane('routePane').style.zIndex = '450';
-  L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=vi&gl=VN&x={x}&y={y}&z={z}', {
+  tiles = L.tileLayer(tileUrl(), {
     subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
     attribution: '&copy; Google Maps',
     maxZoom: 20,
@@ -285,8 +307,12 @@ onScopeDispose(() => {
   window.removeEventListener('resize', resize);
   stopLayer?.eachLayer((layer) => layer.off());
   stopMarkers.clear();
+});
+// Dispose child layers and traffic watchers before removing their owning map.
+onUnmounted(() => {
   const map = mapRef.value;
   mapRef.value = null;
+  tiles = null;
   map?.remove();
 });
 defineExpose({ showStop, fitRoute });
@@ -298,6 +324,24 @@ defineExpose({ showStop, fitRoute });
       ref="host"
       class="driver-leaflet-map"
       aria-label="Bản đồ lộ trình chuyến được phân công"
+    />
+    <TrafficLayer
+      :map="mapRef"
+      :map-ready="!!mapRef"
+      :visible="showTraffic"
+      :incidents="traffic.incidents"
+    />
+    <TrafficMapControl
+      theme="google-roadmap"
+      :show-traffic="showTraffic"
+      :on-toggle-traffic="
+        () => {
+          showTraffic = !showTraffic;
+        }
+      "
+      :traffic-message="trafficMessage"
+      :traffic-can-retry="Boolean(traffic.error) || trafficStatus === 'UNAVAILABLE'"
+      :on-retry-traffic="traffic.refresh"
     />
     <div class="driver-map-actions">
       <button

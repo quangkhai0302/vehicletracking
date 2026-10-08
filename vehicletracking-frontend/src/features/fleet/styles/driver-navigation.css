@@ -170,3 +170,14 @@
 .simulation-incident-actions button[type='submit'] { border-color: #b42318; background: #b42318; color: #fff; }
 .simulation-incident-actions button:disabled { cursor: wait; opacity: .65; }
 .simulation-incident-error { color: #b42318 !important; }
+
+.driver-map-host .gm-traffic-floating-pill { bottom:52px; z-index:600; max-width:calc(100% - 140px); gap:10px; }
+.driver-map-host .gm-traffic-title { white-space:nowrap; }
+@media (max-width:700px) {
+  .driver-map-host .gm-traffic-floating-pill { bottom:54px; max-width:calc(100% - 140px); flex-wrap:wrap; justify-content:center; gap:5px 8px; padding:8px 10px; border-radius:14px; }
+  .driver-map-host .gm-traffic-pill-dropdown { flex-basis:100%; justify-content:center; }
+  .driver-map-host .gm-traffic-title { font-size:10px; }
+  .driver-map-host .gm-traffic-caret,.driver-map-host .gm-traffic-pill-dropdown + .gm-traffic-pill-divider { display:none; }
+  .driver-map-host .gm-traffic-pill-legend { gap:5px; }
+  .driver-map-host .gm-legend-bar-gradient { width:40px; }
+}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, shallowRef } from 'vue';
 import { Layers, Minus, Navigation, Plus, Scan } from '@lucide/vue';
+import TrafficMapControl from '@/features/traffic/components/TrafficMapControl.vue';
 import type { MapTheme } from '@/features/map/types/map';
 defineProps<{
   theme: MapTheme;
@@ -138,41 +139,12 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', pointerDown));
       </button>
     </div>
   </div>
-  <div
-    :class="`gm-traffic-floating-pill ${theme === 'google-dark' ? 'dark' : 'light'}`"
-    role="region"
-    aria-label="Thông tin giao thông"
-  >
-    <div
-      class="gm-traffic-pill-dropdown"
-      :title="trafficMessage"
-    >
-      <span class="gm-traffic-title">Giao thông theo thời gian thực</span
-      ><span class="gm-traffic-caret">▾</span>
-    </div>
-    <button
-      v-if="showTraffic && trafficCanRetry"
-      type="button"
-      class="traffic-retry"
-      @click="onRetryTraffic"
-    >
-      Thử lại
-    </button>
-    <div class="gm-traffic-pill-divider" />
-    <div class="gm-traffic-pill-legend">
-      <span class="gm-legend-tag fast">Nhanh</span>
-      <div class="gm-legend-bar-gradient" />
-      <span class="gm-legend-tag slow">Chậm</span>
-    </div>
-    <div class="gm-traffic-pill-divider" />
-    <button
-      type="button"
-      :class="`gm-traffic-toggle-switch ${showTraffic ? 'on' : 'off'}`"
-      :aria-pressed="showTraffic"
-      :title="showTraffic ? 'Tắt hiển thị lớp giao thông' : 'Bật hiển thị lớp giao thông'"
-      @click="onToggleTraffic"
-    >
-      <span class="gm-switch-track"><span class="gm-switch-thumb" /></span>
-    </button>
-  </div>
+  <TrafficMapControl
+    :theme="theme"
+    :show-traffic="showTraffic"
+    :on-toggle-traffic="onToggleTraffic"
+    :traffic-message="trafficMessage"
+    :traffic-can-retry="trafficCanRetry"
+    :on-retry-traffic="onRetryTraffic"
+  />
 </template>

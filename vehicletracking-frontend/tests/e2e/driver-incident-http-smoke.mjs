@@ -29,6 +29,7 @@ try {
         const path = url.pathname.replace('/api/v1', '');
         const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
         if (path === '/auth/me') return json({ accountId: 2, username: 'fixture-driver', role: 'DRIVER', active: true, passwordChangeRequired: false, driverId: 9, driverName: 'Tài xế thử nghiệm' });
+        if (path === '/traffic/flow' || path === '/traffic/incidents') return json({ source: 'HERE_LIVE', status: 'AVAILABLE', results: [], observedAt: stamp, fetchedAt: stamp, ageSeconds: 0, warning: null });
         if (path === '/auth/csrf') return json({});
         if (path === '/driver/trips/7/navigation') return json(snapshot());
         if (path === '/driver/trips/7/simulation/incidents') {
@@ -46,6 +47,16 @@ try {
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(`${base}/driver/trips/7/navigate`);
       assert.equal(await page.evaluate(() => typeof crypto.randomUUID), 'undefined');
+      const toggle = page.getByRole('button', { name: 'Giao thông theo thời gian thực', exact: true });
+      await toggle.waitFor();
+      const bounds = await toggle.boundingBox();
+      assert(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width);
+      assert.equal(await toggle.getAttribute('aria-pressed'), 'true');
+      await toggle.click();
+      assert.equal(await toggle.getAttribute('aria-pressed'), 'false');
+      await toggle.click();
+      assert.equal(await toggle.getAttribute('aria-pressed'), 'true');
+      await page.screenshot({ path: `${output}/traffic-switch-${width}.png` });
       await page.getByRole('button', { name: 'Báo cáo sự cố', exact: true }).click();
       const dialog = page.locator('dialog.simulation-incident-dialog');
       await dialog.waitFor();

@@ -107,6 +107,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/register-admin").permitAll()
                         .requestMatchers("/api/v1/auth/change-password").hasRole("DRIVER")
                         .requestMatchers("/api/v1/auth/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/traffic/flow", "/api/v1/traffic/incidents").hasAnyRole("ADMIN", "DRIVER")
                         .requestMatchers("/api/v1/driver/**").hasRole("DRIVER")
                         .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/**").hasRole("ADMIN")
