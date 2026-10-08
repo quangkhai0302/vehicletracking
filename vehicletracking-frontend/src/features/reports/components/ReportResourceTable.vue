@@ -3,7 +3,10 @@ import { ChevronRight } from '@lucide/vue';
 import type { OperationalReportDriverRow, OperationalReportVehicleRow } from '@/features/reports/types/reports';
 
 defineProps<{ rows: (OperationalReportVehicleRow | OperationalReportDriverRow)[]; resource: 'vehicle' | 'driver' }>();
-const emit = defineEmits<{ viewDriverTrips: [driver: OperationalReportDriverRow] }>();
+const emit = defineEmits<{
+  viewDriverTrips: [driver: OperationalReportDriverRow];
+  viewVehicleTrips: [vehicle: OperationalReportVehicleRow];
+}>();
 const number = (value: number) => value.toLocaleString('vi-VN');
 const rowKey = (row: OperationalReportVehicleRow | OperationalReportDriverRow) => 'vehicleId' in row
   ? `vehicle-${row.vehicleId ?? row.plateNumber ?? row.vehicleName}` : `driver-${row.driverId ?? row.driverName}`;
@@ -21,10 +24,13 @@ const rowKey = (row: OperationalReportVehicleRow | OperationalReportDriverRow) =
       <th scope="col">Số lượng nhân viên đi xe</th>
     </tr></thead>
     <tbody><tr v-for="row in rows" :key="rowKey(row)">
-      <td v-if="'vehicleId' in row"><strong>{{ row.plateNumber ?? 'Chưa có biển số' }}</strong><small>{{ row.vehicleName ?? 'Chưa có tên xe' }}</small></td>
+      <td v-if="'vehicleId' in row">
+        <strong>{{ row.plateNumber ?? 'Chưa có biển số' }}</strong><small>{{ row.vehicleName ?? 'Chưa có tên xe' }}</small>
+        <button type="button" class="report-resource-trips-button report-vehicle-trips-button" aria-haspopup="dialog" :aria-label="`Xem chuyến của xe ${row.plateNumber ?? row.vehicleName ?? 'chưa xác định'}`" @click="emit('viewVehicleTrips', row)">Xem chuyến <ChevronRight :size="13" aria-hidden="true" /></button>
+      </td>
       <td v-else>
         <strong>{{ row.driverName ?? 'Chưa phân công' }}</strong>
-        <button type="button" class="report-driver-trips-button" aria-haspopup="dialog" :aria-label="`Xem chuyến của ${row.driverName ?? 'tài xế chưa xác định'}`" @click="emit('viewDriverTrips', row)">Xem chuyến <ChevronRight :size="13" aria-hidden="true" /></button>
+        <button type="button" class="report-resource-trips-button report-driver-trips-button" aria-haspopup="dialog" :aria-label="`Xem chuyến của ${row.driverName ?? 'tài xế chưa xác định'}`" @click="emit('viewDriverTrips', row)">Xem chuyến <ChevronRight :size="13" aria-hidden="true" /></button>
       </td>
       <td><b class="report-trip-count">{{ number(row.tripCount) }}</b></td>
       <td>{{ number(row.completedTripCount) }}</td>

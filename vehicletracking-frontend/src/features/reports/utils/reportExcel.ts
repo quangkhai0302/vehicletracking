@@ -71,6 +71,7 @@ export function buildReportWorkbook(report: OperationalReportDetail, scope: Expo
     }
     notes(data, columns.length, sum(columns, (column) => column.width), [
       `${rows.length.toLocaleString('vi-VN')} bản ghi. Ngày báo cáo được xác định theo giờ khởi hành dự kiến tại Việt Nam.`,
+      ...(config.totals && rows.length ? ['Dòng tổng phản ánh toàn bộ bảng đã xuất, không thay đổi khi lọc trong Excel.'] : []),
       ...(config.notes ?? []),
     ]);
     sheets.push({ sheet: name, data, columns: columns.map(({ width }) => ({ width })),
@@ -177,23 +178,41 @@ export function buildReportWorkbook(report: OperationalReportDetail, scope: Expo
     const rows = [...resource.rows];
     table(resource.name, `Một dòng là một ${resource.identity.toLocaleLowerCase('vi-VN')} · Kết quả vận hành trong kỳ.`, [
       col(resource.identity, 32), col('Chuyến đã thực hiện', 22, 'integer'), col('Chuyến đã hoàn tất', 22, 'integer'),
-      col('Chuyến quá giờ dự kiến', 25, 'integer'), col('Số lần đến trạm trễ', 22, 'integer'), col('Sự cố / cảnh báo', 21, 'integer'), col('Lượt người được chở', 24, 'integer'),
+      col('Chuyến quá thời gian dự kiến', 28, 'integer'), col('Số lần đến trạm trễ', 22, 'integer'), col('Sự cố / cảnh báo', 21, 'integer'), col('Số lượng nhân viên đi xe', 26, 'integer'),
     ], rows.map((row) => [row.label, row.tripCount, row.completedTripCount, row.lateTripCount, row.lateStopCount, row.incidentCount, row.employeePassengerCount]), {
       totals: ['Tổng cộng', sum(rows, (r) => r.tripCount), sum(rows, (r) => r.completedTripCount), sum(rows, (r) => r.lateTripCount),
         sum(rows, (r) => r.lateStopCount), sum(rows, (r) => r.incidentCount), rows.some((r) => r.employeePassengerCount == null)
           ? 'Chưa xác nhận đủ' : sum(rows, (r) => r.employeePassengerCount ?? 0)],
-      notes: [lateTripNote, occupancyNote],
+      notes: [lateTripNote, occupancyNote, resource.identity === 'Xe'
+        ? 'Xem từng chuyến và tài xế phụ trách tại trang tính Chuyến theo xe.'
+        : 'Xem từng chuyến và xe thực hiện tại trang tính Chuyến tài xế.'],
     });
   }
 
-  table('Chuyến tài xế', 'Một dòng là một chuyến của tài xế · Sắp theo tài xế và ngày chạy.', [
+  table('Chuyến theo xe', 'Chi tiết từ mục Xem chuyến ở tab Theo xe · Một dòng là một chuyến của xe.', [
+    col('Xe', 32), col('Tên tuyến', 32), col('Mã chuyến', 14, 'integer'), col('Tài xế', 26),
+    col('Khởi hành dự kiến', 23, 'datetime'), col('Bắt đầu thực tế', 23, 'datetime'), col('Kết thúc / hủy', 23, 'datetime'), col('Trạng thái', 22, 'status'),
+  ], [...report.vehicles].sort((a, b) => compare(a.plateNumber, b.plateNumber)).flatMap((vehicle) => [...(vehicle.trips ?? [])]
+    .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt) || b.tripId - a.tripId)
+    .map((trip) => [vehicleName(vehicle.plateNumber, vehicle.vehicleName), trip.routeName ?? 'Chưa có tên tuyến', trip.tripId,
+      trip.driverName ?? 'Chưa phân công', excelDate(trip.scheduledDepartureAt), excelDate(trip.startedAt) ?? 'Chưa khởi hành',
+      excelDate(trip.endedAt) ?? (trip.status === 'IN_PROGRESS' ? 'Đang thực hiện' : 'Chưa ghi nhận'), TRIP_STATUS_LABELS[trip.status]])), {
+    notes: ['Sắp theo xe; trong mỗi xe, chuyến bắt đầu gần nhất đứng trước. Thông tin xe ở cột đầu theo mục Theo xe của báo cáo.'],
+    empty: report.vehicles.some(row => row.tripCount > 0)
+      ? 'Chưa có danh sách chuyến theo xe. Hãy làm mới báo cáo để tải lại chi tiết.'
+      : 'Không có chuyến đã chạy của xe trong phạm vi báo cáo.',
+  });
+
+  table('Chuyến tài xế', 'Chi tiết từ mục Xem chuyến ở tab Theo tài xế · Một dòng là một chuyến của tài xế.', [
     col('Tài xế', 26), col('Tên tuyến', 32), col('Mã chuyến', 14, 'integer'), col('Xe', 19),
     col('Khởi hành dự kiến', 23, 'datetime'), col('Bắt đầu thực tế', 23, 'datetime'), col('Kết thúc / hủy', 23, 'datetime'), col('Trạng thái', 22, 'status'),
   ], [...report.drivers].sort((a, b) => compare(a.driverName, b.driverName)).flatMap((driver) => [...(driver.trips ?? [])]
-    .sort((a, b) => compare(a.scheduledDepartureAt, b.scheduledDepartureAt) || a.tripId - b.tripId)
+    .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt) || b.tripId - a.tripId)
     .map((trip) => [driver.driverName ?? 'Chưa phân công', trip.routeName ?? 'Chưa có tên tuyến', trip.tripId,
       trip.vehiclePlateNumber ?? 'Chưa có xe', excelDate(trip.scheduledDepartureAt), excelDate(trip.startedAt) ?? 'Chưa khởi hành',
-      excelDate(trip.endedAt) ?? 'Chưa kết thúc', TRIP_STATUS_LABELS[trip.status]])));
+      excelDate(trip.endedAt) ?? (trip.status === 'IN_PROGRESS' ? 'Đang thực hiện' : 'Chưa ghi nhận'), TRIP_STATUS_LABELS[trip.status]])), {
+    notes: ['Sắp theo tài xế; trong mỗi tài xế, chuyến bắt đầu gần nhất đứng trước.'],
+  });
 
   table('Trễ trạm', 'Một dòng là một lần đến trạm trễ · Sắp theo số phút trễ giảm dần.', [
     col('Tên tuyến', 30), col('Mã chuyến', 14, 'integer'), col('Xe', 19), col('Tài xế', 25), col('Trạm', 30),
@@ -208,14 +227,15 @@ export function buildReportWorkbook(report: OperationalReportDetail, scope: Expo
   table('Sự cố', 'Một dòng là một loại sự cố ở một mức độ · Sắp theo số lần giảm dần.', [
     col('Loại sự cố / cảnh báo', 34), col('Mức độ', 24, 'status'), col('Số lần', 20, 'integer'),
   ], [...report.incidents].sort((a, b) => b.count - a.count).map((row) => [incidentLabel(row.type), severityLabel(row.severity), row.count]), {
-    totals: ['Tổng cộng', '', incidentCount], notes: ['Xem thời điểm, xe, tài xế và nội dung ở sheet Chi tiết sự cố.'],
+    totals: ['Tổng cộng', '', incidentCount], notes: ['Mỗi nhóm tương ứng một loại và một mức độ trên tab Sự cố. Lọc hai cột Loại sự cố / cảnh báo và Mức độ tại trang tính Chi tiết sự cố để xem cùng các bản ghi như popup.'],
   });
   table('Chi tiết sự cố', 'Một dòng là một sự cố / cảnh báo · Bản ghi mới nhất ở trên.', [
     col('Thời điểm', 23, 'datetime'), col('Tên tuyến', 30), col('Mã chuyến', 14, 'integer'), col('Xe', 19), col('Tài xế', 25),
-    col('Loại sự cố / cảnh báo', 26), col('Mức độ', 20, 'status'), col('Tình trạng', 20, 'status'), col('Ghi chú', 48),
-  ], [...(report.incidentDetails ?? [])].sort((a, b) => compare(b.occurredAt, a.occurredAt)).map((row) => [
+    col('Loại sự cố / cảnh báo', 26), col('Mức độ', 20, 'status'), col('Tình trạng', 20, 'status'), col('Nội dung sự cố / cảnh báo', 48),
+  ], [...(report.incidentDetails ?? [])].sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)).map((row) => [
     excelDate(row.occurredAt), row.routeName ?? 'Chưa có tên tuyến', row.tripId, row.vehiclePlateNumber ?? 'Chưa có xe', row.driverName ?? 'Chưa phân công',
-    incidentLabel(row.type), severityLabel(row.severity), statusLabel(row.status), row.detail ?? '',
-  ]));
+    incidentLabel(row.type), severityLabel(row.severity), statusLabel(row.status), row.detail || 'Chưa có nội dung chi tiết.',
+  ]), { notes: ['Gồm toàn bộ chi tiết của các nhóm trong trang tính Sự cố, kể cả các bản ghi ở trang khác hoặc chưa mở popup.',
+    'Lọc đồng thời loại và mức độ để xem một nhóm. Cảnh báo tự động có tình trạng Đã ghi nhận; tình trạng này không có nghĩa là đã xử lý.'] });
   return { sheets, options: { fontFamily: 'Calibri', fontSize: 11, features: [reportExcelFeatures(layouts)] } };
 }

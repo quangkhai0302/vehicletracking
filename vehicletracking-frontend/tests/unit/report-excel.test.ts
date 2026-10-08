@@ -40,7 +40,7 @@ test('exports typed dates, percentages and minutes without changing the report o
   const report = fixture();
   const before = JSON.stringify(report);
   const { sheets } = build(report);
-  expect(sheets).toHaveLength(12);
+  expect(sheets).toHaveLength(13);
   const sheet = (name: string) => sheets.find((entry) => entry.sheet === name)!;
   const day = sheet('Hành khách theo ngày').data!;
   expect(object(day[6]![0]).value).toEqual(new Date('2026-10-06T00:00:00Z'));
@@ -75,7 +75,7 @@ test('serializes valid worksheet XML with bounded filters, frozen headings, safe
   const files = new Map<string, string>();
   const blob = await writeExcelFile(sheets, { ...options, features: [...options.features!, {
     files: { write: { files(_sheets, { read }) {
-      for (let id = 1; id <= 12; id++) {
+      for (let id = 1; id <= sheets.length; id++) {
         const path = `xl/worksheets/sheet${id}.xml`;
         const content = read(path);
         if (typeof content === 'string') files.set(path, content);
@@ -85,22 +85,24 @@ test('serializes valid worksheet XML with bounded filters, frozen headings, safe
     } } },
   }] }).toBlob();
   expect(blob.size).toBeGreaterThan(1000);
-  expect(files.size).toBe(13);
+  expect(files.size).toBe(14);
   const xml = (id: number) => new DOMParser().parseFromString(files.get(`xl/worksheets/sheet${id}.xml`)!, 'application/xml');
-  for (let id = 1; id <= 12; id++) {
+  for (let id = 1; id <= sheets.length; id++) {
     expect(xml(id).querySelector('parsererror')).toBeNull();
     expect(xml(id).querySelector('pageSetup')?.getAttribute('fitToWidth')).toBe('1');
     expect(xml(id).querySelector('pageSetup')?.getAttribute('orientation')).toBe('landscape');
   }
   expect(xml(1).querySelector('pageSetup')?.getAttribute('fitToHeight')).toBe('1');
   const workbook = new DOMParser().parseFromString(files.get('workbook')!, 'application/xml');
-  expect(workbook.querySelectorAll('definedName[name="_xlnm.Print_Titles"]')).toHaveLength(11);
-  expect(workbook.querySelector('definedName[localSheetId="9"]')?.textContent).toBe("'Trễ trạm'!$1:$6");
+  expect(workbook.querySelectorAll('definedName[name="_xlnm.Print_Titles"]')).toHaveLength(12);
+  expect(workbook.querySelector('definedName[localSheetId="10"]')?.textContent).toBe("'Trễ trạm'!$1:$6");
   const days = xml(3);
   expect(days.querySelector('autoFilter')?.getAttribute('ref')).toBe('A6:F8');
   expect(days.querySelector('pane')?.getAttribute('topLeftCell')).toBe('B7');
   expect(days.querySelector('conditionalFormatting')?.getAttribute('sqref')).toBe('F7:F8');
   expect(days.querySelector('dataBar cfvo[type="num"][val="1"]')).not.toBeNull();
+  expect(days.querySelector('dataBar')?.getAttribute('minLength')).toBe('0');
+  expect(days.querySelector('dataBar')?.getAttribute('maxLength')).toBe('100');
   expect(days.querySelector('c[r="F7"] v')?.textContent).toBe('0.5');
   expect(days.querySelector('mergeCell[ref="A7:F7"]')).toBeNull();
   // Empty sheets must not filter the empty-state message or notes.
@@ -109,7 +111,44 @@ test('serializes valid worksheet XML with bounded filters, frozen headings, safe
   expect(station?.querySelector('f')).toBeNull();
   expect(station?.getAttribute('t')).toBe('s');
   expect(object(sheets[3]!.data![6]![0])).toMatchObject({ value: '=1+1', type: String, format: '@' });
-  expect(xml(10).querySelector('autoFilter')?.getAttribute('ref')).toBe('A6:I8');
-  expect(xml(10).querySelector('conditionalFormatting')?.getAttribute('sqref')).toBe('I7:I8');
-  expect(xml(10).querySelector('c[r="I7"] v')?.textContent).toBe('2.5');
+  expect(xml(11).querySelector('autoFilter')?.getAttribute('ref')).toBe('A6:I8');
+  expect(xml(11).querySelector('conditionalFormatting')?.getAttribute('sqref')).toBe('I7:I8');
+  expect(xml(11).querySelector('c[r="I7"] v')?.textContent).toBe('2.5');
+});
+
+test('exports every vehicle trip and incident group with the current popup details and labels', async () => {
+  const report = fixture();
+  const trip = { tripId: 7, routeName: 'Tuyến trường học', driverName: 'Nguyễn Văn A', scheduledDepartureAt: '2026-10-06T00:00:00Z', startedAt: '2026-10-06T00:05:00Z', endedAt: null, status: 'IN_PROGRESS' as const };
+  report.vehicles = [{ vehicleId: 1, plateNumber: '51A-12345', vehicleName: 'Xe A', tripCount: 11, completedTripCount: 0, lateTripCount: 0, lateStopCount: 0, incidentCount: 12, employeePassengerCount: null,
+    trips: Array.from({ length: 11 }, (_, index) => ({ ...trip, tripId: index + 1, startedAt: `2026-10-06T00:${String(index).padStart(2, '0')}:00Z` })) }];
+  report.incidents = [{ type: 'VEHICLE_BREAKDOWN', severity: 'CRITICAL', count: 11 }, { type: 'VEHICLE_BREAKDOWN', severity: 'MAJOR', count: 1 }];
+  report.incidentDetails = Array.from({ length: 12 }, (_, index) => ({ id: `incident-${index}`, tripId: index + 1, routeName: trip.routeName,
+    vehiclePlateNumber: '51A-12345', driverName: trip.driverName, type: 'VEHICLE_BREAKDOWN', severity: index === 11 ? 'MAJOR' : 'CRITICAL',
+    occurredAt: `2026-10-06T01:${String(index).padStart(2, '0')}:00Z`, status: index === 11 ? 'RESOLVED' as const : 'OPEN' as const, detail: `Sự cố ${index}` }));
+  const before = JSON.stringify(report);
+  const { sheets, options } = build(report);
+  const sheet = (name: string) => sheets.find(entry => entry.sheet === name)!;
+  const vehicleTrips = sheet('Chuyến theo xe').data!;
+  const trips = vehicleTrips.filter(row => object(row[1])?.value === trip.routeName);
+  expect(trips).toHaveLength(11);
+  expect(trips[0]!.map(cell => object(cell)?.value)).toEqual(['51A-12345 · Xe A', trip.routeName, 11, trip.driverName,
+    new Date('2026-10-06T07:00:00Z'), new Date('2026-10-06T07:10:00Z'), 'Đang thực hiện', 'Đang thực hiện']);
+  expect(object(trips[0]![4]).type).toBe(Date);
+  expect(object(sheet('Theo xe').data![5]![3]).value).toBe('Chuyến quá thời gian dự kiến');
+  expect(object(sheet('Theo xe').data![5]![6]).value).toBe('Số lượng nhân viên đi xe');
+  const incidentRows = sheet('Chi tiết sự cố').data!.filter(row => object(row[1])?.value === trip.routeName);
+  expect(incidentRows).toHaveLength(12);
+  expect(incidentRows[0]!.slice(5).map(cell => object(cell)?.value)).toEqual(['Xe gặp sự cố', 'Nghiêm trọng', 'Đã xử lý', 'Sự cố 11']);
+  expect(incidentRows[1]!.slice(5, 8).map(cell => object(cell)?.value)).toEqual(['Xe gặp sự cố', 'Khẩn cấp', 'Chưa xử lý']);
+  const files = new Map<string, string>();
+  await writeExcelFile(sheets, { ...options, features: [...options.features!, { files: { write: { files(_sheets, { read }) {
+    for (const name of ['Chuyến theo xe', 'Chi tiết sự cố']) {
+      files.set(name, String(read(`xl/worksheets/sheet${sheets.indexOf(sheet(name)) + 1}.xml`)));
+    }
+    return undefined;
+  } } } }] }).toBlob();
+  const xml = (name: string) => new DOMParser().parseFromString(files.get(name)!, 'application/xml');
+  expect(xml('Chuyến theo xe').querySelector('autoFilter')?.getAttribute('ref')).toBe('A6:H17');
+  expect(xml('Chi tiết sự cố').querySelector('autoFilter')?.getAttribute('ref')).toBe('A6:I18');
+  expect(JSON.stringify(report)).toBe(before);
 });

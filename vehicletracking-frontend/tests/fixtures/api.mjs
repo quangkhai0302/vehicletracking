@@ -292,6 +292,15 @@ export function operationalReportFixture(params = new URLSearchParams(), empty =
       lateStopCount: index === 0 ? 2 : 0,
       incidentCount: index === 0 ? 1 : 0,
       employeePassengerCount: null,
+      trips: Array.from({ length: 4 }, (_, tripIndex) => ({
+        tripId: 100 + index * 10 + tripIndex,
+        routeName: routes[tripIndex % routes.length].name,
+        driverName: drivers[index].fullName,
+        scheduledDepartureAt: stamp,
+        startedAt: stamp,
+        endedAt: tripIndex < (index === 0 ? 3 : 2) ? '2026-09-22T02:00:00Z' : null,
+        status: tripIndex < (index === 0 ? 3 : 2) ? 'COMPLETED' : 'IN_PROGRESS',
+      })),
     })),
     drivers: empty ? [] : drivers.slice(0, 3).map((driver, index) => ({
       driverId: driver.id,

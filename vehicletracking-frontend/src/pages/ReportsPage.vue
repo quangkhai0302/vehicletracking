@@ -5,17 +5,18 @@ import { fetchDrivers, fetchFleetVehicles } from '@/features/fleet/api/fleet';
 import type { Driver, FleetVehicle } from '@/features/fleet/types/fleet';
 import { fetchOperationalReportDetail } from '@/features/reports/api/reports';
 import { buildReportWorkbook } from '@/features/reports/utils/reportExcel';
-import { incidentLabel, severityLabel, statusLabel } from '@/features/reports/utils/reportLabels';
+import { incidentLabel, severityLabel } from '@/features/reports/utils/reportLabels';
 import type {
   OperationalReportDetail,
   OperationalReportFilters,
-  OperationalReportDriverRow,
+  OperationalReportIncidentRow,
 } from '@/features/reports/types/reports';
-import type { ReportSection } from '@/features/reports/types/reportWorkspace';
+import type { ReportSection, ReportTripSelection } from '@/features/reports/types/reportWorkspace';
 import ReportOverview from '@/features/reports/components/ReportOverview.vue';
 import ReportSectionTabs from '@/features/reports/components/ReportSectionTabs.vue';
 import ReportResourceTable from '@/features/reports/components/ReportResourceTable.vue';
-import DriverReportTripsPanel from '@/features/reports/components/DriverReportTripsPanel.vue';
+import ReportResourceTripsPanel from '@/features/reports/components/ReportResourceTripsPanel.vue';
+import ReportIncidentDetailsPanel from '@/features/reports/components/ReportIncidentDetailsPanel.vue';
 import EmployeeOccupancyBreakdown from '@/features/reports/components/EmployeeOccupancyBreakdown.vue';
 import PageHeading from '@/shared/components/PageHeading.vue';
 import AppDatePicker from '@/shared/components/AppDatePicker.vue';
@@ -66,7 +67,8 @@ const periodLabel = computed(() => {
   return 'Khoảng ngày tùy chọn';
 });
 const report = shallowRef<OperationalReportDetail | null>(null);
-const selectedDriverReport = shallowRef<OperationalReportDriverRow | null>(null);
+const selectedIncident = shallowRef<OperationalReportIncidentRow | null>(null);
+const selectedResourceReport = shallowRef<ReportTripSelection | null>(null);
 const vehicles = shallowRef<FleetVehicle[]>([]), drivers = shallowRef<Driver[]>([]);
 const selectedVehicle = computed(() => filters.value.vehicleId
   ? vehicles.value.find((vehicle) => vehicle.id === filters.value.vehicleId)?.plateNumber ?? `Xe #${filters.value.vehicleId}` : 'Tất cả xe');
@@ -103,25 +105,22 @@ const lateStopRows = computed(() => {
   });
 });
 const reportPageSize = 10;
-const vehiclePage = ref(1), driverPage = ref(1), lateStopPage = ref(1), incidentPage = ref(1), incidentDetailPage = ref(1);
+const vehiclePage = ref(1), driverPage = ref(1), lateStopPage = ref(1), incidentPage = ref(1);
 const vehicleRows = computed(() => report.value?.vehicles ?? []);
 const driverRows = computed(() => report.value?.drivers ?? []);
 const incidentRows = computed(() => report.value?.incidents ?? []);
-const incidentDetailRows = computed(() => report.value?.incidentDetails ?? []);
 const pageCount = (total: number) => Math.max(1, Math.ceil(total / reportPageSize));
 const pageRows = <T,>(rows: T[], page: number) => rows.slice((page - 1) * reportPageSize, page * reportPageSize);
 const pageVehicleRows = computed(() => pageRows(vehicleRows.value, vehiclePage.value));
 const pageDriverRows = computed(() => pageRows(driverRows.value, driverPage.value));
 const pageLateStopRows = computed(() => pageRows(lateStopRows.value, lateStopPage.value));
 const pageIncidentRows = computed(() => pageRows(incidentRows.value, incidentPage.value));
-const pageIncidentDetails = computed(() => pageRows(incidentDetailRows.value, incidentDetailPage.value));
 watch([lateStopSearch, lateStopStation, lateStopVehicle, lateStopDriver, lateStopMinimumMinutes], () => (lateStopPage.value = 1));
-watch(() => [vehicleRows.value.length, driverRows.value.length, lateStopRows.value.length, incidentRows.value.length, incidentDetailRows.value.length], ([vehiclesCount, driversCount, lateStops, incidents, details]) => {
+watch(() => [vehicleRows.value.length, driverRows.value.length, lateStopRows.value.length, incidentRows.value.length], ([vehiclesCount, driversCount, lateStops, incidents]) => {
   vehiclePage.value = Math.min(vehiclePage.value, pageCount(vehiclesCount));
   driverPage.value = Math.min(driverPage.value, pageCount(driversCount));
   lateStopPage.value = Math.min(lateStopPage.value, pageCount(lateStops));
   incidentPage.value = Math.min(incidentPage.value, pageCount(incidents));
-  incidentDetailPage.value = Math.min(incidentDetailPage.value, pageCount(details));
 });
 useErrorToast(error);
 useErrorToast(exportError);
@@ -129,7 +128,8 @@ watch([filters, retry], (_, _previous, cleanup) => {
   const controller = new AbortController();
   cleanup(() => controller.abort());
   report.value = null; error.value = null;
-  selectedDriverReport.value = null;
+  selectedResourceReport.value = null;
+  selectedIncident.value = null;
   if (!filters.value.from || !filters.value.to) {
     loading.value = false; error.value = 'Hãy chọn đầy đủ ngày bắt đầu và ngày kết thúc.'; return;
   }
@@ -237,7 +237,7 @@ async function exportReportExcel() {
         <div class="report-section-heading"><div><h2>Thống kê theo xe <span class="report-section-count">{{ number(vehicleRows.length) }} xe</span></h2><p>Đối chiếu số chuyến, thời gian đến và số người được chở của từng xe.</p></div></div>
         <div v-if="!report.vehicles.length" class="reports-empty">Chưa có xe nào chạy chuyến trong phạm vi đã chọn.</div>
         <template v-else>
-          <div class="report-table-scroll" role="region" aria-label="Bảng thống kê theo xe" tabindex="0"><ReportResourceTable :rows="pageVehicleRows" resource="vehicle" /></div>
+          <div class="report-table-scroll" role="region" aria-label="Bảng thống kê theo xe" tabindex="0"><ReportResourceTable :rows="pageVehicleRows" resource="vehicle" @view-vehicle-trips="selectedResourceReport = { resource: 'vehicle', row: $event }" /></div>
           <PaginationControls v-model:page="vehiclePage" :page-count="pageCount(vehicleRows.length)" :total="vehicleRows.length" :page-size="reportPageSize" label="xe" />
         </template>
       </section>
@@ -245,7 +245,7 @@ async function exportReportExcel() {
         <div class="report-section-heading"><div><h2>Thống kê theo tài xế <span class="report-section-count">{{ number(driverRows.length) }} tài xế</span></h2><p>Bấm “Xem chuyến” dưới tên tài xế để xem các chuyến trong kỳ. Số lần trễ và cảnh báo không mặc nhiên là lỗi của tài xế.</p></div></div>
         <div v-if="!report.drivers.length" class="reports-empty">Chưa có tài xế nào chạy chuyến trong phạm vi đã chọn.</div>
         <template v-else>
-          <div class="report-table-scroll" role="region" aria-label="Bảng thống kê theo tài xế" tabindex="0"><ReportResourceTable :rows="pageDriverRows" resource="driver" @view-driver-trips="selectedDriverReport = $event" /></div>
+          <div class="report-table-scroll" role="region" aria-label="Bảng thống kê theo tài xế" tabindex="0"><ReportResourceTable :rows="pageDriverRows" resource="driver" @view-driver-trips="selectedResourceReport = { resource: 'driver', row: $event }" /></div>
           <PaginationControls v-model:page="driverPage" :page-count="pageCount(driverRows.length)" :total="driverRows.length" :page-size="reportPageSize" label="tài xế" />
         </template>
       </section>
@@ -329,28 +329,15 @@ async function exportReportExcel() {
           <div v-else class="report-table-scroll" role="region" aria-label="Bảng chi tiết báo cáo" tabindex="0">
             <table class="report-incident-summary">
               <thead><tr><th scope="col">Loại</th><th scope="col">Mức độ</th><th scope="col">Số lần</th></tr></thead>
-              <tbody><tr v-for="row in pageIncidentRows" :key="`${row.type}-${row.severity}`"><td>{{ incidentLabel(row.type) }}</td><td><span class="report-severity" :class="{ 'is-critical': row.severity === 'CRITICAL' }">{{ severityLabel(row.severity) }}</span></td><td>{{ number(row.count) }}</td></tr></tbody>
+              <tbody><tr v-for="row in pageIncidentRows" :key="`${row.type}-${row.severity}`"><td><button type="button" class="report-incident-details-button" aria-haspopup="dialog" :aria-label="`Xem chi tiết ${incidentLabel(row.type)} · ${severityLabel(row.severity)}`" @click="selectedIncident = row"><strong>{{ incidentLabel(row.type) }}</strong><span>Xem chi tiết →</span></button></td><td><span class="report-severity" :class="{ 'is-critical': row.severity === 'CRITICAL' }">{{ severityLabel(row.severity) }}</span></td><td>{{ number(row.count) }}</td></tr></tbody>
             </table>
             </div>
             <PaginationControls v-model:page="incidentPage" :page-count="pageCount(incidentRows.length)" :total="incidentRows.length" :page-size="reportPageSize" label="loại sự cố" />
-          <template v-if="incidentDetailRows.length">
-            <h3 class="report-detail-heading">Chi tiết sự cố và cảnh báo</h3>
-            <div class="report-table-scroll" role="region" aria-label="Bảng chi tiết báo cáo" tabindex="0">
-              <table class="report-incidents-table">
-                <thead><tr><th scope="col">Chuyến · Xe · Tài xế</th><th scope="col">Loại · Nội dung</th><th scope="col">Thời điểm</th><th scope="col">Mức độ</th><th scope="col">Tình trạng</th></tr></thead>
-                <tbody><tr v-for="row in pageIncidentDetails" :key="row.id">
-                  <td><strong>{{ row.routeName ?? 'Chưa có tên tuyến' }}</strong><small>Chuyến #{{ row.tripId }} · {{ row.vehiclePlateNumber ?? 'Chưa có xe' }}</small><small>{{ row.driverName ?? 'Chưa phân công' }}</small></td>
-                  <td><strong>{{ incidentLabel(row.type) }}</strong><small v-if="row.detail">{{ row.detail }}</small></td>
-                  <td>{{ timestamp(row.occurredAt) }}</td><td><span class="report-severity" :class="{ 'is-critical': row.severity === 'CRITICAL' }">{{ severityLabel(row.severity) }}</span></td>
-                  <td><span class="report-incident-status" :class="`is-${row.status.toLowerCase()}`">{{ statusLabel(row.status) }}</span></td>
-                </tr></tbody>
-              </table>
-              </div>
-              <PaginationControls v-model:page="incidentDetailPage" :page-count="pageCount(incidentDetailRows.length)" :total="incidentDetailRows.length" :page-size="reportPageSize" label="sự cố / cảnh báo" />
-          </template>
+
         </section>
       </div>
     </template>
-    <DriverReportTripsPanel v-if="selectedDriverReport && report" :driver="selectedDriverReport" :from="report.from" :to="report.to" :vehicle-label="selectedVehicle" @close="selectedDriverReport = null" />
+    <ReportIncidentDetailsPanel v-if="selectedIncident && report" :group="selectedIncident" :details="report.incidentDetails" :from="report.from" :to="report.to" :vehicle-label="selectedVehicle" :driver-label="selectedDriver" @close="selectedIncident = null" />
+    <ReportResourceTripsPanel v-if="selectedResourceReport && report" :selection="selectedResourceReport" :from="report.from" :to="report.to" :scope-label="selectedResourceReport.resource === 'vehicle' ? selectedDriver : selectedVehicle" @close="selectedResourceReport = null" />
   </div>
 </template>

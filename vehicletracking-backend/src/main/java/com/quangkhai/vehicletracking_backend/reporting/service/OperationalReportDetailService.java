@@ -11,6 +11,7 @@ import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportInci
 import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportLateStop;
 import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportResponse;
 import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportVehicleRow;
+import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportVehicleTrip;
 import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancySummary;
 import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancyVehicleRow;
 import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancyDayRow;
@@ -143,7 +144,7 @@ public class OperationalReportDetailService {
             incidentGroups.merge(new IncidentKey(incident.type(), incident.severity()), 1L, Long::sum);
         }
 
-        Map<VehicleKey, MutableVehicle> vehicles = new LinkedHashMap<>();
+        Map<Long, MutableVehicle> vehicles = new LinkedHashMap<>();
         Map<DriverKey, MutableDriver> drivers = new LinkedHashMap<>();
         MutableOccupancy occupancy = new MutableOccupancy();
         Map<Long, MutableOccupancy> occupancyByVehicle = new LinkedHashMap<>();
@@ -155,9 +156,9 @@ public class OperationalReportDetailService {
             boolean late = lateTripIds.contains(trip.getId());
             long lateStopCount = lateStopsByTrip.getOrDefault(trip.getId(), 0L);
             long incidentCount = incidentCountByTrip.getOrDefault(trip.getId(), 0L);
-            VehicleKey vehicleKey = new VehicleKey(trip.getVehicle().getId(), trip.getVehiclePlateSnapshot(),
+            VehicleKey vehicleKey = new VehicleKey(trip.getVehicle().getId(), trip.getVehicle().getPlateNumber(),
                     trip.getVehicle().getName());
-            vehicles.computeIfAbsent(vehicleKey, ignored -> new MutableVehicle(vehicleKey))
+            vehicles.computeIfAbsent(vehicleKey.id(), ignored -> new MutableVehicle(vehicleKey))
                     .add(trip, late, lateStopCount, incidentCount);
 
             DriverKey driverKey = new DriverKey(trip.getDriver() == null ? null : trip.getDriver().getId(),
@@ -249,7 +250,7 @@ public class OperationalReportDetailService {
                 .findFirst().orElse(null);
     }
 
-    private String driverName(TripEntity trip) {
+    private static String driverName(TripEntity trip) {
         if (trip.getDriver() != null && trip.getDriver().getFullName() != null) {
             return trip.getDriver().getFullName();
         }
@@ -365,10 +366,14 @@ public class OperationalReportDetailService {
         private long lateStops;
         private long incidents;
         private final List<Long> completedTripIds = new ArrayList<>();
+        private final List<OperationalReportVehicleTrip> tripDetails = new ArrayList<>();
 
         private MutableVehicle(VehicleKey key) { this.key = key; }
         private void add(TripEntity trip, boolean isLate, long lateStopCount, long incidentCount) {
             trips++;
+            tripDetails.add(new OperationalReportVehicleTrip(trip.getId(),
+                    trip.getRoute() == null ? null : trip.getRoute().getName(), driverName(trip),
+                    trip.getScheduledDepartureAt(), trip.getStartedAt(), trip.getEndedAt(), trip.getStatus()));
             if (trip.getStatus() == TripStatus.COMPLETED) { completed++; completedTripIds.add(trip.getId()); }
             if (isLate) late++;
             lateStops += lateStopCount;
@@ -379,7 +384,9 @@ public class OperationalReportDetailService {
                     .mapToLong(boardingsByTrip::get).sum();
             if (completedTripIds.stream().noneMatch(boardingsByTrip::containsKey)) passengers = null;
             return new OperationalReportVehicleRow(key.id(), key.plate(), key.name(), trips, completed, late,
-                    lateStops, incidents, passengers);
+                    lateStops, incidents, passengers,
+                    tripDetails.stream().sorted(Comparator.comparing(OperationalReportVehicleTrip::startedAt).reversed()
+                            .thenComparing(OperationalReportVehicleTrip::tripId, Comparator.reverseOrder())).toList());
         }
     }
 

@@ -1,0 +1,32 @@
+.report-workspace .report-incident-details-button { display: grid; gap: 5px; padding: 4px 0; border: 0; background: transparent; color: #18334b; font: inherit; text-align: left; cursor: pointer; }
+.report-incident-details-button span { font-size: 12px; color: #087fa7; }
+.report-incident-details-button:hover span { text-decoration: underline; }
+.business-ui .business-side-panel.report-incident-details { width: min(780px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: min(860px, calc(100dvh - 32px)); }
+.report-incident-details-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.report-incident-details-heading > div { min-width: 0; }
+.report-incident-details-heading p { margin: 0 0 8px; color: #0784ad; font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+.report-incident-details-heading h2 { margin: 0 0 9px; color: #18334b; font-size: 21px; overflow-wrap: anywhere; }
+.report-incident-details-heading span { font-size: 12px; color: #60758b; }
+.report-incident-details-heading button { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; border: 1px solid #dce7f0; border-radius: 8px; color: #536b80; background: #f7fafc; cursor: pointer; }
+.report-incident-details-scope { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 24px; border-bottom: 1px solid #e0e8f0; background: #f8fbfd; flex-shrink: 0; font-size: 12px; color: #3a617a; overflow-wrap: anywhere; }
+.report-incident-details-scope small { color: #60758b; font-size: 11px; }
+.report-incident-details-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 24px; }
+.report-incident-list { display: grid; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.report-incident-entry { padding: 16px; border: 1px solid #dfe8f1; border-radius: 10px; background: #fff; }
+.report-incident-entry-heading { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.report-incident-entry-heading > div { min-width: 0; }
+.report-incident-entry-heading h3 { margin: 0; color: #18334b; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.report-incident-entry-heading p { margin: 5px 0 0; color: #60758b; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.report-incident-details .report-incident-status { flex-shrink: 0; font-size: 11px; white-space: nowrap; }
+.report-incident-entry-time { margin: 14px 0 0; color: #60758b; font-size: 12px; font-variant-numeric: tabular-nums; }
+.report-incident-entry-content { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid #edf1f6; color: #35516a; font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-incident-details .pagination-controls { flex-shrink: 0; padding: 14px 24px; }
+.report-incident-details-empty { margin: 16px 0; color: #60758b; font-size: 13px; line-height: 1.7; }
+@media (max-width: 520px) {
+  .business-ui .business-side-panel.report-incident-details { width: calc(100vw - 20px); max-width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
+  .business-ui .report-incident-details .report-incident-details-heading { padding: 18px 16px; }
+  .report-incident-details-heading h2 { font-size: 18px; }
+  .report-incident-details-scope, .report-incident-details-body, .report-incident-details .pagination-controls { padding: 14px 16px; }
+  .report-incident-entry { padding: 13px; }
+  .report-incident-entry-heading { flex-direction: column; gap: 8px; }
+}

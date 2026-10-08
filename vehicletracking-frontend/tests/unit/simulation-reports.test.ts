@@ -14,7 +14,9 @@ vi.mock('write-excel-file/browser', () => ({ default: vi.fn() }));
 const data = (tripCount = 2): OperationalReportDetail => ({
   from: '2026-09-08', to: '2026-10-07', generatedAt: '2026-10-06T18:00:00Z',
   summary: { from: '2026-09-08', to: '2026-10-07', generatedAt: '2026-10-06T18:00:00Z', tripCount, completedTripCount: 1, totalDistanceMeters: 1000, totalRunningSeconds: 3600, onTimeRatePercent: 100, lateTripCount: 0, offRouteEventCount: 0, overspeedEventCount: 0, speedLimitKmh: 80 },
-  vehicles: [{ vehicleId: 1, plateNumber: '51A-123', vehicleName: 'Fixture', tripCount, completedTripCount: 1, lateTripCount: 0, lateStopCount: 0, incidentCount: 0, employeePassengerCount: null }],
+  vehicles: [{ vehicleId: 1, plateNumber: '51A-123', vehicleName: 'Fixture', tripCount, completedTripCount: 1, lateTripCount: 0, lateStopCount: 0, incidentCount: 0, employeePassengerCount: null,
+    trips: Array.from({ length: tripCount }, (_, index) => ({ tripId: index + 1, routeName: `Tuyến xe đến trường ${index + 1}`, driverName: `Tài xế ${index + 1}`, scheduledDepartureAt: '2026-10-06T23:00:00Z', startedAt: '2026-10-06T23:10:00Z', endedAt: index === 0 ? '2026-10-07T00:00:00Z' : null, status: index === 0 ? 'COMPLETED' : 'IN_PROGRESS' })),
+  }],
   drivers: [{ driverId: 1, driverName: 'Driver', tripCount, completedTripCount: 1, lateTripCount: 0, lateStopCount: 0, incidentCount: 0, employeePassengerCount: null,
     trips: Array.from({ length: tripCount }, (_, index) => ({ tripId: index + 1, routeName: `Tuyến đến trường ${index + 1}`, vehiclePlateNumber: '51A-123', scheduledDepartureAt: '2026-10-06T23:00:00Z', startedAt: '2026-10-06T23:10:00Z', endedAt: index === 0 ? '2026-10-07T00:00:00Z' : null, status: index === 0 ? 'COMPLETED' : 'IN_PROGRESS' })),
   }],
@@ -135,7 +137,7 @@ test('driver details show actual trips, Vietnam times and status without changin
   await opener.trigger('click');
   const dialog = page.get('dialog');
   expect(dialog.attributes('aria-label')).toBe('Chuyến của Driver');
-  expect(dialog.findAll('.driver-report-trip')).toHaveLength(2);
+  expect(dialog.findAll('.report-resource-trip')).toHaveLength(2);
   expect(dialog.text()).toContain('Tuyến đến trường 1');
   expect(dialog.text()).toContain('Chuyến #1 · 51A-123');
   expect(dialog.text()).toContain('Hoàn thành');
@@ -158,12 +160,12 @@ test('driver trips paginate independently and drivers with the same name remain 
   await flushPromises();
   await page.get('#report-tab-drivers').trigger('click');
   await page.findAll('.report-driver-trips-button')[0]!.trigger('click');
-  expect(page.findAll('dialog .driver-report-trip')).toHaveLength(10);
-  const scrollBody = page.get('.driver-report-trips-body').element as HTMLDivElement;
+  expect(page.findAll('dialog .report-resource-trip')).toHaveLength(10);
+  const scrollBody = page.get('.report-resource-trips-body').element as HTMLDivElement;
   scrollBody.scrollTop = 100;
   await page.get('dialog .pagination-controls').findAll('button')[1]!.trigger('click');
   expect(scrollBody.scrollTop).toBe(0);
-  expect(page.findAll('dialog .driver-report-trip')).toHaveLength(1);
+  expect(page.findAll('dialog .report-resource-trip')).toHaveLength(1);
   expect(page.get('dialog').text()).toContain('Tuyến đến trường 11');
   await page.get('dialog').trigger('cancel');
   await page.findAll('.report-driver-trips-button')[1]!.trigger('click');
@@ -186,6 +188,96 @@ test('driver trip fallback does not claim zero when an older report omits detail
   await page.get('.report-driver-trips-button').trigger('click');
   expect(page.get('dialog').text()).toContain('2 chuyến');
   expect(page.get('dialog').text()).toContain('Chưa có danh sách chuyến');
+});
+
+test('vehicle details show routes, drivers, lifecycle and Vietnam times, preserving report scope and focus', async () => {
+  const result = data(3);
+  result.vehicles[0]!.trips![2] = { ...result.vehicles[0]!.trips![2]!, driverName: null, status: 'CANCELLED', endedAt: '2026-10-06T23:15:00Z' };
+  vi.mocked(fetchOperationalReportDetail).mockResolvedValue(result);
+  const page = render();
+  await flushPromises();
+  const opener = page.get('.report-vehicle-trips-button');
+  (opener.element as HTMLButtonElement).focus();
+  const beforeOpen = vi.mocked(fetchOperationalReportDetail).mock.calls.length;
+  await opener.trigger('click');
+  const dialog = page.get('dialog');
+  expect(dialog.attributes('aria-label')).toBe('Chuyến của xe 51A-123');
+  expect(dialog.get('h2').text()).toBe('Xe 51A-123 · Fixture');
+  expect(dialog.text()).toContain('08/09/2026 – 07/10/2026');
+  expect(dialog.get('.report-resource-trips-scope').text()).toContain('Tất cả tài xế');
+  expect(dialog.findAll('.report-resource-trip')).toHaveLength(3);
+  expect(dialog.text()).toContain('Tuyến xe đến trường 1');
+  expect(dialog.text()).toContain('Chuyến #1 · Tài xế: Tài xế 1');
+  expect(dialog.text()).toContain('Chưa phân công');
+  expect(dialog.text()).toContain('Hủy chuyến');
+  expect(dialog.text()).toContain('06:10 7/10/26');
+  expect(dialog.text()).toContain('Đang thực hiện');
+  expect(dialog.text()).not.toMatch(/IN_PROGRESS|COMPLETED|CANCELLED/);
+  expect(fetchOperationalReportDetail).toHaveBeenCalledTimes(beforeOpen);
+  await dialog.trigger('cancel');
+  expect(page.find('dialog').exists()).toBe(false);
+  expect(document.activeElement).toBe(opener.element);
+  expect(page.get('#report-panel-vehicles').isVisible()).toBe(true);
+});
+
+test('vehicle trip pagination resets between vehicles with identical labels and leaves table pagination intact', async () => {
+  const result = data(11);
+  result.vehicles.push({ ...result.vehicles[0]!, vehicleId: 2, tripCount: 1,
+    trips: [{ ...result.vehicles[0]!.trips![0]!, tripId: 99, routeName: 'Tuyến xe thứ hai' }] });
+  vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce(result);
+  const page = render();
+  await flushPromises();
+  await page.findAll('.report-vehicle-trips-button')[0]!.trigger('click');
+  expect(page.findAll('dialog .report-resource-trip')).toHaveLength(10);
+  const scrollBody = page.get('.report-resource-trips-body').element as HTMLDivElement;
+  scrollBody.scrollTop = 100;
+  await page.get('dialog .pagination-controls').findAll('button')[1]!.trigger('click');
+  expect(scrollBody.scrollTop).toBe(0);
+  expect(page.findAll('dialog .report-resource-trip')).toHaveLength(1);
+  expect(page.get('dialog').text()).toContain('Tuyến xe đến trường 11');
+  await page.get('dialog [aria-label="Đóng danh sách chuyến"]').trigger('click');
+  expect(page.get('#report-panel-vehicles .pagination-controls').text()).toContain('Trang 1 / 1');
+  await page.findAll('.report-vehicle-trips-button')[1]!.trigger('click');
+  expect(page.get('dialog').text()).toContain('Tuyến xe thứ hai');
+  expect(page.get('dialog').text()).not.toContain('Tuyến xe đến trường 11');
+  expect(page.get('dialog .pagination-controls').text()).toContain('Trang 1 / 1');
+  expect(fetchOperationalReportDetail).toHaveBeenCalledTimes(1);
+  await page.get('.reports-refresh').trigger('click');
+  await flushPromises();
+  expect(page.find('dialog').exists()).toBe(false);
+});
+
+test('vehicle details display the selected driver scope and close when report filters change', async () => {
+  vi.mocked(fetchDrivers).mockResolvedValue([{ id: 7, fullName: 'Nguyễn Văn B', licenseNumber: 'TEST-7', phoneNumber: '0000000000', active: true, createdAt: '', updatedAt: '' }]);
+  const result = data(1);
+  result.vehicles[0]!.trips![0]!.driverName = 'Nguyễn Văn B';
+  vi.mocked(fetchOperationalReportDetail).mockResolvedValue(result);
+  const page = render();
+  await flushPromises();
+  await page.get('[aria-label="Tài xế báo cáo"]').setValue('7');
+  await flushPromises();
+  expect(fetchOperationalReportDetail).toHaveBeenLastCalledWith(expect.objectContaining({ driverId: 7 }), expect.any(AbortSignal));
+  await page.get('.report-vehicle-trips-button').trigger('click');
+  expect(page.get('dialog .report-resource-trips-scope').text()).toContain('Nguyễn Văn B');
+  expect(page.get('dialog').text()).toContain('Chuyến #1 · Tài xế: Nguyễn Văn B');
+  await page.get('[aria-label="Tháng báo cáo"]').setValue('09');
+  await flushPromises();
+  expect(page.find('dialog').exists()).toBe(false);
+});
+
+test('missing vehicle trip details are distinct from an empty trip history', async () => {
+  const result = data();
+  delete result.vehicles[0]!.trips;
+  result.vehicles.push({ ...result.vehicles[0]!, vehicleId: 2, tripCount: 0, trips: [] });
+  vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce(result);
+  const page = render();
+  await flushPromises();
+  await page.findAll('.report-vehicle-trips-button')[0]!.trigger('click');
+  expect(page.get('dialog').text()).toContain('2 chuyến');
+  expect(page.get('dialog').text()).toContain('Chưa có danh sách chuyến');
+  await page.get('dialog').trigger('cancel');
+  await page.findAll('.report-vehicle-trips-button')[1]!.trigger('click');
+  expect(page.get('dialog').text()).toContain('Không có chuyến đã chạy trong phạm vi đã chọn');
 });
 
 test('reset aborts the previous detail request and reloads the base dates', async () => {
@@ -250,13 +342,23 @@ test('incident details show the trip, vehicle, driver, time and actual resolutio
   const page = render();
   await flushPromises();
   const section = page.get('[aria-label="Sự cố và cảnh báo an toàn"]');
-  expect(section.text()).toContain('Tuyến đến trường');
-  expect(section.text()).toContain('Chuyến #7 · 51B12345');
-  expect(section.text()).toContain('Nguyễn Văn A');
-  expect(section.text()).toContain('Xe gặp sự cố');
-  expect(section.text()).toContain('Khẩn cấp');
-  expect(section.text()).toContain('Đã xử lý');
-  expect(section.text()).not.toMatch(/CRITICAL|RESOLVED|VEHICLE_BREAKDOWN/);
+  expect(section.text()).not.toContain('Tuyến đến trường');
+  const opener = section.get('.report-incident-details-button');
+  (opener.element as HTMLButtonElement).focus();
+  await opener.trigger('click');
+  const dialog = page.get('dialog.report-incident-details');
+  expect(dialog.text()).toContain('Tuyến đến trường');
+  expect(dialog.text()).toContain('Chuyến #7 · 51B12345');
+  expect(dialog.text()).toContain('Nguyễn Văn A');
+  expect(dialog.text()).toContain('Xe gặp sự cố');
+  expect(dialog.text()).toContain('Khẩn cấp');
+  expect(dialog.text()).toContain('Đã xử lý');
+  expect(dialog.text()).toContain('Đã sửa động cơ');
+  expect(dialog.text()).not.toMatch(/CRITICAL|RESOLVED|VEHICLE_BREAKDOWN/);
+  expect(fetchOperationalReportDetail).toHaveBeenCalledTimes(1);
+  await dialog.trigger('cancel');
+  expect(page.find('dialog.report-incident-details').exists()).toBe(false);
+  expect(document.activeElement).toBe(opener.element);
 });
 
 test('occupancy tab starts with the per-vehicle table and keeps incomplete data out of the summary', async () => {
@@ -345,7 +447,10 @@ test('Excel exports separate sheets with all rows, Vietnamese labels and the ind
   vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce(result);
   const page = render();
   await flushPromises();
-  expect(page.get('.report-incidents-table').findAll('tbody tr')).toHaveLength(10);
+  expect(page.find('.report-incidents-table').exists()).toBe(false);
+  await page.get('.report-incident-details-button').trigger('click');
+  expect(page.findAll('.report-incident-entry')).toHaveLength(10);
+  await page.get('[aria-label="Đóng chi tiết sự cố"]').trigger('click');
   await page.get('[aria-label="Các lần trễ trạm"] input[type="search"]').setValue('Tuyến cần xuất');
   const toFile = vi.fn().mockResolvedValue(undefined);
   vi.mocked(writeExcelFile).mockReturnValue({ toFile, toBlob: vi.fn().mockResolvedValue(new Blob()) });
@@ -353,7 +458,7 @@ test('Excel exports separate sheets with all rows, Vietnamese labels and the ind
   await flushPromises();
   expect(toFile).toHaveBeenCalledWith('bao-cao-van-hanh-2026-09-08-2026-10-07.xlsx');
   const sheets = vi.mocked(writeExcelFile).mock.calls[0]![0] as unknown as Array<{ sheet: string; data: unknown[][] }>;
-  expect(sheets.map((sheet) => sheet.sheet)).toEqual(['Tổng quan', 'Hành khách theo xe', 'Hành khách theo ngày', 'Hành khách theo trạm', 'Hành khách theo chuyến', 'Người lên từng trạm', 'Theo xe', 'Theo tài xế', 'Chuyến tài xế', 'Trễ trạm', 'Sự cố', 'Chi tiết sự cố']);
+  expect(sheets.map((sheet) => sheet.sheet)).toEqual(['Tổng quan', 'Hành khách theo xe', 'Hành khách theo ngày', 'Hành khách theo trạm', 'Hành khách theo chuyến', 'Người lên từng trạm', 'Theo xe', 'Theo tài xế', 'Chuyến theo xe', 'Chuyến tài xế', 'Trễ trạm', 'Sự cố', 'Chi tiết sự cố']);
   const cellValue = (cell: unknown) => cell && typeof cell === 'object' && 'value' in cell ? (cell as { value: unknown }).value : cell;
   const values = (sheetName: string) => sheets.find((sheet) => sheet.sheet === sheetName)!.data.flat().map(cellValue);
   expect(values('Tổng quan')).toContain('Bộ lọc trễ trạm');
@@ -374,4 +479,40 @@ test('Excel exports separate sheets with all rows, Vietnamese labels and the ind
   expect(values('Chuyến tài xế')).toContain('Đang thực hiện');
   expect(values('Chuyến tài xế')).not.toContain('IN_PROGRESS');
   expect(values('Theo xe')).toContain(result.vehicles[0]!.tripCount);
+});
+
+
+test('incident popup filters by both raw type and severity, sorts newest first and resets pagination on reopen', async () => {
+  const result = data();
+  result.incidents = [{ type: 'VEHICLE_BREAKDOWN', severity: 'CRITICAL', count: 11 }, { type: 'VEHICLE_BREAKDOWN', severity: 'MAJOR', count: 1 }];
+  const detail = { id: 'major', tripId: 7, routeName: null, vehiclePlateNumber: null, driverName: null, type: 'VEHICLE_BREAKDOWN', severity: 'MAJOR', occurredAt: result.generatedAt, status: 'OPEN' as const, detail: 'Nhóm khác' };
+  result.incidentDetails = [detail, ...Array.from({ length: 11 }, (_, i) => ({ ...detail, id: `critical-${i}`, severity: 'CRITICAL', occurredAt: `2026-10-06T18:${String(i).padStart(2, '0')}:00Z`, detail: `Nội dung ${i}` }))];
+  vi.mocked(fetchOperationalReportDetail).mockResolvedValueOnce(result);
+  const page = render();
+  await flushPromises();
+  await page.findAll('.report-incident-details-button')[0]!.trigger('click');
+  let dialog = page.get('dialog.report-incident-details');
+  expect(dialog.findAll('.report-incident-entry')).toHaveLength(10);
+  expect(dialog.findAll('.report-incident-entry')[0]!.text()).toContain('Nội dung 10');
+  expect(dialog.text()).not.toContain('Nhóm khác');
+  expect(dialog.text()).toContain('Chưa có tên tuyến');
+  expect(dialog.text()).toContain('Chưa có xe');
+  expect(dialog.text()).toContain('Chưa phân công');
+  expect(dialog.text()).toContain('08/09/2026 – 07/10/2026');
+  expect(dialog.text()).toContain('Tất cả xe · Tất cả tài xế');
+  await dialog.findAll('.pagination-controls button')[1]!.trigger('click');
+  expect(dialog.findAll('.report-incident-entry')).toHaveLength(1);
+  expect(dialog.text()).toContain('Nội dung 0');
+  await dialog.get('[aria-label="Đóng chi tiết sự cố"]').trigger('click');
+  await page.findAll('.report-incident-details-button')[1]!.trigger('click');
+  dialog = page.get('dialog.report-incident-details');
+  expect(dialog.findAll('.report-incident-entry')).toHaveLength(1);
+  expect(dialog.text()).toContain('Nhóm khác');
+  expect(dialog.text()).not.toContain('Nội dung 10');
+  await dialog.get('[aria-label="Đóng chi tiết sự cố"]').trigger('click');
+  await page.findAll('.report-incident-details-button')[0]!.trigger('click');
+  expect(page.findAll('.report-incident-entry')).toHaveLength(10);
+  await page.get('.reports-refresh').trigger('click');
+  await flushPromises();
+  expect(page.find('dialog.report-incident-details').exists()).toBe(false);
 });

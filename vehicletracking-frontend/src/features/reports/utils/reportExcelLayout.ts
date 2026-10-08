@@ -73,29 +73,30 @@ export function reportExcelFeatures(layouts: (ReportSheetLayout | null)[]): Feat
       },
     },
     'xl/worksheets/sheet{id}.xml': {
-    transform(xml, _options, { sheetIndex }) {
-      const order = getOrderOfSiblings('xl/worksheets/sheet{id}.xml', 'worksheet')!;
-      const put = (name: string, markup: string) => {
-        const existing = findElement(xml, name);
-        xml = existing ? replaceElement(xml, existing, markup)
-          : insertElementMarkupAccordingToOrderOfSiblings(xml, markup, order, 'worksheet');
-      };
-      put('sheetPr', '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
-      const layout = layouts[sheetIndex];
-      const setup = findElement(xml, 'pageSetup');
-      put('pageSetup', getSelfClosingTagMarkup('pageSetup', {
-        ...setup?.openingTagAttributes, orientation: 'landscape', paperSize: 9, fitToWidth: 1, fitToHeight: layout ? 0 : 1,
-      }));
-      if (!layout || layout.lastDataRow <= layout.headerRow) return xml;
-      const range = `${getCellAddress(layout.headerRow - 1, 0)}:${getCellAddress(layout.lastDataRow - 1, layout.columnCount - 1)}`;
-      put('autoFilter', getSelfClosingTagMarkup('autoFilter', { ref: range }));
-      for (const [index, bar] of (layout.bars ?? []).entries()) {
-        const cells = `${getCellAddress(layout.headerRow, bar.column)}:${getCellAddress(layout.lastDataRow - 1, bar.column)}`;
-        const upper = bar.max == null ? '<cfvo type="max"/>' : `<cfvo type="num" val="${bar.max}"/>`;
-        const markup = `<conditionalFormatting sqref="${cells}"><cfRule type="dataBar" priority="${index + 1}"><dataBar showValue="1"><cfvo type="num" val="0"/>${upper}<color rgb="FF${bar.color}"/></dataBar></cfRule></conditionalFormatting>`;
-        xml = insertElementMarkupAccordingToOrderOfSiblings(xml, markup, order, 'worksheet');
-      }
-      return xml;
+      transform(xml, _options, { sheetIndex }) {
+        const order = getOrderOfSiblings('xl/worksheets/sheet{id}.xml', 'worksheet')!;
+        const put = (name: string, markup: string) => {
+          const existing = findElement(xml, name);
+          xml = existing ? replaceElement(xml, existing, markup)
+            : insertElementMarkupAccordingToOrderOfSiblings(xml, markup, order, 'worksheet');
+        };
+        put('sheetPr', '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
+        const layout = layouts[sheetIndex];
+        const setup = findElement(xml, 'pageSetup');
+        put('pageSetup', getSelfClosingTagMarkup('pageSetup', {
+          ...setup?.openingTagAttributes, orientation: 'landscape', paperSize: 9, fitToWidth: 1, fitToHeight: layout ? 0 : 1,
+        }));
+        if (!layout || layout.lastDataRow <= layout.headerRow) return xml;
+        const range = `${getCellAddress(layout.headerRow - 1, 0)}:${getCellAddress(layout.lastDataRow - 1, layout.columnCount - 1)}`;
+        put('autoFilter', getSelfClosingTagMarkup('autoFilter', { ref: range }));
+        for (const [index, bar] of (layout.bars ?? []).entries()) {
+          const cells = `${getCellAddress(layout.headerRow, bar.column)}:${getCellAddress(layout.lastDataRow - 1, bar.column)}`;
+          const upper = bar.max == null ? '<cfvo type="max"/>' : `<cfvo type="num" val="${bar.max}"/>`;
+          const markup = `<conditionalFormatting sqref="${cells}"><cfRule type="dataBar" priority="${index + 1}"><dataBar showValue="1" minLength="0" maxLength="100"><cfvo type="num" val="0"/>${upper}<color rgb="FF${bar.color}"/></dataBar></cfRule></conditionalFormatting>`;
+          xml = insertElementMarkupAccordingToOrderOfSiblings(xml, markup, order, 'worksheet');
+        }
+        return xml;
+      },
     },
-  } } } };
+  } } };
 }

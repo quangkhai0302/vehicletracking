@@ -75,13 +75,32 @@ try {
           assert.equal(await page.locator('dialog.employee-occupancy-trip').count(), 0);
           assert.equal(await page.locator('.report-occupancy-detail-button').first().evaluate((button) => document.activeElement === button), true, 'Focus returns to the trip opener');
         }
-        if (id === 'drivers') {
+        if (id === 'incidents') {
+          assert.equal(await page.locator('.report-incidents-table').count(), 0);
           const beforeOpen = reportRequestCount;
-          const opener = page.locator('.report-driver-trips-button').first();
+          const opener = page.locator('.report-incident-details-button').first();
           await opener.click();
-          const dialog = page.locator('dialog.driver-report-trips');
+          const dialog = page.locator('dialog.report-incident-details');
           await dialog.waitFor();
-          assert.equal(await dialog.locator('.driver-report-trip').count(), 4);
+          assert.equal(await dialog.locator('.report-incident-entry').count(), 1);
+          assert.match(await dialog.innerText(), /Chuyến #100/);
+          assert.match(await dialog.innerText(), /Đã ghi nhận/);
+          assert.equal(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth), true);
+          const box = await dialog.boundingBox();
+          assert(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1);
+          await page.screenshot({ path: `${output}/reports-incident-details-${width}.png`, fullPage: true });
+          await page.keyboard.press('Escape');
+          await dialog.waitFor({ state: 'detached' });
+          assert.equal(await opener.evaluate(el => el === document.activeElement), true);
+          assert.equal(reportRequestCount, beforeOpen);
+        }
+        if (id === 'drivers' || id === 'vehicles') {
+          const beforeOpen = reportRequestCount;
+          const opener = page.locator(id === 'vehicles' ? '.report-vehicle-trips-button' : '.report-driver-trips-button').first();
+          await opener.click();
+          const dialog = page.locator('dialog.report-resource-trips');
+          await dialog.waitFor();
+          assert.equal(await dialog.locator('.report-resource-trip').count(), 4);
           assert.match(await dialog.innerText(), /Chuyến #100/);
           assert.match(await dialog.innerText(), /Bến Thành → Suối Tiên/);
           assert.match(await dialog.innerText(), /Hoàn thành/);
@@ -90,11 +109,12 @@ try {
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
           const box = await dialog.boundingBox();
           assert(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1);
-          await page.screenshot({ path: `${output}/reports-driver-trips-${width}.png`, fullPage: true });
+          if (id === 'vehicles') assert.match(await dialog.innerText(), /Tài xế: Nguyễn Văn An/);
+          await page.screenshot({ path: `${output}/reports-${id}-trips-${width}.png`, fullPage: true });
           await page.keyboard.press('Escape');
           await dialog.waitFor({ state: 'detached' });
           assert.equal(await opener.evaluate(el => el === document.activeElement), true, 'Closing details restores focus');
-          assert.equal(reportRequestCount, beforeOpen, 'Opening driver details uses the current report snapshot');
+          assert.equal(reportRequestCount, beforeOpen, 'Opening resource details uses the current report snapshot');
         }
       }
       await page.getByRole('tab', { name: 'Sự cố', exact: true }).focus();

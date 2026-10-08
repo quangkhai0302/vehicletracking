@@ -32,6 +32,17 @@ export interface OperationalReportVehicleRow {
   lateStopCount: number;
   incidentCount: number;
   employeePassengerCount: number | null;
+  trips?: OperationalReportVehicleTrip[];
+}
+
+export interface OperationalReportVehicleTrip {
+  tripId: number;
+  routeName: string | null;
+  driverName: string | null;
+  scheduledDepartureAt: string;
+  startedAt: string;
+  endedAt: string | null;
+  status: TripStatus;
 }
 
 export interface OperationalReportDriverRow {

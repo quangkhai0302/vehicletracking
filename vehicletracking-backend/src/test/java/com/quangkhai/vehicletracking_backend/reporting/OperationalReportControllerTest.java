@@ -5,6 +5,8 @@ import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportResp
 import com.quangkhai.vehicletracking_backend.reporting.dto.EmployeeOccupancySummary;
 import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportDriverRow;
 import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportDriverTrip;
+import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportVehicleRow;
+import com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportVehicleTrip;
 import com.quangkhai.vehicletracking_backend.trip.entity.TripStatus;
 import com.quangkhai.vehicletracking_backend.reporting.service.OperationalReportService;
 import com.quangkhai.vehicletracking_backend.reporting.service.OperationalReportDetailService;
@@ -56,7 +58,10 @@ class OperationalReportControllerTest {
         when(detailService.detail(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 21), null, null))
                 .thenReturn(new com.quangkhai.vehicletracking_backend.reporting.dto.OperationalReportDetailResponse(
                         summary.from(), summary.to(), summary.generatedAt(), summary,
-                        List.of(), List.of(new OperationalReportDriverRow(3L, "Tài xế A", 1, 0, 0, 0, 0, null,
+                        List.of(new OperationalReportVehicleRow(5L, "51B12345", "Xe trường học", 1, 0, 0, 0, 0, null,
+                                List.of(new OperationalReportVehicleTrip(7L, "Tuyến trường học", "Tài xế A",
+                                        summary.generatedAt(), summary.generatedAt(), null, TripStatus.IN_PROGRESS)))),
+                        List.of(new OperationalReportDriverRow(3L, "Tài xế A", 1, 0, 0, 0, 0, null,
                                 List.of(new OperationalReportDriverTrip(7L, "Tuyến trường học", "51B12345",
                                         summary.generatedAt(), summary.generatedAt(), null, TripStatus.IN_PROGRESS)))),
                         List.of(), List.of(), false,
@@ -69,7 +74,14 @@ class OperationalReportControllerTest {
                         .param("to", "2026-09-21"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summary.tripCount").value(2))
-                .andExpect(jsonPath("$.vehicles").isArray())
+                .andExpect(jsonPath("$.vehicles[0].vehicleId").value(5))
+                .andExpect(jsonPath("$.vehicles[0].trips[0].tripId").value(7))
+                .andExpect(jsonPath("$.vehicles[0].trips[0].routeName").value("Tuyến trường học"))
+                .andExpect(jsonPath("$.vehicles[0].trips[0].driverName").value("Tài xế A"))
+                .andExpect(jsonPath("$.vehicles[0].trips[0].scheduledDepartureAt").value("2026-09-21T08:00:00Z"))
+                .andExpect(jsonPath("$.vehicles[0].trips[0].startedAt").value("2026-09-21T08:00:00Z"))
+                .andExpect(jsonPath("$.vehicles[0].trips[0].endedAt").isEmpty())
+                .andExpect(jsonPath("$.vehicles[0].trips[0].status").value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.drivers[0].trips[0].tripId").value(7))
                 .andExpect(jsonPath("$.drivers[0].trips[0].routeName").value("Tuyến trường học"))
                 .andExpect(jsonPath("$.drivers[0].trips[0].vehiclePlateNumber").value("51B12345"))

@@ -1,5 +1,7 @@
 package com.quangkhai.vehicletracking_backend.reporting.dto;
 
+import java.util.List;
+
 /** A vehicle-level breakdown for the selected operational report window. */
 public record OperationalReportVehicleRow(
         Long vehicleId,
@@ -10,5 +12,6 @@ public record OperationalReportVehicleRow(
         long lateTripCount,
         long lateStopCount,
         long incidentCount,
-        Long employeePassengerCount) {
+        Long employeePassengerCount,
+        List<OperationalReportVehicleTrip> trips) {
 }

@@ -1,0 +1,55 @@
+.report-workspace .report-resource-trips-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 5px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: #087fa7;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.report-workspace .report-resource-trips-button:hover { text-decoration: underline; }
+.business-ui .business-side-panel.report-resource-trips {
+  width: min(780px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: min(860px, calc(100dvh - 32px));
+}
+.report-resource-trips-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.report-resource-trips-heading > div { min-width: 0; }
+.report-resource-trips-heading p { margin: 0 0 8px; color: #0784ad; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; }
+.report-resource-trips-heading h2 { margin: 0 0 9px; color: #18334b; font-size: 21px; overflow-wrap: anywhere; }
+.report-resource-trips-heading span { font-size: 12px; color: #60758b; }
+.report-resource-trips-heading button { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; border: 1px solid #dce7f0; border-radius: 8px; color: #536b80; background: #f7fafc; cursor: pointer; }
+.report-resource-trips-scope { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 24px; border-bottom: 1px solid #e0e8f0; background: #f8fbfd; flex-shrink: 0; }
+.report-resource-trips-scope > span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #3a617a; }
+.report-resource-trips-scope small { color: #60758b; font-size: 11px; }
+.report-resource-trips-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 24px; }
+.report-resource-trip-list { display: grid; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.report-resource-trip { padding: 16px; border: 1px solid #dfe8f1; border-radius: 10px; background: #fff; }
+.report-resource-trip-heading { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.report-resource-trip-heading > div { min-width: 0; }
+.report-resource-trip-heading h3 { margin: 0; color: #18334b; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.report-resource-trip-heading p { margin: 5px 0 0; color: #60758b; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.report-resource-trip-status { padding: 4px 8px; border-radius: 6px; background: #edf4fa; color: #41627c; font-size: 11px; white-space: nowrap; }
+.report-resource-trip-status.is-completed { background: #e9f9f2; color: #087b54; }
+.report-resource-trip-status.is-in_progress { background: #e9f6fe; color: #087fa7; }
+.report-resource-trip-status.is-cancelled { background: #fff0f2; color: #ac3d50; }
+.report-resource-trip-times { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid #edf1f6; }
+.report-resource-trip-times dt { color: #728499; font-size: 11px; }
+.report-resource-trip-times dd { margin: 5px 0 0; color: #35516a; font-size: 12px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.report-resource-trips .pagination-controls { flex-shrink: 0; padding: 14px 24px; }
+.report-resource-trips-empty { margin: 16px 0; color: #60758b; font-size: 13px; line-height: 1.7; }
+@media (max-width: 520px) {
+  .business-ui .business-side-panel.report-resource-trips { width: calc(100vw - 20px); max-width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
+  .business-ui .report-resource-trips .report-resource-trips-heading { padding: 18px 16px; }
+  .report-resource-trips-heading h2 { font-size: 18px; }
+  .report-resource-trips-scope, .report-resource-trips-body, .report-resource-trips .pagination-controls { padding: 14px 16px; }
+  .report-resource-trip { padding: 13px; }
+  .report-resource-trip-heading { flex-direction: column; gap: 8px; }
+  .report-resource-trip-times { grid-template-columns: 1fr; gap: 9px; }
+  .report-resource-trip-times > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .report-resource-trip-times dd { margin: 0; text-align: right; }
+}
