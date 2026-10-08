@@ -18,6 +18,7 @@ import {
 import { RouterLink } from 'vue-router';
 import { useDriverNavigation } from '@/features/fleet/composables/useDriverNavigation';
 import DriverNavigationMap from './DriverNavigationMap.vue';
+import { createIncidentRequestKey } from '@/features/simulation/utils/incidentRequestKey';
 import SimulationIncidentDialog from '@/features/simulation/components/SimulationIncidentDialog.vue';
 import { TRIP_STATUS_LABELS, vehicleTypeLabel } from '@/features/fleet/types/fleet';
 import {
@@ -44,7 +45,7 @@ const canReportIncident = computed(() => {
     navigation.connected && !navigation.busy;
 });
 function openIncidentDialog() {
-  incidentIdempotencyKey.value = crypto.randomUUID();
+  incidentIdempotencyKey.value = createIncidentRequestKey();
   incidentDialog.value = true;
 }
 async function submitIncident(input: { type: 'VEHICLE_BREAKDOWN' | 'EMERGENCY_STOP' | 'ROAD_BLOCKED' | 'OTHER'; severity: 'MAJOR' | 'CRITICAL'; detail: string }) {

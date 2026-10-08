@@ -191,3 +191,35 @@ test('shows scoped speed, progress, station ETA and actual check-in counts', asy
   expect(wrapper.text()).toContain('0/2 trạm đã check-in');
   expect(wrapper.findAll('.driver-trip-stops li').map(x => x.attributes('data-state'))).toEqual(['pending', 'next']);
 });
+
+test('opens incident reporting without randomUUID and reuses the request key when retrying', async () => {
+  const webCrypto = globalThis.crypto;
+  const showModal = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
+  const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close');
+  vi.stubGlobal('crypto', { getRandomValues: (bytes: Uint8Array<ArrayBuffer>) => webCrypto.getRandomValues(bytes) });
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value() {} });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value() {} });
+  try {
+    vi.mocked(api.fetchDriverNavigation).mockResolvedValue(driverSnapshot('IN_PROGRESS'));
+    vi.mocked(incidentApi.reportDriverSimulationIncident).mockRejectedValueOnce(new Error('Mất kết nối'));
+    const wrapper = component(); await flushPromises();
+    await wrapper.get('.driver-incident-report-button').trigger('click');
+    expect(wrapper.get('dialog h2').text()).toBe('Ghi nhận sự cố mô phỏng');
+    await wrapper.get('dialog textarea').setValue('Xe cần kiểm tra kỹ thuật');
+    await wrapper.get('dialog form').trigger('submit'); await flushPromises();
+    expect(wrapper.find('dialog').exists()).toBe(true);
+    const firstKey = vi.mocked(incidentApi.reportDriverSimulationIncident).mock.calls[0]![1].idempotencyKey;
+    expect(firstKey).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    await wrapper.get('dialog form').trigger('submit'); await flushPromises();
+    expect(incidentApi.reportDriverSimulationIncident).toHaveBeenLastCalledWith(7, expect.objectContaining({
+      idempotencyKey: firstKey, detail: 'Xe cần kiểm tra kỹ thuật', type: 'VEHICLE_BREAKDOWN', severity: 'MAJOR', attemptNumber: 1,
+    }), expect.any(AbortSignal));
+    expect(wrapper.find('dialog').exists()).toBe(false);
+  } finally {
+    vi.unstubAllGlobals();
+    if (showModal) Object.defineProperty(HTMLDialogElement.prototype, 'showModal', showModal);
+    else Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
+    if (close) Object.defineProperty(HTMLDialogElement.prototype, 'close', close);
+    else Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
+  }
+});
